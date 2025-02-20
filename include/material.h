@@ -7,15 +7,15 @@
 class Material {
 public:
     struct ScatterRecord {
-        glm::vec3 attenuation;
+        vec3 attenuation;
         Ray ray;
     };
 
 
-    glm::vec3 color;
-    // glm::vec3 ambient = glm::vec3(0.0);
-    // glm::vec3 diffuse = glm::vec3(1.0);
-    // glm::vec3 specular = glm::vec3(0.0);
+    vec3 color;
+    // vec3 ambient = vec3(0.0);
+    // vec3 diffuse = vec3(1.0);
+    // vec3 specular = vec3(0.0);
     // float shininess = 0.0;
 
     virtual std::optional<ScatterRecord> scatter(const Ray& r_in, const HitRecord& rec) const {
@@ -25,10 +25,10 @@ public:
 
 class Lambertian : public Material {
 public:
-    Lambertian(const glm::vec3& albedo) : albedo(albedo) {}
+    Lambertian(const vec3& albedo) : albedo(albedo) {}
 
     std::optional<ScatterRecord> scatter(const Ray& r_in, const HitRecord& rec) const override {
-        // glm::vec3 scatter_dir;
+        // vec3 scatter_dir;
         // do {
         //     scatter_dir = rec.normal + random_unit_vector();
         // } while (near_zero(scatter_dir)); // Catch degenerate scatter direction
@@ -44,15 +44,15 @@ public:
     }
 
 private:
-    glm::vec3 albedo;
+    vec3 albedo;
 };
 
 class Metal : public Material {
 public:
-    Metal(const glm::vec3& albedo) : albedo(albedo) {}
+    Metal(const vec3& albedo) : albedo(albedo) {}
 
     std::optional<ScatterRecord> scatter(const Ray& r_in, const HitRecord& rec) const override {
-        glm::vec3 reflected = glm::reflect(r_in.direction, rec.normal);
+        vec3 reflected = glm::reflect(r_in.direction, rec.normal);
         reflected = glm::normalize(reflected) + (fuzz * random_unit_vector());
 
         if (glm::dot(scattered.direction(), rec.normal) > 0) {
@@ -63,7 +63,7 @@ public:
         }
     }
 private:
-    glm::vec3 albedo;
+    vec3 albedo;
     float fuzz;
 };
 
@@ -81,7 +81,7 @@ class Dielectric : public material {
         bool cannot_refract = ri * sin_theta > 1.0;
 
         return ScatterRecord {
-            .attenuation = glm::vec3(1.0),
+            .attenuation = vec3(1.0),
             .ray = Ray(rec.p, cannot_refract
                 ? glm::reflect(r_in.direction(), rec.normal)
                 : glm::refract(r_in.direction(), rec.normal, ri)

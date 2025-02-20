@@ -9,15 +9,15 @@
 class Camera {
 public:
     struct CameraSettings {
-        float  aspect_ratio      = 1.0;  // Ratio of image width over height
-        size_t image_width       = 100;  // Rendered image width in pixel count
-        size_t image_height      = 100;  // Rendered image height in pixel count
-        size_t samples_per_pixel = 10;   // Count of random samples for each pixel
-        size_t max_depth         = 10;   // Maximum number of ray bounces into scene
-        float vertical_fov       = 90;   // Vertical view angle (field of view)
-        glm::vec3 lookfrom       = glm::vec3(0);         // Point camera is looking from
-        glm::vec3 lookat         = glm::vec3(0, 0, -1);  // Point camera is looking at
-        glm::vec3 vup            = glm::vec3(0, 1, 0);   // Camera-relative "up" direction
+        float  aspect_ratio      = 1.0;             // Ratio of image width over height
+        size_t image_width       = 100;             // Rendered image width in pixel count
+        size_t image_height      = 100;             // Rendered image height in pixel count
+        size_t samples_per_pixel = 10;              // Count of random samples for each pixel
+        size_t max_depth         = 10;              // Maximum number of ray bounces into scene
+        float vertical_fov       = 90;              // Vertical view angle (field of view)
+        vec3 lookfrom            = vec3(0);         // Point camera is looking from
+        vec3 lookat              = vec3(0, 0, -1);  // Point camera is looking at
+        vec3 vup                 = vec3(0, 1, 0);   // Camera-relative "up" direction
 
         CameraSettings() = default;
         CameraSettings& operator=(const CameraSettings&) = default;
@@ -56,26 +56,28 @@ public:
         pixel00_loc = viewport_upper_left + 0.5f * (pixel_du + pixel_dv);
     }
 
-    void render(Object& world) const {
-        std::cout << "P3\n" << settings.image_width << ' ' << settings.image_height << "\n255\n";
+    // TODO: consider OpenEXR over ppm for saving images
+    // TODO: take Object by shared_ptr
+    void render(Object& world, std::ostream& out=std::cout, std::ostream& log=std::clog) const {
+        out << "P3\n" << settings.image_width << ' ' << settings.image_height << "\n255\n";
 
         for (size_t j = 0; j < settings.image_height; ++j) {
-            std::clog << "\rScanlines remaining: " << (settings.image_height - j) << ' ' << std::flush;
+            log << "\rScanlines remaining: " << (settings.image_height - j) << ' ' << std::flush;
             for (size_t i = 0; i < settings.image_width; ++i) {
                 auto color = sample_rays(world, i, j);
-                write_color(std::cout, color);
+                write_color(out, color);
             }
         }
         std::clog << "\rDone.                 \n";
     }
 private:
     CameraSettings settings;
-    glm::vec3 center;
-    glm::vec3 pixel00_loc;
-    glm::vec3 pixel_du, pixel_dv;
+    vec3 center;
+    vec3 pixel00_loc;
+    vec3 pixel_du, pixel_dv;
 
-    glm::vec3 sample_rays(Object& world, size_t i, size_t j) const {
-        glm::vec3 pixel_color(0);
+    vec3 sample_rays(Object& world, size_t i, size_t j) const {
+        vec3 pixel_color(0);
         for (size_t sample = 0; sample < settings.samples_per_pixel; ++sample) {
             auto r = get_ray(i, j);
             auto c = ray_color(r, world, settings.max_depth);
@@ -92,61 +94,37 @@ private:
         return Ray(center, pixel_sample - center);
     }
 
-    glm::vec3 background_color(const Ray& r) const {
-        float a = 0.5f * (r.direction.y + 1.0f);
-        return glm::mix(glm::vec3(1), glm::vec3(0.5, 0.7, 1.0), a);
+    vec3 background_color(const Ray& r) const {
+        return vec3(1);
+        // float a = 0.5f * (r.direction.y + 1.0f);
+        // return glm::mix(vec3(1), vec3(0.5, 0.7, 1.0), a);
     }
 
-    // TODO: make iterative
-    glm::vec3 ray_color(const Ray& r, Object& world, size_t depth) const {
-        if (depth == 0)
-            return glm::vec3(0);
-
-        static constexpr float eps = 1e-8; // lower bound to avoid self-intersection
-        auto hit = world.intersect(r, {eps, math::inf<float>()});
+    vec3 ray_color(const Ray& r, Object& world, size_t max_depth) const {
+        auto hit = world.intersect(r);
         if (!hit)
             return background_color(r);
 
-        Interval t_range{hit->t_in, hit->t_out};
-        auto trans = hit->object->transmittance(r, t_range);
-        return (1.0f - trans) * hit->object->color;
-        // TODO: recursive call
+        return hit->object->albedo;
     }
 
-    // glm::vec3 ray_color(const Ray& r, const Object& world, size_t depth) const {
-    //     if (depth == 0)
-    //         return glm::vec3(0.0);
+/*
+    vec3 ray_color(Ray r, Object& world, size_t max_depth) const {
+        static constexpr auto ray_origin_offset = 1e-6f;  // Lower bound to avoid self-intersection
 
-    //     auto hit = world.intersect(r, {0.001, math::inf<float>()});
-    //     if (!hit.empty()) {
-    //         const auto& entry_hit = hit[0]; // Entry point of intersection.
-    //         const auto& exit_hit = hit[1];  // Exit point of intersection (assuming two hit for a bounded volume).
+        vec3 acc_optical_depth(0);
+        for (size_t i = 0; i < max_depth; ++i) {
+            auto hit = world.intersect(r);
+            if (!hit)
+                break;
 
-    //         // Compute transmittance along the ray segment inside the object.
-    //         float T = world.transmittance(r, {entry_hit->t, exit_hit->t});
+            Interval t_range(hit->t_in, hit->t_out);
+            acc_optical_depth += hit->object->albedo * hit->object->optical_depth(r, t_range);
+            r.origin += ray_origin_offset * r.direction;
+        }
 
-    //         // Compute the resulting color:
-    //         // - Transmitted background color
-    //         glm::vec3 background_color = glm::mix(glm::vec3(1.0), glm::vec3(0.5, 0.7, 1.0), 0.5f * (r.direction.y + 1.0f));
-
-    //         // - Scattered/absorbed ellipsoid contribution
-    //         glm::vec3 ellipsoid_color = 0.5f * (entry_hit->object->material.color + 1.0f);
-
-    //         // Final blended color using transmittance
-    //         glm::vec3 C_result = T * background_color + (1.0f - T) * ellipsoid_color;
-
-    //         // Recursive reflection/scattering for indirect illumination
-    //         glm::vec3 scattered_dir = random_on_hemisphere(entry_hit->normal);
-    //         // glm::vec3 indirect_color = ray_color(Ray(entry_hit->p, scattered_dir), world, depth - 1);
-    //         return C_result;
-
-    //         // Blend direct and indirect contributions
-    //         // return C_result * 0.5f + indirect_color * 0.5f;
-    //     }
-
-    //     // Background color if no intersection
-    //     float a = 0.5f * (r.direction.y + 1.0f);
-    //     return glm::mix(glm::vec3(1.0), glm::vec3(0.5, 0.7, 1.0), a);
-    // }
-
+        auto final_transmittance = glm::exp(-acc_optical_depth); // exponential decay
+        return final_transmittance * background_color(r);
+    }
+*/
 };

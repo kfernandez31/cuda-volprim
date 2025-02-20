@@ -252,6 +252,11 @@ struct ALIGNED( 16 ) bvhvec4
 	union { struct { float x, y, z, w; }; float cell[4]; };
 };
 
+std::ostream& operator<<(std::ostream& os, const tinybvh::bvhvec4& v) {
+    os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+    return os;
+}
+
 struct ALIGNED( 8 ) bvhvec2
 {
 	bvhvec2() = default;

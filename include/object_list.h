@@ -9,20 +9,21 @@ class ObjectList : public Object {
 public:
     std::vector<std::shared_ptr<Object>> objects;
 
+    ObjectList(const std::vector<std::shared_ptr<Object>>& objs) : objects(objs) {}
+
     ObjectList(std::initializer_list<std::shared_ptr<Object>> objs) : objects(objs) {}
 
-    template <typename... Objs>
-    ObjectList(Objs... objs) : Object(), objects{objs...} {}
+    // template <typename... Objs>
+    // ObjectList(Objs... objs) : objects{objs...} {}
 
-    std::optional<HitRecord> intersect(const Ray& r, const Interval& t_range) override {
-        auto cur_interval = t_range;
+    std::optional<HitRecord> intersect(const Ray& r) override {
         std::optional<HitRecord> result;
+        auto t_closest = math::inf<float>();
 
         for (const auto& obj : objects) {
-            auto hit = obj->intersect(r, cur_interval);
-            auto t_in = hit->t_in;
-            if (hit && t_in < cur_interval.max) {
-                cur_interval.max = t_in;
+            auto hit = obj->intersect(r);
+            if (hit && hit->t_in < t_closest) {
+                t_closest = hit->t_in;
                 result = hit;
             }
         }

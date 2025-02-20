@@ -3,14 +3,21 @@
 #include "math.h"
 
 #include <glm/common.hpp>
+#include <glm/gtc/epsilon.hpp>
 
 template <typename T>
 class interval_impl {
 public:
     T min, max;
 
-    interval_impl() : min(empty.min), max(empty.max) {}
-    interval_impl(T min, T max) : min(std::min(min, max)), max(glm::max(min, max)) {}
+    interval_impl()
+        : min(empty.min), max(empty.max) {}
+
+    interval_impl(T min, T max)
+        : min(std::min(min, max)), max(glm::max(min, max)) {}
+
+    interval_impl(const interval_impl& a, const interval_impl& b)
+        : min(glm::min(a.min, b.min)), max(glm::max(a.max, b.max)) {}
 
     inline size_t size() const {
         return max - min + 1;
@@ -26,6 +33,11 @@ public:
 
     inline bool surrounds(T x) const {
         return min < x && x < max;
+    }
+
+    interval_impl expand(T delta) const {
+        auto padding = delta / 2;
+        return interval_impl(min - padding, max + padding);
     }
 
     interval_impl operator-() const {
@@ -49,12 +61,17 @@ public:
     }
 
     bool operator==(T x) const {
-        return min == x && max == x;
+        constexpr auto eps = 1e-8;
+        return glm::epsilonEqual(min, x, eps) && glm::epsilonEqual(max, x, eps);
     }
 
     static const interval_impl empty;
     static const interval_impl universe;
+    static const interval_impl ahead;
 };
+
+template <typename T>
+const interval_impl<T> interval_impl<T>::ahead(0, math::inf<T>());
 
 template <typename T>
 const interval_impl<T> interval_impl<T>::universe(-math::inf<T>(), math::inf<T>());

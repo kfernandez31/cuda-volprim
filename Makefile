@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX := g++
-CXXFLAGS := -std=c++17 -iquote include -I/opt/homebrew/include -Wall -Wextra -O2 -DGLM_ENABLE_EXPERIMENTAL
+CXXFLAGS := -std=c++17 -iquote include -I/opt/homebrew/include -Wall -Wextra -O3 -DGLM_ENABLE_EXPERIMENTAL
 
 # Directories
 SRC_DIR 	:= src
