@@ -68,7 +68,7 @@ int main() {
     settings.vup               = vec3(0, 1, 0);
 
     auto cam = Camera(settings);
-    cam.render(world);
+    cam.render(world, "out.exr");
 
 /*
     size_t num_frames = 60;

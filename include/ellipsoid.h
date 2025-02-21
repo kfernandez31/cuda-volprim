@@ -27,7 +27,7 @@ protected:
         auto root_1 = c / q;
         auto root_2 = q * a_inv;
 
-        if (root_2 < 0.0f || glm::epsilonEqual(root_1, root_2, 1e-8f)) // TODO: possibly tweak epsilon
+        if (root_2 < 0.0f || glm::epsilonEqual(root_1, root_2, 1e-8f))
             return {};
         return HitRecord(shared_from_this(), glm::max(0.0f, root_1), root_2);
     }

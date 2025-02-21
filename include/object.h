@@ -15,7 +15,7 @@
 #include <optional>
 
 class Object : public std::enable_shared_from_this<Object> {
-// protected:
+// protected: //TODO: use
 public:
     mat4 T, R, S;
     mat4 M, M_for_integrating, M_for_intersecting;
@@ -92,7 +92,6 @@ public:
 
     virtual std::optional<HitRecord> intersect(const Ray& r) = 0;
 
-    // TODO:
     virtual float optical_depth_impl(const Ray& r, const Interval& t_range) const {
         return math::inf<float>();
     }

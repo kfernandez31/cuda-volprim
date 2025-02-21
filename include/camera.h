@@ -1,10 +1,14 @@
 #pragma once
 
 #include "object.h"
-#include "color.h"
 #include "math.h"
 
 #include <glm/common.hpp>
+
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr.h"
+
+static constexpr size_t NUM_CHANNELS = 3;
 
 class Camera {
 public:
@@ -56,25 +60,64 @@ public:
         pixel00_loc = viewport_upper_left + 0.5f * (pixel_du + pixel_dv);
     }
 
-    // TODO: consider OpenEXR over ppm for saving images
-    // TODO: take Object by shared_ptr
-    void render(Object& world, std::ostream& out=std::cout, std::ostream& log=std::clog) const {
-        out << "P3\n" << settings.image_width << ' ' << settings.image_height << "\n255\n";
+    // TODO: consider taking Object by shared_ptr
+
+    void render(Object& world, const std::string& filename) const {
+        std::vector<float> images[NUM_CHANNELS] = {
+            std::vector<float>(settings.image_width * settings.image_height), // R
+            std::vector<float>(settings.image_width * settings.image_height), // G
+            std::vector<float>(settings.image_width * settings.image_height), // B
+        };
 
         for (size_t j = 0; j < settings.image_height; ++j) {
-            log << "\rScanlines remaining: " << (settings.image_height - j) << ' ' << std::flush;
+            std::clog << "\rScanlines remaining: " << (settings.image_height - j) << ' ' << std::flush;
             for (size_t i = 0; i < settings.image_width; ++i) {
                 auto color = sample_rays(world, i, j);
-                write_color(out, color);
+
+                // Store in EXR order (bottom to top)
+                size_t idx = (settings.image_height - 1 - j) * settings.image_width + i;
+                images[0][idx] = color.x;  // R
+                images[1][idx] = color.y;  // G
+                images[2][idx] = color.z;  // B
             }
         }
         std::clog << "\rDone.                 \n";
+
+        save_exr_image(images, settings.image_width, settings.image_height, filename);
     }
+
 private:
     CameraSettings settings;
     vec3 center;
     vec3 pixel00_loc;
     vec3 pixel_du, pixel_dv;
+
+    void save_exr_image(std::vector<float> images[NUM_CHANNELS], int width, int height, const std::string& filename) const {
+        EXRImage image;
+        InitEXRImage(&image);
+
+        float* image_ptrs[NUM_CHANNELS] = { images[2].data(), images[1].data(), images[0].data() }; // Reverse order for EXR
+        image.images = reinterpret_cast<unsigned char**>(image_ptrs);
+        image.width = width;
+        image.height = height;
+        image.num_channels  = NUM_CHANNELS;
+
+        EXRHeader header;
+        InitEXRHeader(&header);
+
+        header.num_channels = NUM_CHANNELS;
+        EXRChannelInfo channels[NUM_CHANNELS]  = { {"B"}, {"G"}, {"R"} };
+        header.channels = channels;
+
+        std::array<int, NUM_CHANNELS> pixel_types;
+        pixel_types.fill(TINYEXR_PIXELTYPE_FLOAT);
+        header.pixel_types = header.requested_pixel_types = pixel_types.data();
+
+        if (const char* err = nullptr; SaveEXRImageToFile(&image, &header, filename.c_str(), &err) != TINYEXR_SUCCESS) {
+            fprintf(stderr, "Error saving EXR: %s\n", err);
+            FreeEXRErrorMessage(err);
+        }
+    }
 
     vec3 sample_rays(Object& world, size_t i, size_t j) const {
         vec3 pixel_color(0);
