@@ -71,6 +71,8 @@ License (MIT):
 #include <variant>
 #endif
 
+#define DBG_MACRO_CONTAINER_CUTOFF_LEN 10
+
 namespace dbg {
 
 inline bool isColorizedOutputEnabled() {
@@ -776,7 +778,7 @@ inline typename std::enable_if<detail::is_container<const Container&>::value,
 pretty_print(std::ostream& stream, const Container& value) {
   stream << "{";
   const size_t size = detail::size(value);
-  const size_t n = std::min(size_t{10}, size);
+  const size_t n = std::min(size_t{DBG_MACRO_CONTAINER_CUTOFF_LEN}, size);
   size_t i = 0;
   using std::begin;
   using std::end;
@@ -803,7 +805,7 @@ inline typename std::enable_if<
 pretty_print(std::ostream& stream, ContainerAdapter value) {
   stream << "{";
   const size_t size = detail::size(value);
-  const size_t n = std::min(size_t{10}, size);
+  const size_t n = std::min(size_t{DBG_MACRO_CONTAINER_CUTOFF_LEN}, size);
 
   std::vector<typename ContainerAdapter::value_type> elements;
   elements.reserve(n);

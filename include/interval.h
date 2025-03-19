@@ -60,9 +60,18 @@ public:
         return min >= x;
     }
 
+    std::ostream& operator<<(std::ostream& os) {
+        os << "[" << min << ", " << max << "]";
+        return os;
+    }
+
+    bool operator==(const interval_impl<T>& other) const {
+        constexpr T eps(1e-8);
+        return glm::epsilonEqual(min, other.min, eps) && glm::epsilonEqual(max, other.max, eps);
+    }
+
     bool operator==(T x) const {
-        constexpr auto eps = 1e-8;
-        return glm::epsilonEqual(min, x, eps) && glm::epsilonEqual(max, x, eps);
+        return this == interval_impl<T>(x, x);
     }
 
     static const interval_impl empty;

@@ -1,12 +1,21 @@
 #pragma once
 
-#include "object.h"
+#include "environment_map.h"
+#include "object_list.h"
 #include "math.h"
+
+#include <omp.h>
 
 #include <glm/common.hpp>
 
 #define TINYEXR_IMPLEMENTATION
 #include "tinyexr.h"
+
+#include <array>
+#include <vector>
+#include <unordered_set>
+
+#pragma omp declare reduction(+: glm::vec3 : omp_out += omp_in) initializer(omp_priv = glm::vec3(0))
 
 static constexpr size_t NUM_CHANNELS = 3;
 
@@ -18,10 +27,10 @@ public:
         size_t image_height      = 100;             // Rendered image height in pixel count
         size_t samples_per_pixel = 10;              // Count of random samples for each pixel
         size_t max_depth         = 10;              // Maximum number of ray bounces into scene
-        float vertical_fov       = 90;              // Vertical view angle (field of view)
-        vec3 lookfrom            = vec3(0);         // Point camera is looking from
-        vec3 lookat              = vec3(0, 0, -1);  // Point camera is looking at
-        vec3 vup                 = vec3(0, 1, 0);   // Camera-relative "up" direction
+        float  vertical_fov      = 90;              // Vertical view angle (field of view)
+        vec3   lookfrom          = vec3(0);         // Point camera is looking from
+        vec3   lookat            = vec3(0, 0, -1);  // Point camera is looking at
+        vec3   vup               = vec3(0, 1, 0);   // Camera-relative "up" direction
 
         CameraSettings() = default;
         CameraSettings& operator=(const CameraSettings&) = default;
@@ -32,9 +41,10 @@ public:
         }
     };
 
-    Camera(const CameraSettings& _settings)
+    Camera(const CameraSettings& _settings, const std::string& env_map_path)
         : settings(_settings)
         , center(settings.lookfrom)
+        , env_map(env_map_path)
     {
         // Determine viewport dimensions.
         const auto focal_length = glm::length(settings.lookfrom - settings.lookat);
@@ -60,9 +70,7 @@ public:
         pixel00_loc = viewport_upper_left + 0.5f * (pixel_du + pixel_dv);
     }
 
-    // TODO: consider taking Object by shared_ptr
-
-    void render(Object& world, const std::string& filename) const {
+    void render(ObjectList& world, const std::string& filename) const {
         std::vector<float> images[NUM_CHANNELS] = {
             std::vector<float>(settings.image_width * settings.image_height), // R
             std::vector<float>(settings.image_width * settings.image_height), // G
@@ -91,6 +99,7 @@ private:
     vec3 center;
     vec3 pixel00_loc;
     vec3 pixel_du, pixel_dv;
+    EnvironmentMap env_map;
 
     void save_exr_image(std::vector<float> images[NUM_CHANNELS], int width, int height, const std::string& filename) const {
         EXRImage image;
@@ -100,13 +109,17 @@ private:
         image.images = reinterpret_cast<unsigned char**>(image_ptrs);
         image.width = width;
         image.height = height;
-        image.num_channels  = NUM_CHANNELS;
+        image.num_channels = NUM_CHANNELS;
 
         EXRHeader header;
         InitEXRHeader(&header);
 
         header.num_channels = NUM_CHANNELS;
-        EXRChannelInfo channels[NUM_CHANNELS]  = { {"B"}, {"G"}, {"R"} };
+        EXRChannelInfo channels[NUM_CHANNELS] = {
+            { "B", TINYEXR_PIXELTYPE_FLOAT, 1, 1, 0, {0} },
+            { "G", TINYEXR_PIXELTYPE_FLOAT, 1, 1, 0, {0} },
+            { "R", TINYEXR_PIXELTYPE_FLOAT, 1, 1, 0, {0} },
+        };
         header.channels = channels;
 
         std::array<int, NUM_CHANNELS> pixel_types;
@@ -119,9 +132,10 @@ private:
         }
     }
 
-    vec3 sample_rays(Object& world, size_t i, size_t j) const {
+    vec3 sample_rays(ObjectList& world, size_t i, size_t j) const {
         vec3 pixel_color(0);
-        for (size_t sample = 0; sample < settings.samples_per_pixel; ++sample) {
+        // #pragma omp parallel for reduction(+:pixel_color)
+        for (size_t _ = 0; _ < settings.samples_per_pixel; ++_) {
             auto r = get_ray(i, j);
             auto c = ray_color(r, world, settings.max_depth);
             pixel_color += c;
@@ -137,37 +151,97 @@ private:
         return Ray(center, pixel_sample - center);
     }
 
-    vec3 background_color(const Ray& r) const {
-        return vec3(1);
-        // float a = 0.5f * (r.direction.y + 1.0f);
-        // return glm::mix(vec3(1), vec3(0.5, 0.7, 1.0), a);
+    inline vec3 background_color(const Ray& r) const {
+        return env_map.sample(r.direction);
     }
 
-    vec3 ray_color(const Ray& r, Object& world, size_t max_depth) const {
-        auto hit = world.intersect(r);
-        if (!hit)
-            return background_color(r);
+    struct Event {
+        float t;
+        size_t index;
+        bool pos;
 
-        return hit->object->albedo;
+        inline bool operator<(const Event& other) const {
+            return t < other.t || (t == other.t && pos < other.pos);
+        }
+    };
+
+    static std::vector<std::pair<Interval, std::vector<size_t>>> get_interval_overlaps(const std::vector<Interval>& input) {
+        const auto N = input.size();
+        if (N == 0)
+            return {};
+
+        std::vector<Event> events;
+        events.reserve(2 * N);
+
+        // Step 0: Split intervals into events
+        for (size_t i = 0; i < N; ++i)
+            events.insert(events.end(), {{input[i].min, i, 0}, {input[i].max, i, 1}});
+
+        // Step 1: Sort events
+        std::sort(events.begin(), events.end());
+
+        std::vector<std::pair<Interval, std::vector<size_t>>> result;
+        result.reserve(2 * N);
+
+        std::unordered_set<size_t> active;
+
+        auto t_prev = events.front().t;
+
+        // Step 2: Sweep through events
+        for (size_t i = 0; i < 2 * N; ++i) {
+            auto t_cur = events[i].t;
+
+            if (!active.empty() && t_prev != t_cur)
+                result.push_back({{t_prev, t_cur}, std::vector<size_t>(active.begin(), active.end())});
+
+            if (events[i].pos == 0)
+                active.insert(events[i].index);
+            else
+                active.erase(events[i].index);
+
+            t_prev = t_cur;
+        }
+
+        return result;
     }
 
-/*
-    vec3 ray_color(Ray r, Object& world, size_t max_depth) const {
-        static constexpr auto ray_origin_offset = 1e-6f;  // Lower bound to avoid self-intersection
+    vec3 ray_color(Ray r, ObjectList& world, size_t max_depth) const {
+        size_t num_primitives = Object::nextId.load();
+        std::vector<Interval> intervals;
+        std::vector<std::shared_ptr<Object>> primitives;
+        std::vector<Ray> rays;
 
-        vec3 acc_optical_depth(0);
-        for (size_t i = 0; i < max_depth; ++i) {
-            auto hit = world.intersect(r);
+        intervals.reserve(num_primitives);
+        primitives.reserve(num_primitives);
+        rays.reserve(num_primitives);
+
+        std::unordered_set<ObjectId> prims_hit;
+        std::optional<HitRecord> hit;
+        float t_min = 0.0f;
+        // March the ray along the scene, collecting primitives along the way
+        for (size_t i = 0; i < max_depth; ++i, r.march_by(hit->t_in)) {
+            hit = world.intersect(r, t_min, prims_hit);
             if (!hit)
                 break;
 
-            Interval t_range(hit->t_in, hit->t_out);
-            acc_optical_depth += hit->object->albedo * hit->object->optical_depth(r, t_range);
-            r.origin += ray_origin_offset * r.direction;
+            // collected a new primitive
+            prims_hit.insert(hit->object->id);
+            intervals.emplace_back(hit->t_in, hit->t_out);
+            primitives.push_back(hit->object);
+            rays.push_back(r); // this may be suboptimal
+        }
+
+        auto overlaps = get_interval_overlaps(intervals);
+        vec3 acc_optical_depth(0);
+        for (const auto& [interval, indices] : overlaps) {
+            for (auto idx : indices) {
+                const auto& prim = primitives[idx];
+                const auto& ray = rays[idx];
+                acc_optical_depth += prim->albedo * prim->density_integral(ray, interval);
+            }
         }
 
         auto final_transmittance = glm::exp(-acc_optical_depth); // exponential decay
         return final_transmittance * background_color(r);
     }
-*/
 };

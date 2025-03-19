@@ -5,7 +5,7 @@
 class Flat : public Object {
 public:
     Flat(const vec3& Q, const vec3& u, const vec3& v)
-        : Q(Q), u(u), v(v)
+        : Q(Q), u(u), v(v) // TODO: all matrices identity
     {
         auto n = glm::cross(u, v);
         auto n_length_invsqrt = glm::inversesqrt(glm::length2(n));
@@ -15,13 +15,13 @@ public:
         bbox = AABB({Q, Q + u + v}, {Q + u, Q + v});
     }
 
-    std::optional<HitRecord> intersect(const Ray& r) override {
+    std::optional<HitRecord> intersect(const Ray& r, float t_min) override {
         auto denom = glm::dot(normal, r.direction);
         if (glm::epsilonEqual(denom, 0.0f, 1e-8f))
             return {};
 
         auto t = (D - glm::dot(normal, r.origin)) / denom;
-        if (t < 0.0f)
+        if (t < t_min)
             return {};
 
         // Determine if hit point lies within the planar shape using its plane coordinates.

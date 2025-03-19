@@ -7,7 +7,7 @@ public:
     using Ellipsoid::Ellipsoid;
 
     Sphere(const vec3& _albedo, float _optical_depth_scale, const vec3& _center, float _radius)
-        : Ellipsoid(_albedo, _optical_depth_scale, _center, vec3(_radius)) {}
+        : Ellipsoid(_albedo, _optical_depth_scale, _center, Object::NoRotation, vec3(_radius)) {}
 
     // TODO: what does this do? Should I use it?
     static void get_sphere_uv(const vec3& p, float& u, float& v) {

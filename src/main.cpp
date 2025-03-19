@@ -12,25 +12,25 @@
 #include <fstream>
 #include <sstream>
 
-vec4 bvhTriangleToVec4(const BvhTriangle& tri) {
-    return {tri.x, tri.y, tri.z, 0};
-}
+// vec4 bvhTriangleToVec4(const BvhTriangle& tri) {
+//     return {tri.x, tri.y, tri.z, 0};
+// }
 
-std::vector<std::shared_ptr<Object>> toTriangles(std::vector<BvhTriangle>& in) {
-    std::vector<std::shared_ptr<Object>> out;
-    out.reserve(in.size() / 3);
+// std::vector<std::shared_ptr<Object>> toTriangles(std::vector<BvhTriangle>& in) {
+//     std::vector<std::shared_ptr<Object>> out;
+//     out.reserve(in.size() / 3);
 
-    for (size_t i = 0; i < in.size(); i += 3) {
-        out.emplace_back(std::make_shared<Triangle>(
-            bvhTriangleToVec4(in[i + 0]),
-            bvhTriangleToVec4(in[i + 1]),
-            bvhTriangleToVec4(in[i + 2])
-        ));
-        out.back()->albedo = random_vec<vec3>();
-    }
+//     for (size_t i = 0; i < in.size(); i += 3) {
+//         out.emplace_back(std::make_shared<Triangle>(
+//             bvhTriangleToVec4(in[i + 0]),
+//             bvhTriangleToVec4(in[i + 1]),
+//             bvhTriangleToVec4(in[i + 2])
+//         ));
+//         out.back()->albedo = random_vec<vec3>();
+//     }
 
-    return out;
-}
+//     return out;
+// }
 
 int main() {
     auto T = glm::translate(vec3(0, 0, -1));
@@ -42,33 +42,60 @@ int main() {
     vec3 green(1.0, 0.0, 1.0);
     vec3 blue(1.0, 1.0, 0.0);
 
-    auto sphere = std::make_shared<Sphere>(green, 1.0f, glm::translate(vec3(0, 0, -1)),  R, S);
+    auto world = ObjectList{
+        // 0. Sanity check - only one // TODO: the Y position is the opposite of what it should be
+        // TODO: debug with a triangle
+        // std::make_shared<Gaussian>(red, 50.0f, glm::translate(vec3(0, -1, -1)), R, S),
+        std::make_shared<Sphere>(red, 50.0f, vec3(0.25, 0.5, -1), 0.5),
+        // std::make_shared<Triangle>(
+        //     vec3(0, 0, -1),
+        //     vec3(0, 0.5, -1),
+        //     vec3(0.5, 0.5, -1),
+        // ),
 
-    // auto bvh_tris = sphere->transform<BvhTriangle>(BaseIcosphere);
-    // auto tris = toTriangles(bvh_tris);
 
-    auto world = BVH{
-        // std::make_shared<Sphere>(green,   1.0f, glm::translate(vec3(-1, 0, -1)), R, S),
-        // std::make_shared<Sphere>(green, 1.0f, glm::translate(vec3(0, 0, -2)),  R, S),
-        // std::make_shared<Sphere>(green,  1.0f, glm::translate(vec3(1, 0, -1)),  R, S),
-        // sphere,
-        // std::make_shared<Gaussian>(red,   1.0f, glm::translate(vec3(-1, 0, -2)), R, S),
-        std::make_shared<Gaussian>(green, 1.0f, glm::translate(vec3(0, 0, -2)),  R, S),
-        // std::make_shared<Gaussian>(blue,  1.0f, glm::translate(vec3(1, 0, -2)),  R, S),
+        // 1. Two side by side, overlap
+        // std::make_shared<Gaussian>(red,  75.0f, glm::translate(vec3(-0.5, 0, -1)) , R, S),
+        // std::make_shared<Gaussian>(blue, 75.0f, glm::translate(vec3(+0.5, 0, -1)), R, S),
+
+        // 2. Two side by side, no overlap
+        // std::make_shared<Gaussian>(red,  75.0f, glm::translate(vec3(-1.5, 0, -1)), R, S),
+        // std::make_shared<Gaussian>(blue, 75.0f, glm::translate(vec3(+1.5, 0, -1)), R, S),
+
+        // 3. Two lined up, overlap
+        // std::make_shared<Gaussian>(red,  75.0f, glm::translate(vec3(0, 0, -0.75)), R, S),
+        // std::make_shared<Gaussian>(blue, 75.0f, glm::translate(vec3(0, 0, -1.25)), R, S),
+
+        // std::make_shared<Gaussian>(red,  75.0f, glm::translate(vec3(0, 0, -0.5)), R, S),
+        // std::make_shared<Gaussian>(blue, 75.0f, glm::translate(vec3(0, 0, -1.5)), R, S),
+
+        // 4. Two lined up, no overlap
+        // std::make_shared<Gaussian>(red,  50.0f, glm::translate(vec3(0, 0, -3.25)), R, S),
+        // std::make_shared<Gaussian>(blue, 60.0f, glm::translate(vec3(0, 0, -1)), R, S),
+
+        // 5. One inside the other
+        // std::make_shared<Gaussian>(red,  50.0f, glm::translate(vec3(0, 0, -1.1)), R, glm::scale(vec3(0.6))),
+        // std::make_shared<Gaussian>(blue, 100.0f, glm::translate(vec3(0, 0, -1.0)), R, glm::scale(vec3(0.2))),
+
+        // 6. Three different
+    //     std::make_shared<Gaussian>(red,   50.0f, glm::translate(vec3(0, -0.433, 0)),   R, glm::scale(vec3(0.5))),
+    //     std::make_shared<Gaussian>(green, 50.0f, glm::translate(vec3(-0.5, 0.25, 0)),  R, glm::scale(vec3(0.5))),
+    //     std::make_shared<Gaussian>(blue,  50.0f, glm::translate(vec3(0.5, 0.25, 0)),   R, glm::scale(vec3(0.5))),
     };
 
     Camera::CameraSettings settings;
     settings.aspect_ratio      = 16.0 / 9.0;
-    settings.image_width       = 400;
-    settings.samples_per_pixel = 20;
-    settings.max_depth         = 20;
+    settings.image_width       = 600;
+    settings.samples_per_pixel = 10;
+    settings.max_depth         = 10;
     settings.vertical_fov      = 55;
-    settings.lookfrom          = vec3(0, 0, 2);
+    settings.lookfrom          = vec3(0, 0, 0);
     settings.lookat            = vec3(0, 0, -1);
     settings.vup               = vec3(0, 1, 0);
 
-    auto cam = Camera(settings);
+    auto cam = Camera(settings, "meadow_2_4k.hdr"); // TODO: get a fallback white hdr
     cam.render(world, "out.exr");
+    return 0;
 
 /*
     size_t num_frames = 60;

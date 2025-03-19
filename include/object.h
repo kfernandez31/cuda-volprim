@@ -9,19 +9,35 @@
 #include "dbg.h"
 #include <glm/geometric.hpp>
 #include <glm/gtx/transform.hpp>
+#include <glm/gtx/optimum_pow.hpp>
 
+#include <atomic>
 #include <algorithm>
 #include <memory>
 #include <optional>
 
+using ObjectId = size_t;
+
 class Object : public std::enable_shared_from_this<Object> {
-// protected: //TODO: use
+private:
+    ObjectId getNextId() {
+        return nextId.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    virtual float density_integral_impl(const Ray& r, const Interval& t_range) const {
+        return math::inf<float>();
+    }
 public:
-    mat4 T, R, S;
+    static std::atomic<ObjectId> nextId;
+    ObjectId id;
+
+    mat4 T, R, S; // TODO: last row is redundant, 3x4 would be better
     mat4 M, M_for_integrating, M_for_intersecting;
     mat4 M_inv, M_for_integrating_inv, M_for_intersecting_inv;
+    vec3 S_diag, SS;
+    float density_integral_erf_denominator_base;
 
-    static constexpr float intersection_scaling_factor = 3.0f;
+    static constexpr const float intersection_scaling_factor = 3.0f;
 
     mat4 get_M() {
         return T * R * S;
@@ -76,28 +92,28 @@ public:
 
     // TODO: a ctor from a normalized quaternion for R
     Object(const vec3& _albedo, float _optical_depth_scale, const mat4& _T, const mat4& _R, const mat4& _S)
-        : T(_T), R(_R), S(_S)
+        : id(getNextId())
+        , T(_T), R(_R), S(_S)
         , M(get_M())
         , M_for_integrating(get_M_for_integrating())
         , M_for_intersecting(get_M_for_intersecting())
         , M_inv(get_M_inv())
         , M_for_integrating_inv(get_M_for_integrating_inv())
         , M_for_intersecting_inv(get_M_for_intersecting_inv())
+        , S_diag(get_diagonal(S))
+        , SS(glm::pow2(S_diag))
+        , density_integral_erf_denominator_base(glm::inversesqrt(glm::compMul(S_diag)) * glm::one_over_root_two<float>())
         , albedo(_albedo)
-        , optical_depth_scale(glm::clamp(_optical_depth_scale, 0.0f, 1.0f))
+        , optical_depth_scale(_optical_depth_scale)
         {}
 
     Object() = default;
     virtual ~Object() = default;
 
-    virtual std::optional<HitRecord> intersect(const Ray& r) = 0;
+    virtual std::optional<HitRecord> intersect(const Ray& r, float t_min=0.0f) = 0;
 
-    virtual float optical_depth_impl(const Ray& r, const Interval& t_range) const {
-        return math::inf<float>();
-    }
-
-    float optical_depth(const Ray& r, const Interval& t_range) const {
-        return optical_depth_scale * optical_depth_impl(r, t_range);
+    float density_integral(const Ray& r, const Interval& t_range) const {
+        return optical_depth_scale * density_integral_impl(r, t_range);
     }
 
     template <typename Vec4>
@@ -128,3 +144,4 @@ public:
 };
 
 const Object::RotationData Object::NoRotation(0, vec3(0));
+std::atomic<ObjectId> Object::nextId = 0;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "math.h"
+
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/epsilon.hpp>
 #include <glm/gtx/norm.hpp>
@@ -33,7 +35,7 @@ inline VecType map_vec_indices(Func f) {
 
 template <typename VecType>
 inline VecType random_vec(float min=0.0f, float max=1.0f) {
-    return map_vec_indices<VecType>([=](auto) { return math::random(min, max); });
+    return map_vec_indices<VecType>([=](auto) { return math::random_real(min, max); });
 }
 
 template <typename VecType, typename Func>

@@ -15,6 +15,10 @@ public:
         return origin + t * direction;
     }
 
+    inline void march_by(float t, float offset=1e-8) {
+        origin = at(t + offset);
+    }
+
     Ray in_coordinate_system(const mat4& M) const {
         return Ray(M * vec4(origin, 1.0), M * vec4(direction, 0.0), false);
     }
