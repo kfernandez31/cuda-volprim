@@ -4,9 +4,6 @@
     - tinyexr.h
     - tiny_bvh.h
     - stb_image.h
-- [ ] Make assets dir 
-- [ ] Write own BVH
-- [ ] Solve the intersection of gaussians
 - [ ] Transition over to CUDA
 
 
