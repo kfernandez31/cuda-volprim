@@ -1,6 +1,7 @@
 #pragma once
 
 #include "environment_map.h"
+#include "exr.h"
 #include "object_list.h"
 #include "math.h"
 
@@ -8,16 +9,11 @@
 
 #include <glm/common.hpp>
 
-#define TINYEXR_IMPLEMENTATION
-#include "tinyexr.h"
-
 #include <array>
 #include <vector>
 #include <unordered_set>
 
 #pragma omp declare reduction(+: glm::vec3 : omp_out += omp_in) initializer(omp_priv = glm::vec3(0))
-
-static constexpr size_t NUM_CHANNELS = 3;
 
 class Camera {
 public:
@@ -71,22 +67,14 @@ public:
     }
 
     void render(ObjectList& world, const std::string& filename) const {
-        std::vector<float> images[NUM_CHANNELS] = {
-            std::vector<float>(settings.image_width * settings.image_height), // R
-            std::vector<float>(settings.image_width * settings.image_height), // G
-            std::vector<float>(settings.image_width * settings.image_height), // B
-        };
+        std::vector<vec3> framebuffer;
 
         for (size_t j = 0; j < settings.image_height; ++j) {
             std::clog << "\rScanlines remaining: " << (settings.image_height - j) << ' ' << std::flush;
             for (size_t i = 0; i < settings.image_width; ++i) {
                 auto color = sample_rays(world, i, j);
-
-                // Store in EXR order (bottom to top)
-                size_t idx = (settings.image_height - 1 - j) * settings.image_width + i;
-                images[0][idx] = color.x;  // R
-                images[1][idx] = color.y;  // G
-                images[2][idx] = color.z;  // B
+                auto idx = j * width + i;
+                framebuffer[idx] = color;
             }
         }
         std::clog << "\rDone.                 \n";
@@ -100,37 +88,6 @@ private:
     vec3 pixel00_loc;
     vec3 pixel_du, pixel_dv;
     EnvironmentMap env_map;
-
-    void save_exr_image(std::vector<float> images[NUM_CHANNELS], int width, int height, const std::string& filename) const {
-        EXRImage image;
-        InitEXRImage(&image);
-
-        float* image_ptrs[NUM_CHANNELS] = { images[2].data(), images[1].data(), images[0].data() }; // Reverse order for EXR
-        image.images = reinterpret_cast<unsigned char**>(image_ptrs);
-        image.width = width;
-        image.height = height;
-        image.num_channels = NUM_CHANNELS;
-
-        EXRHeader header;
-        InitEXRHeader(&header);
-
-        header.num_channels = NUM_CHANNELS;
-        EXRChannelInfo channels[NUM_CHANNELS] = {
-            { "B", TINYEXR_PIXELTYPE_FLOAT, 1, 1, 0, {0} },
-            { "G", TINYEXR_PIXELTYPE_FLOAT, 1, 1, 0, {0} },
-            { "R", TINYEXR_PIXELTYPE_FLOAT, 1, 1, 0, {0} },
-        };
-        header.channels = channels;
-
-        std::array<int, NUM_CHANNELS> pixel_types;
-        pixel_types.fill(TINYEXR_PIXELTYPE_FLOAT);
-        header.pixel_types = header.requested_pixel_types = pixel_types.data();
-
-        if (const char* err = nullptr; SaveEXRImageToFile(&image, &header, filename.c_str(), &err) != TINYEXR_SUCCESS) {
-            fprintf(stderr, "Error saving EXR: %s\n", err);
-            FreeEXRErrorMessage(err);
-        }
-    }
 
     vec3 sample_rays(ObjectList& world, size_t i, size_t j) const {
         vec3 pixel_color(0);
@@ -244,4 +201,71 @@ private:
         auto final_transmittance = glm::exp(-acc_optical_depth); // exponential decay
         return final_transmittance * background_color(r);
     }
+
+    /* TODO: opt for the version below when porting the code to GPU
+    vec3 ray_color(const Ray& ray, ObjectList& world, size_t max_depth) {
+        struct ExitEvent { float t_exit; size_t prim_idx; };
+        auto cmp = [](const ExitEvent& a, const ExitEvent& b) {
+            return a.t_exit > b.t_exit; // Min-heap by t_exit
+        };
+
+        std::priority_queue<ExitEvent, std::vector<ExitEvent>, decltype(cmp)> pq(cmp); // TODO: replace with std::set to be able to iterate it
+        std::vector<std::shared_ptr<Object>> primitives; // TODO: reserve min(max_depth, #primitives) space
+
+        vec3 acc_optical_depth(0.0f);
+        float t_total = 0.0f;
+        Ray ray_cur(ray.origin, ray.direction);
+
+        auto process_exited_prims = [&](float t_in) {
+            while (!pq.empty()) {
+                const auto& [t_exit, _] = pq.top();
+                if (t_exit > t_in) break;
+
+                auto r = ray.advanced_by(t_total);
+                Interval i(0, t_exit - t_total);
+
+                // Integrate active primitives (including the one we exit)
+                for (const auto& [_, prim_idx] : pq) {
+                    const auto& prim = primitives[prim_idx];
+                    acc_optical_depth += prim->albedo * prim->density_integral(r, i);
+                }
+
+                pq.pop();
+                t_total = t_exit;
+            }
+        };
+
+        for (size_t _ = 0; _ < max_depth; ++_) {
+            auto hit = world.intersect(ray_cur);
+            if (!hit) break; // No more intersections
+
+            auto t_in  = hit->t_in;
+            auto t_out = hit->t_out;
+
+            auto t_total_prev = t_total;
+            process_exited_prims(t_total + t_in);
+
+            auto r = ray.advanced_by(t_total);
+            Interval i(0, t_in - (t_total - t_total_prev));
+
+            // Integrate active primitives
+            for (const auto& [_, prim_idx] : pq) {
+                const auto& prim = primitives[prim_idx];
+                acc_optical_depth += prim->albedo * prim->density_integral(r, i);
+            }
+
+            auto prim_idx = primitives.size();
+            primitives.emplace_back(std::move(hit->prim));
+
+            pq.emplace(t_total + t_out, prim_idx);
+            ray_cur.march_by(t_in);
+            t_total += t_in;
+        }
+
+        // Drain remaining exits
+        process_exited_prims(std::numeric_limits<float>::infinity());
+
+        return glm::exp(-acc_optical_depth) * background_color(r);
+    }
+    */
 };

@@ -47,3 +47,5 @@ clean:
 
 # Phony targets
 .PHONY: all clean
+
+# TODO: precompiled headers

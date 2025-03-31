@@ -35,7 +35,7 @@ public:
 
     float density_integral_impl(const Ray& r_global, const Interval& t_range) const override {
         if (t_range == Interval::universe)
-        return density_integral_impl(r_global);
+            return density_integral_impl(r_global);
 
         // TODO: it would be lovely to omit SS completely, i.e. bring the ray into the local coordinate system of an isotropic Gaussian
         auto r_local = r_global.in_coordinate_system(M_for_integrating_inv);

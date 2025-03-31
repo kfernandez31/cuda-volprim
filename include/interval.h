@@ -14,7 +14,7 @@ public:
         : min(empty.min), max(empty.max) {}
 
     interval_impl(T min, T max)
-        : min(std::min(min, max)), max(glm::max(min, max)) {}
+        : min(glm::min(min, max)), max(glm::max(min, max)) {}
 
     interval_impl(const interval_impl& a, const interval_impl& b)
         : min(glm::min(a.min, b.min)), max(glm::max(a.max, b.max)) {}

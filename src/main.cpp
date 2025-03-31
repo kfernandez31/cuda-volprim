@@ -93,7 +93,7 @@ int main() {
     settings.lookat            = vec3(0, 0, -1);
     settings.vup               = vec3(0, 1, 0);
 
-    auto cam = Camera(settings, "meadow_2_4k.hdr"); // TODO: get a fallback white hdr
+    auto cam = Camera(settings, "assets/meadow_2_4k.hdr"); // TODO: get a fallback white hdr, TODO: system-agnostic path string
     cam.render(world, "out.exr");
     return 0;
 
