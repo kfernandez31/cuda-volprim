@@ -2,6 +2,8 @@
 
 #include "check.h"
 
+#include <optix_host.h>
+#include <optix_function_table_definition.h>
 #include <optix_stubs.h>
 
 #include <iostream>
@@ -11,6 +13,8 @@
 // -------------------------
 // Generic OptiX Handle
 // -------------------------
+
+namespace thesis {
 
 template <typename T, auto DestroyFn>
 class OptixHandle {
@@ -36,7 +40,8 @@ public:
         if (handle_) OPTIX_CHECK(DestroyFn(handle_));
     }
 
-    operator T() const noexcept { return handle_; }
+    const T& get() const noexcept { return handle_; }
+          T& get()       noexcept { return handle_; }
 
 protected:
     T handle_ = nullptr;
@@ -62,7 +67,7 @@ public:
         const OptixPipelineCompileOptions& pco,
         const std::string& ptx)
     {
-        OPTIX_CALL_LOGGED(optixModuleCreateFromPTX(ctx, &mco, &pco, ptx.c_str(), ptx.size(), log, &logSize, &handle_));
+        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.c_str(), ptx.size(), log, &logSize, &handle_));
     }
 };
 
@@ -88,3 +93,5 @@ public:
         OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups, numGroups, log, &logSize, &handle_));
     }
 };
+
+} // namespace thesis

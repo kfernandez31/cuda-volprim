@@ -7,15 +7,15 @@ namespace thesis {
 
 CudaContextHandle::CudaContextHandle(int device_ordinal) noexcept
 {
-    CUDA_CHECK(cuInit(0));
-    CUDA_CHECK(cuDeviceGet(&device_, device_ordinal));
-    CUDA_CHECK(cuCtxCreate(&context_, 0, device_));
+    CU_CHECK(cuInit(0));
+    CU_CHECK(cuDeviceGet(&device_, device_ordinal));
+    CU_CHECK(cuCtxCreate(&context_, 0, device_));
 }
 
 CudaContextHandle::~CudaContextHandle() noexcept
 {
     if (context_) {
-        CUDA_CHECK(cuCtxDestroy(context_));
+        CU_CHECK(cuCtxDestroy(context_));
     }
 }
 
@@ -28,7 +28,7 @@ CudaContextHandle& CudaContextHandle::operator=(CudaContextHandle&& other) noexc
 {
     if (this != &other) {
         if (context_) {
-            CUDA_CHECK(cuCtxDestroy(context_));
+            CU_CHECK(cuCtxDestroy(context_));
         }
         context_ = std::exchange(other.context_, nullptr);
         device_ = std::exchange(other.device_, -1);

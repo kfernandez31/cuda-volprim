@@ -2,6 +2,8 @@
 
 #include "check.h"
 
+namespace thesis {
+
 template <typename T>
 class CudaBuffer {
 public:
@@ -64,3 +66,5 @@ private:
     T* host_ptr_ = nullptr;
     T* device_ptr_ = nullptr;
 };
+
+} // namespace thesis
