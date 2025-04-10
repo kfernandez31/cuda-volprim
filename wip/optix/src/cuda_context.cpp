@@ -1,7 +1,8 @@
 #include "thesis/cuda_context.h"
+
 #include "thesis/check.h"
 
-#include <utility>  // for std::exchange
+#include <utility>
 
 namespace thesis {
 

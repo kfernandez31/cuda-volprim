@@ -1,8 +1,7 @@
-#pragma once
+#include "thesis/file_utils.h"
 
-#include "thesis/image_io.h"
-
-#include "tinyexr/tinyexr.h"
+#include <spdlog/spdlog.h>
+#include <tinyexr/tinyexr.h>
 
 #include <array>
 #include <fstream>
@@ -22,20 +21,12 @@ static inline void strncpy(char* dest, const char* src, size_t dest_size) {
 #endif
 }
 
-// TODO: unnecessary alloc, just use stack mem
-static const char* view_to_c_str(std::string_view view, std::string& out_str) {
-    if (view.data()[view.size()] == '\0')
-        return view.data();
-    out_str = std::string(view);
-    return out_str.c_str();
-}
-
-// TODO: this is not actually related to images, move it away from here
-std::string read_ptx(std::string_view filename)
+std::optional<std::string> read_file_to_string(std::string_view filename)
 {
     std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
     if (!file) {
-        throw std::runtime_error("Failed to open PTX file: " + std::string(filename));
+        spdlog::error("Failed to open PTX file: {}", filename);
+        return {};
     }
 
     std::string ptx(file.tellg(), '\0');
@@ -44,7 +35,7 @@ std::string read_ptx(std::string_view filename)
     return ptx;
 }
 
-void save_exr_image(const std::vector<float3>& framebuffer, int width, int height, std::string_view filename, bool flip_vertical)
+void save_exr_image(const std::vector<float3>& framebuffer, int width, int height, const std::string& filename, bool flip_vertical)
 {
     constexpr std::array<const char*, NUM_CHANNELS> channel_names = { "B", "G", "R" };
 
@@ -93,17 +84,12 @@ void save_exr_image(const std::vector<float3>& framebuffer, int width, int heigh
     header.pixel_types = pixel_types.data();
     header.requested_pixel_types = pixel_types.data();
 
-
-    std::string _;
-    auto filename_c_str = view_to_c_str(filename, _);
-
     const char* err = nullptr;
-    if (SaveEXRImageToFile(&image, &header, filename_c_str, &err) != TINYEXR_SUCCESS) {
-        // std::cerr << "Error saving EXR: " << err << std::endl; // TODO: log
+    if (SaveEXRImageToFile(&image, &header, filename.c_str(), &err) != TINYEXR_SUCCESS) {
+        spdlog::error("Error saving EXR: {}", err);
         FreeEXRErrorMessage(err);
-    } else {
-        // std::cout << "Saved EXR: " << filename << "\n";  // TODO: log
-    }
+    } else
+        spdlog::info("Saved EXR: {}", filename);
 }
 
 } // namespace thesis

@@ -3,10 +3,9 @@
 #include "check.h"
 
 #include <cuda_runtime.h>
-
+#include <optix_function_table_definition.h>
 #include <optix_host.h>
 #include <optix_stubs.h>
-#include <optix_function_table_definition.h>
 
 #include <cstring>
 #include <utility>
@@ -16,7 +15,8 @@ namespace thesis {
 template <typename T>
 class OptixRecord {
 public:
-    OptixRecord(OptixProgramGroup program, const T* data = nullptr) {
+    OptixRecord(OptixProgramGroup program, const T* data = nullptr)
+    {
         static_assert(sizeof(T) <= OPTIX_SBT_RECORD_HEADER_SIZE, "T too large for SBT record");
 
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&device_ptr_), OPTIX_SBT_RECORD_HEADER_SIZE));
@@ -25,13 +25,13 @@ public:
         std::byte host_record[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(program, host_record));
 
-        if (data) {
+        if (data)
             std::memcpy(host_record + OPTIX_SBT_RECORD_HEADER_SIZE, data, sizeof(T));
-        }
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(device_ptr_), host_record, OPTIX_SBT_RECORD_HEADER_SIZE, cudaMemcpyHostToDevice));
     }
 
-    ~OptixRecord() noexcept {
+    ~OptixRecord() noexcept
+    {
         CUDA_CHECK(cudaFree(reinterpret_cast<void*>(device_ptr_)));
     }
 
@@ -44,7 +44,8 @@ public:
         : device_ptr_(std::exchange(other.device_ptr_, 0)) {}
 
     // Enable move assignment
-    OptixRecord& operator=(OptixRecord&& other) noexcept {
+    OptixRecord& operator=(OptixRecord&& other) noexcept
+    {
         if (this != &other) {
             CUDA_CHECK(cudaFree(reinterpret_cast<void*>(device_ptr_)));
             device_ptr_ = std::exchange(other.device_ptr_, 0);

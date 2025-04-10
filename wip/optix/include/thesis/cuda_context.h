@@ -6,7 +6,7 @@ namespace thesis {
 
 class CudaContextHandle {
 public:
-    explicit CudaContextHandle(int device_ordinal = 0) noexcept; // TODO: why `explicit`?
+    explicit CudaContextHandle(int device_ordinal = 0) noexcept;
     ~CudaContextHandle() noexcept;
 
     // Disable copy

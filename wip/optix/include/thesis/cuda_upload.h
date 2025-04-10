@@ -1,6 +1,6 @@
 #pragma once
 
-#include "check.h"
+#include "thesis/check.h"
 
 #include <cuda_runtime.h>
 

@@ -1,8 +1,15 @@
 #pragma once
 
-#include "check.h"
+#include "thesis/check.h"
+
+#include <cuda_runtime.h>
+
+#include <utility>
 
 namespace thesis {
+
+// TODO: for real-time rendering and interop, opt for something like:
+// C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h" 
 
 template <typename T>
 class CudaBuffer {

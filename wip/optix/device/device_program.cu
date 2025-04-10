@@ -7,6 +7,8 @@ struct __align__(16) LaunchParams {
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
+extern "C" __global__ void __miss__noop() {}
+
 extern "C" __global__ void __raygen__hello()
 {
     const uint3 idx = optixGetLaunchIndex();

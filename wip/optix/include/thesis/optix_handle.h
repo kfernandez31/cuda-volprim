@@ -6,7 +6,7 @@
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
 
-#include <iostream>
+
 #include <string>
 #include <utility>
 
@@ -36,7 +36,8 @@ public:
         return *this;
     }
 
-    ~OptixHandle() noexcept {
+    ~OptixHandle() noexcept
+    {
         if (handle_) OPTIX_CHECK(DestroyFn(handle_));
     }
 
@@ -53,11 +54,11 @@ protected:
 
 class OptixDeviceContextHandle : public OptixHandle<OptixDeviceContext, optixDeviceContextDestroy> {
 public:
-    OptixDeviceContextHandle(CUcontext cuCtx = 0)
+    OptixDeviceContextHandle(
+        const OptixDeviceContextOptions& dco,
+        CUcontext cuCtx = 0)
     {
-        OptixDeviceContextOptions options = {};
-        options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
-        OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &handle_));
+        OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &dco, &handle_));
     }
 };
 

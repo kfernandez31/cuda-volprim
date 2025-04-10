@@ -8,7 +8,7 @@
 #define CUDA_CHECK( call )                                                       \
     do {                                                                         \
         cudaError_t err = call;                                                  \
-        if( err != cudaSuccess ) {                                               \
+        if (err != cudaSuccess)  {                                               \
             std::cerr << "CUDA Error: " << cudaGetErrorString(err) << std::endl; \
             exit(1);                                                             \
         }                                                                        \
@@ -17,7 +17,7 @@
 #define OPTIX_CHECK( call )                                   \
     do {                                                      \
         OptixResult res = call;                               \
-        if( res != OPTIX_SUCCESS ) {                          \
+        if (res != OPTIX_SUCCESS)  {                          \
             std::cerr << "OptiX Error: " << res << std::endl; \
             exit(1);                                          \
         }                                                     \
