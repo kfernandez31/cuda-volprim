@@ -16,6 +16,7 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Needed by Clang-Tidy and IWYU
 
 # === Project Paths ===
 set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
@@ -193,7 +194,16 @@ target_compile_definitions(thesis PRIVATE
     OPTIX_USE_HOST_API
 )
 
-# === Debug Info ===
-message(STATUS "CUDA compiler : ${CMAKE_CUDA_COMPILER}")
-message(STATUS "OptiX include : ${OPTIX_ROOT}/include")
-message(STATUS "DEVICE_SRC: ${DEVICE_SRC}")
+# === Static Analysis: Clang-Tidy ===
+find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+if(CLANG_TIDY_EXE)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+    message(STATUS "Clang-Tidy enabled: ${CLANG_TIDY_EXE}")
+endif()
+
+# === Static Analysis: Cppcheck ===
+find_program(CPPCHECK_EXE NAMES cppcheck)
+if(CPPCHECK_EXE)
+    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXE};--enable=all;--inconclusive;--inline-suppr;--std=c++20;--quiet")
+    message(STATUS "Cppcheck enabled: ${CPPCHECK_EXE}")
+endif()

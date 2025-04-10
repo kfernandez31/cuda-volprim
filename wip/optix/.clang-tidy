@@ -1,0 +1,43 @@
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  google-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  misc-*,
+  cppcoreguidelines-*,
+  -google-runtime-int,
+  -google-readability-casting,
+  -llvm-*,
+  -hicpp-*,
+  -cert-err58-cpp
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: '^(src|include|device)/'
+FormatStyle: file
+
+CheckOptions:
+  # Modernization & Core Guidelines
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'
+  - key: cppcoreguidelines-avoid-magic-numbers.IgnoreEnums
+    value: 'true'
+  - key: cppcoreguidelines-avoid-magic-numbers.IgnoreDefaultArgs
+    value: 'true'
+
+  # Naming conventions
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case

@@ -1,0 +1,36 @@
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# --- General formatting ---
+ColumnLimit: 100                          # More readable than Google's strict 80
+MaxEmptyLinesToKeep: 1                   # Prevent vertical clutter
+KeepEmptyLinesAtTheStartOfBlocks: false  # Clean block openings
+
+# --- Braces and blocks ---
+BreakBeforeBraces: Allman                # Optional: clearer visual structure
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+
+# --- Pointers, references ---
+PointerAlignment: Left                   # 'T* ptr' style
+SpaceBeforeParens: ControlStatements     # if (...) not if(...)
+SpaceAfterCStyleCast: true
+
+# --- Templates and lambdas ---
+AlwaysBreakTemplateDeclarations: Yes     # Avoid messy one-liners
+DerivePointerAlignment: false
+
+# --- Includes ---
+# SortIncludes: true
+# IncludeBlocks: Regroup                   # Groups: std, 3rd-party, project
+
+# --- Comments ---
+ReflowComments: true                     # Auto-wrap long comments
+SpacesInLineCommentPrefix: true          # Align `//` nicely
+
+# --- Trailing commas ---
+Cpp11BracedListStyle: true
+IncludeTrailingComma: Wrapped            # Makes diffs cleaner in multi-line lists

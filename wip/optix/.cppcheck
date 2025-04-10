@@ -1,0 +1,40 @@
+# === cppcheck config file ===
+
+# Enable all checks except those known to be noisy or irrelevant
+enable=all
+
+# Suppress known false positives or non-applicable categories
+suppress=missingIncludeSystem
+suppress=unmatchedSuppression
+suppress=unusedFunction  # optional, especially for header-only utils
+suppress=useStlAlgorithm  # this can be overzealous
+suppress=ConfigurationNotChecked
+
+# Include directories
+include=include
+include=src
+include=device
+
+# Exclude 3rd party libraries or generated files
+exclude=third_party
+
+# Treat code as C++20
+std=c++20
+
+# Treat CUDA as C++, not C
+language=c++
+
+# Enable inline suppressions (in code comments like // cppcheck-suppress ...)
+inlineSuppressions=true
+
+# Force use of project include paths even when headers are missing
+force=true
+
+# Report style issues too (optional but useful)
+inconclusive=true
+
+# Output formatting (for IDEs or CI parsing)
+template=gcc
+
+# Optional: exit with nonzero code on warnings
+error-exitcode=1

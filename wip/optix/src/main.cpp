@@ -27,10 +27,10 @@ using namespace thesis;
 
 int main(int argc, char* argv[]) {
     // Parse arguments
-    CLI::App app{"OptiX Application"};
-
+    CLI::App app{"OptiX-based raytracer of kernel mixture models"};
+    
     std::string output_path = "output.exr";
-    app.add_option("output", output_path, "Path to save the rendered image")->required(false);
+    app.add_option("-o,--output", output_path, "Path to save the rendered image")->required(false);
 
     CLI11_PARSE(app, argc, argv);
 
