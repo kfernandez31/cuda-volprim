@@ -44,7 +44,7 @@ public:
           T& get()       noexcept { return handle_; }
 
 protected:
-    T handle_ = nullptr;
+    T handle_ = 0;
 };
 
 // -------------------------
@@ -55,7 +55,9 @@ class OptixDeviceContextHandle : public OptixHandle<OptixDeviceContext, optixDev
 public:
     OptixDeviceContextHandle(CUcontext cuCtx = 0)
     {
-        OPTIX_CHECK(optixDeviceContextCreate(cuCtx, nullptr, &handle_));
+        OptixDeviceContextOptions options = {};
+        options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
+        OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &handle_));
     }
 };
 
@@ -77,7 +79,8 @@ public:
         OptixDeviceContext ctx,
         const OptixProgramGroupDesc& desc)
     {
-        OPTIX_CALL_LOGGED(optixProgramGroupCreate(ctx, &desc, 1, nullptr, log, &logSize, &handle_));
+        OptixProgramGroupOptions pg_options = {};
+        OPTIX_CALL_LOGGED(optixProgramGroupCreate(ctx, &desc, 1, &pg_options, log, &logSize, &handle_));
     }
 };
 

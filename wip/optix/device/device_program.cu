@@ -5,7 +5,6 @@ struct __align__(16) LaunchParams {
     float4* output_buffer;
 };
 
-// Declare the global constant (must match host-side setup)
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
 extern "C" __global__ void __raygen__hello()

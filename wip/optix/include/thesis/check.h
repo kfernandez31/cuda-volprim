@@ -5,13 +5,13 @@
 
 #include <iostream>
 
-#define CUDA_CHECK( call )                                                         \
-    do {                                                                           \
-        cudaError_t err = call;                                                    \
-        if( err != cudaSuccess ) {                                                 \
+#define CUDA_CHECK( call )                                                       \
+    do {                                                                         \
+        cudaError_t err = call;                                                  \
+        if( err != cudaSuccess ) {                                               \
             std::cerr << "CUDA Error: " << cudaGetErrorString(err) << std::endl; \
-            exit(1);                                                               \
-        }                                                                          \
+            exit(1);                                                             \
+        }                                                                        \
     } while(0)
 
 #define OPTIX_CHECK( call )                                   \
@@ -36,10 +36,16 @@ do {                                                                   \
 
 #define LOG_SIZE 2048
 
-#define OPTIX_CALL_LOGGED(func)                         \
-    do {                                                \
-        char log[LOG_SIZE];                             \
-        size_t logSize = LOG_SIZE;                      \
-        OPTIX_CHECK(func);                              \
-        if (logSize > 1) std::cout << log << std::endl; \
+#define OPTIX_CALL_LOGGED(call)                                        \
+    do {                                                               \
+        char log[LOG_SIZE];                                            \
+        size_t logSize = LOG_SIZE;                                     \
+        OptixResult res = call;                                        \
+        if (logSize > 1 && log[0] != '\0')                             \
+            std::cerr << "OptiX Log: " << log << std::endl;            \
+        if (res != OPTIX_SUCCESS) {                                    \
+            std::cerr << "OptiX Error: " << static_cast<int>(res)      \
+                      << " (" << __FILE__ << ":" << __LINE__ << ")\n"; \
+            exit(1);                                                   \
+        }                                                              \
     } while (0)

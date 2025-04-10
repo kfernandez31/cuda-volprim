@@ -1,95 +1,199 @@
-# cmake --build build --config Release
-# cmake --build build -G "Visual Studio 17 2022" -A x64 --config Release
+# ========================
+# Build thesis (C++/CUDA/OptiX)
+# ========================
 
 cmake_minimum_required(VERSION 3.20)
 project(thesis LANGUAGES C CXX CUDA)
 
-# === Configuration ===
+# === Standards & Compiler Options ===
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Output folders
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+# === Project Paths ===
+set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
+set(INCLUDE_DIR     "${CMAKE_SOURCE_DIR}/include")
+set(DEVICE_DIR      "${CMAKE_SOURCE_DIR}/device")
+set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 
-# === Include headers ===
+# === OptiX SDK Root ===
+if (WIN32)
+    set(DEFAULT_OPTIX_ROOT "C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0")
+elseif(UNIX)
+    set(DEFAULT_OPTIX_ROOT "/opt/optix")
+endif()
+
+set(OPTIX_ROOT "${OPTIX_ROOT}" CACHE PATH "Path to OptiX SDK")
+if(NOT OPTIX_ROOT)
+    set(OPTIX_ROOT "${DEFAULT_OPTIX_ROOT}")
+endif()
+
+# === Output Directory ===
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+# === Include Directories ===
 include_directories(
-    ${CMAKE_SOURCE_DIR}/include
+    ${INCLUDE_DIR}
+    ${THIRD_PARTY_DIR}
+    "${OPTIX_ROOT}/include"
 )
 
-# === Source files ===
-file(GLOB_RECURSE CXX_SRCS CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/*.cpp"
+# === 3rd-party: Add all subdirectories as SYSTEM includes ===
+file(GLOB THIRD_PARTY_SUBDIRS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*")
+foreach(dir ${THIRD_PARTY_SUBDIRS})
+    if(IS_DIRECTORY ${dir})
+        include_directories(SYSTEM ${dir})
+    endif()
+endforeach()
+include_directories(SYSTEM ${THIRD_PARTY_DIR})
+
+# === Source Files (project)
+file(GLOB_RECURSE C_SRCS CONFIGURE_DEPENDS "${SRC_DIR}/*.c")
+file(GLOB_RECURSE CXX_SRCS CONFIGURE_DEPENDS "${SRC_DIR}/*.cpp")
+
+# === Source Files (third-party, compiled with warnings disabled) ===
+file(GLOB_RECURSE THIRD_PARTY_C_SRCS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*.c")
+file(GLOB_RECURSE THIRD_PARTY_CXX_SRCS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*.cpp")
+
+add_library(thirdparty_objects OBJECT
+    ${THIRD_PARTY_C_SRCS}
+    ${THIRD_PARTY_CXX_SRCS}
 )
 
-file(GLOB_RECURSE C_SRCS CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/*.c"
+target_compile_options(thirdparty_objects PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-w>
+    $<$<C_COMPILER_ID:GNU,Clang>:-w>
+    $<$<CXX_COMPILER_ID:MSVC>:/W0>
+    $<$<C_COMPILER_ID:MSVC>:/W0>
 )
 
-# Path to OptiX SDK (adjust if different)
-set(OPTIX_ROOT "C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0")
-include_directories("${OPTIX_ROOT}/include")
+# === CUDA Device Code (PTX) ===
+set(DEVICE_SRC   "${DEVICE_DIR}/device_program.cu")
+set(PTX_OUTPUT   "${CMAKE_BINARY_DIR}/device_program.ptx")
 
-# Expose header for CUDA compiler explicitly
-set(OPTIX_INCLUDE_DIR "${OPTIX_ROOT}/include")
-
-# === Device code ===
-set(PTX_OUTPUT ${CMAKE_BINARY_DIR}/device_program.ptx)
-set(DEVICE_SRC ${CMAKE_SOURCE_DIR}/device/device_program.cu)
+# === Target Settings ===
+set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for")
 
 add_custom_command(
-    OUTPUT ${PTX_OUTPUT}
+    OUTPUT  ${PTX_OUTPUT}
     COMMAND "${CMAKE_CUDA_COMPILER}"
-        -I"${OPTIX_INCLUDE_DIR}"
-        -ptx "${DEVICE_SRC}"
+        -I"${OPTIX_ROOT}/include"
+        --ptx
+        --expt-relaxed-constexpr
+        --expt-extended-lambda
+        -O3
+        -arch=sm_${CUDA_ARCH}
         -o "${PTX_OUTPUT}"
+        -diag-suppress=20044
+        "${DEVICE_SRC}"
     DEPENDS ${DEVICE_SRC}
     COMMENT "Compiling PTX: ${DEVICE_SRC} -> ${PTX_OUTPUT}"
 )
 
-# === Add executable ===
+# === Executable Target ===
 add_executable(thesis
     ${C_SRCS}
     ${CXX_SRCS}
     ${PTX_OUTPUT}
 )
 
-# === CUDA & OptiX linking ===
-# find_package(CUDA REQUIRED)
+# === Link 3rd-party object files ===
+target_sources(thesis PRIVATE $<TARGET_OBJECTS:thirdparty_objects>)
+
+# === Target Settings ===
+set_target_properties(thesis PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
+
+# === Build-type and platform-specific flags ===
+target_compile_options(thesis PRIVATE
+
+    # Common warnings (C++)
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU,Clang>>:
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wshadow
+        -Wconversion
+        -Wno-sign-conversion
+        -Wnon-virtual-dtor
+        -Wold-style-cast
+        -Woverloaded-virtual
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+    >
+
+    # Common warnings (C)
+    $<$<AND:$<COMPILE_LANGUAGE:C>,$<C_COMPILER_ID:GNU,Clang>>:
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wshadow
+        -Wconversion
+        -Wno-sign-conversion
+        -Wformat=2
+    >
+
+    # Debug flags (C++ / GCC / Clang)
+    $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU,Clang>>:
+        -g
+        -O0
+    >
+
+    # Debug flags (C / GCC / Clang)
+    $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>,$<C_COMPILER_ID:GNU,Clang>>:
+        -g
+        -O0
+    >
+
+    # Release flags (C++ / GCC / Clang)
+    $<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU,Clang>>:
+        -O3
+        -DNDEBUG
+    >
+
+    # Release flags (C / GCC / Clang)
+    $<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:C>,$<C_COMPILER_ID:GNU,Clang>>:
+        -O3
+        -DNDEBUG
+    >
+
+    # Debug flags (MSVC C/C++)
+    $<$<AND:$<CONFIG:Debug>,$<C_COMPILER_ID:MSVC>>:/Od /Zi /W4 /permissive- /Zc:__cplusplus /utf-8>
+
+    # Release flags (MSVC C/C++)
+    $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/O2 /DNDEBUG /W4 /permissive- /Zc:__cplusplus /utf-8>
+)
+
+# === CUDA Toolkit ===
 find_package(CUDAToolkit REQUIRED)
 
-# Set CUDA architecture (you can adjust this)
-set_target_properties(thesis PROPERTIES
-    CUDA_ARCHITECTURES 75
+# === Link Directories and Libraries ===
+if(WIN32)
+    link_directories("${OPTIX_ROOT}/lib64")
+elseif(UNIX)
+    link_directories("${OPTIX_ROOT}/lib")
+endif()
+
+target_link_libraries(thesis PRIVATE
+    CUDA::cuda_driver
+    CUDA::cudart
 )
 
-# On Windows, add the OptiX SDK manually if not system-installed
-# Replace this with the actual path if needed
-target_include_directories(thesis PRIVATE "${OPTIX_ROOT}/include")
-
-link_directories("${OPTIX_ROOT}/lib64")
-
-target_link_libraries(thesis
-    PRIVATE
-        # optix.9.0.0
-        # optix
-        cuda
-        cudart
-        CUDA::cuda_driver
-)
-
-# Define macro so main.cpp knows where to find the PTX at runtime
+# === Compile-Time Defines ===
+file(TO_CMAKE_PATH "${PTX_OUTPUT}" PTX_PATH_CMAKE_STYLE)
 target_compile_definitions(thesis PRIVATE
-    PTX_PATH="${PTX_OUTPUT}"
+    PTX_PATH="${PTX_PATH_CMAKE_STYLE}"
     OPTIX_USE_HOST_API
 )
 
-message(STATUS "CUDA compiler: ${CMAKE_CUDA_COMPILER}")
-message(STATUS "OptiX include: ${OPTIX_INCLUDE_DIR}")
-
-# === Precompiled header (optional) ===
-# target_precompile_headers(thesis PRIVATE include/thesis/pch.h)
+# === Debug Info ===
+message(STATUS "CUDA compiler : ${CMAKE_CUDA_COMPILER}")
+message(STATUS "OptiX include : ${OPTIX_ROOT}/include")
+message(STATUS "DEVICE_SRC: ${DEVICE_SRC}")

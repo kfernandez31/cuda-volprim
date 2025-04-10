@@ -2,11 +2,7 @@
 
 #include "thesis/image_io.h"
 
-#ifndef TINYEXR_IMPLEMENTATION
-#define TINYEXR_IMPLEMENTATION
-#endif
-
-#include "tinyexr.h"
+#include "tinyexr/tinyexr.h"
 
 #include <array>
 #include <fstream>
@@ -16,6 +12,16 @@
 
 namespace thesis {
 
+static inline void strncpy(char* dest, const char* src, size_t dest_size) {
+#if defined(_MSC_VER)
+    strncpy_s(dest, dest_size, src, _TRUNCATE);
+#else
+    if (dest_size == 0) return;
+    std::strncpy(dest, src, dest_size - 1);
+    dest[dest_size - 1] = '\0';  // ensure null-termination
+#endif
+}
+
 // TODO: unnecessary alloc, just use stack mem
 static const char* view_to_c_str(std::string_view view, std::string& out_str) {
     if (view.data()[view.size()] == '\0')
@@ -24,6 +30,7 @@ static const char* view_to_c_str(std::string_view view, std::string& out_str) {
     return out_str.c_str();
 }
 
+// TODO: this is not actually related to images, move it away from here
 std::string read_ptx(std::string_view filename)
 {
     std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
@@ -76,7 +83,7 @@ void save_exr_image(const std::vector<float3>& framebuffer, int width, int heigh
 
     std::array<EXRChannelInfo, NUM_CHANNELS> channelInfo;
     for (int i = 0; i < NUM_CHANNELS; ++i)
-        strncpy(channelInfo[i].name, channel_names[i], 255);
+        thesis::strncpy(channelInfo[i].name, channel_names[i], 255);
 
     header.channels = channelInfo.data();
     header.num_channels = NUM_CHANNELS;
