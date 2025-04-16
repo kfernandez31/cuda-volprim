@@ -1,13 +1,15 @@
 #pragma once
 
+#ifdef __cplusplus
+
 #include <cuda.h>
 
 namespace thesis {
 
 class CudaContextHandle {
 public:
-    explicit CudaContextHandle(int device_ordinal = 0) noexcept;
-    ~CudaContextHandle() noexcept;
+    explicit CudaContextHandle(int device_ordinal = 0);
+    ~CudaContextHandle();
 
     // Disable copy
     CudaContextHandle(const CudaContextHandle&) = delete;
@@ -17,8 +19,10 @@ public:
     CudaContextHandle(CudaContextHandle&& other) noexcept;
     CudaContextHandle& operator=(CudaContextHandle&& other) noexcept;
 
-    operator CUcontext() const noexcept { return context_; }
-    CUdevice device() const noexcept { return device_; }
+    [[nodiscard]] const CUcontext& get() const noexcept { return context_; }
+    [[nodiscard]]       CUcontext& get()       noexcept { return context_; }
+
+    [[nodiscard]] CUdevice device() const noexcept { return device_; }
 
 private:
     CUcontext context_ = nullptr;
@@ -26,3 +30,5 @@ private:
 };
 
 } // namespace thesis
+
+#endif // __cplusplus

@@ -4,10 +4,11 @@
 
 #include <array>
 #include <functional>
+#include <string_view>
 
 namespace thesis {
 
-void context_log_cb(unsigned int level, const char* /*tag*/, const char* message, void* /*cbdata*/) {
+void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, void* /*cbdata*/) {
     using Logger = std::function<void(std::string_view)>;
     static const std::array<Logger, 5> loggers = {
         [](auto msg){ spdlog::critical("OptiX: {}", msg); },

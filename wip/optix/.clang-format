@@ -29,8 +29,8 @@ DerivePointerAlignment: false
 
 # --- Comments ---
 ReflowComments: true                     # Auto-wrap long comments
-SpacesInLineCommentPrefix: true          # Align `//` nicely
+# SpacesInLineCommentPrefix: true          # Align `//` nicely
 
 # --- Trailing commas ---
 Cpp11BracedListStyle: true
-IncludeTrailingComma: Wrapped            # Makes diffs cleaner in multi-line lists
+# IncludeTrailingComma: Wrapped            # Makes diffs cleaner in multi-line lists

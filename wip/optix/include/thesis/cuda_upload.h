@@ -1,8 +1,10 @@
 #pragma once
 
+#ifdef __cplusplus
+
 #include "thesis/check.h"
 
-#include <cuda_runtime.h>
+#include <cuda.h>
 
 #include <utility>
 
@@ -11,15 +13,15 @@ namespace thesis {
 template <typename T>
 class CudaUpload {
 public:
-    CudaUpload(const T& value) noexcept
+    explicit CudaUpload(const T& value)
     {
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&device_ptr_), sizeof(T)));
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(device_ptr_), &value, sizeof(T), cudaMemcpyHostToDevice));
+        CU_CHECK(cuMemAlloc(&device_ptr_, sizeof(T)));
+        CU_CHECK(cuMemcpyHtoD(device_ptr_, &value, sizeof(T)));
     }
 
     ~CudaUpload() noexcept
     {
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(device_ptr_)));
+        CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
     }
 
     CudaUpload(const CudaUpload&) = delete;
@@ -30,17 +32,20 @@ public:
 
     CudaUpload& operator=(CudaUpload&& other) noexcept
     {
-        if (this != &other) {
-            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(device_ptr_)));
+        if (this == &other) {
+            CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
             device_ptr_ = std::exchange(other.device_ptr_, 0);
         }
         return *this;
     }
 
-    operator CUdeviceptr() const noexcept { return device_ptr_; }
+    [[nodiscard]] const CUdeviceptr& get() const noexcept { return device_ptr_; }
+    [[nodiscard]]       CUdeviceptr& get()       noexcept { return device_ptr_; }
 
 private:
     CUdeviceptr device_ptr_ = 0;
 };
 
 } // namespace thesis
+
+#endif // __cplusplus

@@ -1,11 +1,11 @@
 #pragma once
 
+#ifdef __cplusplus
+
 #include "check.h"
 
-#include <optix_host.h>
-#include <optix_function_table_definition.h>
+#include <cuda.h>
 #include <optix_stubs.h>
-
 
 #include <string>
 #include <utility>
@@ -19,8 +19,6 @@ namespace thesis {
 template <typename T, auto DestroyFn>
 class OptixHandle {
 public:
-    OptixHandle() noexcept = default;
-
     OptixHandle(const OptixHandle&) = delete;
     OptixHandle& operator=(const OptixHandle&) = delete;
 
@@ -30,7 +28,9 @@ public:
     OptixHandle& operator=(OptixHandle&& other) noexcept
     {
         if (this != &other) {
-            if (handle_) OPTIX_CHECK(DestroyFn(handle_));
+            if (handle_) {
+                OPTIX_CHECK(DestroyFn(handle_));
+            }
             handle_ = std::exchange(other.handle_, nullptr);
         }
         return *this;
@@ -38,13 +38,18 @@ public:
 
     ~OptixHandle() noexcept
     {
-        if (handle_) OPTIX_CHECK(DestroyFn(handle_));
+        if (handle_) {
+            OPTIX_CHECK(DestroyFn(handle_));
+        }
     }
 
-    const T& get() const noexcept { return handle_; }
-          T& get()       noexcept { return handle_; }
+    [[nodiscard]] const T& get() const noexcept { return handle_; }
+    [[nodiscard]]       T& get()       noexcept { return handle_; }
 
 protected:
+    OptixHandle() noexcept = default;
+
+private:
     T handle_ = 0;
 };
 
@@ -54,11 +59,11 @@ protected:
 
 class OptixDeviceContextHandle : public OptixHandle<OptixDeviceContext, optixDeviceContextDestroy> {
 public:
-    OptixDeviceContextHandle(
+    explicit OptixDeviceContextHandle(
         const OptixDeviceContextOptions& dco,
-        CUcontext cuCtx = 0)
+        CUcontext cu_ctx = nullptr)
     {
-        OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &dco, &handle_));
+        OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &dco, &get()));
     }
 };
 
@@ -70,7 +75,7 @@ public:
         const OptixPipelineCompileOptions& pco,
         const std::string& ptx)
     {
-        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.c_str(), ptx.size(), log, &logSize, &handle_));
+        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.c_str(), ptx.size(), log.data(), &log_size, &get()));
     }
 };
 
@@ -80,8 +85,8 @@ public:
         OptixDeviceContext ctx,
         const OptixProgramGroupDesc& desc)
     {
-        OptixProgramGroupOptions pg_options = {};
-        OPTIX_CALL_LOGGED(optixProgramGroupCreate(ctx, &desc, 1, &pg_options, log, &logSize, &handle_));
+        const OptixProgramGroupOptions pg_options = {};
+        OPTIX_CALL_LOGGED(optixProgramGroupCreate(ctx, &desc, 1, &pg_options, log.data(), &log_size, &get()));
     }
 };
 
@@ -92,10 +97,25 @@ public:
         const OptixPipelineCompileOptions& pco,
         const OptixPipelineLinkOptions& plo,
         const OptixProgramGroup* groups,
-        unsigned int numGroups)
+        unsigned int num_groups)
     {
-        OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups, numGroups, log, &logSize, &handle_));
+        OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups, num_groups, log.data(), &log_size, &get()));
+    }
+
+    void launch(
+        CUstream stream,
+        CUdeviceptr params,
+        size_t params_size,
+        const OptixShaderBindingTable* sbt,
+        unsigned int width,
+        unsigned int height,
+        unsigned int depth = 1
+    )
+    {
+        OPTIX_CHECK(optixLaunch(get(), stream, params, params_size, sbt, width, height, depth));
     }
 };
 
 } // namespace thesis
+
+#endif // __cplusplus

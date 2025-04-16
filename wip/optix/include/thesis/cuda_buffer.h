@@ -1,30 +1,32 @@
 #pragma once
 
+#ifdef __cplusplus
+
 #include "thesis/check.h"
 
 #include <cuda_runtime.h>
 
 #include <utility>
+#include <cstddef> 
 
 namespace thesis {
 
-// TODO: for real-time rendering and interop, opt for something like:
+// TODO(kacper): for real-time rendering and interop, opt for something like:
 // C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h" 
 
 template <typename T>
 class CudaBuffer {
 public:
-    CudaBuffer(size_t count)
-        : count_(count), host_ptr_(nullptr), device_ptr_(nullptr)
+    explicit CudaBuffer(size_t count)
+        : count_(count), host_ptr_(new T[count_]), device_ptr_(nullptr)
     {
-        host_ptr_ = new T[count_];
         CUDA_CHECK(cudaMalloc(&device_ptr_, count_ * sizeof(T)));
     }
 
     ~CudaBuffer() noexcept
     {
         delete[] host_ptr_;
-        CUDA_CHECK(cudaFree(device_ptr_));
+        CUDA_CHECK_NOEXCEPT(cudaFree(device_ptr_));
     }
 
     // Disable copy
@@ -42,7 +44,7 @@ public:
     {
         if (this != &other) {
             delete[] host_ptr_;
-            CUDA_CHECK(cudaFree(device_ptr_));
+            CUDA_CHECK_NOEXCEPT(cudaFree(device_ptr_));
 
             host_ptr_ = std::exchange(other.host_ptr_, nullptr);
             device_ptr_ = std::exchange(other.device_ptr_, nullptr);
@@ -61,13 +63,13 @@ public:
         CUDA_CHECK(cudaMemcpy(host_ptr_, device_ptr_, count_ * sizeof(T), cudaMemcpyDeviceToHost));
     }
 
-          T* host()       noexcept { return host_ptr_; }
-    const T* host() const noexcept { return host_ptr_; }
+    [[nodiscard]]       T* host()       noexcept { return host_ptr_; }
+    [[nodiscard]] const T* host() const noexcept { return host_ptr_; }
 
-          T* device()       noexcept { return device_ptr_; }
-    const T* device() const noexcept { return device_ptr_; }
+    [[nodiscard]]       T* device()       noexcept { return device_ptr_; }
+    [[nodiscard]] const T* device() const noexcept { return device_ptr_; }
 
-    size_t size() const { return count_; }
+    [[nodiscard]] size_t size() const { return count_; }
 private:
     size_t count_ = 0;
     T* host_ptr_ = nullptr;
@@ -75,3 +77,6 @@ private:
 };
 
 } // namespace thesis
+
+
+#endif // __cplusplus

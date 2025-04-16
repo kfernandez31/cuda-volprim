@@ -1,6 +1,9 @@
+#include "thesis/check.h"
 #include "thesis/cuda_buffer.h"
 #include "thesis/cuda_context.h"
+#include "thesis/cuda_stream.h"
 #include "thesis/cuda_upload.h"
+#include "thesis/launch_params.h"
 #include "thesis/optix_handle.h"
 #include "thesis/optix_logging.h"
 #include "thesis/optix_record.h"
@@ -9,13 +12,18 @@
 #include <CLI11/CLI11.h>
 #include <spdlog/spdlog.h>
 
-#include <optix.h>
-#include <cuda_runtime.h>
+#include <optix_stubs.h> 
+#include <vector_types.h>
 
-#include <vector>
 #include <algorithm>
+#include <array>
+#include <cstddef>
+#include <string>
+#include <vector>
 
-static std::string get_ptx_path() {
+namespace {
+
+std::string getPtxPath() {
 #ifdef PTX_PATH
     return PTX_PATH;
 #else
@@ -23,13 +31,29 @@ static std::string get_ptx_path() {
 #endif
 }
 
-using namespace thesis;
+} // namespace
+
+// TODO(kacper): reconsider naming and namespacing, maybe grouping some symbols up in sub-namespaces of "thesis"
+using thesis::CudaBuffer;
+using thesis::CudaContextHandle;
+using thesis::CudaStreamHandle;
+using thesis::CudaUpload;
+using thesis::OptixDeviceContextHandle;
+using thesis::OptixModuleHandle;
+using thesis::OptixProgramGroupHandle;
+using thesis::OptixPipelineHandle;
+using thesis::OptixRecord;
+using thesis::saveExrImage;
+using thesis::contextLogCb;
+using thesis::readFileToString;
+
+OptixFunctionTable g_optixFunctionTable_105 = {};
 
 int main(int argc, char* argv[]) {
     // Parse arguments
     CLI::App app{"OptiX-based raytracer of kernel mixture models"};
     
-    std::string output_path = "output.exr";
+    std::string output_path("output.exr");
     app.add_option("-o,--output", output_path, "Path to save the rendered image")->required(false);
 
     CLI11_PARSE(app, argc, argv);
@@ -46,7 +70,7 @@ int main(int argc, char* argv[]) {
     spdlog::info("Output image path: {}", output_path);
 
     // Initialize CUDA and OptiX
-    CUDA_CHECK(cudaFree(0));
+    const CudaContextHandle ctx(0);
     spdlog::debug("CUDA context initialized");
 
     OPTIX_CHECK(optixInit());
@@ -54,7 +78,7 @@ int main(int argc, char* argv[]) {
 
     // Device context
     OptixDeviceContextOptions dco = {};
-    dco.logCallbackFunction       = &context_log_cb;
+    dco.logCallbackFunction       = &contextLogCb;
     dco.logCallbackLevel          = OPTIX_LOG_LEVEL_WARNING;
 #ifdef DEBUG
     dco.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
@@ -63,74 +87,77 @@ int main(int argc, char* argv[]) {
     spdlog::debug("Optix device context created");
 
     // Load PTX
-    auto ptx = read_file_to_string(get_ptx_path());
-    if (!ptx) return 1;
+    auto ptx = readFileToString(getPtxPath());
+    if (!ptx) {
+        return 1;
+    }
     spdlog::info("PTX loaded ({} bytes)", ptx->size());
 
     // Module
     OptixModuleCompileOptions mco = {};
+
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = "optixLaunchParams";
-    OptixModuleHandle module(context.get(), mco, pco, *ptx);
+
+    const OptixModuleHandle module(context.get(), mco, pco, *ptx);
     spdlog::debug("OptiX module created");
 
     // Raygen program group
-    OptixProgramGroupDesc raygenDesc = {};
-    raygenDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-    raygenDesc.raygen.module = module.get();
-    raygenDesc.raygen.entryFunctionName = "__raygen__hello";
-    OptixProgramGroupHandle raygenPG(context.get(), raygenDesc);
+    OptixProgramGroupDesc raygen_desc = {};
+    raygen_desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
+    raygen_desc.raygen.module = module.get();
+    raygen_desc.raygen.entryFunctionName = "__raygen__hello";
+
+    OptixProgramGroupHandle raygen_pg(context.get(), raygen_desc);
     spdlog::debug("Raygen program group created");
 
-    OptixProgramGroupDesc missDesc = {};
-    missDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    missDesc.miss.module = module.get();
-    missDesc.miss.entryFunctionName = "__miss__noop";
-    OptixProgramGroupHandle missPG(context.get(), missDesc);
+    // Miss program group
+    OptixProgramGroupDesc miss_desc = {};
+    miss_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+    miss_desc.miss.module = module.get();
+    miss_desc.miss.entryFunctionName = "__miss__noop";
+
+    OptixProgramGroupHandle miss_pg(context.get(), miss_desc);
     spdlog::debug("Miss program group created");
 
     // Pipeline
     OptixPipelineLinkOptions plo = {};
     plo.maxTraceDepth = 1;
 
-    std::array<OptixProgramGroup, 2> program_groups = { raygenPG.get(), missPG.get() };
+    std::array<OptixProgramGroup, 2> program_groups = { raygen_pg.get(), miss_pg.get() };
     OptixPipelineHandle pipeline(context.get(), pco, plo, program_groups.data(), static_cast<unsigned int>(program_groups.size()));
     spdlog::info("OptiX pipeline built");
 
     // Shader Binding Table
-    OptixRecord<void> raygenRecord(raygenPG.get());
-    OptixRecord<void> missRecord(missPG.get());
+    OptixRecord<void> raygen_record(raygen_pg.get());
+    OptixRecord<void> miss_record(miss_pg.get());
 
     OptixShaderBindingTable sbt = {};
-    sbt.raygenRecord = raygenRecord.get();
-    sbt.missRecordBase          = missRecord.get();
+    sbt.raygenRecord            = raygen_record.get();
+    sbt.missRecordBase          = miss_record.get();
     sbt.missRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
     sbt.missRecordCount         = 1;
 
-    spdlog::debug("raygenRecord ptr: {}", static_cast<uint64_t>(raygenRecord.get()));
-    spdlog::debug("missRecord ptr: {}", static_cast<uint64_t>(missRecord.get()));
     spdlog::debug("Shader binding table prepared");
 
     // Allocate output buffer
-    const size_t width = 512;
+    const size_t width  = 512;
     const size_t height = 384;
     CudaBuffer<float4> buffer(width * height);
     spdlog::info("Output buffer allocated ({}x{})", width, height);
 
     // Set launch parameters
-    struct LaunchParams { float4* output_buffer; };
-    LaunchParams params = { buffer.device() };
+    const LaunchParams params = { buffer.device() };
     CudaUpload<LaunchParams> d_params(params);
     spdlog::debug("Launch parameters uploaded");
 
-    CUstream stream;
-    CUDA_CHECK(cudaStreamCreate(&stream));
+    CudaStreamHandle stream;
 
     // Launch
     spdlog::info("Launching OptiX pipeline...");
-    OPTIX_CHECK(optixLaunch(pipeline.get(), stream, d_params, sizeof(LaunchParams), &sbt, width, height, 1));
-    CUDA_CHECK(cudaDeviceSynchronize());
-    spdlog::info("Kernel execution complete");
+    pipeline.launch(stream.get(), d_params.get(), sizeof(LaunchParams), &sbt, width, height);
+    CudaStreamHandle::synchronizeDevice();
+    spdlog::info("Pipeline execution complete");
 
     // Readback
     buffer.download();
@@ -144,7 +171,7 @@ int main(int argc, char* argv[]) {
     spdlog::debug("Framebuffer prepared for EXR output");
 
     // Save as EXR
-    thesis::save_exr_image(framebuffer, width, height, std::string(output_path));
+    saveExrImage(framebuffer, width, height, output_path);
     spdlog::info("Image saved to '{}'", output_path);
 
     return 0;

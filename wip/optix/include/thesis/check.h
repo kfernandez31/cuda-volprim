@@ -1,51 +1,80 @@
 #pragma once
 
-#include <cuda_runtime.h>
-#include <optix.h>
+#ifdef __cplusplus
 
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+#include <driver_types.h>
+#include <optix_types.h>
+
+#include <array>    // IWYU pragma: keep
 #include <iostream>
+#include <cstdlib> 
 
-#define CUDA_CHECK( call )                                                       \
-    do {                                                                         \
-        cudaError_t err = call;                                                  \
-        if (err != cudaSuccess)  {                                               \
-            std::cerr << "CUDA Error: " << cudaGetErrorString(err) << std::endl; \
-            exit(1);                                                             \
-        }                                                                        \
-    } while(0)
+namespace thesis {
 
-#define OPTIX_CHECK( call )                                   \
-    do {                                                      \
-        OptixResult res = call;                               \
-        if (res != OPTIX_SUCCESS)  {                          \
-            std::cerr << "OptiX Error: " << res << std::endl; \
-            exit(1);                                          \
-        }                                                     \
-    } while(0)
+namespace logging {
+    constexpr size_t MAX_LOG_SIZE = 2048;
+} // namespace logging
 
-#define CU_CHECK( call )                                               \
-do {                                                                   \
-    CUresult err = call;                                               \
-    if (err != CUDA_SUCCESS) {                                         \
-        const char* errStr;                                            \
-        cuGetErrorString(err, &errStr);                                \
-        std::cerr << "CUDA Driver API Error: " << errStr << std::endl; \
-        exit(1);                                                       \
-    }                                                                  \
-} while (0)
+template <bool exit_on_error=true>
+inline void cudaCheck(cudaError_t err, const char* file, int line) noexcept {
+    if (err != cudaSuccess) {
+        std::cerr << "CUDA Error at " << file << ":" << line
+                  << ": " << cudaGetErrorString(err) << '\n';
+        if constexpr (exit_on_error) {
+            std::exit(1);
+        }
+    }
+}
 
-#define LOG_SIZE 2048
+template <bool exit_on_error=true>
+inline void optixCheck(OptixResult res, const char* file, int line) noexcept {
+    if (res != OPTIX_SUCCESS) {
+        std::cerr << "OptiX Error at " << file << ":" << line
+                  << ": code " << static_cast<int>(res) << '\n';
+        if constexpr (exit_on_error) {
+            std::exit(1);
+        }
+    }
+}
 
-#define OPTIX_CALL_LOGGED(call)                                        \
-    do {                                                               \
-        char log[LOG_SIZE];                                            \
-        size_t logSize = LOG_SIZE;                                     \
-        OptixResult res = call;                                        \
-        if (logSize > 1 && log[0] != '\0')                             \
-            std::cerr << "OptiX Log: " << log << std::endl;            \
-        if (res != OPTIX_SUCCESS) {                                    \
-            std::cerr << "OptiX Error: " << static_cast<int>(res)      \
-                      << " (" << __FILE__ << ":" << __LINE__ << ")\n"; \
-            exit(1);                                                   \
-        }                                                              \
+template <bool exit_on_error=true>
+inline void cuCheck(CUresult err, const char* file, int line) noexcept {
+    if (err != CUDA_SUCCESS) {
+        const char* err_str = nullptr;
+        cuGetErrorString(err, &err_str);
+        std::cerr << "CUDA Driver API Error at " << file << ":" << line
+                  << ": " << err_str << '\n';
+        if constexpr (exit_on_error) {
+            std::exit(1);
+        }
+    }
+}
+
+} // namespace thesis
+
+#define CUDA_CHECK(call)            thesis::cudaCheck<true>((call), __FILE__, __LINE__)
+#define CUDA_CHECK_NOEXCEPT(call)   thesis::cudaCheck<false>((call), __FILE__, __LINE__)
+
+#define OPTIX_CHECK(call)           thesis::optixCheck<true>((call), __FILE__, __LINE__)
+#define OPTIX_CHECK_NOEXCEPT(call)  thesis::optixCheck<false>((call), __FILE__, __LINE__)
+
+#define CU_CHECK(call)              thesis::cuCheck<true>((call), __FILE__, __LINE__)
+#define CU_CHECK_NOEXCEPT(call)     thesis::cuCheck<false>((call), __FILE__, __LINE__)
+
+#define OPTIX_CALL_LOGGED(call)                                          \
+    do {                                                                 \
+        std::array<char, thesis::logging::MAX_LOG_SIZE> log = {};        \
+        size_t log_size = thesis::logging::MAX_LOG_SIZE;                 \
+        const OptixResult res = (call);                                  \
+        if (log_size > 1 && log[0] != '\0')                              \
+            std::cerr << "OptiX Log: " << log.data() << '\n';            \
+        if (res != OPTIX_SUCCESS) {                                      \
+            std::cerr << "OptiX Error: " << static_cast<int>(res)        \
+                        << " (" << __FILE__ << ":" << __LINE__ << ")\n"; \
+            std::exit(1);                                                \
+        }                                                                \
     } while (0)
+
+#endif // __cplusplus

@@ -191,7 +191,6 @@ target_link_libraries(thesis PRIVATE
 file(TO_CMAKE_PATH "${PTX_OUTPUT}" PTX_PATH_CMAKE_STYLE)
 target_compile_definitions(thesis PRIVATE
     PTX_PATH="${PTX_PATH_CMAKE_STYLE}"
-    OPTIX_USE_HOST_API
 )
 
 # === Static Analysis: Clang-Tidy ===

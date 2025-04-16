@@ -3,19 +3,30 @@ Checks: >
   bugprone-*,
   google-*,
   modernize-*,
+  -modernize-use-trailing-return-type,
   performance-*,
+  -performance-no-int-to-ptr,
   readability-*,
+  -readability-identifier-length,
   misc-*,
   cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-do-while,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,-warnings-as-errors,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -google-runtime-int,
   -google-readability-casting,
   -llvm-*,
   -hicpp-*,
   -cert-err58-cpp
 
-WarningsAsErrors: '*'
+WarningsAsErrors: ''
 HeaderFilterRegex: '^(src|include|device)/'
 FormatStyle: file
+SystemHeaders: false
 
 CheckOptions:
   # Modernization & Core Guidelines
@@ -41,3 +52,5 @@ CheckOptions:
     value: UPPER_CASE
   - key: readability-identifier-naming.MemberCase
     value: lower_case
+  - key: readability-identifier-naming.MemberSuffix
+    value: '_'

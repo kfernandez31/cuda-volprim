@@ -4,24 +4,36 @@
 #include <tinyexr/tinyexr.h>
 
 #include <array>
+#include <cstddef>
 #include <fstream>
-#include <stdexcept>
+#include <ios>
 
-#define NUM_CHANNELS 3
+#ifdef _MSC_VER
+    #include <cstdlib>
+#endif // _MSC_VER
+
+namespace {
+
+constexpr size_t NUM_CHANNELS = 3;
+constexpr size_t EXR_NAME_MAX_LEN = 255;
+
+inline void safeStrncpy(char* dest, const char* src, size_t dest_size) {
+#ifdef _MSC_VER
+    strncpy_s(dest, dest_size, src, _TRUNCATE);
+#else
+    if (dest_size == 0) {
+        return;
+    }
+    std::strncpy(dest, src, dest_size - 1);
+    dest[dest_size - 1] = '\0';  // ensure null-termination
+#endif // _MSC_VER
+}
+
+} // namespace
 
 namespace thesis {
 
-static inline void strncpy(char* dest, const char* src, size_t dest_size) {
-#if defined(_MSC_VER)
-    strncpy_s(dest, dest_size, src, _TRUNCATE);
-#else
-    if (dest_size == 0) return;
-    std::strncpy(dest, src, dest_size - 1);
-    dest[dest_size - 1] = '\0';  // ensure null-termination
-#endif
-}
-
-std::optional<std::string> read_file_to_string(std::string_view filename)
+std::optional<std::string> readFileToString(const std::string& filename)
 {
     std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
     if (!file) {
@@ -31,23 +43,24 @@ std::optional<std::string> read_file_to_string(std::string_view filename)
 
     std::string ptx(file.tellg(), '\0');
     file.seekg(0);
-    file.read(ptx.data(), ptx.size());
+    file.read(ptx.data(), static_cast<std::streamsize>(ptx.size()));
     return ptx;
 }
 
-void save_exr_image(const std::vector<float3>& framebuffer, int width, int height, const std::string& filename, bool flip_vertical)
+void saveExrImage(const std::vector<float3>& framebuffer, size_t width, size_t height, const std::string& filename, bool flip_vertical)
 {
     constexpr std::array<const char*, NUM_CHANNELS> channel_names = { "B", "G", "R" };
 
     std::array<std::vector<float>, NUM_CHANNELS> channels;
-    for (auto& chan : channels)
+    for (auto& chan : channels) {
         chan.resize(width * height);
+    }
 
-    for (int y = 0; y < height; ++y) {
+    for (size_t y = 0; y < height; ++y) {
         const size_t row_in  = y * width;
         const size_t row_out = (flip_vertical ? height - 1 - y : y) * width;
 
-        for (int x = 0; x < width; ++x) {
+        for (size_t x = 0; x < width; ++x) {
             const auto& c = framebuffer[row_in + x];
             channels[0][row_out + x] = c.x; // R
             channels[1][row_out + x] = c.y; // G
@@ -64,19 +77,20 @@ void save_exr_image(const std::vector<float3>& framebuffer, int width, int heigh
         channels[0].data(), // R
     };
 
-    image.num_channels = NUM_CHANNELS;
+    image.num_channels = static_cast<int>(NUM_CHANNELS);
     image.images = reinterpret_cast<unsigned char**>(channel_ptrs.data());
-    image.width = width;
-    image.height = height;
+    image.width = static_cast<int>(width);
+    image.height = static_cast<int>(height);
 
     EXRHeader header;
     InitEXRHeader(&header);
 
-    std::array<EXRChannelInfo, NUM_CHANNELS> channelInfo;
-    for (int i = 0; i < NUM_CHANNELS; ++i)
-        thesis::strncpy(channelInfo[i].name, channel_names[i], 255);
+    std::array<EXRChannelInfo, NUM_CHANNELS> channel_info = {};
+    for (size_t i = 0; i < NUM_CHANNELS; ++i) {
+        safeStrncpy(channel_info[i].name, channel_names[i], EXR_NAME_MAX_LEN);
+    }
 
-    header.channels = channelInfo.data();
+    header.channels = channel_info.data();
     header.num_channels = NUM_CHANNELS;
 
     std::array<int, NUM_CHANNELS> pixel_types;
@@ -88,8 +102,9 @@ void save_exr_image(const std::vector<float3>& framebuffer, int width, int heigh
     if (SaveEXRImageToFile(&image, &header, filename.c_str(), &err) != TINYEXR_SUCCESS) {
         spdlog::error("Error saving EXR: {}", err);
         FreeEXRErrorMessage(err);
-    } else
+    } else {
         spdlog::info("Saved EXR: {}", filename);
+    }
 }
 
 } // namespace thesis
