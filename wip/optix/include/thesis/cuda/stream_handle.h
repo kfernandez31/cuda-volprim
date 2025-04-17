@@ -2,36 +2,36 @@
 
 #ifdef __cplusplus
 
-#include "thesis/check.h"
+#include "thesis/utils/check.h"
 
 #include <cuda_runtime_api.h>
 
 #include <utility>
 
-namespace thesis {
+namespace thesis::cuda {
 
-class CudaStreamHandle {
+class StreamHandle {
 public:
-    explicit CudaStreamHandle(unsigned int flags = cudaStreamDefault)
+    explicit StreamHandle(unsigned int flags = cudaStreamDefault)
     {
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, flags));
     }
 
-    ~CudaStreamHandle()
+    ~StreamHandle()
     {
         CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
     }
 
     // Disable copy
-    CudaStreamHandle(const CudaStreamHandle&) = delete;
-    CudaStreamHandle& operator=(const CudaStreamHandle&) = delete;
+    StreamHandle(const StreamHandle&) = delete;
+    StreamHandle& operator=(const StreamHandle&) = delete;
 
     // Enable move ctor
-    CudaStreamHandle(CudaStreamHandle&& other) noexcept
+    StreamHandle(StreamHandle&& other) noexcept
         : stream_(std::exchange(other.stream_, nullptr)) {}
 
     // Enable move assignment
-    CudaStreamHandle& operator=(CudaStreamHandle&& other) noexcept {
+    StreamHandle& operator=(StreamHandle&& other) noexcept {
         if (this != &other) {
             CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
 
@@ -57,6 +57,6 @@ private:
     cudaStream_t stream_ = nullptr;
 };
 
-} // namespace thesis
+} // namespace thesis::cuda
 
 #endif // __cplusplus

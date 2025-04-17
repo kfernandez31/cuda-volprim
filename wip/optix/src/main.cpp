@@ -1,18 +1,19 @@
-#include "thesis/check.h"
-#include "thesis/cuda_buffer.h"
-#include "thesis/cuda_context.h"
-#include "thesis/cuda_stream.h"
-#include "thesis/cuda_upload.h"
-#include "thesis/launch_params.h"
-#include "thesis/optix_handle.h"
-#include "thesis/optix_logging.h"
-#include "thesis/optix_record.h"
-#include "thesis/file_utils.h"
+#include "thesis/utils/check.h"
+#include "thesis/utils/io.h"
+#include "thesis/cuda/buffer.h"
+#include "thesis/cuda/context_handle.h"
+#include "thesis/cuda/stream_handle.h"
+#include "thesis/cuda/upload_buffer.h"
+#include "thesis/optix/handle.h"
+#include "thesis/optix/logging.h"
+#include "thesis/optix/record.h"
+#include "thesis/optix/launch_params.h"
 
 #include <CLI11/CLI11.h>
 #include <spdlog/spdlog.h>
 
-#include <optix_stubs.h> 
+#include <optix_stubs.h>
+#include <optix_function_table_definition.h> 
 #include <vector_types.h>
 
 #include <algorithm>
@@ -33,21 +34,9 @@ std::string getPtxPath() {
 
 } // namespace
 
-// TODO(kacper): reconsider naming and namespacing, maybe grouping some symbols up in sub-namespaces of "thesis"
-using thesis::CudaBuffer;
-using thesis::CudaContextHandle;
-using thesis::CudaStreamHandle;
-using thesis::CudaUpload;
-using thesis::OptixDeviceContextHandle;
-using thesis::OptixModuleHandle;
-using thesis::OptixProgramGroupHandle;
-using thesis::OptixPipelineHandle;
-using thesis::OptixRecord;
-using thesis::saveExrImage;
-using thesis::contextLogCb;
-using thesis::readFileToString;
-
-OptixFunctionTable g_optixFunctionTable_105 = {};
+namespace tcuda  = thesis::cuda;
+namespace toptix = thesis::optix;
+namespace tio    = thesis::io;
 
 int main(int argc, char* argv[]) {
     // Parse arguments
@@ -70,7 +59,7 @@ int main(int argc, char* argv[]) {
     spdlog::info("Output image path: {}", output_path);
 
     // Initialize CUDA and OptiX
-    const CudaContextHandle ctx(0);
+    const tcuda::ContextHandle ctx(0);
     spdlog::debug("CUDA context initialized");
 
     OPTIX_CHECK(optixInit());
@@ -78,16 +67,16 @@ int main(int argc, char* argv[]) {
 
     // Device context
     OptixDeviceContextOptions dco = {};
-    dco.logCallbackFunction       = &contextLogCb;
-    dco.logCallbackLevel          = OPTIX_LOG_LEVEL_WARNING;
+    dco.logCallbackFunction       = &toptix::contextLogCb;
+    dco.logCallbackLevel          = static_cast<int>(toptix::LogLevel::Warning);
 #ifdef DEBUG
     dco.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 #endif // DEBUG
-    OptixDeviceContextHandle context(dco);
+    toptix::DeviceContextHandle context(dco);
     spdlog::debug("Optix device context created");
 
     // Load PTX
-    auto ptx = readFileToString(getPtxPath());
+    auto ptx = tio::readFileToString(getPtxPath());
     if (!ptx) {
         return 1;
     }
@@ -99,7 +88,7 @@ int main(int argc, char* argv[]) {
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = "optixLaunchParams";
 
-    const OptixModuleHandle module(context.get(), mco, pco, *ptx);
+    const toptix::ModuleHandle module(context.get(), mco, pco, *ptx);
     spdlog::debug("OptiX module created");
 
     // Raygen program group
@@ -108,7 +97,7 @@ int main(int argc, char* argv[]) {
     raygen_desc.raygen.module = module.get();
     raygen_desc.raygen.entryFunctionName = "__raygen__hello";
 
-    OptixProgramGroupHandle raygen_pg(context.get(), raygen_desc);
+    toptix::ProgramGroupHandle raygen_pg(context.get(), raygen_desc);
     spdlog::debug("Raygen program group created");
 
     // Miss program group
@@ -117,7 +106,7 @@ int main(int argc, char* argv[]) {
     miss_desc.miss.module = module.get();
     miss_desc.miss.entryFunctionName = "__miss__noop";
 
-    OptixProgramGroupHandle miss_pg(context.get(), miss_desc);
+    toptix::ProgramGroupHandle miss_pg(context.get(), miss_desc);
     spdlog::debug("Miss program group created");
 
     // Pipeline
@@ -125,12 +114,12 @@ int main(int argc, char* argv[]) {
     plo.maxTraceDepth = 1;
 
     std::array<OptixProgramGroup, 2> program_groups = { raygen_pg.get(), miss_pg.get() };
-    OptixPipelineHandle pipeline(context.get(), pco, plo, program_groups.data(), static_cast<unsigned int>(program_groups.size()));
+    toptix::PipelineHandle pipeline(context.get(), pco, plo, program_groups.data(), static_cast<unsigned int>(program_groups.size()));
     spdlog::info("OptiX pipeline built");
 
     // Shader Binding Table
-    OptixRecord<void> raygen_record(raygen_pg.get());
-    OptixRecord<void> miss_record(miss_pg.get());
+    toptix::Record<void> raygen_record(raygen_pg.get());
+    toptix::Record<void> miss_record(miss_pg.get());
 
     OptixShaderBindingTable sbt = {};
     sbt.raygenRecord            = raygen_record.get();
@@ -143,20 +132,20 @@ int main(int argc, char* argv[]) {
     // Allocate output buffer
     const size_t width  = 512;
     const size_t height = 384;
-    CudaBuffer<float4> buffer(width * height);
+    tcuda::Buffer<float4> buffer(width * height);
     spdlog::info("Output buffer allocated ({}x{})", width, height);
 
     // Set launch parameters
-    const LaunchParams params = { buffer.device() };
-    CudaUpload<LaunchParams> d_params(params);
+    const toptix::LaunchParams params = { buffer.device() };
+    tcuda::UploadBuffer<toptix::LaunchParams> d_params(params);
     spdlog::debug("Launch parameters uploaded");
 
-    CudaStreamHandle stream;
+    tcuda::StreamHandle stream;
 
     // Launch
     spdlog::info("Launching OptiX pipeline...");
-    pipeline.launch(stream.get(), d_params.get(), sizeof(LaunchParams), &sbt, width, height);
-    CudaStreamHandle::synchronizeDevice();
+    pipeline.launch(stream.get(), d_params.get(), sizeof(params), sbt, width, height);
+    tcuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
     // Readback
@@ -171,7 +160,7 @@ int main(int argc, char* argv[]) {
     spdlog::debug("Framebuffer prepared for EXR output");
 
     // Save as EXR
-    saveExrImage(framebuffer, width, height, output_path);
+    tio::saveExrImage(framebuffer, width, height, output_path);
     spdlog::info("Image saved to '{}'", output_path);
 
     return 0;

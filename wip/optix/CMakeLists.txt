@@ -39,14 +39,17 @@ endif()
 # === Output Directory ===
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-# === Include Directories ===
+# === Own Includes ===
 include_directories(
     ${INCLUDE_DIR}
-    ${THIRD_PARTY_DIR}
+)
+
+# === Optix Includes (suppress warnings) ===
+include_directories(SYSTEM
     "${OPTIX_ROOT}/include"
 )
 
-# === 3rd-party: Add all subdirectories as SYSTEM includes ===
+# ===  3rd-party Includes (suppress warnings) ===
 file(GLOB THIRD_PARTY_SUBDIRS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*")
 foreach(dir ${THIRD_PARTY_SUBDIRS})
     if(IS_DIRECTORY ${dir})

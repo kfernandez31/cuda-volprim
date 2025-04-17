@@ -2,7 +2,7 @@
 
 #ifdef __cplusplus
 
-#include "check.h"
+#include "thesis/utils/check.h"
 
 #include <cuda.h>
 #include <optix_types.h>
@@ -14,12 +14,12 @@
 #include <cstring>
 #include <utility>
 
-namespace thesis {
+namespace thesis::optix {
 
 template <typename T>
-class OptixRecord {
+class Record {
 public:
-    explicit OptixRecord(OptixProgramGroup program, const T* data = nullptr)
+    explicit Record(OptixProgramGroup program, const T* data = nullptr)
     {
         static_assert(sizeof(T) <= OPTIX_SBT_RECORD_HEADER_SIZE, "T too large for SBT record");
 
@@ -35,21 +35,21 @@ public:
         CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(), OPTIX_SBT_RECORD_HEADER_SIZE));
     }
 
-    ~OptixRecord() noexcept
+    ~Record() noexcept
     {
         CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
     }
 
     // Delete copy
-    OptixRecord(const OptixRecord&) = delete;
-    OptixRecord& operator=(const OptixRecord&) = delete;
+    Record(const Record&) = delete;
+    Record& operator=(const Record&) = delete;
 
     // Enable move ctor
-    OptixRecord(OptixRecord&& other) noexcept
+    Record(Record&& other) noexcept
         : device_ptr_(std::exchange(other.device_ptr_, 0)) {}
 
     // Enable move assignment
-    OptixRecord& operator=(OptixRecord&& other) noexcept
+    Record& operator=(Record&& other) noexcept
     {
         if (this != &other) {
             CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
@@ -66,9 +66,9 @@ private:
 };
 
 template <>
-class OptixRecord<void> {
+class Record<void> {
 public:
-    explicit OptixRecord(OptixProgramGroup program)
+    explicit Record(OptixProgramGroup program)
     {
         CU_CHECK(cuMemAlloc(&device_ptr_, OPTIX_SBT_RECORD_HEADER_SIZE));
 
@@ -78,18 +78,18 @@ public:
         CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(), OPTIX_SBT_RECORD_HEADER_SIZE));
     }
 
-    ~OptixRecord() noexcept
+    ~Record() noexcept
     {
         CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
     }
 
-    OptixRecord(const OptixRecord&) = delete;
-    OptixRecord& operator=(const OptixRecord&) = delete;
+    Record(const Record&) = delete;
+    Record& operator=(const Record&) = delete;
 
-    OptixRecord(OptixRecord&& other) noexcept
+    Record(Record&& other) noexcept
         : device_ptr_(std::exchange(other.device_ptr_, 0)) {}
 
-    OptixRecord& operator=(OptixRecord&& other) noexcept
+    Record& operator=(Record&& other) noexcept
     {
         if (this != &other) {
             CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
@@ -105,6 +105,6 @@ private:
     CUdeviceptr device_ptr_ = 0;
 };
 
-} // namespace thesis
+} // namespace thesis::optix
 
 #endif // __cplusplus

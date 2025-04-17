@@ -1,4 +1,4 @@
-#include "thesis/file_utils.h"
+#include "thesis/utils/io.h"
 
 #include <spdlog/spdlog.h>
 #include <tinyexr/tinyexr.h>
@@ -31,7 +31,7 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) {
 
 } // namespace
 
-namespace thesis {
+namespace thesis::io {
 
 std::optional<std::string> readFileToString(const std::string& filename)
 {
@@ -78,8 +78,8 @@ void saveExrImage(const std::vector<float3>& framebuffer, size_t width, size_t h
     };
 
     image.num_channels = static_cast<int>(NUM_CHANNELS);
-    image.images = reinterpret_cast<unsigned char**>(channel_ptrs.data());
-    image.width = static_cast<int>(width);
+    image.images = reinterpret_cast<unsigned char**>(static_cast<void*>(channel_ptrs.data()));
+    image.width  = static_cast<int>(width);
     image.height = static_cast<int>(height);
 
     EXRHeader header;
@@ -107,4 +107,4 @@ void saveExrImage(const std::vector<float3>& framebuffer, size_t width, size_t h
     }
 }
 
-} // namespace thesis
+} // namespace thesis::io

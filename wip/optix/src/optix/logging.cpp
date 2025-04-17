@@ -1,4 +1,4 @@
-#include "thesis/optix_logging.h"
+#include "thesis/optix/logging.h"
 
 #include <spdlog/spdlog.h>
 
@@ -6,7 +6,7 @@
 #include <functional>
 #include <string_view>
 
-namespace thesis {
+namespace thesis::optix {
 
 void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, void* /*cbdata*/) {
     using Logger = std::function<void(std::string_view)>;
@@ -18,7 +18,11 @@ void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, 
         [](auto msg){ spdlog::debug   ("OptiX: {}", msg); },
     };
 
-    loggers[level - 1](message);
+    if (level >= static_cast<unsigned int>(LogLevel::Fatal) && level <= static_cast<unsigned int>(LogLevel::Print)) {
+        loggers[level - 1](message);
+    } else {
+        spdlog::warn("OptiX: Unknown log level {} — {}", level, message);
+    }
 }
 
-} // namespace thesis
+} // namespace thesis::optix
