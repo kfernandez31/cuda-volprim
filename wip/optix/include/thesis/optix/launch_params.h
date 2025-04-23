@@ -4,12 +4,14 @@
 
 #include <vector_types.h>
 
-namespace thesis::optix {
+namespace thesis::optix
+{
 
-struct LaunchParams {
+struct LaunchParams
+{
     float4* output_buffer_;
 };
 
-} // namespace thesis::optix
+}  // namespace thesis::optix
 
-#endif // __cplusplus
+#endif  // __cplusplus

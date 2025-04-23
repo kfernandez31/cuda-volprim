@@ -72,8 +72,13 @@ add_library(thirdparty_objects OBJECT
 )
 
 target_compile_options(thirdparty_objects PRIVATE
+    # Fix MSVC warnings about missing exception unwind semantics
+    $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+    $<$<C_COMPILER_ID:MSVC>:/EHsc>
+
     $<$<CXX_COMPILER_ID:GNU,Clang>:-w>
     $<$<C_COMPILER_ID:GNU,Clang>:-w>
+
     $<$<CXX_COMPILER_ID:MSVC>:/W0>
     $<$<C_COMPILER_ID:MSVC>:/W0>
 )
@@ -194,18 +199,42 @@ target_link_libraries(thesis PRIVATE
 file(TO_CMAKE_PATH "${PTX_OUTPUT}" PTX_PATH_CMAKE_STYLE)
 target_compile_definitions(thesis PRIVATE
     PTX_PATH="${PTX_PATH_CMAKE_STYLE}"
+
+    # Fix "No Target Architecture" issue from Windows SDK headers
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<PLATFORM_ID:Windows>>:_AMD64_>
+    $<$<AND:$<C_COMPILER_ID:MSVC>,$<PLATFORM_ID:Windows>>:_AMD64_>
 )
 
 # === Static Analysis: Clang-Tidy ===
-find_program(CLANG_TIDY_EXE NAMES clang-tidy)
-if(CLANG_TIDY_EXE)
-    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
-    message(STATUS "Clang-Tidy enabled: ${CLANG_TIDY_EXE}")
+find_program(CLANG_TIDY NAMES clang-tidy)
+if(CLANG_TIDY)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY}")
+    message(STATUS "Clang-Tidy enabled: ${CLANG_TIDY}")
 endif()
 
 # === Static Analysis: Cppcheck ===
-find_program(CPPCHECK_EXE NAMES cppcheck)
-if(CPPCHECK_EXE)
-    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXE};--enable=all;--inconclusive;--inline-suppr;--std=c++20;--quiet")
-    message(STATUS "Cppcheck enabled: ${CPPCHECK_EXE}")
+find_program(CPPCHECK NAMES cppcheck)
+if(CPPCHECK)
+    set(CMAKE_CXX_CPPCHECK "${CPPCHECK};--enable=all;--inconclusive;--inline-suppr;--std=c++20;--quiet")
+    message(STATUS "Cppcheck enabled: ${CPPCHECK}")
+endif()
+
+# === Formatting: Clang-Format ===
+find_program(CLANG_FORMAT NAMES clang-format)
+if (CLANG_FORMAT)
+    file(GLOB_RECURSE ALL_SOURCE_FILES
+        "${CMAKE_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_SOURCE_DIR}/include/*.h"
+    )
+    add_custom_target(
+        format
+        COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES}
+        COMMENT "Running clang-format"
+    )
+endif()
+
+# === Generator Fallback ===
+if(NOT CMAKE_GENERATOR)
+    message(STATUS "Defaulting to Ninja generator")
+    set(CMAKE_GENERATOR "Ninja" CACHE INTERNAL "" FORCE)
 endif()
