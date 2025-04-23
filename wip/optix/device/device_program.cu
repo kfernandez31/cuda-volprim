@@ -7,15 +7,15 @@ struct __align__(16) LaunchParams {
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
-extern "C" __global__ void __miss__noop() {}
+extern "C" __global__ void __miss__noop() {
+}
 
-extern "C" __global__ void __raygen__hello()
-{
+extern "C" __global__ void __raygen__hello() {
     const uint3 idx = optixGetLaunchIndex();
     const uint3 dim = optixGetLaunchDimensions();
 
     float4* output = reinterpret_cast<float4*>(optixLaunchParams.output_buffer_);
     unsigned int offset = idx.y * dim.x + idx.x;
 
-    output[offset] = make_float4(1.0f, 0.0f, 0.0f, 1.0f); // red
+    output[offset] = make_float4(1.0f, 0.0f, 0.0f, 1.0f);  // red
 }

@@ -2,12 +2,10 @@
 
 #ifdef __cplusplus
 
-namespace thesis::optix
-{
+namespace thesis::optix {
 
 // OptiX log levels (matching internal behavior)
-enum class LogLevel : unsigned int
-{
+enum class LogLevel : unsigned int {
     None = 0,
     Fatal = 1,
     Error = 2,

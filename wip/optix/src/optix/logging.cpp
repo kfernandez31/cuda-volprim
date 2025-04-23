@@ -1,16 +1,14 @@
 #include "thesis/optix/logging.h"
 
-#include <spdlog/spdlog.h>
+#include <third_party/spdlog/spdlog.h>
 
 #include <array>
 #include <functional>
 #include <string_view>
 
-namespace thesis::optix
-{
+namespace thesis::optix {
 
-void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, void* /*cbdata*/)
-{
+void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, void* /*cbdata*/) {
     using Logger = std::function<void(std::string_view)>;
     static const std::array<Logger, 5> loggers = {
         [](auto msg) { spdlog::critical("OptiX: {}", msg); },
@@ -21,12 +19,9 @@ void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, 
     };
 
     if (level >= static_cast<unsigned int>(LogLevel::Fatal) &&
-        level <= static_cast<unsigned int>(LogLevel::Print))
-    {
+        level <= static_cast<unsigned int>(LogLevel::Print)) {
         loggers[level - 1](message);
-    }
-    else
-    {
+    } else {
         spdlog::warn("OptiX: Unknown log level {} — {}", level, message);
     }
 }

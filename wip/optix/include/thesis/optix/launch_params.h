@@ -4,11 +4,9 @@
 
 #include <vector_types.h>
 
-namespace thesis::optix
-{
+namespace thesis::optix {
 
-struct LaunchParams
-{
+struct LaunchParams {
     float4* output_buffer_;
 };
 

@@ -2,20 +2,17 @@
 
 #ifdef __cplusplus
 
+#include "thesis/utils/check.h"
+
 #include <cuda_runtime_api.h>
 
 #include <utility>
 
-#include "thesis/utils/check.h"
+namespace thesis::cuda {
 
-namespace thesis::cuda
-{
-
-class StreamHandle
-{
+class StreamHandle {
    public:
-    explicit StreamHandle(unsigned int flags = cudaStreamDefault)
-    {
+    explicit StreamHandle(unsigned int flags = cudaStreamDefault) {
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, flags));
     }
 
@@ -29,10 +26,8 @@ class StreamHandle
     StreamHandle(StreamHandle&& other) noexcept : stream_(std::exchange(other.stream_, nullptr)) {}
 
     // Enable move assignment
-    StreamHandle& operator=(StreamHandle&& other) noexcept
-    {
-        if (this != &other)
-        {
+    StreamHandle& operator=(StreamHandle&& other) noexcept {
+        if (this != &other) {
             CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
 
             stream_ = std::exchange(other.stream_, nullptr);

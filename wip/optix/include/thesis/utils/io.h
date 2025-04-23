@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef __cplusplus  // TODO(kacper): reenable this
+#ifdef __cplusplus
 
 #include <vector_types.h>
 
@@ -9,8 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace thesis::io
-{
+namespace thesis::io {
 
 std::optional<std::string> readFileToString(const std::string& filename);
 

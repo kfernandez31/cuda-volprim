@@ -1,15 +1,3 @@
-#include <CLI11/CLI11.h>
-#include <optix_function_table_definition.h>
-#include <optix_stubs.h>
-#include <spdlog/spdlog.h>
-#include <vector_types.h>
-
-#include <algorithm>
-#include <array>
-#include <cstddef>
-#include <string>
-#include <vector>
-
 #include "thesis/cuda/buffer.h"
 #include "thesis/cuda/context_handle.h"
 #include "thesis/cuda/stream_handle.h"
@@ -21,11 +9,22 @@
 #include "thesis/utils/check.h"
 #include "thesis/utils/io.h"
 
-namespace
-{
+#include <third_party/CLI11/CLI11.h>
+#include <third_party/spdlog/spdlog.h>
 
-std::string getPtxPath()
-{
+#include <optix_function_table_definition.h>
+#include <optix_stubs.h>
+#include <vector_types.h>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <string>
+#include <vector>
+
+namespace {
+
+std::string getPtxPath() {
 #ifdef PTX_PATH
     return PTX_PATH;
 #else
@@ -39,8 +38,7 @@ namespace tcuda = thesis::cuda;
 namespace toptix = thesis::optix;
 namespace tio = thesis::io;
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     // Parse arguments
     CLI::App app{"OptiX-based raytracer of kernel mixture models"};
 
@@ -79,8 +77,7 @@ int main(int argc, char* argv[])
 
     // Load PTX
     auto ptx = tio::readFileToString(getPtxPath());
-    if (!ptx)
-    {
+    if (!ptx) {
         return 1;
     }
     spdlog::info("PTX loaded ({} bytes)", ptx->size());

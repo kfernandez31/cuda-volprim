@@ -4,33 +4,43 @@ TabWidth: 4
 UseTab: Never
 
 # --- General formatting ---
-ColumnLimit: 100                          # More readable than Google's strict 80
-MaxEmptyLinesToKeep: 1                   # Prevent vertical clutter
-KeepEmptyLinesAtTheStartOfBlocks: false  # Clean block openings
+ColumnLimit: 100
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
 
 # --- Braces and blocks ---
-BreakBeforeBraces: Allman                # Optional: clearer visual structure
+BreakBeforeBraces: Attach
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: InlineOnly
 
 # --- Pointers, references ---
-PointerAlignment: Left                   # 'T* ptr' style
-SpaceBeforeParens: ControlStatements     # if (...) not if(...)
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatements
 SpaceAfterCStyleCast: true
-
-# --- Templates and lambdas ---
-AlwaysBreakTemplateDeclarations: Yes     # Avoid messy one-liners
 DerivePointerAlignment: false
 
+# --- Templates and lambdas ---
+AlwaysBreakTemplateDeclarations: Yes
+
 # --- Includes ---
-# SortIncludes: true
-# IncludeBlocks: Regroup                   # Groups: std, 3rd-party, project
+SortIncludes: true
+IncludeBlocks: Regroup
+
+IncludeCategories:
+  - Regex: '^"[^"]*/[^"]*\.h"'                     # Matching header
+    Priority: 1
+  - Regex: '^"thesis/.*"'                          # Project headers
+    Priority: 2
+  - Regex: '^<third_party/.*>'                     # Third-party headers
+    Priority: 3
+  - Regex: '^<((optix|cuda|vector_types)[^>]*)>'   # OptiX / CUDA / vector_types.h
+    Priority: 4
+  - Regex: '^<.*>'                                 # Standard/system headers
+    Priority: 5
 
 # --- Comments ---
-ReflowComments: true                     # Auto-wrap long comments
-# SpacesInLineCommentPrefix: true          # Align `//` nicely
+ReflowComments: true
 
 # --- Trailing commas ---
 Cpp11BracedListStyle: true
-# IncludeTrailingComma: Wrapped            # Makes diffs cleaner in multi-line lists

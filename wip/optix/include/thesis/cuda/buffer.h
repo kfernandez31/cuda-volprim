@@ -2,30 +2,26 @@
 
 #ifdef __cplusplus
 
+#include "thesis/utils/check.h"
+
 #include <cuda_runtime.h>
 
 #include <cstddef>
 #include <utility>
 
-#include "thesis/utils/check.h"
-
 // TODO(kacper): for real-time rendering and interop, opt for something like:
 // C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h"
 
-namespace thesis::cuda
-{
+namespace thesis::cuda {
 
 template <typename T>
-class Buffer
-{
+class Buffer {
    public:
-    explicit Buffer(size_t count) : count_(count), host_ptr_(new T[count_]), device_ptr_(nullptr)
-    {
+    explicit Buffer(size_t count) : count_(count), host_ptr_(new T[count_]), device_ptr_(nullptr) {
         CUDA_CHECK(cudaMalloc(&device_ptr_, count_ * sizeof(T)));
     }
 
-    ~Buffer() noexcept
-    {
+    ~Buffer() noexcept {
         delete[] host_ptr_;
         CUDA_CHECK_NOEXCEPT(cudaFree(device_ptr_));
     }
@@ -38,15 +34,11 @@ class Buffer
     Buffer(Buffer&& other) noexcept
         : count_(std::exchange(other.count_, 0)),
           host_ptr_(std::exchange(other.host_ptr_, nullptr)),
-          device_ptr_(std::exchange(other.device_ptr_, nullptr))
-    {
-    }
+          device_ptr_(std::exchange(other.device_ptr_, nullptr)) {}
 
     // Enable move assignment
-    Buffer& operator=(Buffer&& other) noexcept
-    {
-        if (this != &other)
-        {
+    Buffer& operator=(Buffer&& other) noexcept {
+        if (this != &other) {
             delete[] host_ptr_;
             CUDA_CHECK_NOEXCEPT(cudaFree(device_ptr_));
 
@@ -57,13 +49,11 @@ class Buffer
         return *this;
     }
 
-    void upload()
-    {
+    void upload() {
         CUDA_CHECK(cudaMemcpy(device_ptr_, host_ptr_, count_ * sizeof(T), cudaMemcpyHostToDevice));
     }
 
-    void download()
-    {
+    void download() {
         CUDA_CHECK(cudaMemcpy(host_ptr_, device_ptr_, count_ * sizeof(T), cudaMemcpyDeviceToHost));
     }
 

@@ -24,7 +24,7 @@ Checks: >
   -cert-err58-cpp
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '^(src|include|device)/'
+HeaderFilterRegex: '^(src|include)/'
 FormatStyle: file
 SystemHeaders: false
 
