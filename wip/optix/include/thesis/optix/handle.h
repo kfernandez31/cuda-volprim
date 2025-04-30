@@ -83,9 +83,9 @@ class ProgramGroupHandle : public Handle<OptixProgramGroup, optixProgramGroupDes
 class PipelineHandle : public Handle<OptixPipeline, optixPipelineDestroy> {
    public:
     PipelineHandle(OptixDeviceContext ctx, const OptixPipelineCompileOptions& pco,
-                   const OptixPipelineLinkOptions& plo, const OptixProgramGroup* groups,
-                   unsigned int num_groups) {
-        OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups, num_groups, log.data(),
+                   const OptixPipelineLinkOptions& plo, const OptixProgramGroup& groups,
+                   size_t num_groups) {
+        OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, &groups, static_cast<unsigned int>(num_groups), log.data(),
                                               &log_size, &get()));
     }
 

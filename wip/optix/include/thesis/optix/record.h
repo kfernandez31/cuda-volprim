@@ -19,7 +19,7 @@ namespace thesis::optix {
 template <typename T>
 class Record {
    public:
-    explicit Record(OptixProgramGroup program, const T* data = nullptr) {
+    explicit Record(OptixProgramGroup program, const T& data) {
         static_assert(sizeof(T) <= OPTIX_SBT_RECORD_HEADER_SIZE, "T too large for SBT record");
 
         CU_CHECK(cuMemAlloc(&device_ptr_, OPTIX_SBT_RECORD_HEADER_SIZE));
@@ -27,12 +27,9 @@ class Record {
         std::array<std::byte, OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)> host_record = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(program, host_record.data()));
 
-        if (data) {
-            std::memcpy(reinterpret_cast<void*>(host_record.data() + OPTIX_SBT_RECORD_HEADER_SIZE),
-                        data, sizeof(T));
-        }
+        std::memcpy(reinterpret_cast<void*>(host_record.data() + OPTIX_SBT_RECORD_HEADER_SIZE), &data, sizeof(T));
 
-        CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(), OPTIX_SBT_RECORD_HEADER_SIZE));
+        CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(), OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)));
     }
 
     ~Record() noexcept { CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_)); }

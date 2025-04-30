@@ -1,16 +1,20 @@
+#include "thesis/thesis_pch.h"
+
 #include "thesis/cuda/buffer.h"
 #include "thesis/cuda/context_handle.h"
 #include "thesis/cuda/stream_handle.h"
 #include "thesis/cuda/upload_buffer.h"
+#include "thesis/optix/gas_handle.h"
 #include "thesis/optix/handle.h"
 #include "thesis/optix/launch_params.h"
 #include "thesis/optix/logging.h"
 #include "thesis/optix/record.h"
 #include "thesis/utils/check.h"
 #include "thesis/utils/io.h"
+#include "thesis/environment_map.h"
 
-#include <third_party/CLI11/CLI11.h>
-#include <third_party/spdlog/spdlog.h>
+#include <CLI11/CLI11.h>
+#include <spdlog/spdlog.h>
 
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
@@ -21,18 +25,7 @@
 #include <cstddef>
 #include <string>
 #include <vector>
-
-namespace {
-
-std::string getPtxPath() {
-#ifdef PTX_PATH
-    return PTX_PATH;
-#else
-    throw std::runtime_error("PTX_PATH not defined");
-#endif
-}
-
-}  // namespace
+#include <span>
 
 namespace tcuda = thesis::cuda;
 namespace toptix = thesis::optix;
@@ -44,6 +37,12 @@ int main(int argc, char* argv[]) {
 
     std::string output_path("output.exr");
     app.add_option("-o,--output", output_path, "Path to save the rendered image")->required(false);
+
+    std::string ptx_path("build/device_program.ptx");
+    app.add_option("-p,--ptx", ptx_path, "Path to the PTX file")->required(false);
+
+    std::string env_map_path = "assets/meadow_2_4k.hdr"; // TODO: system-generic path
+    app.add_option("-e,--env_map", env_map_path, "Path to the environment map")->required(false);
 
     CLI11_PARSE(app, argc, argv);
 
@@ -76,7 +75,7 @@ int main(int argc, char* argv[]) {
     spdlog::debug("Optix device context created");
 
     // Load PTX
-    auto ptx = tio::readFileToString(getPtxPath());
+    auto ptx = tio::readFileToString(ptx_path);
     if (!ptx) {
         return 1;
     }
@@ -86,7 +85,8 @@ int main(int argc, char* argv[]) {
     OptixModuleCompileOptions mco = {};
 
     OptixPipelineCompileOptions pco = {};
-    pco.pipelineLaunchParamsVariableName = "optixLaunchParams";
+    pco.pipelineLaunchParamsVariableName = "params";
+    pco.numPayloadValues = 3;
 
     const toptix::ModuleHandle module(context.get(), mco, pco, *ptx);
     spdlog::debug("OptiX module created");
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     OptixProgramGroupDesc raygen_desc = {};
     raygen_desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
     raygen_desc.raygen.module = module.get();
-    raygen_desc.raygen.entryFunctionName = "__raygen__hello";
+    raygen_desc.raygen.entryFunctionName = "__raygen__rg";
 
     toptix::ProgramGroupHandle raygen_pg(context.get(), raygen_desc);
     spdlog::debug("Raygen program group created");
@@ -104,41 +104,72 @@ int main(int argc, char* argv[]) {
     OptixProgramGroupDesc miss_desc = {};
     miss_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
     miss_desc.miss.module = module.get();
-    miss_desc.miss.entryFunctionName = "__miss__noop";
+    miss_desc.miss.entryFunctionName = "__miss__ms";
 
     toptix::ProgramGroupHandle miss_pg(context.get(), miss_desc);
     spdlog::debug("Miss program group created");
+
+    // Closest hit program group
+    OptixProgramGroupDesc hitgroup_desc = {};
+    hitgroup_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+    hitgroup_desc.hitgroup.moduleCH = module.get();
+    hitgroup_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
+
+    toptix::ProgramGroupHandle hitgroup_pg(context.get(), hitgroup_desc);
+    spdlog::debug("Hitgroup program group created");
 
     // Pipeline
     OptixPipelineLinkOptions plo = {};
     plo.maxTraceDepth = 1;
 
-    std::array<OptixProgramGroup, 2> program_groups = {raygen_pg.get(), miss_pg.get()};
-    toptix::PipelineHandle pipeline(context.get(), pco, plo, program_groups.data(),
-                                    static_cast<unsigned int>(program_groups.size()));
+    std::array<OptixProgramGroup, 3> program_groups = {raygen_pg.get(), miss_pg.get(), hitgroup_pg.get()};
+    toptix::PipelineHandle pipeline(context.get(), pco, plo, *program_groups.data(), program_groups.size());
     spdlog::info("OptiX pipeline built");
 
     // Shader Binding Table
     toptix::Record<void> raygen_record(raygen_pg.get());
     toptix::Record<void> miss_record(miss_pg.get());
+    toptix::Record<void> hitgroup_record(hitgroup_pg.get());
 
     OptixShaderBindingTable sbt = {};
-    sbt.raygenRecord = raygen_record.get();
-    sbt.missRecordBase = miss_record.get();
-    sbt.missRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
-    sbt.missRecordCount = 1;
+    sbt.raygenRecord                = raygen_record.get();
+    sbt.missRecordBase              = miss_record.get();
+    sbt.missRecordStrideInBytes     = OPTIX_SBT_RECORD_HEADER_SIZE;
+    sbt.missRecordCount             = 1;
+    sbt.hitgroupRecordBase          = hitgroup_record.get();
+    sbt.hitgroupRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
+    sbt.hitgroupRecordCount         = 1;
 
     spdlog::debug("Shader binding table prepared");
 
     // Allocate output buffer
     const size_t width = 512;
     const size_t height = 384;
-    tcuda::Buffer<float4> buffer(width * height);
+    tcuda::Buffer<float3> buffer(width * height);
     spdlog::info("Output buffer allocated ({}x{})", width, height);
 
+    // Create a simple triangle geometry //TODO: add more triangles
+    const std::array<float3, 3> vertices = {
+        float3{-0.5f, -0.5f, 0.0f},
+        float3{0.5f, -0.5f, 0.0f},
+        float3{0.0f, 0.5f, 0.0f}
+    };
+
+    // Create GAS
+    toptix::TriangleGAS gas(context.get(), vertices);
+
+    // Create host-side environment map
+    thesis::HostEnvironmentMap host_env_map(env_map_path);
+
     // Set launch parameters
-    const toptix::LaunchParams params = {buffer.device()};
-    tcuda::UploadBuffer<toptix::LaunchParams> d_params(params);
+    toptix::LaunchParams params = {};
+    params.image = buffer.device();
+    params.image_width = width;
+    params.image_height = height;
+    params.handle = gas.get();
+    params.env_map = host_env_map.toDevice();
+
+    tcuda::UploadBuffer<decltype(params)> d_params(params);
     spdlog::debug("Launch parameters uploaded");
 
     tcuda::StreamHandle stream;
@@ -153,13 +184,9 @@ int main(int argc, char* argv[]) {
     buffer.download();
     spdlog::debug("Buffer downloaded from device");
 
-    // Prepare EXR data
-    std::vector<float3> framebuffer(buffer.size());
-    std::transform(buffer.host(), buffer.host() + buffer.size(), framebuffer.begin(),
-                   [](const auto& px) { return make_float3(px.x, px.y, px.z); });
-    spdlog::debug("Framebuffer prepared for EXR output");
-
+    
     // Save as EXR
+    std::span<const float3> framebuffer(buffer.host(), buffer.size());
     tio::saveExrImage(framebuffer, width, height, output_path);
     spdlog::info("Image saved to '{}'", output_path);
 

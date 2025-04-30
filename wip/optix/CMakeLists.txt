@@ -83,28 +83,35 @@ target_compile_options(thirdparty_objects PRIVATE
     $<$<C_COMPILER_ID:MSVC>:/W0>
 )
 
-# === CUDA Device Code (PTX) ===
-set(DEVICE_SRC   "${DEVICE_DIR}/device_program.cu")
-set(PTX_OUTPUT   "${CMAKE_BINARY_DIR}/device_program.ptx")
-
 # === Target Settings ===
 set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for")
 
-add_custom_command(
-    OUTPUT  ${PTX_OUTPUT}
-    COMMAND "${CMAKE_CUDA_COMPILER}"
-        -I"${OPTIX_ROOT}/include"
-        --ptx
-        --expt-relaxed-constexpr
-        --expt-extended-lambda
-        -O3
-        -arch=sm_${CUDA_ARCH}
-        -o "${PTX_OUTPUT}"
-        -diag-suppress=20044
-        "${DEVICE_SRC}"
-    DEPENDS ${DEVICE_SRC}
-    COMMENT "Compiling PTX: ${DEVICE_SRC} -> ${PTX_OUTPUT}"
-)
+# === Find all .cu device sources ===
+file(GLOB PTX_SOURCES "${DEVICE_DIR}/*.cu")
+
+# === Compile each .cu into a .ptx ===
+foreach(PTX_SRC ${PTX_SOURCES})
+    get_filename_component(PTX_FILENAME ${PTX_SRC} NAME_WE)
+    set(PTX_OUTPUT "${CMAKE_BINARY_DIR}/${PTX_FILENAME}.ptx")
+
+    add_custom_command(
+        OUTPUT ${PTX_OUTPUT}
+        COMMAND "${CMAKE_CUDA_COMPILER}"
+            -I"${OPTIX_ROOT}/include"
+            -I"${INCLUDE_DIR}"
+            --ptx
+            --expt-relaxed-constexpr
+            --expt-extended-lambda
+            -O3
+            -arch=sm_${CUDA_ARCH}
+            -o "${PTX_OUTPUT}"
+            -diag-suppress=20044
+            -m64
+            "${PTX_SRC}"
+        DEPENDS ${PTX_SRC}
+        COMMENT "Compiling PTX: ${PTX_SRC} -> ${PTX_OUTPUT}"
+    )
+endforeach()
 
 # === Executable Target ===
 add_executable(thesis
@@ -115,6 +122,9 @@ add_executable(thesis
 
 # === Link 3rd-party object files ===
 target_sources(thesis PRIVATE $<TARGET_OBJECTS:thirdparty_objects>)
+
+# === Precompiled Header ===
+target_precompile_headers(thesis PRIVATE "include/thesis/thesis_pch.h")
 
 # === Target Settings ===
 set_target_properties(thesis PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})

@@ -1,10 +1,12 @@
 # Readme
 
 ## TODO
-- [ ] working compilation on Windows
-- [ ] formatting everything automatically (except third-party)
 - [ ] Include What You Use
 - [ ] moving on to the sphere render...
+- [ ] compiler cache
+- [ ] CRLF
+- [ ] reformat again
+- [ ] clean git history?
 
 ## Compilation
 

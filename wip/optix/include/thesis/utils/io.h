@@ -6,15 +6,17 @@
 
 #include <cstddef>
 #include <optional>
-#include <string>
 #include <vector>
+#include <span>
+#include <string>
+#include <string_view>
 
 namespace thesis::io {
 
-std::optional<std::string> readFileToString(const std::string& filename);
+std::optional<std::string> readFileToString(std::string_view filename);
 
-void saveExrImage(const std::vector<float3>& framebuffer, size_t width, size_t height,
-                  const std::string& filename, bool flip_vertical = true);
+void saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height, 
+    std::string_view filename, bool flip_vertical = true);
 
 }  // namespace thesis::io
 

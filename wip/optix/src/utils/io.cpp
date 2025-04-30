@@ -1,12 +1,15 @@
 #include "thesis/utils/io.h"
 
-#include <third_party/spdlog/spdlog.h>
-#include <third_party/tinyexr/tinyexr.h>
+#include "thesis/thesis_pch.h"
+
+#include <spdlog/spdlog.h>
+#include <tinyexr/tinyexr.h>
 
 #include <array>
 #include <cstddef>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <ios>
 
 #ifdef _MSC_VER
@@ -34,7 +37,7 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) {
 
 namespace thesis::io {
 
-std::optional<std::string> readFileToString(const std::string& filename) {
+std::optional<std::string> readFileToString(std::string_view filename) {
     std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
     if (!file) {
         spdlog::error("Failed to open PTX file: {}", filename);
@@ -47,8 +50,8 @@ std::optional<std::string> readFileToString(const std::string& filename) {
     return ptx;
 }
 
-void saveExrImage(const std::vector<float3>& framebuffer, size_t width, size_t height,
-                  const std::string& filename, bool flip_vertical) {
+void saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+                  std::string_view filename, bool flip_vertical) {
     constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
 
     std::array<std::vector<float>, NUM_CHANNELS> channels;
@@ -99,7 +102,7 @@ void saveExrImage(const std::vector<float3>& framebuffer, size_t width, size_t h
     header.requested_pixel_types = pixel_types.data();
 
     const char* err = nullptr;
-    if (SaveEXRImageToFile(&image, &header, filename.c_str(), &err) != TINYEXR_SUCCESS) {
+    if (SaveEXRImageToFile(&image, &header, filename.data(), &err) != TINYEXR_SUCCESS) {
         spdlog::error("Error saving EXR: {}", err);
         FreeEXRErrorMessage(err);
     } else {
