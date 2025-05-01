@@ -3,7 +3,8 @@
 #include <optix.h>
 #include <vector_types.h>
 
-#include "thesis/environment_map.h"
+#include "thesis/device/environment_map.h"
+#include "thesis/device/camera.h"
 
 #include <cstddef>
 
@@ -20,13 +21,12 @@ enum RayType
 
 __align__(16) struct LaunchParams 
 {
-    float3* image;
+    OptixTraversableHandle handle;
+    float3* image; // TODO: wrap in class
     size_t image_width;
     size_t image_height;
-    float3 cam_eye;
-    float3 cam_u, cam_v, cam_w;
-    OptixTraversableHandle handle;
-    DeviceEnvironmentMap env_map;
+    device::EnvironmentMap env_map;
+    device::Camera camera;
 };
 
 struct RayGenData

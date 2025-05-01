@@ -1,5 +1,5 @@
 #include <optix.h>
-// #include <optix_device.h>
+// #include <optix_device.h> // TODO: which one?
 
 #include "thesis/optix/launch_params.h"
 #include "sutil/vec_math.h"
@@ -20,12 +20,42 @@ static __forceinline__ __device__ void setPayload(const float3& p)
     optixSetPayload_2(__float_as_uint( p.z ));
 }
 
+
 static __forceinline__ __device__ void computeRay(const uint3& idx, const uint3& dim, float3& origin, float3& direction)
 {
-    const auto d = 2.0f * make_float2(float(idx.x), float(idx.y)) / make_float2(float(dim.x), float(dim.y)) - 1.0f; // TODO: nicer casts
-    origin    = params.cam_eye;
-    direction = normalize(d.x * params.cam_u + d.y * params.cam_v + params.cam_w);
+    const auto screen_uv = make_float2(static_cast<float>(idx.x), static_cast<float>(idx.y));
+    origin    = params.camera.eye;
+    direction = normalize(params.camera.pixel00 +
+                          screen_uv.x * params.camera.du +
+                          screen_uv.y * params.camera.dv - origin);
 }
+
+// TODO: use this instead 
+/*
+static __forceinline__ __device__ void computeRay(const uint3& idx, const uint3& dim, float3& origin, float3& direction)
+{
+    // Convert launch index to screen-space UV coordinates
+    const float2 pixel_idx = make_float2(float(idx.x), float(idx.y));
+
+    // TODO: Replace with an actual RNG per pixel.
+    // For example:
+    // - Use a hash-based PRNG like TEA or PCG seeded with launch index.
+    // - Store per-pixel RNG state in a buffer and advance it.
+    // Example stub:
+    float2 jitter = make_float2(rng_float(), rng_float()); // rng_float() ∈ [0, 1)
+    jitter -= 0.5f; // Center jitter in [-0.5, 0.5]
+
+    const float2 pixel_sample = pixel_idx + jitter;
+
+    origin = params.camera.eye;
+    direction = normalize(
+        params.camera.pixel00 +
+        pixel_sample.x * params.camera.du +
+        pixel_sample.y * params.camera.dv -
+        origin
+    );
+}
+*/
 
 /*
 extern "C" __global__ void __raygen__rg()

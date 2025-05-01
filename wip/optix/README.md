@@ -7,6 +7,7 @@
 - [ ] CRLF
 - [ ] reformat again
 - [ ] clean git history?
+- [ ] a math header with eg. clamp
 
 ## Compilation
 

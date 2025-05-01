@@ -1,6 +1,6 @@
 #include "thesis/optix/logging.h"
 
-#include "thesis/thesis_pch.h"
+#include "thesis/pch.h"
 
 #include <spdlog/spdlog.h>
 

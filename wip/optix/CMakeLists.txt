@@ -124,10 +124,13 @@ add_executable(thesis
 target_sources(thesis PRIVATE $<TARGET_OBJECTS:thirdparty_objects>)
 
 # === Precompiled Header ===
-target_precompile_headers(thesis PRIVATE "include/thesis/thesis_pch.h")
+target_precompile_headers(thesis PRIVATE "include/thesis/pch.h")
 
 # === Target Settings ===
 set_target_properties(thesis PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
+
+# Enable GLM experimental features
+target_compile_definitions(thesis PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
 # === Build-type and platform-specific flags ===
 target_compile_options(thesis PRIVATE

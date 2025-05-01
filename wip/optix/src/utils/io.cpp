@@ -1,6 +1,6 @@
 #include "thesis/utils/io.h"
 
-#include "thesis/thesis_pch.h"
+#include "thesis/pch.h"
 
 #include <spdlog/spdlog.h>
 #include <tinyexr/tinyexr.h>

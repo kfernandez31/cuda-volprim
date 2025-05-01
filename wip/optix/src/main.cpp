@@ -1,4 +1,4 @@
-#include "thesis/thesis_pch.h"
+#include "thesis/pch.h"
 
 #include "thesis/cuda/buffer.h"
 #include "thesis/cuda/context_handle.h"
@@ -11,10 +11,12 @@
 #include "thesis/optix/record.h"
 #include "thesis/utils/check.h"
 #include "thesis/utils/io.h"
-#include "thesis/environment_map.h"
+#include "thesis/host/environment_map.h"
+#include "thesis/host/camera.h"
 
 #include <CLI11/CLI11.h>
 #include <spdlog/spdlog.h>
+#include <glm/glm.hpp>
 
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
@@ -30,6 +32,7 @@
 namespace tcuda = thesis::cuda;
 namespace toptix = thesis::optix;
 namespace tio = thesis::io;
+namespace thost = thesis::host;
 
 int main(int argc, char* argv[]) {
     // Parse arguments
@@ -159,7 +162,19 @@ int main(int argc, char* argv[]) {
     toptix::TriangleGAS gas(context.get(), vertices);
 
     // Create host-side environment map
-    thesis::HostEnvironmentMap host_env_map(env_map_path);
+    thost::EnvironmentMap host_env_map(env_map_path);
+
+    // Create host-side camera
+    thost::Camera host_camera;
+    host_camera.aspect_ratio = static_cast<float>(width) / height;
+    host_camera.image_width  = width;
+    host_camera.image_height = height;
+    host_camera.vertical_fov = 90.0f;
+    host_camera.lookfrom     = glm::vec3(0.0f, 0.0f, 0.0f);
+    host_camera.lookat       = glm::vec3(0.0f, 0.0f, -1.0f);
+    host_camera.vup          = glm::vec3(0.0f, 1.0f, 0.0f);
+    host_camera.build();
+
 
     // Set launch parameters
     toptix::LaunchParams params = {};
@@ -168,6 +183,7 @@ int main(int argc, char* argv[]) {
     params.image_height = height;
     params.handle = gas.get();
     params.env_map = host_env_map.toDevice();
+    params.camera = host_camera.toDevice();
 
     tcuda::UploadBuffer<decltype(params)> d_params(params);
     spdlog::debug("Launch parameters uploaded");
