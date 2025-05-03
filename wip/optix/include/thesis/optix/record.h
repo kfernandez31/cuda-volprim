@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef __cplusplus
-
 #include "thesis/utils/check.h"
 
 #include <cuda.h>
@@ -27,9 +25,11 @@ class Record {
         std::array<std::byte, OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)> host_record = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(program, host_record.data()));
 
-        std::memcpy(reinterpret_cast<void*>(host_record.data() + OPTIX_SBT_RECORD_HEADER_SIZE), &data, sizeof(T));
+        std::memcpy(reinterpret_cast<void*>(host_record.data() + OPTIX_SBT_RECORD_HEADER_SIZE),
+                    &data, sizeof(T));
 
-        CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(), OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)));
+        CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(),
+                              OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)));
     }
 
     ~Record() noexcept { CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_)); }
@@ -51,7 +51,6 @@ class Record {
     }
 
     [[nodiscard]] const CUdeviceptr& get() const noexcept { return device_ptr_; }
-    [[nodiscard]] CUdeviceptr& get() noexcept { return device_ptr_; }
 
    private:
     CUdeviceptr device_ptr_ = 0;
@@ -85,12 +84,9 @@ class Record<void> {
     }
 
     [[nodiscard]] const CUdeviceptr& get() const noexcept { return device_ptr_; }
-    [[nodiscard]] CUdeviceptr& get() noexcept { return device_ptr_; }
 
    private:
     CUdeviceptr device_ptr_ = 0;
 };
 
 }  // namespace thesis::optix
-
-#endif  // __cplusplus

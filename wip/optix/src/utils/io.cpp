@@ -2,15 +2,19 @@
 
 #include "thesis/pch.h"
 
-#include <spdlog/spdlog.h>
-#include <tinyexr/tinyexr.h>
+#include <vector_types.h>
 
 #include <array>
 #include <cstddef>
 #include <fstream>
+#include <ios>
+#include <optional>
+#include <span>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
-#include <ios>
+#include <tinyexr/tinyexr.h>
+#include <vector>
 
 #ifdef _MSC_VER
 #include <cstdlib>

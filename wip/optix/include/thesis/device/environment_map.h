@@ -11,11 +11,11 @@
 
 #ifndef PI
 // TODO: make more elegant
-#define PI    3.14159265358979323846f
+#define PI 3.14159265358979323846f
 #define INVPI (1.0f / PI)
-#endif // PI
+#endif  // PI
 
-#endif // __CUDACC__
+#endif  // __CUDACC__
 
 namespace thesis {
 namespace device {
@@ -29,10 +29,11 @@ struct EnvironmentMap {
 
 #ifdef __CUDACC__
     __device__ float3 sample(const float3& dir) const {
-        if (!data) return fallback_bg_color;
+        if (!data)
+            return fallback_bg_color;
 
         const auto theta = atan2f(dir.z, dir.x);
-        const auto phi   = acosf(fminf(fmaxf(dir.y, -1.0f), 1.0f));
+        const auto phi = acosf(fminf(fmaxf(dir.y, -1.0f), 1.0f));
 
         const auto u = (theta + PI) * (0.5f * INVPI);
         const auto v = phi * INVPI;
@@ -43,9 +44,8 @@ struct EnvironmentMap {
 
         return make_float3(data[idx], data[idx + 1], data[idx + 2]);
     }
-#endif // __CUDACC__
-
+#endif  // __CUDACC__
 };
 
-} // namespace device
-} // namespace thesis
+}  // namespace device
+}  // namespace thesis

@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef __cplusplus
-
 #include "thesis/utils/check.h"
 
 #include <cuda_runtime.h>
@@ -72,5 +70,3 @@ class Buffer {
 };
 
 }  // namespace thesis::cuda
-
-#endif  // __cplusplus

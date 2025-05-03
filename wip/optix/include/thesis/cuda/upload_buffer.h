@@ -1,11 +1,10 @@
 #pragma once
 
-#ifdef __cplusplus
-
 #include "thesis/utils/check.h"
 
 #include <cuda.h>
 
+#include <cstddef>
 #include <utility>
 
 namespace thesis::cuda {
@@ -29,9 +28,7 @@ class UploadBuffer {
         return buffer;
     }
 
-    ~UploadBuffer() noexcept {
-        CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
-    }
+    ~UploadBuffer() noexcept { CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_)); }
 
     UploadBuffer(const UploadBuffer&) = delete;
     UploadBuffer& operator=(const UploadBuffer&) = delete;
@@ -50,7 +47,6 @@ class UploadBuffer {
     }
 
     [[nodiscard]] const CUdeviceptr& get() const noexcept { return device_ptr_; }
-    [[nodiscard]] CUdeviceptr& get() noexcept { return device_ptr_; }
 
     [[nodiscard]] size_t size() const { return count_; }
 
@@ -59,6 +55,4 @@ class UploadBuffer {
     size_t count_ = 0;
 };
 
-} // namespace thesis::cuda
-
-#endif  // __cplusplus
+}  // namespace thesis::cuda

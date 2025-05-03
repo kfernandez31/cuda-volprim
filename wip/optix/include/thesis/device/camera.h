@@ -7,11 +7,11 @@ namespace thesis {
 namespace device {
 
 struct Camera {
-    float3 eye = {};
-    float3 pixel00 = {};
-    float3 du = {};
-    float3 dv = {};
+    float3 eye_ = {};
+    float3 pixel00_ = {};
+    float3 pixel_du_ = {};
+    float3 pixel_dv_ = {};
 };
 
-} // namespace device 
-} // namespace thesis
+}  // namespace device
+}  // namespace thesis

@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef __cplusplus
-
 #include "thesis/utils/check.h"
 
 #include <cuda.h>
@@ -46,7 +44,6 @@ class ContextHandle {
     }
 
     [[nodiscard]] const CUcontext& get() const noexcept { return context_; }
-    [[nodiscard]] CUcontext& get() noexcept { return context_; }
 
     [[nodiscard]] CUdevice device() const noexcept { return device_; }
 
@@ -56,5 +53,3 @@ class ContextHandle {
 };
 
 }  // namespace thesis::cuda
-
-#endif  // __cplusplus

@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef __cplusplus
-
 #include "thesis/utils/check.h"
 
 #include <cuda_runtime_api.h>
@@ -36,7 +34,6 @@ class StreamHandle {
     }
 
     [[nodiscard]] const cudaStream_t& get() const noexcept { return stream_; }
-    [[nodiscard]] cudaStream_t& get() noexcept { return stream_; }
 
     void synchronize() const { CUDA_CHECK(cudaStreamSynchronize(stream_)); }
 
@@ -47,5 +44,3 @@ class StreamHandle {
 };
 
 }  // namespace thesis::cuda
-
-#endif  // __cplusplus

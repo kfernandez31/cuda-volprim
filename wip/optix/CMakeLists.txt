@@ -5,6 +5,22 @@
 cmake_minimum_required(VERSION 3.20)
 project(thesis LANGUAGES C CXX CUDA)
 
+# Use ccache if available
+find_program(CCACHE NAMES ccache)
+if(CCACHE)
+    message(STATUS "Using ccache: ${CCACHE}")
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE}")
+    set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE}")
+endif()
+
+# Use include-what-you-use
+# find_program(IWYU NAMES include-what-you-use)
+# if (IWYU)
+#     message(STATUS "IWYU enabled: ${IWYU}")
+#     set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "${IWYU}")
+# endif()
+
 # === Standards & Compiler Options ===
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)

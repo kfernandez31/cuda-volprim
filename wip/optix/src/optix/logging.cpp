@@ -2,16 +2,14 @@
 
 #include "thesis/pch.h"
 
-#include <spdlog/spdlog.h>
-
 #include <array>
 #include <functional>
-#include <string_view>
+#include <spdlog/spdlog.h>
 
 namespace thesis::optix {
 
 void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, void* /*cbdata*/) {
-    using Logger = std::function<void(std::string_view)>;
+    using Logger = std::function<void(const char*)>;
     static const std::array<Logger, 5> loggers = {
         [](auto msg) { spdlog::critical("OptiX: {}", msg); },
         [](auto msg) { spdlog::error("OptiX: {}", msg); },
@@ -20,8 +18,8 @@ void contextLogCb(unsigned int level, const char* /*tag*/, const char* message, 
         [](auto msg) { spdlog::debug("OptiX: {}", msg); },
     };
 
-    if (level >= static_cast<unsigned int>(LogLevel::Fatal) &&
-        level <= static_cast<unsigned int>(LogLevel::Print)) {
+    if (level >= static_cast<unsigned char>(LogLevel::Fatal) &&
+        level <= static_cast<unsigned char>(LogLevel::Print)) {
         loggers[level - 1](message);
     } else {
         spdlog::warn("OptiX: Unknown log level {} — {}", level, message);

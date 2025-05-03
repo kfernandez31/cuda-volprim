@@ -1,13 +1,12 @@
 # Readme
 
 ## TODO
-- [ ] Include What You Use
-- [ ] moving on to the sphere render...
-- [ ] compiler cache
-- [ ] CRLF
-- [ ] reformat again
-- [ ] clean git history?
+- [ ] put device into src/include
+- [ ] split .cu into .cuh's
+
 - [ ] a math header with eg. clamp
+- [ ] moving on to the sphere render...
+- [ ] clean git history?
 
 ## Compilation
 
@@ -31,3 +30,14 @@ cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMA
 ninja -C build
 ```
 
+<!-- ### Static analysis -->
+<!-- include-what-you-use ^
+  -std=c++20 ^
+  -DUNICODE -D_CRT_SECURE_NO_WARNINGS ^
+  -DGLM_ENABLE_EXPERIMENTAL ^
+  -fms-compatibility -fms-extensions ^
+  -Iinclude ^
+  -Ithird_party ^
+  -I"C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0/include" ^
+  -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/include" ^
+  src/main.cpp -->
