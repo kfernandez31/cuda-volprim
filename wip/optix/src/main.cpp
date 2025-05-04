@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
 
     // Set launch parameters
     toptix::LaunchParams params = {};
-    params.handle_ = gas.get();
+    params.gas_handle_ = gas.get();
     params.num_samples_per_pixel_ = 10;  // TODO(kacper): tweak
     params.image_ = host_image.toDevice();
     params.env_map_ = host_env_map.toDevice();

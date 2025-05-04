@@ -1,7 +1,5 @@
 #pragma once
 
-// TODO: _ case
-
 #include "thesis/device/camera.h"
 #include "thesis/device/environment_map.h"
 #include "thesis/device/image.h"
@@ -20,7 +18,7 @@ enum RayType {
 };
 
 __align__(16) struct LaunchParams {
-    OptixTraversableHandle handle_;
+    OptixTraversableHandle gas_handle_;
     size_t num_samples_per_pixel_;
     device::Image image_;
     device::EnvironmentMap env_map_;

@@ -14,13 +14,6 @@ if(CCACHE)
     set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE}")
 endif()
 
-# Use include-what-you-use
-# find_program(IWYU NAMES include-what-you-use)
-# if (IWYU)
-#     message(STATUS "IWYU enabled: ${IWYU}")
-#     set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "${IWYU}")
-# endif()
-
 # === Standards & Compiler Options ===
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -102,32 +95,30 @@ target_compile_options(thirdparty_objects PRIVATE
 # === Target Settings ===
 set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for")
 
-# === Find all .cu device sources ===
-file(GLOB PTX_SOURCES "${DEVICE_DIR}/*.cu")
+# === Compile OptiX program ===
+set(DEVICE_ENTRY "${DEVICE_DIR}/device_program.cu")
+set(PTX_OUTPUT "${CMAKE_BINARY_DIR}/device_program.ptx")
 
-# === Compile each .cu into a .ptx ===
-foreach(PTX_SRC ${PTX_SOURCES})
-    get_filename_component(PTX_FILENAME ${PTX_SRC} NAME_WE)
-    set(PTX_OUTPUT "${CMAKE_BINARY_DIR}/${PTX_FILENAME}.ptx")
+add_custom_command(
+    OUTPUT ${PTX_OUTPUT}
+    COMMAND "${CMAKE_CUDA_COMPILER}"
+        -I "${OPTIX_ROOT}/include"
+        -I "${INCLUDE_DIR}"
+        -I "${DEVICE_DIR}"
+        --ptx
+        --expt-relaxed-constexpr
+        --expt-extended-lambda
+        -O3
+        -arch=sm_${CUDA_ARCH}
+        -o "${PTX_OUTPUT}"
+        -diag-suppress=20044
+        -m64
+        "${DEVICE_ENTRY}"
+    DEPENDS ${DEVICE_ENTRY}
+    COMMENT "Compiling PTX: ${DEVICE_ENTRY} -> ${PTX_OUTPUT}"
+)
 
-    add_custom_command(
-        OUTPUT ${PTX_OUTPUT}
-        COMMAND "${CMAKE_CUDA_COMPILER}"
-            -I"${OPTIX_ROOT}/include"
-            -I"${INCLUDE_DIR}"
-            --ptx
-            --expt-relaxed-constexpr
-            --expt-extended-lambda
-            -O3
-            -arch=sm_${CUDA_ARCH}
-            -o "${PTX_OUTPUT}"
-            -diag-suppress=20044
-            -m64
-            "${PTX_SRC}"
-        DEPENDS ${PTX_SRC}
-        COMMENT "Compiling PTX: ${PTX_SRC} -> ${PTX_OUTPUT}"
-    )
-endforeach()
+add_custom_target(build_ptx DEPENDS ${PTX_OUTPUT})
 
 # === Executable Target ===
 add_executable(thesis
