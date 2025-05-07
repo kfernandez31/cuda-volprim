@@ -14,32 +14,32 @@ class StreamHandle {
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, flags));
     }
 
-    ~StreamHandle() { CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_)); }
+    ~StreamHandle() { reset(); }
 
-    // Disable copy
-    StreamHandle(const StreamHandle&) = delete;
-    StreamHandle& operator=(const StreamHandle&) = delete;
-
-    // Enable move ctor
     StreamHandle(StreamHandle&& other) noexcept : stream_(std::exchange(other.stream_, nullptr)) {}
-
-    // Enable move assignment
     StreamHandle& operator=(StreamHandle&& other) noexcept {
         if (this != &other) {
-            CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
-
+            reset();
             stream_ = std::exchange(other.stream_, nullptr);
         }
         return *this;
     }
 
-    [[nodiscard]] const cudaStream_t& get() const noexcept { return stream_; }
+    StreamHandle(const StreamHandle&) = delete;
+    StreamHandle& operator=(const StreamHandle&) = delete;
+
+    [[nodiscard]] cudaStream_t get() const noexcept { return stream_; }
 
     void synchronize() const { CUDA_CHECK(cudaStreamSynchronize(stream_)); }
-
     static void synchronizeDevice() { CUDA_CHECK(cudaDeviceSynchronize()); }
 
    private:
+    void reset() noexcept {
+        if (stream_) {
+            CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
+        }
+    }
+
     cudaStream_t stream_ = nullptr;
 };
 
