@@ -17,7 +17,9 @@ namespace thesis::optix {
 template <typename T>
 class Record {
    public:
-    explicit Record(OptixProgramGroup program, const T& data) {
+    Record() = default;
+
+    Record(OptixProgramGroup program, const T& data) {
         static_assert(sizeof(T) <= OPTIX_SBT_RECORD_HEADER_SIZE, "T too large for SBT record");
 
         CU_CHECK(cuMemAlloc(&device_ptr_, OPTIX_SBT_RECORD_HEADER_SIZE));
@@ -50,7 +52,7 @@ class Record {
         return *this;
     }
 
-    [[nodiscard]] const CUdeviceptr& get() const noexcept { return device_ptr_; }
+    [[nodiscard]] CUdeviceptr get() const noexcept { return device_ptr_; }
 
    private:
     CUdeviceptr device_ptr_ = 0;
@@ -59,6 +61,8 @@ class Record {
 template <>
 class Record<void> {
    public:
+    Record() = default;
+
     explicit Record(OptixProgramGroup program) {
         CU_CHECK(cuMemAlloc(&device_ptr_, OPTIX_SBT_RECORD_HEADER_SIZE));
 
@@ -83,7 +87,7 @@ class Record<void> {
         return *this;
     }
 
-    [[nodiscard]] const CUdeviceptr& get() const noexcept { return device_ptr_; }
+    [[nodiscard]] CUdeviceptr get() const noexcept { return device_ptr_; }
 
    private:
     CUdeviceptr device_ptr_ = 0;

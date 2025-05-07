@@ -31,7 +31,7 @@
 #include <optix_types.h>
 
 // 3rd Party
-#include <CLI11/CLI11.h>
+#include <CLI11/CLI11.hpp>
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
 #include <stb/stb_image.h>

@@ -5,7 +5,7 @@
 #include <cuda.h>
 #include <optix_stubs.h>
 
-#include <string>
+#include <string_view>
 #include <utility>
 
 // -------------------------
@@ -17,6 +17,8 @@ namespace thesis::optix {
 template <typename T, auto DestroyFn>
 class Handle {
    public:
+    Handle() = default;
+
     Handle(const Handle&) = delete;
     Handle& operator=(const Handle&) = delete;
 
@@ -42,7 +44,6 @@ class Handle {
     [[nodiscard]] const T& get() const noexcept { return handle_; }
 
    protected:
-    Handle() noexcept = default;
     T handle_ = 0;
 };
 
@@ -52,22 +53,24 @@ class Handle {
 
 class DeviceContextHandle : public Handle<OptixDeviceContext, optixDeviceContextDestroy> {
    public:
-    explicit DeviceContextHandle(const OptixDeviceContextOptions& dco, CUcontext cu_ctx = nullptr) {
+    DeviceContextHandle(const OptixDeviceContextOptions& dco, CUcontext cu_ctx) {
         OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &dco, &handle_));
     }
 };
 
 class ModuleHandle : public Handle<OptixModule, optixModuleDestroy> {
    public:
+    ModuleHandle() = default;
     ModuleHandle(OptixDeviceContext ctx, const OptixModuleCompileOptions& mco,
-                 const OptixPipelineCompileOptions& pco, const std::string& ptx) {
-        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.c_str(), ptx.size(), log.data(),
+                 const OptixPipelineCompileOptions& pco, std::string_view ptx) {
+        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.data(), ptx.size(), log.data(),
                                             &log_size, &handle_));
     }
 };
 
 class ProgramGroupHandle : public Handle<OptixProgramGroup, optixProgramGroupDestroy> {
    public:
+    ProgramGroupHandle() = default;
     ProgramGroupHandle(OptixDeviceContext ctx, const OptixProgramGroupDesc& desc) {
         const OptixProgramGroupOptions pg_options = {};
         OPTIX_CALL_LOGGED(
@@ -77,17 +80,18 @@ class ProgramGroupHandle : public Handle<OptixProgramGroup, optixProgramGroupDes
 
 class PipelineHandle : public Handle<OptixPipeline, optixPipelineDestroy> {
    public:
+    PipelineHandle() = default;
     PipelineHandle(OptixDeviceContext ctx, const OptixPipelineCompileOptions& pco,
-                   const OptixPipelineLinkOptions& plo, const OptixProgramGroup& groups,
+                   const OptixPipelineLinkOptions& plo, const OptixProgramGroup* groups,
                    size_t num_groups) {
-        OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, &groups,
+        OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups,
                                               static_cast<unsigned int>(num_groups), log.data(),
                                               &log_size, &handle_));
     }
 
     void launch(CUstream stream, CUdeviceptr params, size_t params_size,
                 const OptixShaderBindingTable& sbt, unsigned int width, unsigned int height,
-                unsigned int depth = 1) {
+                unsigned int depth = 1) const {
         OPTIX_CHECK(optixLaunch(handle_, stream, params, params_size, &sbt, width, height, depth));
     }
 };

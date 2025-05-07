@@ -4,11 +4,13 @@
 #include "thesis/host/environment_map.h"
 #include "thesis/host/image.h"
 #include "thesis/optix/gas_handle.h"
+#include "thesis/optix/sbt_handle.h"
 #include "thesis/optix/handle.h"
 #include "thesis/optix/launch_params.h"
 #include "thesis/optix/logging.h"
 #include "thesis/optix/record.h"
 #include "thesis/pch.h"
+#include "thesis/app_config.h"
 #include "thesis/utils/check.h"
 #include "thesis/utils/io.h"
 
@@ -16,7 +18,6 @@
 #include <optix_stubs.h>
 #include <vector_types.h>
 
-#include <CLI11/CLI11.h>
 #include <array>
 #include <cstddef>
 #include <glm/glm.hpp>
@@ -31,18 +32,22 @@ namespace tio = thesis::io;
 namespace thost = thesis::host;
 namespace tdevice = thesis::device;
 
+auto getConfig(int argc, char* argv[]) {
+    thesis::AppConfig config;
+    if (auto err = config.parse(argc, argv)) {
+        const auto& [code, msg] = *err;
+        spdlog::error("Error parsing app arguments: {}", msg);
+        std::exit(code);
+    }
+    return config;
+}
+
 int main(int argc, char* argv[]) {
+    auto config = getConfig(argc, argv);
+
+
     // Parse arguments
     CLI::App app{"OptiX-based raytracer of kernel mixture models"};
-
-    std::string output_path("output.exr");
-    app.add_option("-o,--output", output_path, "Path to save the rendered image")->required(false);
-
-    std::string ptx_path("build/device_program.ptx");
-    app.add_option("-p,--ptx", ptx_path, "Path to the PTX file")->required(false);
-
-    std::string env_map_path = "assets/meadow_2_4k.hdr";  // TODO(kacper): system-generic path
-    app.add_option("-e,--env_map", env_map_path, "Path to the environment map")->required(false);
 
     CLI11_PARSE(app, argc, argv);
 
@@ -55,7 +60,7 @@ int main(int argc, char* argv[]) {
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
 
     spdlog::info("Starting OptiX application");
-    spdlog::info("Output image path: {}", output_path);
+    spdlog::info("Output image path: {}", config.output_path_);
 
     // Initialize CUDA and OptiX
     const tcuda::ContextHandle ctx(0);
@@ -71,11 +76,11 @@ int main(int argc, char* argv[]) {
 #ifdef DEBUG
     dco.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 #endif  // DEBUG
-    toptix::DeviceContextHandle context(dco);
+    toptix::DeviceContextHandle context(dco, ctx.get());
     spdlog::debug("Optix device context created");
 
     // Load PTX
-    auto ptx = tio::readFileToString(ptx_path);
+    auto ptx = tio::readFileToString(config.ptx_path_);
     if (!ptx) {
         return 1;
     }
@@ -124,7 +129,7 @@ int main(int argc, char* argv[]) {
 
     std::array<OptixProgramGroup, 3> program_groups = {raygen_pg.get(), miss_pg.get(),
                                                        hitgroup_pg.get()};
-    toptix::PipelineHandle pipeline(context.get(), pco, plo, *program_groups.data(),
+    toptix::PipelineHandle pipeline(context.get(), pco, plo, program_groups.data(),
                                     program_groups.size());
     spdlog::info("OptiX pipeline built");
 
@@ -132,16 +137,7 @@ int main(int argc, char* argv[]) {
     toptix::Record<void> raygen_record(raygen_pg.get());
     toptix::Record<void> miss_record(miss_pg.get());
     toptix::Record<void> hitgroup_record(hitgroup_pg.get());
-
-    OptixShaderBindingTable sbt = {};
-    sbt.raygenRecord = raygen_record.get();
-    sbt.missRecordBase = miss_record.get();
-    sbt.missRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
-    sbt.missRecordCount = 1;
-    sbt.hitgroupRecordBase = hitgroup_record.get();
-    sbt.hitgroupRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
-    sbt.hitgroupRecordCount = 1;
-
+    toptix::SBTHandle sbt(raygen_pg.get(), miss_pg.get(), hitgroup_pg.get());
     spdlog::debug("Shader binding table prepared");
 
     tcuda::StreamHandle stream;
@@ -158,11 +154,11 @@ int main(int argc, char* argv[]) {
     tcuda::StreamHandle::synchronizeDevice();
 
     // Create host-side environment map
-    thost::EnvironmentMap host_env_map(env_map_path);
-
+    thost::EnvironmentMap host_env_map(config.env_map_path_);
+    
     // Create host-side image
-    constexpr size_t width = 512;  // TODO(kacper): tweak size
-    constexpr float aspect_ratio = 16.0f / 9.0f;
+    const size_t width = config.image_width_;  // TODO(kacper): tweak size
+    const float aspect_ratio = config.aspect_ratio_;
     thost::Image host_image(width, aspect_ratio);
 
     // Create host-side camera
@@ -188,7 +184,7 @@ int main(int argc, char* argv[]) {
 
     // Launch
     spdlog::info("Launching OptiX pipeline...");
-    pipeline.launch(stream.get(), reinterpret_cast<CUdeviceptr>(d_params.device()), sizeof(params), sbt, static_cast<unsigned int>(host_image.width()), static_cast<unsigned int>(host_image.height()));
+    pipeline.launch(stream.get(), reinterpret_cast<CUdeviceptr>(d_params.device()), sizeof(params), sbt.get(), static_cast<unsigned int>(host_image.width()), static_cast<unsigned int>(host_image.height()));
     tcuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
@@ -198,8 +194,8 @@ int main(int argc, char* argv[]) {
 
     // Save as EXR
     std::span<const float3> framebuffer(host_image.host(), host_image.size());
-    tio::saveExrImage(framebuffer, host_image.width(), host_image.height(), output_path);
-    spdlog::info("Image saved to '{}'", output_path);
+    tio::saveExrImage(framebuffer, host_image.width(), host_image.height(), config.output_path_);
+    spdlog::info("Image saved to '{}'", config.output_path_);
 
     return 0;
 }
