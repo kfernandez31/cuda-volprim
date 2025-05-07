@@ -4,7 +4,7 @@
 
 #include <cstddef>
 
-// TODO: make more elegant
+// TODO(kacper): make more elegant
 #ifdef __CUDACC__
 #include <math.h>
 // #include <math_constants.h>
@@ -21,16 +21,16 @@ namespace thesis {
 namespace device {
 
 struct EnvironmentMap {
-    float* data = nullptr;
-    float3 fallback_bg_color = {};
-    size_t width = 0;
-    size_t height = 0;
-    size_t num_channels = 0;
+    float* data_ = nullptr;
+    float3 fallback_bg_color_ = {};
+    size_t width_ = 0;
+    size_t height_ = 0;
+    size_t num_channels_ = 0;
 
 #ifdef __CUDACC__
     __device__ float3 sample(const float3& dir) const {
-        if (!data)
-            return fallback_bg_color;
+        if (!data_)
+            return fallback_bg_color_;
 
         const auto theta = atan2f(dir.z, dir.x);
         const auto phi = acosf(fminf(fmaxf(dir.y, -1.0f), 1.0f));
@@ -38,11 +38,11 @@ struct EnvironmentMap {
         const auto u = (theta + PI) * (0.5f * INVPI);
         const auto v = phi * INVPI;
 
-        const auto x = static_cast<size_t>(u * width) % width;
-        const auto y = static_cast<size_t>(v * height) % height;
-        const auto idx = (y * width + x) * num_channels;
+        const auto x = static_cast<size_t>(u * width_) % width_;
+        const auto y = static_cast<size_t>(v * height_) % height_;
+        const auto idx = (y * width_ + x) * num_channels_;
 
-        return make_float3(data[idx], data[idx + 1], data[idx + 2]);
+        return make_float3(data_[idx], data_[idx + 1], data_[idx + 2]);
     }
 #endif  // __CUDACC__
 };

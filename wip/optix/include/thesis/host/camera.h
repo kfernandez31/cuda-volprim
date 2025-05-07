@@ -1,7 +1,7 @@
 #pragma once
 
 #include "thesis/device/camera.h"
-#include "thesis/vec.h"
+#include "thesis/utils/vec.h"
 
 #include <cstddef>
 #include <glm/glm.hpp>
@@ -14,8 +14,8 @@ class Camera {
     device::Camera device_struct;
 
    public:
-    float aspect_ratio_ = 1.0f;
     size_t image_width_ = 100;
+    float aspect_ratio_ = 1.0f;
     float vertical_fov_ = 90.0f;
     glm::vec3 lookfrom_ = glm::vec3(0.0f);
     glm::vec3 lookat_ = glm::vec3(0.0f, 0.0f, -1.0f); // TODO(kacper): why isn't it used in the device?
@@ -23,11 +23,9 @@ class Camera {
 
     Camera() = default;
 
-    // Disable copy
-    Camera(Camera&& other) = delete;
-    Camera& operator=(Camera&& other) = delete;
+    Camera(Camera&& other) = default;
+    Camera& operator=(Camera&& other) = default;
 
-    // Enable move
     Camera(const Camera& other) = delete;
     Camera& operator=(const Camera& other) = delete;
 

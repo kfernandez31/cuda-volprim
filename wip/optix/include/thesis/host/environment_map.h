@@ -55,13 +55,13 @@ public:
     EnvironmentMap& operator=(EnvironmentMap&&) noexcept = default;
 
     [[nodiscard]] device::EnvironmentMap toDevice() noexcept {
-        return device::EnvironmentMap{
-            reinterpret_cast<float*>(device_data_.device()),
-            fallback_bg_color_,
-            width_,
-            height_,
-            num_channels_
-        };
+        device::EnvironmentMap result;
+        result.data_ = device_data_.device();
+        result.fallback_bg_color_ = fallback_bg_color_;
+        result.width_ = width_;
+        result.height_ = height_;
+        result.num_channels_ = num_channels_;
+        return result;
     }
 };
 
