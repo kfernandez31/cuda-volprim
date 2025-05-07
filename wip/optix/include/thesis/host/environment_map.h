@@ -2,6 +2,7 @@
 
 #include "thesis/device/environment_map.h"
 #include "thesis/utils/check.h"
+#include "thesis/cuda/buffer.h"
 
 #include <vector_types.h>
 
@@ -23,11 +24,10 @@ private:
     size_t width_ = 0;
     size_t height_ = 0;
     size_t num_channels_ = 0;
-    cuda::UploadBuffer<float> device_data_;
+    cuda::Buffer<float> device_data_;
+    
     float3 fallback_bg_color_ = {};
 public:
-    EnvironmentMap() = delete;
-
     explicit EnvironmentMap(std::string_view filepath) {
         stbi_set_flip_vertically_on_load(true);
 
@@ -40,8 +40,9 @@ public:
         num_channels_ = static_cast<size_t>(c);
 
         const auto total_floats = width_ * height_ * num_channels_;
-        device_data_ = cuda::UploadBuffer<float>(host_data, total_floats);
+        device_data_ = cuda::Buffer<float>(host_data, total_floats);
 
+        device_data_ = cuda::Buffer<float>::onDeviceOnly(host_data, total_floats);
         stbi_image_free(host_data);
     }
 
@@ -53,21 +54,15 @@ public:
     EnvironmentMap(EnvironmentMap&&) noexcept = default;
     EnvironmentMap& operator=(EnvironmentMap&&) noexcept = default;
 
-    [[nodiscard]] device::EnvironmentMap toDevice() const noexcept {
+    [[nodiscard]] device::EnvironmentMap toDevice() noexcept {
         return device::EnvironmentMap{
-            reinterpret_cast<float*>(device_data_.get()),
+            reinterpret_cast<float*>(device_data_.device()),
             fallback_bg_color_,
             width_,
             height_,
             num_channels_
         };
     }
-
-    [[nodiscard]] size_t width() const noexcept { return width_; }
-    [[nodiscard]] size_t height() const noexcept { return height_; }
-    [[nodiscard]] size_t num_channels() const noexcept { return num_channels_; }
-    [[nodiscard]] float3 fallback_bg_color() const noexcept { return fallback_bg_color_; }
-    [[nodiscard]] const CUdeviceptr& data() const noexcept { return device_data_.get(); }
 };
 
 }  // namespace host

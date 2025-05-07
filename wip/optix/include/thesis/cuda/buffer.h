@@ -1,11 +1,11 @@
 #pragma once
 
 #include "thesis/utils/check.h"
+#include "thesis/cuda/device_ptr.h"
 
 #include <cuda_runtime.h>
 
 #include <cstddef>
-#include <utility>
 
 // TODO(kacper): for real-time rendering and interop, opt for something like:
 // C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h"
@@ -15,58 +15,56 @@ namespace thesis::cuda {
 template <typename T>
 class Buffer {
    public:
-    explicit Buffer(size_t count) : count_(count), host_ptr_(new T[count_]), device_ptr_(nullptr) {
-        CUDA_CHECK(cudaMalloc(&device_ptr_, count_ * sizeof(T)));
+   Buffer() = default;
+
+    explicit Buffer(size_t count)
+        : count_(count),
+          host_ptr_(std::make_unique<T[]>(count)),
+          device_ptr_(makeDevicePtr<T>(count)) {}
+
+    Buffer(const T* data, size_t count) : Buffer(count) {
+        CUDA_CHECK(cudaMemcpy(device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
     }
 
-    ~Buffer() noexcept {
-        delete[] host_ptr_;
-        CUDA_CHECK_NOEXCEPT(cudaFree(device_ptr_));
+    static Buffer onDeviceOnly(size_t count) {
+        Buffer buf;
+        buf.count_ = count;
+        buf.device_ptr_ = makeDevicePtr<T>(count);
+        return buf;
     }
 
-    // Disable copy
+    static Buffer onDeviceOnly(const T* data, size_t count) {
+        Buffer buf = onDeviceOnly(count);
+        CUDA_CHECK(cudaMemcpy(buf.device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
+        return buf;
+    }
+
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
 
-    // Enable move ctor
-    Buffer(Buffer&& other) noexcept
-        : count_(std::exchange(other.count_, 0)),
-          host_ptr_(std::exchange(other.host_ptr_, nullptr)),
-          device_ptr_(std::exchange(other.device_ptr_, nullptr)) {}
-
-    // Enable move assignment
-    Buffer& operator=(Buffer&& other) noexcept {
-        if (this != &other) {
-            delete[] host_ptr_;
-            CUDA_CHECK_NOEXCEPT(cudaFree(device_ptr_));
-
-            host_ptr_ = std::exchange(other.host_ptr_, nullptr);
-            device_ptr_ = std::exchange(other.device_ptr_, nullptr);
-            count_ = std::exchange(other.count_, 0);
-        }
-        return *this;
-    }
+    Buffer(Buffer&&) noexcept = default;
+    Buffer& operator=(Buffer&&) noexcept = default;
 
     void upload() {
-        CUDA_CHECK(cudaMemcpy(device_ptr_, host_ptr_, count_ * sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(device_ptr_.get(), host_ptr_.get(), count_ * sizeof(T), cudaMemcpyHostToDevice));
     }
 
     void download() {
-        CUDA_CHECK(cudaMemcpy(host_ptr_, device_ptr_, count_ * sizeof(T), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(host_ptr_.get(), device_ptr_.get(), count_ * sizeof(T), cudaMemcpyDeviceToHost));
     }
 
-    [[nodiscard]] T* host() noexcept { return host_ptr_; }
-    [[nodiscard]] const T* host() const noexcept { return host_ptr_; }
+    [[nodiscard]] T* host() noexcept { return host_ptr_.get(); }
+    [[nodiscard]] const T* host() const noexcept { return host_ptr_.get(); }
 
-    [[nodiscard]] T* device() noexcept { return device_ptr_; }
-    [[nodiscard]] const T* device() const noexcept { return device_ptr_; }
+    [[nodiscard]] T* device() noexcept { return device_ptr_.get(); }
+    [[nodiscard]] const T* device() const noexcept { return device_ptr_.get(); }
 
     [[nodiscard]] size_t size() const { return count_; }
 
    private:
-    size_t count_ = 0;
-    T* host_ptr_ = nullptr;
-    T* device_ptr_ = nullptr;
+    size_t count_;
+    std::unique_ptr<T[]> host_ptr_;
+    UniqueDevicePtr<T> device_ptr_;
 };
 
-}  // namespace thesis::cuda
+} // namespace thesis::cuda

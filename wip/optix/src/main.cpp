@@ -1,6 +1,5 @@
 #include "thesis/cuda/context_handle.h"
 #include "thesis/cuda/stream_handle.h"
-#include "thesis/cuda/upload_buffer.h"
 #include "thesis/host/camera.h"
 #include "thesis/host/environment_map.h"
 #include "thesis/host/image.h"
@@ -145,15 +144,21 @@ int main(int argc, char* argv[]) {
 
     spdlog::debug("Shader binding table prepared");
 
+    tcuda::StreamHandle stream;
+
     // Create a simple triangle geometry // TODO(kacper): add more triangles
-    const std::array<float3, 3> vertices = {float3{-0.5f, -0.5f, 0.0f}, float3{0.5f, -0.5f, 0.0f},
-                                            float3{0.0f, 0.5f, 0.0f}};
+    const std::array<float3, 3> vertices = {
+    float3{-0.5f, -0.5f, -1.0f},
+    float3{ 0.5f, -0.5f, -1.0f},
+    float3{ 0.0f,  0.5f, -1.0f}
+    };
 
     // Create GAS
-    toptix::TriangleGAS gas(context.get(), vertices);
+    toptix::TriangleGAS gas(context.get(), vertices, stream.get());
+    tcuda::StreamHandle::synchronizeDevice();
 
     // Create host-side environment map
-    const thost::EnvironmentMap host_env_map(env_map_path);
+    thost::EnvironmentMap host_env_map(env_map_path);
 
     // Create host-side image
     constexpr size_t width = 512;  // TODO(kacper): tweak size
@@ -178,14 +183,12 @@ int main(int argc, char* argv[]) {
     params.env_map_ = host_env_map.toDevice();
     params.camera_ = host_camera.toDevice();
 
-    tcuda::UploadBuffer<decltype(params)> d_params(params);
+    auto d_params = tcuda::Buffer<decltype(params)>::onDeviceOnly(&params, 1);
     spdlog::debug("Launch parameters uploaded");
-
-    tcuda::StreamHandle stream;
 
     // Launch
     spdlog::info("Launching OptiX pipeline...");
-    pipeline.launch(stream.get(), d_params.get(), sizeof(params), sbt, static_cast<unsigned int>(host_image.width()), static_cast<unsigned int>(host_image.height()));
+    pipeline.launch(stream.get(), reinterpret_cast<CUdeviceptr>(d_params.device()), sizeof(params), sbt, static_cast<unsigned int>(host_image.width()), static_cast<unsigned int>(host_image.height()));
     tcuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
