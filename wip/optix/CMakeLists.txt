@@ -105,6 +105,7 @@ add_custom_command(
         -I "${OPTIX_ROOT}/include"
         -I "${INCLUDE_DIR}"
         -I "${DEVICE_DIR}"
+        -I "${THIRD_PARTY_DIR}"
         --ptx
         --expt-relaxed-constexpr
         --expt-extended-lambda

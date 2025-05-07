@@ -40,8 +40,6 @@ public:
         num_channels_ = static_cast<size_t>(c);
 
         const auto total_floats = width_ * height_ * num_channels_;
-        device_data_ = cuda::Buffer<float>(host_data, total_floats);
-
         device_data_ = cuda::Buffer<float>::onDeviceOnly(host_data, total_floats);
         stbi_image_free(host_data);
     }

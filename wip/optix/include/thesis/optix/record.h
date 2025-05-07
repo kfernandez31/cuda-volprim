@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/utils/check.h"
+#include "thesis/cuda/buffer.h"
 
 #include <cuda.h>
 #include <optix_host.h>
@@ -15,82 +16,58 @@
 namespace thesis::optix {
 
 template <typename T>
+struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SBTRecord {
+    char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+    T data;
+};
+
+template <typename T>
 class Record {
-   public:
+public:
     Record() = default;
 
-    Record(OptixProgramGroup program, const T& data) {
-        static_assert(sizeof(T) <= OPTIX_SBT_RECORD_HEADER_SIZE, "T too large for SBT record");
-
-        CU_CHECK(cuMemAlloc(&device_ptr_, OPTIX_SBT_RECORD_HEADER_SIZE));
-
-        std::array<std::byte, OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)> host_record = {};
-        OPTIX_CHECK(optixSbtRecordPackHeader(program, host_record.data()));
-
-        std::memcpy(reinterpret_cast<void*>(host_record.data() + OPTIX_SBT_RECORD_HEADER_SIZE),
-                    &data, sizeof(T));
-
-        CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(),
-                              OPTIX_SBT_RECORD_HEADER_SIZE + sizeof(T)));
+    Record(OptixProgramGroup pg, const T& data) {
+        SBTRecord<T> record = {};
+        OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record));
+        record.data = data;
+        buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly(&record, 1);
     }
 
-    ~Record() noexcept { CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_)); }
-
-    // Delete copy
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
+    Record(Record&&) = default;
+    Record& operator=(Record&&) = default;
 
-    // Enable move ctor
-    Record(Record&& other) noexcept : device_ptr_(std::exchange(other.device_ptr_, 0)) {}
-
-    // Enable move assignment
-    Record& operator=(Record&& other) noexcept {
-        if (this != &other) {
-            CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
-            device_ptr_ = std::exchange(other.device_ptr_, 0);
-        }
-        return *this;
+    [[nodiscard]] CUdeviceptr get() const noexcept {
+        return reinterpret_cast<CUdeviceptr>(buffer_.device());
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept { return device_ptr_; }
-
-   private:
-    CUdeviceptr device_ptr_ = 0;
+private:
+    cuda::Buffer<SBTRecord<T>> buffer_;
 };
 
 template <>
 class Record<void> {
-   public:
+public:
     Record() = default;
 
-    explicit Record(OptixProgramGroup program) {
-        CU_CHECK(cuMemAlloc(&device_ptr_, OPTIX_SBT_RECORD_HEADER_SIZE));
-
-        std::array<std::byte, OPTIX_SBT_RECORD_HEADER_SIZE> host_record = {};
-        OPTIX_CHECK(optixSbtRecordPackHeader(program, host_record.data()));
-
-        CU_CHECK(cuMemcpyHtoD(device_ptr_, host_record.data(), OPTIX_SBT_RECORD_HEADER_SIZE));
+    explicit Record(OptixProgramGroup pg) {
+        alignas(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
+        OPTIX_CHECK(optixSbtRecordPackHeader(pg, header));
+        buffer_ = cuda::Buffer<std::byte>::onDeviceOnly(reinterpret_cast<std::byte*>(header), OPTIX_SBT_RECORD_HEADER_SIZE);
     }
-
-    ~Record() noexcept { CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_)); }
 
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
+    Record(Record&&) noexcept = default;
+    Record& operator=(Record&&) noexcept = default;
 
-    Record(Record&& other) noexcept : device_ptr_(std::exchange(other.device_ptr_, 0)) {}
-
-    Record& operator=(Record&& other) noexcept {
-        if (this != &other) {
-            CU_CHECK_NOEXCEPT(cuMemFree(device_ptr_));
-            device_ptr_ = std::exchange(other.device_ptr_, 0);
-        }
-        return *this;
+    [[nodiscard]] CUdeviceptr get() const noexcept {
+        return reinterpret_cast<CUdeviceptr>(buffer_.device());
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept { return device_ptr_; }
-
-   private:
-    CUdeviceptr device_ptr_ = 0;
+private:
+    cuda::Buffer<std::byte> buffer_;
 };
 
 }  // namespace thesis::optix

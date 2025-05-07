@@ -2,7 +2,7 @@
 
 #include <cuda_runtime.h>
 
-#include "sutil/vec_math.h"
+#include <sutil/vec_math.h>
 
 // TODO(kacper): align or something?
 struct Ray {

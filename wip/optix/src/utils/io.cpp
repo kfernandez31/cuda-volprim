@@ -10,7 +10,6 @@
 #include <ios>
 #include <optional>
 #include <span>
-#include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
 #include <tinyexr/tinyexr.h>
@@ -44,8 +43,7 @@ namespace thesis::io {
 std::optional<std::string> readFileToString(std::string_view filename) {
     std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
     if (!file) {
-        spdlog::error("Failed to open PTX file: {}", filename);
-        return {};
+        return {}; // TODO: errno code
     }
 
     std::string ptx(file.tellg(), '\0');
@@ -54,7 +52,8 @@ std::optional<std::string> readFileToString(std::string_view filename) {
     return ptx;
 }
 
-void saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+// TODO(kacper): variant<T, Result{code, str}>
+std::optional<std::pair<int, std::string>> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
                   std::string_view filename, bool flip_vertical) {
     constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
 
@@ -106,12 +105,13 @@ void saveExrImage(std::span<const float3> framebuffer, size_t width, size_t heig
     header.requested_pixel_types = pixel_types.data();
 
     const char* err = nullptr;
-    if (SaveEXRImageToFile(&image, &header, filename.data(), &err) != TINYEXR_SUCCESS) {
-        spdlog::error("Error saving EXR: {}", err);
-        FreeEXRErrorMessage(err);
-    } else {
-        spdlog::info("Saved EXR: {}", filename);
+    if (SaveEXRImageToFile(&image, &header, filename.data(), &err) == TINYEXR_SUCCESS) {
+        return {}; // TODO(kacper): reverse branches
     }
+    
+    std::string err_str(err);
+    FreeEXRErrorMessage(err);
+    return {{42, err_str}}; // TODO(kacper): actual error code from errno
 }
 
 }  // namespace thesis::io
