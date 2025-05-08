@@ -49,12 +49,22 @@ Renderer::Renderer(const AppConfig& config)
 void Renderer::initGAS() {
     // TODO(kacper): add more triangles
     std::vector<float3> vertices = {
+        // Triangle 1
         float3{-0.5f, -0.5f, -1.0f},
-        float3{0.5f, -0.5f, -1.0f},
-        float3{0.0f, 0.5f, -1.0f},
+        float3{ 0.5f, -0.5f, -1.0f},
+        float3{ 0.0f,  0.5f, -1.0f},
+        // Triangle 2
+        float3{-0.5f,  0.5f, -1.0f},
+        float3{ 0.5f,  0.5f, -1.0f},
+        float3{ 0.0f, -0.5f, -1.0f},
     };
 
-    gas_ = optix::TriangleGAS(optix_ctx_.get(), vertices, stream_.get());
+    std::vector<uint3> indices = {
+        uint3{0, 1, 2}, // Triangle 1
+        uint3{3, 4, 5}, // Triangle 2
+    };
+
+    gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(), vertices, indices);
     cuda::StreamHandle::synchronizeDevice();
 }
 

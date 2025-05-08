@@ -59,16 +59,27 @@ class TriangleGAS {
     TriangleGAS(const TriangleGAS&) = delete;
     TriangleGAS& operator=(const TriangleGAS&) = delete;
 
-    TriangleGAS(OptixDeviceContext context, std::span<const float3> vertices, cudaStream_t stream)
-        : vertices_(vertices.data(), vertices.size()) {
-        auto vertexBuffer = reinterpret_cast<CUdeviceptr>(vertices_.device());
+    TriangleGAS(cudaStream_t stream, OptixDeviceContext context, std::span<const float3> vertices, std::span<const uint3> indices = {})
+        : vertices_(vertices.data(), vertices.size()),
+        indices_(indices.data(), indices.size()) {
+
+        CUdeviceptr vertexBuffer = reinterpret_cast<CUdeviceptr>(vertices_.device());
+        CUdeviceptr indexBuffer = reinterpret_cast<CUdeviceptr>(indices_.device());
 
         OptixBuildInput build_input = {};
         build_input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+
         build_input.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-        build_input.triangleArray.numVertices = static_cast<uint32_t>(vertices_.size());
         build_input.triangleArray.vertexBuffers = &vertexBuffer;
-        static constexpr uint32_t input_flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+        build_input.triangleArray.numVertices = static_cast<uint32_t>(vertices_.size());
+
+        if (!indices.empty()) {
+            build_input.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+            build_input.triangleArray.indexBuffer = indexBuffer;
+            build_input.triangleArray.numIndexTriplets = static_cast<uint32_t>(indices_.size());
+        }
+
+        static constexpr uint32_t input_flags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
         build_input.triangleArray.flags = input_flags;
         build_input.triangleArray.numSbtRecords = 1;
 
@@ -79,6 +90,7 @@ class TriangleGAS {
 
    private:
     cuda::Buffer<float3> vertices_;
+    cuda::Buffer<uint3> indices_;
     optix::GASHandle gas_;
 };
 
