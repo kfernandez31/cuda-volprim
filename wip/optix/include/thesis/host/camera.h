@@ -18,19 +18,19 @@ class Camera {
     float aspect_ratio_ = 1.0f;
     float vertical_fov_ = 90.0f;
     glm::vec3 lookfrom_ = glm::vec3(0.0f);
-    glm::vec3 lookat_ = glm::vec3(0.0f, 0.0f, -1.0f); // TODO(kacper): why isn't it used in the device?
+    glm::vec3 lookat_ = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
 
     Camera() = default;
 
-    Camera(Camera&& other) = default;
-    Camera& operator=(Camera&& other) = default;
+    Camera(Camera&& other) noexcept = default;
+    Camera& operator=(Camera&& other) noexcept = default;
 
     Camera(const Camera& other) = delete;
     Camera& operator=(const Camera& other) = delete;
 
     void build() {
-        const auto image_height = std::max<size_t>(
+        const auto image_height = glm::max<size_t>(
             1, static_cast<size_t>(static_cast<float>(image_width_) / aspect_ratio_));
 
         const auto theta = glm::radians(vertical_fov_);

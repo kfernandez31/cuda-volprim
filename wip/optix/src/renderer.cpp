@@ -91,13 +91,8 @@ void Renderer::createHitgroupPG() {
 
 void Renderer::createPipeline()
 {
-    // Load PTX
-    auto ptx = io::readFileToString(config_.ptx_path_);
-    if (!ptx) {
-        spdlog::error("Failed to read PTX file: {}", config_.ptx_path_);
-        std::exit(1);
-    }
-    spdlog::info("PTX loaded ({} bytes)", ptx->size());
+    auto ptx = try_unwrap_or_exit<std::string>(io::readFileToString(config_.ptx_path_));
+    spdlog::info("PTX loaded ({} bytes)", ptx.size());
 
     OptixModuleCompileOptions mco = {};
 
@@ -105,7 +100,7 @@ void Renderer::createPipeline()
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.data();
     pco.numPayloadValues = 3;
 
-    module_ = optix::ModuleHandle(optix_ctx_.get(), mco, pco, *ptx);
+    module_ = optix::ModuleHandle(optix_ctx_.get(), mco, pco, ptx);
 
     createRaygenPG();
     createMissPG();
@@ -160,13 +155,9 @@ void Renderer::saveOutput() {
     spdlog::debug("Image downloaded from device");
 
     std::span<const float3> framebuffer(image_.host(), image_.size());
-    if (auto err = io::saveExrImage(framebuffer, image_.width(), image_.height(), config_.output_path_)) {
-        const auto& [code, msg] = *err;
-        spdlog::error("Error saving image: {}", msg);
-        std::exit(code);
-    }
+    try_unwrap_or_exit(io::saveExrImage(framebuffer, image_.width(), image_.height(), config_.output_path_));
 
-    spdlog::info("Image saved to '{}'", config_.output_path_);
+    spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 
 } // namespace thesis

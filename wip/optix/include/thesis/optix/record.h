@@ -10,7 +10,6 @@
 
 #include <array>
 #include <cstddef>
-#include <cstring>
 #include <utility>
 
 namespace thesis::optix {
@@ -35,8 +34,8 @@ public:
 
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
-    Record(Record&&) = default;
-    Record& operator=(Record&&) = default;
+    Record(Record&&) noexcept = default;
+    Record& operator=(Record&&) noexcept = default;
 
     [[nodiscard]] CUdeviceptr get() const noexcept {
         return reinterpret_cast<CUdeviceptr>(buffer_.device());

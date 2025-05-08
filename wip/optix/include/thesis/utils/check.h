@@ -3,11 +3,11 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <optix_types.h>
+// #include <driver_types.h> // TODO(kacper): remove?
 
-#include <array>  // IWYU pragma: keep
+#include <array>
 #include <cstdlib>
-#include <driver_types.h>
-#include <spdlog/spdlog.h>  // ← spdlog integration
+#include <spdlog/spdlog.h>
 
 namespace thesis {
 

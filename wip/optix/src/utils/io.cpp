@@ -1,6 +1,5 @@
-#include "thesis/utils/io.h"
-
 #include "thesis/pch.h"
+#include "thesis/utils/io.h"
 
 #include <vector_types.h>
 
@@ -11,9 +10,10 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <string_view>
-#include <tinyexr/tinyexr.h>
 #include <vector>
+#include <filesystem>
+
+#include <tinyexr/tinyexr.h>
 
 #ifdef _MSC_VER
 #include <cstdlib>
@@ -32,7 +32,7 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) {
         return;
     }
     std::strncpy(dest, src, dest_size - 1);
-    dest[dest_size - 1] = '\0';  // ensure null-termination
+    dest[dest_size - 1] = '\0';
 #endif  // _MSC_VER
 }
 
@@ -40,21 +40,21 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) {
 
 namespace thesis::io {
 
-std::optional<std::string> readFileToString(std::string_view filename) {
-    std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
+Result<std::string> readFileToString(const std::filesystem::path& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file) {
-        return {}; // TODO: errno code
+        return std::unexpected(Error("Failed to open file: {}", filename.string()));
     }
 
     std::string ptx(file.tellg(), '\0');
     file.seekg(0);
     file.read(ptx.data(), static_cast<std::streamsize>(ptx.size()));
+
     return ptx;
 }
 
-// TODO(kacper): variant<T, Result{code, str}>
-std::optional<std::pair<int, std::string>> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
-                  std::string_view filename, bool flip_vertical) {
+Result<Unit> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+        const std::filesystem::path& filename, bool flip_vertical) {
     constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
 
     std::array<std::vector<float>, NUM_CHANNELS> channels;
@@ -63,8 +63,8 @@ std::optional<std::pair<int, std::string>> saveExrImage(std::span<const float3> 
     }
 
     for (size_t y = 0; y < height; ++y) {
-        const size_t row_in = y * width;
-        const size_t row_out = (flip_vertical ? height - 1 - y : y) * width;
+        const auto row_in = y * width;
+        const auto row_out = (flip_vertical ? height - 1 - y : y) * width;
 
         for (size_t x = 0; x < width; ++x) {
             const auto& c = framebuffer[row_in + x];
@@ -105,13 +105,13 @@ std::optional<std::pair<int, std::string>> saveExrImage(std::span<const float3> 
     header.requested_pixel_types = pixel_types.data();
 
     const char* err = nullptr;
-    if (SaveEXRImageToFile(&image, &header, filename.data(), &err) == TINYEXR_SUCCESS) {
-        return {}; // TODO(kacper): reverse branches
+    if (SaveEXRImageToFile(&image, &header, filename.string().c_str(), &err) != TINYEXR_SUCCESS) {
+        std::string err_msg(err);
+        FreeEXRErrorMessage(err);
+        return std::unexpected(Error("EXR save failed: {}", err_msg));
     }
-    
-    std::string err_str(err);
-    FreeEXRErrorMessage(err);
-    return {{42, err_str}}; // TODO(kacper): actual error code from errno
+
+    return {};
 }
 
 }  // namespace thesis::io

@@ -7,11 +7,6 @@
 #include <optix_stubs.h>
 #include <optix_types.h>
 
-#include <array>
-#include <cstddef>
-#include <cstring>
-#include <utility>
-
 namespace thesis::optix {
 
 class SBTHandle {
@@ -40,8 +35,8 @@ public:
     SBTHandle(const SBTHandle&) = delete;
     SBTHandle& operator=(const SBTHandle&) = delete;
 
-    SBTHandle(SBTHandle&& other) = default;
-    SBTHandle& operator=(SBTHandle&& other) = default;
+    SBTHandle(SBTHandle&& other) noexcept = default;
+    SBTHandle& operator=(SBTHandle&& other) noexcept = default;
 
     const OptixShaderBindingTable& get() const noexcept { return sbt_; }
 

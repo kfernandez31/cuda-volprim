@@ -7,17 +7,13 @@
 #include <vector_types.h>
 
 #include <cstddef>
-#include <stb/stb_image.h>
+#include <filesystem>
 #include <string_view>
+
+#include <stb/stb_image.h>
 
 namespace thesis {
 namespace host {
-
-#ifndef PI
-// TODO(kacper): make more elegant
-#define PI 3.14159265358979323846f
-#define INVPI (1.0f / PI)
-#endif  // PI
 
 class EnvironmentMap {
 private:
@@ -28,11 +24,11 @@ private:
     
     float3 fallback_bg_color_ = {};
 public:
-    explicit EnvironmentMap(std::string_view filepath) {
+    explicit EnvironmentMap(const std::filesystem::path& filepath) {
         stbi_set_flip_vertically_on_load(true);
 
         int w, h, c;
-        auto* host_data = stbi_loadf(filepath.data(), &w, &h, &c, 0);
+        auto* host_data = stbi_loadf(filepath.string().c_str(), &w, &h, &c, 0);
         CHECK_NOT_NULL(host_data, "Failed to load HDR environment map");
 
         width_ = static_cast<size_t>(w);

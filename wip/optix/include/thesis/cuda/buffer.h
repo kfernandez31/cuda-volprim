@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 
 #include <cstddef>
+#include <memory>
 
 // TODO(kacper): for real-time rendering and interop, opt for something like:
 // C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h"
@@ -15,7 +16,7 @@ namespace thesis::cuda {
 template <typename T>
 class Buffer {
    public:
-   Buffer() = default;
+    Buffer() = default;
 
     explicit Buffer(size_t count)
         : count_(count),
@@ -59,7 +60,8 @@ class Buffer {
     [[nodiscard]] T* device() noexcept { return device_ptr_.get(); }
     [[nodiscard]] const T* device() const noexcept { return device_ptr_.get(); }
 
-    [[nodiscard]] size_t size() const { return count_; }
+    [[nodiscard]] size_t size() const noexcept { return count_; }
+    [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
 
    private:
     size_t count_;

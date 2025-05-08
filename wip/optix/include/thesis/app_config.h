@@ -1,22 +1,25 @@
 #pragma once
 
 #include <string>
+#include <filesystem>
 #include <cstddef>
 #include <optional>
 
 #include <CLI11/CLI11.hpp>
 
 namespace thesis {
+    
+namespace fs = std::filesystem;
 
 struct AppConfig {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
     std::string hitgroup_function_name_ = "__closesthit__ch";
     std::string launch_params_variable_name_ = "params";
-
-    std::string output_path_ = "output.exr";
-    std::string ptx_path_ = "build/device_program.ptx";
-    std::string env_map_path_ = "assets/meadow_2_4k.hdr";
+    
+    fs::path output_path_ = "output.exr";
+    fs::path ptx_path_ = fs::path("build") / "device_program.ptx";
+    fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
     size_t num_samples_per_pixel_ = 10;
     size_t image_width_ = 800;
@@ -27,8 +30,8 @@ struct AppConfig {
     AppConfig(const AppConfig&) = default;
     AppConfig& operator=(const AppConfig&) = default;
 
-    AppConfig(AppConfig&& other) = default;
-    AppConfig& operator=(AppConfig&& other) = default;
+    AppConfig(AppConfig&& other) noexcept = default;
+    AppConfig& operator=(AppConfig&& other) noexcept = default;
 
     std::optional<std::pair<int, std::string>> parse(int argc, char* argv[]) {
         CLI::App app{"OptiX-based raytracer of kernel mixture models"};

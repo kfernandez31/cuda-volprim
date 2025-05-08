@@ -27,17 +27,22 @@ AlwaysBreakTemplateDeclarations: Yes
 SortIncludes: true
 IncludeBlocks: Regroup
 
+# TODO(kacper): additional prio for cstdlib, cstddef?
 IncludeCategories:
-  - Regex: '^"[^"]*/[^"]*\.h"'                     # Matching header
+  - Regex: '^".*pch/.h"'                # Precompiled headers
     Priority: 1
-  - Regex: '^"thesis/.*"'                          # Project headers
+  - Regex: '^"[^"]*/[^"]*\.h"'          # Matching header
     Priority: 2
-  - Regex: '^"(CLI11|spdlog|stb|tinyexr)/.*"'      # Third-party headers
+  - Regex: '^"[^/"]+\.h"'               # Local same-directory headers
     Priority: 3
-  - Regex: '^<((optix|cuda|vector_types)[^>]*)>'   # OptiX / CUDA / vector_types.h
+  - Regex: '^"thesis/.*"'               # Project headers
     Priority: 4
-  - Regex: '^<.*>'                                 # Standard/system headers
+  - Regex: '^"(CLI11|glm|spdlog|stb|sutil|tinyexr)/.*"' # Third-party headers
     Priority: 5
+  - Regex: '^<((optix|cuda|vector_types|driver_types|vector_functions)[^>]*)>' # Cuda & OptiX
+    Priority: 6
+  - Regex: '^<.*>'                      # Standard/system headers
+    Priority: 7
 
 # --- Comments ---
 ReflowComments: true

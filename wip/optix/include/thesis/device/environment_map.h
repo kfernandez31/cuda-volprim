@@ -4,17 +4,9 @@
 
 #include <cstddef>
 
-// TODO(kacper): make more elegant
 #ifdef __CUDACC__
 #include <math.h>
-// #include <math_constants.h>
-
-#ifndef PI
-// TODO: make more elegant
-#define PI 3.14159265358979323846f
-#define INVPI (1.0f / PI)
-#endif  // PI
-
+#include "thesis/utils/math.h"
 #endif  // __CUDACC__
 
 namespace thesis {
@@ -33,10 +25,10 @@ struct EnvironmentMap {
             return fallback_bg_color_;
 
         const auto theta = atan2f(dir.z, dir.x);
-        const auto phi = acosf(fminf(fmaxf(dir.y, -1.0f), 1.0f));
+        const auto phi = acosf(math::clamp(dir.y, -1.0f, 1.0f));
 
-        const auto u = (theta + PI) * (0.5f * INVPI);
-        const auto v = phi * INVPI;
+        const auto u = (theta + math::PI_F) * math::HALF_INVPI_F;
+        const auto v = phi * math::INVPI_F;
 
         const auto x = static_cast<size_t>(u * width_) % width_;
         const auto y = static_cast<size_t>(v * height_) % height_;
