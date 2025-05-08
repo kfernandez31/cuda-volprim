@@ -27,9 +27,8 @@ AlwaysBreakTemplateDeclarations: Yes
 SortIncludes: true
 IncludeBlocks: Regroup
 
-# TODO(kacper): additional prio for cstdlib, cstddef?
 IncludeCategories:
-  - Regex: '^".*pch/.h"'                # Precompiled headers
+  - Regex: 'pch\.h"$'                   # Precompiled headers # TODO(Kacper): somehow this ends up after Priority 2
     Priority: 1
   - Regex: '^"[^"]*/[^"]*\.h"'          # Matching header
     Priority: 2

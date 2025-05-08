@@ -5,14 +5,15 @@
 #include <cstddef>
 
 #ifdef __CUDACC__
-#include <math.h>
 #include "thesis/utils/math.h"
+
+#include <math.h>
 #endif  // __CUDACC__
 
 namespace thesis {
 namespace device {
 
-struct EnvironmentMap {
+struct alignas(16) EnvironmentMap {
     float* data_ = nullptr;
     float3 fallback_bg_color_ = {};
     size_t width_ = 0;

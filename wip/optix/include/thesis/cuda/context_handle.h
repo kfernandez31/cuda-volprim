@@ -9,7 +9,7 @@
 namespace thesis::cuda {
 
 class ContextHandle {
-public:
+   public:
     explicit ContextHandle(int device_ordinal = 0) {
         CU_CHECK(cuInit(0));
         CU_CHECK(cuDeviceGet(&device_, device_ordinal));
@@ -21,7 +21,7 @@ public:
 
     ContextHandle(ContextHandle&& other) noexcept
         : context_(std::exchange(other.context_, nullptr)),
-        device_(std::exchange(other.device_, -1)) {}
+          device_(std::exchange(other.device_, -1)) {}
 
     ContextHandle& operator=(ContextHandle&& other) noexcept {
         if (this != &other) {
@@ -38,7 +38,7 @@ public:
     [[nodiscard]] CUcontext get() const noexcept { return context_; }
     [[nodiscard]] CUdevice device() const noexcept { return device_; }
 
-private:
+   private:
     void reset() noexcept {
         if (context_) {
             CU_CHECK_NOEXCEPT(cuCtxDestroy(context_));
@@ -50,5 +50,5 @@ private:
     CUcontext context_ = nullptr;
     CUdevice device_ = -1;
 };
-    
+
 }  // namespace thesis::cuda

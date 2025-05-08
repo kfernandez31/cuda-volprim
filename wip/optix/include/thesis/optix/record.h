@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/utils/check.h"
 #include "thesis/cuda/buffer.h"
+#include "thesis/utils/check.h"
 
 #include <cuda.h>
 #include <optix_host.h>
@@ -22,7 +22,7 @@ struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SBTRecord {
 
 template <typename T>
 class Record {
-public:
+   public:
     Record() = default;
 
     Record(OptixProgramGroup pg, const T& data) {
@@ -41,19 +41,20 @@ public:
         return reinterpret_cast<CUdeviceptr>(buffer_.device());
     }
 
-private:
+   private:
     cuda::Buffer<SBTRecord<T>> buffer_;
 };
 
 template <>
 class Record<void> {
-public:
+   public:
     Record() = default;
 
     explicit Record(OptixProgramGroup pg) {
         alignas(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, header));
-        buffer_ = cuda::Buffer<std::byte>::onDeviceOnly(reinterpret_cast<std::byte*>(header), OPTIX_SBT_RECORD_HEADER_SIZE);
+        buffer_ = cuda::Buffer<std::byte>::onDeviceOnly(reinterpret_cast<std::byte*>(header),
+                                                        OPTIX_SBT_RECORD_HEADER_SIZE);
     }
 
     Record(const Record&) = delete;
@@ -65,7 +66,7 @@ public:
         return reinterpret_cast<CUdeviceptr>(buffer_.device());
     }
 
-private:
+   private:
     cuda::Buffer<std::byte> buffer_;
 };
 

@@ -1,7 +1,7 @@
-#pragma once 
+#pragma once
 
 namespace thesis::logging {
 
 void initLogging();
 
-} // namespace thesis::logging
+}  // namespace thesis::logging

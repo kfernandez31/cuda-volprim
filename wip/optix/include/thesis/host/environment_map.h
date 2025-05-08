@@ -1,29 +1,29 @@
 #pragma once
 
+#include "thesis/cuda/buffer.h"
 #include "thesis/device/environment_map.h"
 #include "thesis/utils/check.h"
-#include "thesis/cuda/buffer.h"
 
 #include <vector_types.h>
 
 #include <cstddef>
 #include <filesystem>
-#include <string_view>
-
 #include <stb/stb_image.h>
+#include <string_view>
 
 namespace thesis {
 namespace host {
 
 class EnvironmentMap {
-private:
+   private:
     size_t width_ = 0;
     size_t height_ = 0;
     size_t num_channels_ = 0;
     cuda::Buffer<float> device_data_;
-    
+
     float3 fallback_bg_color_ = {};
-public:
+
+   public:
     explicit EnvironmentMap(const std::filesystem::path& filepath) {
         stbi_set_flip_vertically_on_load(true);
 

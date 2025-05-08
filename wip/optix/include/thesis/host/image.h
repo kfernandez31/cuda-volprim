@@ -35,7 +35,9 @@ class Image {
     [[nodiscard]] size_t height() const noexcept { return height_; }
 
     [[nodiscard]] size_t size() const noexcept { return width_ * height_; }
-    [[nodiscard]] float aspect_ratio() const noexcept { return static_cast<float>(width_) / static_cast<float>(height_); }
+    [[nodiscard]] float aspect_ratio() const noexcept {
+        return static_cast<float>(width_) / static_cast<float>(height_);
+    }
 
     [[nodiscard]] device::Image toDevice() noexcept {
         device::Image result;

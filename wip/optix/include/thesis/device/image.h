@@ -7,7 +7,7 @@
 namespace thesis {
 namespace device {
 
-struct Image {
+struct alignas(16) Image {
     float3* data_ = nullptr;
     size_t width_ = 0;
     size_t height_ = 0;

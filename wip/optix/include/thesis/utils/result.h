@@ -1,13 +1,12 @@
 #pragma once
 
+#include <cerrno>
+#include <cstdlib>
+#include <expected>
+#include <spdlog/fmt/fmt.h>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <cstdlib>
-#include <expected>
-#include <cerrno>
-
-#include <spdlog/fmt/fmt.h>
 
 #define TRY(expr)                                             \
     ({                                                        \
@@ -65,6 +64,5 @@ struct Error {
     Error(std::string_view fmt_str, Args&&... args)
         : Error(errno, fmt_str, std::forward<Args>(args)...) {}
 };
-
 
 }  // namespace thesis

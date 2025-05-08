@@ -2,18 +2,14 @@
 
 #include "thesis/app_config.h"
 #include "thesis/renderer.h"
-
-#include <spdlog/spdlog.h>
+#include "thesis/utils/logging.h"
 
 #include <optix_function_table_definition.h>
 
-#include <string>
 #include <cstdlib>
-
 #include <optional>
+#include <spdlog/spdlog.h>
 #include <string>
-
-#include "thesis/utils/logging.h"
 
 namespace {
 
@@ -27,7 +23,7 @@ auto getConfig(int argc, char* argv[]) {
     return config_;
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char* argv[]) {
     thesis::logging::initLogging();

@@ -1,9 +1,9 @@
+#include "thesis/optix/launch_params.h"
+
 #include <optix.h>
 
 #include "common.cuh"
 #include "util.cuh"
-
-#include "thesis/optix/launch_params.h"
 
 /*
 extern "C" __global__ void __raygen__rg() {
@@ -32,26 +32,18 @@ extern "C" __global__ void __raygen__rg() {
         const auto ray = compute_jittered_ray(idx, jitter);
 
         uint3 p;
-        optixTrace(
-            params.gas_handle_,
-            ray.origin_,
-            ray.direction_,
-            0.0f,                                // Min intersection distance
-            INF_F,                               // Max intersection distance
-            0.0f,                                // Disable motion blur
-            OptixVisibilityMask(VISIBILITY_ALL),
-            OPTIX_RAY_FLAG_NONE,
-            0,                                   // 0 - radiance, 1 - shadow, 2 - reflection
-            thesis::optix::RAY_TYPE_COUNT,
-            0,                                   // Use first miss program
-            p.x, p.y, p.z
-        );
-    
-        const auto result = make_float3(
-            __uint_as_float(p.x),
-            __uint_as_float(p.y),
-            __uint_as_float(p.z)
-        );
+        optixTrace(params.gas_handle_, ray.origin_, ray.direction_,
+                   0.0f,   // Min intersection distance
+                   INF_F,  // Max intersection distance
+                   0.0f,   // Disable motion blur
+                   OptixVisibilityMask(VISIBILITY_ALL), OPTIX_RAY_FLAG_NONE,
+                   0,  // 0 - radiance, 1 - shadow, 2 - reflection
+                   thesis::optix::RAY_TYPE_COUNT,
+                   0,  // Use first miss program
+                   p.x, p.y, p.z);
+
+        const auto result =
+            make_float3(__uint_as_float(p.x), __uint_as_float(p.y), __uint_as_float(p.z));
 
         acc_color += result;
     }

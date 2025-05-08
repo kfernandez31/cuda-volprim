@@ -14,7 +14,7 @@
 namespace thesis {
 
 class Renderer {
-public:
+   public:
     explicit Renderer(const AppConfig& config);
 
     Renderer(const Renderer&) = delete;
@@ -24,7 +24,8 @@ public:
     Renderer& operator=(Renderer&& other) noexcept = default;
 
     void render();
-private:
+
+   private:
     void createRaygenPG();
     void createMissPG();
     void createHitgroupPG();
@@ -54,4 +55,4 @@ private:
     optix::PipelineHandle pipeline_;
 };
 
-} // namespace thesis
+}  // namespace thesis

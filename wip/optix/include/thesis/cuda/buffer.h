@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/utils/check.h"
 #include "thesis/cuda/device_ptr.h"
+#include "thesis/utils/check.h"
 
 #include <cuda_runtime.h>
 
@@ -36,7 +36,8 @@ class Buffer {
 
     static Buffer onDeviceOnly(const T* data, size_t count) {
         Buffer buf = onDeviceOnly(count);
-        CUDA_CHECK(cudaMemcpy(buf.device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
+        CUDA_CHECK(
+            cudaMemcpy(buf.device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
         return buf;
     }
 
@@ -47,11 +48,13 @@ class Buffer {
     Buffer& operator=(Buffer&&) noexcept = default;
 
     void upload() {
-        CUDA_CHECK(cudaMemcpy(device_ptr_.get(), host_ptr_.get(), count_ * sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(device_ptr_.get(), host_ptr_.get(), count_ * sizeof(T),
+                              cudaMemcpyHostToDevice));
     }
 
     void download() {
-        CUDA_CHECK(cudaMemcpy(host_ptr_.get(), device_ptr_.get(), count_ * sizeof(T), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(host_ptr_.get(), device_ptr_.get(), count_ * sizeof(T),
+                              cudaMemcpyDeviceToHost));
     }
 
     [[nodiscard]] T* host() noexcept { return host_ptr_.get(); }
@@ -69,4 +72,4 @@ class Buffer {
     UniqueDevicePtr<T> device_ptr_;
 };
 
-} // namespace thesis::cuda
+}  // namespace thesis::cuda

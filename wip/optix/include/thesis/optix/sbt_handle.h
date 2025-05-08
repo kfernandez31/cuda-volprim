@@ -10,17 +10,11 @@
 namespace thesis::optix {
 
 class SBTHandle {
-public:
+   public:
     SBTHandle() = default;
 
-    SBTHandle(
-        OptixProgramGroup raygen,
-        OptixProgramGroup miss,
-        OptixProgramGroup hitgroup)
-        : raygen_record_(raygen),
-            miss_record_(miss),
-            hitgroup_record_(hitgroup)
-    {
+    SBTHandle(OptixProgramGroup raygen, OptixProgramGroup miss, OptixProgramGroup hitgroup)
+        : raygen_record_(raygen), miss_record_(miss), hitgroup_record_(hitgroup) {
         sbt_.raygenRecord = raygen_record_.get();
 
         sbt_.missRecordBase = miss_record_.get();
@@ -40,7 +34,7 @@ public:
 
     const OptixShaderBindingTable& get() const noexcept { return sbt_; }
 
-private:
+   private:
     thesis::optix::Record<void> raygen_record_;
     thesis::optix::Record<void> miss_record_;
     thesis::optix::Record<void> hitgroup_record_;

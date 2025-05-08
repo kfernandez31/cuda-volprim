@@ -20,4 +20,4 @@ UniqueDevicePtr<T> makeDevicePtr(size_t count) {
     return UniqueDevicePtr<T>(static_cast<T*>(raw));
 }
 
-} // namespace thesis::cuda
+}  // namespace thesis::cuda

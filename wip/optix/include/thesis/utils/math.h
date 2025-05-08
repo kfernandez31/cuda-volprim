@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/utils/preprocessor.h"
+
 #include <math_constants.h>
 
 namespace thesis {
@@ -14,5 +15,5 @@ THESIS_HOST_DEVICE THESIS_INLINE float clamp(float x, float min_val, float max_v
     return x < min_val ? min_val : (x > max_val ? max_val : x);
 }
 
-} // namespace math
-} // namespace thesis
+}  // namespace math
+}  // namespace thesis

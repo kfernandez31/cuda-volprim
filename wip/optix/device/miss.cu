@@ -1,6 +1,6 @@
-#include <optix.h>
-
 #include "thesis/optix/launch_params.h"
+
+#include <optix.h>
 
 #include "common.cuh"
 

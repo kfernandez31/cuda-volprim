@@ -5,7 +5,7 @@
 namespace thesis {
 namespace device {
 
-struct Camera {
+struct alignas(16) Camera {
     float3 eye_ = {};
     float3 pixel00_ = {};
     float3 pixel_du_ = {};

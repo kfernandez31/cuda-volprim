@@ -1,19 +1,19 @@
-#include "thesis/pch.h"
 #include "thesis/utils/io.h"
+
+#include "thesis/pch.h"
 
 #include <vector_types.h>
 
 #include <array>
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <optional>
 #include <span>
 #include <string>
-#include <vector>
-#include <filesystem>
-
 #include <tinyexr/tinyexr.h>
+#include <vector>
 
 #ifdef _MSC_VER
 #include <cstdlib>
@@ -54,7 +54,7 @@ Result<std::string> readFileToString(const std::filesystem::path& filename) {
 }
 
 Result<Unit> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
-        const std::filesystem::path& filename, bool flip_vertical) {
+                          const std::filesystem::path& filename, bool flip_vertical) {
     constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
 
     std::array<std::vector<float>, NUM_CHANNELS> channels;

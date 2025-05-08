@@ -1,6 +1,8 @@
+#include "thesis/optix/launch_params.h"
+
 #include <optix.h>
 
-#include "thesis/optix/launch_params.h"
+#include <sutil/vec_math.h>
 
 #include "common.cuh"
 

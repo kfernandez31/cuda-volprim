@@ -4,12 +4,12 @@
 
 #include <sutil/vec_math.h>
 
-// TODO(kacper): align or something?
-struct Ray {
+struct alignas(16) Ray {
     float3 origin_;
     float3 direction_;
 };
 
+// TODO(kacper): opt for another approach
 __forceinline__ __device__ float2 sample_random_2d(const uint3& idx, int sample_index) {
     auto seed = idx.x * 73856093u ^ idx.y * 19349663u ^ sample_index * 83492791u;
 

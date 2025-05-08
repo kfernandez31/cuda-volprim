@@ -1,5 +1,6 @@
-#include "thesis/pch.h"
 #include "thesis/utils/logging.h"
+
+#include "thesis/pch.h"
 
 #include <spdlog/spdlog.h>
 
@@ -15,4 +16,4 @@ void initLogging() {
     spdlog::info("Starting OptiX application");
 }
 
-} // namespace thesis::logging
+}  // namespace thesis::logging

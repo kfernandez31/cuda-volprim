@@ -3,7 +3,6 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <optix_types.h>
-// #include <driver_types.h> // TODO(kacper): remove?
 
 #include <array>
 #include <cstdlib>

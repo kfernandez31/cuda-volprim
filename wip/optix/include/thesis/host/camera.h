@@ -51,11 +51,11 @@ class Camera {
         const auto pixel_dv = viewport_v / static_cast<float>(image_height);
         const auto viewport_ul = lookfrom_ - focal_len * w - 0.5f * (viewport_u + viewport_v);
         const auto pixel00 = viewport_ul + 0.5f * (pixel_du + pixel_dv);
-        
-        device_struct.eye_       = to_float3(lookfrom_);
-        device_struct.pixel00_   = to_float3(pixel00);
-        device_struct.pixel_du_  = to_float3(pixel_du);
-        device_struct.pixel_dv_  = to_float3(pixel_dv);
+
+        device_struct.eye_ = to_float3(lookfrom_);
+        device_struct.pixel00_ = to_float3(pixel00);
+        device_struct.pixel_du_ = to_float3(pixel_du);
+        device_struct.pixel_dv_ = to_float3(pixel_dv);
     }
 
     [[nodiscard]] device::Camera toDevice() const noexcept { return device_struct; }

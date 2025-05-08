@@ -1,48 +1,47 @@
+#include "thesis/renderer.h"
+
 #include "thesis/pch.h"
 
-#include "thesis/renderer.h"
+#include "thesis/optix/logging.h"
 #include "thesis/utils/check.h"
 #include "thesis/utils/io.h"
-#include "thesis/optix/logging.h"
-
-#include <spdlog/spdlog.h>
 
 #include <optional>
+#include <spdlog/spdlog.h>
 #include <string>
 
 namespace thesis {
 
 Renderer::Renderer(const AppConfig& config)
-    : config_(std::move(config))
-    , cuda_ctx_()
-    , optix_ctx_([&] {
-        OPTIX_CHECK(optixInit());
-        spdlog::debug("OptiX initialized");
-    
-        OptixDeviceContextOptions opts = {};
-        opts.logCallbackFunction = &optix::contextLogCb;
-        opts.logCallbackLevel = static_cast<int>(optix::LogLevel::Warning);
-    #ifdef DEBUG
-        opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
-    #endif // DEBUG
-    
-        return optix::DeviceContextHandle(opts, cuda_ctx_.get());
-    }())
-    , env_map_(config_.env_map_path_)
-    , image_(config_.image_width_, config_.aspect_ratio_)
-    , camera_([&] {
-        host::Camera cam;
-        cam.aspect_ratio_ = config_.aspect_ratio_;
-        cam.image_width_ = config_.image_width_;
-        cam.vertical_fov_ = 90.0f;
-        cam.lookfrom_ = glm::vec3(0.0f, 0.0f, 0.0f);
-        cam.lookat_ = glm::vec3(0.0f, 0.0f, -1.0f);
-        cam.vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
-        cam.build();
-        return cam;
-    }())
-    , stream_()
-{
+    : config_(std::move(config)),
+      cuda_ctx_(),
+      optix_ctx_([&] {
+          OPTIX_CHECK(optixInit());
+          spdlog::debug("OptiX initialized");
+
+          OptixDeviceContextOptions opts = {};
+          opts.logCallbackFunction = &optix::contextLogCb;
+          opts.logCallbackLevel = static_cast<int>(optix::LogLevel::Warning);
+#ifdef DEBUG
+          opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
+#endif  // DEBUG
+
+          return optix::DeviceContextHandle(opts, cuda_ctx_.get());
+      }()),
+      env_map_(config_.env_map_path_),
+      image_(config_.image_width_, config_.aspect_ratio_),
+      camera_([&] {
+          host::Camera cam;
+          cam.aspect_ratio_ = config_.aspect_ratio_;
+          cam.image_width_ = config_.image_width_;
+          cam.vertical_fov_ = 90.0f;
+          cam.lookfrom_ = glm::vec3(0.0f, 0.0f, 0.0f);
+          cam.lookat_ = glm::vec3(0.0f, 0.0f, -1.0f);
+          cam.vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
+          cam.build();
+          return cam;
+      }()),
+      stream_() {
     initGAS();
     createPipeline();
 }
@@ -51,8 +50,8 @@ void Renderer::initGAS() {
     // TODO(kacper): add more triangles
     std::vector<float3> vertices = {
         float3{-0.5f, -0.5f, -1.0f},
-        float3{ 0.5f, -0.5f, -1.0f},
-        float3{ 0.0f,  0.5f, -1.0f},
+        float3{0.5f, -0.5f, -1.0f},
+        float3{0.0f, 0.5f, -1.0f},
     };
 
     gas_ = optix::TriangleGAS(optix_ctx_.get(), vertices, stream_.get());
@@ -89,8 +88,7 @@ void Renderer::createHitgroupPG() {
     spdlog::debug("Hitgroup program group created");
 }
 
-void Renderer::createPipeline()
-{
+void Renderer::createPipeline() {
     auto ptx = try_unwrap_or_exit<std::string>(io::readFileToString(config_.ptx_path_));
     spdlog::info("PTX loaded ({} bytes)", ptx.size());
 
@@ -112,9 +110,7 @@ void Renderer::createPipeline()
     OptixPipelineLinkOptions plo = {};
     plo.maxTraceDepth = 1;
 
-    std::array<OptixProgramGroup, 3> pgs = {
-        raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get()
-    };
+    std::array<OptixProgramGroup, 3> pgs = {raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get()};
 
     pipeline_ = optix::PipelineHandle(optix_ctx_.get(), pco, plo, pgs.data(), pgs.size());
     spdlog::info("OptiX pipeline built");
@@ -134,16 +130,12 @@ void Renderer::uploadParams() {
 
 void Renderer::render() {
     uploadParams();
-    
+
     spdlog::info("Launching OptiX pipeline...");
-    pipeline_.launch(
-        stream_.get(),
-        reinterpret_cast<CUdeviceptr>(launch_params_.device()),
-        sizeof(optix::LaunchParams),
-        sbt_.get(),
-        static_cast<unsigned int>(image_.width()),
-        static_cast<unsigned int>(image_.height())
-    );
+    pipeline_.launch(stream_.get(), reinterpret_cast<CUdeviceptr>(launch_params_.device()),
+                     sizeof(optix::LaunchParams), sbt_.get(),
+                     static_cast<unsigned int>(image_.width()),
+                     static_cast<unsigned int>(image_.height()));
     cuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
@@ -155,9 +147,10 @@ void Renderer::saveOutput() {
     spdlog::debug("Image downloaded from device");
 
     std::span<const float3> framebuffer(image_.host(), image_.size());
-    try_unwrap_or_exit(io::saveExrImage(framebuffer, image_.width(), image_.height(), config_.output_path_));
+    try_unwrap_or_exit(
+        io::saveExrImage(framebuffer, image_.width(), image_.height(), config_.output_path_));
 
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 
-} // namespace thesis
+}  // namespace thesis

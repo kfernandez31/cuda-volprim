@@ -5,15 +5,16 @@
 #include <vector_types.h>
 
 #include <cstddef>
-#include <span>
-#include <string>
 #include <expected>
 #include <filesystem>
+#include <span>
+#include <string>
 
 namespace thesis::io {
 
 Result<std::string> readFileToString(const std::filesystem::path& filename);
 
-Result<Unit> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height, const std::filesystem::path& filename, bool flip_vertical = true);
+Result<Unit> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+                          const std::filesystem::path& filename, bool flip_vertical = true);
 
 }  // namespace thesis::io
