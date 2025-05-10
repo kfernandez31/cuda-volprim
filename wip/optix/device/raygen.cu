@@ -17,7 +17,7 @@ extern "C" __global__ void __raygen__rg() {
         const auto ray = compute_jittered_ray(idx, jitter);
 
         // TODO(kacper): either shift the ray or modify min intersection distance
-        uint3 p;
+        unsigned int r, g, b;
         optixTrace(params.gas_handle_, ray.origin_, ray.direction_,
                    0.0f,   // Min intersection distance
                    INF_F,  // Max intersection distance
@@ -26,13 +26,15 @@ extern "C" __global__ void __raygen__rg() {
                    0,  // 0 - radiance, 1 - shadow, 2 - reflection
                    thesis::optix::RAY_TYPE_COUNT,
                    0,  // Use first miss program
-                   p.x, p.y, p.z);
+                   r, g, b);
 
-        const auto result =
-            make_float3(__uint_as_float(p.x), __uint_as_float(p.y), __uint_as_float(p.z));
-
+        const auto result = make_float3(__uint_as_float(r), __uint_as_float(g), __uint_as_float(b));
         acc_color += result;
     }
+
+    // TODO(kacper): take note of the entry and exit triangles with... anyhit?
+    // then take their t's as [t_in, t_out]
+    // but the triangles might not be of the same icosphere/primitive...
 
     acc_color /= static_cast<float>(params.num_samples_per_pixel_);
     params.image_(idx.x, idx.y) = acc_color;

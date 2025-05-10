@@ -10,6 +10,7 @@
 #include "thesis/optix/handle.h"
 #include "thesis/optix/launch_params.h"
 #include "thesis/optix/sbt_handle.h"
+#include "thesis/device/primitive.h"
 
 namespace thesis {
 
@@ -26,11 +27,12 @@ class Renderer {
     void render();
 
    private:
+    void initGAS();
+    void uploadParams();
     void createRaygenPG();
     void createMissPG();
     void createHitgroupPG();
-    void uploadParams();
-    void initGAS();
+    void createPrimitives();
     void createPipeline();
     void saveOutput();
 
@@ -53,6 +55,8 @@ class Renderer {
     optix::ProgramGroupHandle hitgroup_pg_;
     optix::SBTHandle sbt_;
     optix::PipelineHandle pipeline_;
+
+    cuda::Buffer<device::Primitive> primitives_; // TODO(kacper): should this be a member?
 };
 
 }  // namespace thesis

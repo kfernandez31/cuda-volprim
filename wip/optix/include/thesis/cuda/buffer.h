@@ -47,14 +47,16 @@ class Buffer {
     Buffer(Buffer&&) noexcept = default;
     Buffer& operator=(Buffer&&) noexcept = default;
 
-    void upload() {
+    T* upload() {
         CUDA_CHECK(cudaMemcpy(device_ptr_.get(), host_ptr_.get(), count_ * sizeof(T),
                               cudaMemcpyHostToDevice));
+        return device();
     }
 
-    void download() {
+    T* download() {
         CUDA_CHECK(cudaMemcpy(host_ptr_.get(), device_ptr_.get(), count_ * sizeof(T),
                               cudaMemcpyDeviceToHost));
+        return host();
     }
 
     [[nodiscard]] T* host() noexcept { return host_ptr_.get(); }
@@ -65,6 +67,8 @@ class Buffer {
 
     [[nodiscard]] size_t size() const noexcept { return count_; }
     [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
+
+    // TODO(kacper): add iterator + const iterator
 
    private:
     size_t count_;

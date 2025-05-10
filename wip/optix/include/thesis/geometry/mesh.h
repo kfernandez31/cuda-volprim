@@ -38,8 +38,28 @@ public:
     [[nodiscard]] std::span<const glm::uvec3> getIndices() const noexcept {
         return indices;
     }
-};
 
+    void translate(const glm::vec3& offset) noexcept {
+        for (auto& v : vertices) {
+            v += offset;
+        }
+    }
+
+    // TODO(kacper): index offset param for ctor?
+
+    void transform(const glm::mat4& transformation_matrix) noexcept {
+        for (auto& v : vertices) {
+            v = transformation_matrix * glm::vec4(v, 1.0f);
+        }
+    }
+
+    // TODO(kacper): if stored as just a float matrix (4 x num_vertices), we could do gemm
+    // but the sizes we want to use are probably not worth gpu transfers (and the 4x4 lhs is tiny)
+    // [][][][] @ [][][]...[]
+    // [][][][] @ [][][]...[]
+    // [][][][] @ [][][]...[]
+    // [][][][] @ [][][]...[]
+};
 
 /* TODO(kacper) - the class could be made constexpr if:
 - we replace std::vector with std::array
@@ -65,10 +85,9 @@ struct MidpointCache {
 
 template<size_t N>
 struct Icosphere : public Mesh {
-private:
     static constexpr size_t NumVertices = 10 * thesis::math::constexpr_pow<size_t>(4, N) + 2;
     static constexpr size_t NumIndices  = 20 * thesis::math::constexpr_pow<size_t>(4, N);
-public:
+
     explicit Icosphere(float t = 0.5f * (1.0f + glm::sqrt(5.0f))) :
         Mesh({
             {-1,  t,  0}, { 1,  t,  0}, {-1, -t,  0}, { 1, -t,  0},
@@ -102,7 +121,7 @@ public:
             if (auto it = cache.find(key); it != cache.end()) {
                 return it->second;
             }
-    
+
             auto middle = glm::normalize(0.5f * (vertices[v1] + vertices[v2]));
             vertices.push_back(middle);
 

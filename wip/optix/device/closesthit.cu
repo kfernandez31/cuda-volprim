@@ -1,4 +1,5 @@
 #include "thesis/optix/launch_params.h"
+#include "thesis/device/primitive.h"
 
 #include <optix.h>
 
@@ -7,6 +8,14 @@
 #include "common.cuh"
 
 extern "C" __global__ void __closesthit__ch() {
-    const auto barycentrics = optixGetTriangleBarycentrics();
-    setPayload(make_float3(barycentrics, 1.0f));
+    const auto triangle_idx = optixGetPrimitiveIndex();
+    const auto prim_idx = triangle_idx / params.num_triangles_per_primitive_;
+
+    const auto ray_origin = optixGetWorldRayOrigin();
+    const auto ray_direction = optixGetWorldRayDirection();
+
+    const auto& prim = params.primitives_[prim_idx];
+    const auto color = prim.density_integral(ray_origin, ray_direction);
+
+    setPayload(color);
 }

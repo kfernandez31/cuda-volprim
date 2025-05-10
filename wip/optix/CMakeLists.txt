@@ -27,6 +27,19 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Needed by Clang-Tidy and IWYU
 
+# Map CMAKE_CXX_STANDARD to a supported NVCC flag
+if (CMAKE_CXX_STANDARD GREATER_EQUAL 23)
+    set(NVCC_STD_FLAG "--std=c++20")  # Downgrade for NVCC compatibility
+elseif (CMAKE_CXX_STANDARD STREQUAL "20")
+    set(NVCC_STD_FLAG "--std=c++20")
+elseif (CMAKE_CXX_STANDARD STREQUAL "17")
+    set(NVCC_STD_FLAG "--std=c++17")
+elseif (CMAKE_CXX_STANDARD STREQUAL "14")
+    set(NVCC_STD_FLAG "--std=c++14")
+else()
+    message(FATAL_ERROR "Unsupported CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD} for NVCC")
+endif()
+
 # === Project Paths ===
 set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR     "${CMAKE_SOURCE_DIR}/include")
@@ -106,6 +119,7 @@ add_custom_command(
         -I "${INCLUDE_DIR}"
         -I "${DEVICE_DIR}"
         -I "${THIRD_PARTY_DIR}"
+        "${NVCC_STD_FLAG}"
         --ptx
         --expt-relaxed-constexpr
         --expt-extended-lambda

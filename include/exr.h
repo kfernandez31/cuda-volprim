@@ -46,7 +46,7 @@ void save_exr_image(const std::vector<vec3>& framebuffer, int width, int height,
     for (int i = 0; i < NUM_CHANNELS; ++i)
         strncpy(channelInfo[i].name, channel_names[i], 255);
 
-    header.channels = channelInfo.data();
+  header.channels = channelInfo.data();
     header.num_channels = NUM_CHANNELS;
 
     std::array<int, NUM_CHANNELS> pixel_types;

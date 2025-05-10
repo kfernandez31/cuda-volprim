@@ -8,9 +8,17 @@
 #include "thesis/geometry/mesh.h"
 #include "thesis/utils/data.h"
 
-#include <optional>
+#include <sutil/vec_math.h>
 #include <spdlog/spdlog.h>
-#include <string>
+
+#include <optional>
+#include <string> // TODO(kacper): remove
+#include <array> // TODO(kacper): remove
+#include <vector> // TODO(kacper): remove
+
+// TODO(kacper): remove
+#define ICOSPHERE_N 0
+#define NUM_PRIMITIVES 3
 
 namespace thesis {
 
@@ -38,7 +46,7 @@ Renderer::Renderer(const AppConfig& config)
           cam.image_width_ = config_.image_width_;
           cam.vertical_fov_ = 90.0f;
           cam.lookfrom_ = glm::vec3(0.0f, 0.0f, -2.0f);
-          cam.lookat_ = glm::vec3(0.0f, 0.0f, -1.0f);
+          cam.lookat_ = glm::vec3(0.0f, 0.0f, 0.0f);
           cam.vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
           cam.build();
           return cam;
@@ -49,9 +57,59 @@ Renderer::Renderer(const AppConfig& config)
 }
 
 void Renderer::initGAS() {
-    geometry::Icosphere<2> ico;
-    gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(), data::reinterpretSpan<float3, glm::vec3>(ico.getVertices()), data::reinterpretSpan<uint3, glm::uvec3>(ico.getIndices()));
-    cuda::StreamHandle::synchronizeDevice();
+    std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
+
+    icos[0].translate(glm::vec3(2.0f, 0.0f, 0.5f));
+    icos[1].translate(glm::vec3(0.0f, 0.0f, 0.5f));
+    icos[2].translate(glm::vec3(-2.0f, 0.0f, 0.5f));
+
+    // Combine vertices
+    std::vector<glm::vec3> all_vertices;
+    for (const auto& ico : icos) {
+        const auto& vs = ico.getVertices();
+        all_vertices.insert(all_vertices.end(), vs.begin(), vs.end());
+    }
+
+    // Combine indices
+    std::vector<glm::uvec3> all_indices;
+    for (size_t i = 0; i < icos.size(); ++i) {
+        auto offset = static_cast<unsigned int>(i * geometry::Icosphere<ICOSPHERE_N>::NumVertices); // important, since indexing is local
+
+        const auto& is = icos[i].getIndices();
+        for (const auto& tri : is) {
+            all_indices.emplace_back(tri + offset);
+        }
+    }
+
+    gas_ = optix::TriangleGAS(
+        stream_.get(), // TODO(kacper): should I create this on the same stream as I call the pipeline on?
+        optix_ctx_.get(),
+        data::reinterpretSpan<float3, glm::vec3>(all_vertices),
+        data::reinterpretSpan<uint3, glm::uvec3>(all_indices)
+    );
+
+    cuda::StreamHandle::synchronizeDevice(); // TODO(kacper): needed?
+}
+
+void Renderer::uploadParams() {
+    optix::LaunchParams par = {};
+    par.gas_handle_ = gas_.get();
+    par.num_samples_per_pixel_ = config_.num_samples_per_pixel_;
+    par.num_primitives_ = NUM_PRIMITIVES;
+    par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
+    par.image_ = image_.toDevice();
+    par.env_map_ = env_map_.toDevice();
+    par.camera_ = camera_.toDevice();
+    
+    primitives_ = cuda::Buffer<device::Primitive>(NUM_PRIMITIVES);
+    for (size_t i = 0; i < primitives_.size(); ++i) {
+        auto color = static_cast<float>(i) / static_cast<float>(par.num_primitives_);
+        primitives_.host()[i] = device::Primitive(make_float3(color));
+    }
+    par.primitives_ = primitives_.upload();
+
+    launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
+    spdlog::info("Uploaded launch params");
 }
 
 void Renderer::createRaygenPG() {
@@ -110,18 +168,6 @@ void Renderer::createPipeline() {
 
     pipeline_ = optix::PipelineHandle(optix_ctx_.get(), pco, plo, pgs.data(), pgs.size());
     spdlog::info("OptiX pipeline built");
-}
-
-void Renderer::uploadParams() {
-    optix::LaunchParams par = {};
-    par.gas_handle_ = gas_.get();
-    par.num_samples_per_pixel_ = config_.num_samples_per_pixel_;
-    par.image_ = image_.toDevice();
-    par.env_map_ = env_map_.toDevice();
-    par.camera_ = camera_.toDevice();
-
-    launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
-    spdlog::info("Uploaded launch params");
 }
 
 void Renderer::render() {

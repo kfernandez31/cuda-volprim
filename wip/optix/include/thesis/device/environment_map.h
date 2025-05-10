@@ -21,7 +21,7 @@ struct alignas(16) EnvironmentMap {
     size_t num_channels_ = 0;
 
 #ifdef __CUDACC__
-    __device__ float3 sample(const float3& dir) const {
+    __device__ float3 sample(float3 dir) const noexcept {
         if (!data_)
             return fallback_bg_color_;
 

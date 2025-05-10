@@ -1,10 +1,8 @@
 # Readme
 
 ## TODO
-- [ ] a math header with eg. clamp
-- [ ] moving on to the sphere render...
 - [ ] getting rid of sutil (or minimizing it)
-- [ ] clean git history?
+- [ ] trailing whitespace fix
 
 ## Compilation
 

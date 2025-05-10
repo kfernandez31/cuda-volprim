@@ -3,6 +3,7 @@
 #include "thesis/device/camera.h"
 #include "thesis/device/environment_map.h"
 #include "thesis/device/image.h"
+#include "thesis/device/primitive.h"
 
 #include <optix.h>
 #include <vector_types.h>
@@ -20,9 +21,12 @@ enum RayType {
 __align__(16) struct LaunchParams {
     OptixTraversableHandle gas_handle_;
     size_t num_samples_per_pixel_;
+    size_t num_primitives_;
+    size_t num_triangles_per_primitive_;
     device::Image image_;
     device::EnvironmentMap env_map_;
     device::Camera camera_;
+    device::Primitive* primitives_;
 };
 
 struct RayGenData {
