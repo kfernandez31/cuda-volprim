@@ -5,6 +5,8 @@
 #include "thesis/optix/logging.h"
 #include "thesis/utils/check.h"
 #include "thesis/utils/io.h"
+#include "thesis/geometry/mesh.h"
+#include "thesis/utils/data.h"
 
 #include <optional>
 #include <spdlog/spdlog.h>
@@ -35,7 +37,7 @@ Renderer::Renderer(const AppConfig& config)
           cam.aspect_ratio_ = config_.aspect_ratio_;
           cam.image_width_ = config_.image_width_;
           cam.vertical_fov_ = 90.0f;
-          cam.lookfrom_ = glm::vec3(0.0f, 0.0f, 0.0f);
+          cam.lookfrom_ = glm::vec3(0.0f, 0.0f, -2.0f);
           cam.lookat_ = glm::vec3(0.0f, 0.0f, -1.0f);
           cam.vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
           cam.build();
@@ -47,24 +49,8 @@ Renderer::Renderer(const AppConfig& config)
 }
 
 void Renderer::initGAS() {
-    // TODO(kacper): add more triangles
-    std::vector<float3> vertices = {
-        // Triangle 1
-        float3{-0.5f, -0.5f, -1.0f},
-        float3{ 0.5f, -0.5f, -1.0f},
-        float3{ 0.0f,  0.5f, -1.0f},
-        // Triangle 2
-        float3{-0.5f,  0.5f, -1.0f},
-        float3{ 0.5f,  0.5f, -1.0f},
-        float3{ 0.0f, -0.5f, -1.0f},
-    };
-
-    std::vector<uint3> indices = {
-        uint3{0, 1, 2}, // Triangle 1
-        uint3{3, 4, 5}, // Triangle 2
-    };
-
-    gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(), vertices, indices);
+    geometry::Icosphere<2> ico;
+    gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(), data::reinterpretSpan<float3, glm::vec3>(ico.getVertices()), data::reinterpretSpan<uint3, glm::uvec3>(ico.getIndices()));
     cuda::StreamHandle::synchronizeDevice();
 }
 
@@ -154,7 +140,6 @@ void Renderer::render() {
 
 void Renderer::saveOutput() {
     image_.download();
-    spdlog::debug("Image downloaded from device");
 
     std::span<const float3> framebuffer(image_.host(), image_.size());
     try_unwrap_or_exit(

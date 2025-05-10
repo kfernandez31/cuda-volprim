@@ -38,7 +38,7 @@ IncludeCategories:
     Priority: 4
   - Regex: '^"(CLI11|glm|spdlog|stb|sutil|tinyexr)/.*"' # Third-party headers
     Priority: 5
-  - Regex: '^<((optix|cuda|vector_types|driver_types|vector_functions)[^>]*)>' # Cuda & OptiX
+  - Regex: '^<((optix|cuda|vector_types|driver_types|vector_functions|math_constants)[^>]*)>' # Cuda & OptiX
     Priority: 6
   - Regex: '^<.*>'                      # Standard/system headers
     Priority: 7

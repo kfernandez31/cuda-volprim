@@ -5,22 +5,7 @@
 #include "common.cuh"
 #include "util.cuh"
 
-/*
-extern "C" __global__ void __raygen__rg() {
-    const auto idx = optixGetLaunchIndex();
-    const auto pixel = make_float2(idx.x, idx.y);
-    auto acc_color = make_float3(0.0f);
-
-    for (size_t s = 0; s < params.num_samples_per_pixel_; ++s) {
-        const auto jitter = sample_random_2d(idx, s);
-        const auto ray = compute_jittered_ray(idx, jitter);
-        acc_color += params.env_map_.sample(ray.direction);
-    }
-
-    acc_color /= static_cast<float>(params.num_samples_per_pixel_);
-    params.image_(idx.x, idx.y) = acc_color;
-}
-*/
+// TODO(kacper): maybe start without backface culling
 
 extern "C" __global__ void __raygen__rg() {
     const auto idx = optixGetLaunchIndex();
@@ -31,6 +16,7 @@ extern "C" __global__ void __raygen__rg() {
         const auto jitter = sample_random_2d(idx, s);
         const auto ray = compute_jittered_ray(idx, jitter);
 
+        // TODO(kacper): either shift the ray or modify min intersection distance
         uint3 p;
         optixTrace(params.gas_handle_, ray.origin_, ray.direction_,
                    0.0f,   // Min intersection distance
