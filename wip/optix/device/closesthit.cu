@@ -8,13 +8,18 @@
 
 #include "common.cuh"
 
-extern "C" __global__ void __closesthit__ch() {
+__forceinline__ __device__ size_t getPrimitiveIndex() {
     const auto triangle_idx = optixGetPrimitiveIndex();
     const auto prim_idx = triangle_idx / params.num_triangles_per_primitive_;
+    return prim_idx;
+}
 
+extern "C" __global__ void __closesthit__ch() {
     const auto ray = thesis::device::Ray::getCurrentRay();
 
+    const auto prim_idx = getPrimitiveIndex();
     const auto& prim = params.primitives_[prim_idx];
+
     const auto color = prim.density_integral(ray);
 
     setPayload(color);
