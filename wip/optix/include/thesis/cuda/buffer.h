@@ -71,9 +71,9 @@ class Buffer {
     // TODO(kacper): add iterator + const iterator
 
    private:
-    size_t count_;
-    std::unique_ptr<T[]> host_ptr_;
-    UniqueDevicePtr<T> device_ptr_;
+    size_t count_ = 0;
+    std::unique_ptr<T[]> host_ptr_ = nullptr;
+    UniqueDevicePtr<T> device_ptr_ = nullptr;
 };
 
 }  // namespace thesis::cuda

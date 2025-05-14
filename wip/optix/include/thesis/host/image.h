@@ -2,13 +2,14 @@
 
 #include "thesis/cuda/buffer.h"
 #include "thesis/device/image.h"
+#include "thesis/host/convertible.h"
 
 #include <cstddef>
 
 namespace thesis {
 namespace host {
 
-class Image {
+class Image : public Convertible<device::Image> {
    private:
     size_t width_ = 0;
     size_t height_ = 0;
@@ -39,9 +40,9 @@ class Image {
         return static_cast<float>(width_) / static_cast<float>(height_);
     }
 
-    [[nodiscard]] device::Image toDevice() noexcept {
+    [[nodiscard]] device::Image toDevice() const noexcept override {
         device::Image result;
-        result.data_ = buffer_.device();
+        result.data_ = const_cast<float3*>(buffer_.device());
         result.width_ = width_;
         result.height_ = height_;
         return result;

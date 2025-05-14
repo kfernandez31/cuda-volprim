@@ -3,6 +3,7 @@
 #include "thesis/app_config.h"
 #include "thesis/cuda/context_handle.h"
 #include "thesis/cuda/stream_handle.h"
+#include "thesis/device/primitive.h"
 #include "thesis/host/camera.h"
 #include "thesis/host/environment_map.h"
 #include "thesis/host/image.h"
@@ -10,7 +11,6 @@
 #include "thesis/optix/handle.h"
 #include "thesis/optix/launch_params.h"
 #include "thesis/optix/sbt_handle.h"
-#include "thesis/device/primitive.h"
 
 namespace thesis {
 
@@ -56,7 +56,7 @@ class Renderer {
     optix::SBTHandle sbt_;
     optix::PipelineHandle pipeline_;
 
-    cuda::Buffer<device::Primitive> primitives_; // TODO(kacper): should this be a member?
+    cuda::Buffer<device::Primitive> primitives_;
 };
 
 }  // namespace thesis

@@ -43,7 +43,7 @@ struct Error {
     std::string msg_;
 
     Error(int code, std::string_view msg) : code_(code), msg_(msg) {}
-    Error(std::string_view msg) : Error(errno, msg) {}
+    explicit Error(std::string_view msg) : Error(errno, msg) {}
 
     Error(int code, const std::string& msg) : Error(code, std::string_view(msg)) {}
     Error(int code, std::string&& msg) : code_(code), msg_(std::move(msg)) {}

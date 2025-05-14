@@ -2,6 +2,7 @@
 
 #include "thesis/cuda/buffer.h"
 #include "thesis/device/environment_map.h"
+#include "thesis/host/convertible.h"
 #include "thesis/utils/check.h"
 
 #include <vector_types.h>
@@ -14,7 +15,7 @@
 namespace thesis {
 namespace host {
 
-class EnvironmentMap {
+class EnvironmentMap : public Convertible<device::EnvironmentMap> {
    private:
     size_t width_ = 0;
     size_t height_ = 0;
@@ -48,9 +49,9 @@ class EnvironmentMap {
     EnvironmentMap(EnvironmentMap&&) noexcept = default;
     EnvironmentMap& operator=(EnvironmentMap&&) noexcept = default;
 
-    [[nodiscard]] device::EnvironmentMap toDevice() noexcept {
+    [[nodiscard]] device::EnvironmentMap toDevice() const noexcept override {
         device::EnvironmentMap result;
-        result.data_ = device_data_.device();
+        result.data_ = const_cast<float*>(device_data_.device());
         result.fallback_bg_color_ = fallback_bg_color_;
         result.width_ = width_;
         result.height_ = height_;

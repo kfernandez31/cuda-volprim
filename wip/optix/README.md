@@ -1,6 +1,9 @@
 # Readme
 
 ## TODO
+- [ ] Primitive: host-device split 
+- [ ] clean up: device, utils, geometry
+- [ ] namespaces for utils
 - [ ] getting rid of sutil (or minimizing it)
 - [ ] trailing whitespace fix
 

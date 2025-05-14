@@ -3,7 +3,10 @@
 #include <optix.h>
 
 #include "common.cuh"
-#include "util.cuh"
+#include "random.cuh"
+
+#define VISIBILITY_ALL 0xFF
+#define INF_F 1e20f
 
 // TODO(kacper): maybe start without backface culling
 

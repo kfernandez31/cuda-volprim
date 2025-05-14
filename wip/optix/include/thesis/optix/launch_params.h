@@ -4,6 +4,7 @@
 #include "thesis/device/environment_map.h"
 #include "thesis/device/image.h"
 #include "thesis/device/primitive.h"
+#include "thesis/utils/preprocessor.h"
 
 #include <optix.h>
 #include <vector_types.h>
@@ -18,7 +19,7 @@ enum RayType {
     RAY_TYPE_COUNT,
 };
 
-__align__(16) struct LaunchParams {
+struct THESIS_ALIGNMENT LaunchParams {
     OptixTraversableHandle gas_handle_;
     size_t num_samples_per_pixel_;
     size_t num_primitives_;

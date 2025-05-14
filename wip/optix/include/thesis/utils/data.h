@@ -1,7 +1,9 @@
 #pragma once
 
-#include <span>
+#include <vector_types.h>
+
 #include <cstddef>
+#include <glm/glm.hpp>
 #include <span>
 #include <type_traits>
 
@@ -15,4 +17,12 @@ inline std::span<const To> reinterpretSpan(std::span<const From> src) {
     return {reinterpret_cast<const To*>(src.data()), src.size()};
 }
 
-} // namespace thesis::data
+inline float3 toFloat3(const glm::vec3& v) noexcept {
+    return make_float3(v.x, v.y, v.z);
+}
+
+inline glm::vec3 toVec3(const float3& v) noexcept {
+    return {v.x, v.y, v.z};
+}
+
+}  // namespace thesis::data

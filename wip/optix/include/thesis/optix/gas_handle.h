@@ -59,10 +59,9 @@ class TriangleGAS {
     TriangleGAS(const TriangleGAS&) = delete;
     TriangleGAS& operator=(const TriangleGAS&) = delete;
 
-    TriangleGAS(cudaStream_t stream, OptixDeviceContext context, std::span<const float3> vertices, std::span<const uint3> indices = {})
-        : vertices_(vertices.data(), vertices.size()),
-        indices_(indices.data(), indices.size()) {
-
+    TriangleGAS(cudaStream_t stream, OptixDeviceContext context, std::span<const float3> vertices,
+                std::span<const uint3> indices = {})
+        : vertices_(vertices.data(), vertices.size()), indices_(indices.data(), indices.size()) {
         CUdeviceptr vertexBuffer = reinterpret_cast<CUdeviceptr>(vertices_.device());
         CUdeviceptr indexBuffer = reinterpret_cast<CUdeviceptr>(indices_.device());
 
@@ -79,7 +78,7 @@ class TriangleGAS {
             build_input.triangleArray.numIndexTriplets = static_cast<uint32_t>(indices_.size());
         }
 
-        static constexpr uint32_t input_flags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+        static constexpr uint32_t input_flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
         build_input.triangleArray.flags = input_flags;
         build_input.triangleArray.numSbtRecords = 1;
 

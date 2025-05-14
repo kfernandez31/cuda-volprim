@@ -1,5 +1,7 @@
 #pragma once
 
+#include "thesis/utils/preprocessor.h"
+
 #include <vector_types.h>
 
 #include <cstddef>
@@ -7,7 +9,7 @@
 namespace thesis {
 namespace device {
 
-struct alignas(16) Image {
+struct THESIS_ALIGNMENT Image {
     float3* data_ = nullptr;
     size_t width_ = 0;
     size_t height_ = 0;

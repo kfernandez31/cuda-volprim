@@ -1,7 +1,8 @@
 #pragma once
 
 #include "thesis/device/camera.h"
-#include "thesis/utils/vec.h"
+#include "thesis/host/convertible.h"
+#include "thesis/utils/data.h"
 
 #include <cstddef>
 #include <glm/glm.hpp>
@@ -9,7 +10,7 @@
 namespace thesis {
 namespace host {
 
-class Camera {
+class Camera : public Convertible<device::Camera> {
    private:
     device::Camera device_struct;
 
@@ -52,13 +53,13 @@ class Camera {
         const auto viewport_ul = lookfrom_ - focal_len * w - 0.5f * (viewport_u + viewport_v);
         const auto pixel00 = viewport_ul + 0.5f * (pixel_du + pixel_dv);
 
-        device_struct.eye_ = to_float3(lookfrom_);
-        device_struct.pixel00_ = to_float3(pixel00);
-        device_struct.pixel_du_ = to_float3(pixel_du);
-        device_struct.pixel_dv_ = to_float3(pixel_dv);
+        device_struct.eye_ = data::toFloat3(lookfrom_);
+        device_struct.pixel00_ = data::toFloat3(pixel00);
+        device_struct.pixel_du_ = data::toFloat3(pixel_du);
+        device_struct.pixel_dv_ = data::toFloat3(pixel_dv);
     }
 
-    [[nodiscard]] device::Camera toDevice() const noexcept { return device_struct; }
+    [[nodiscard]] device::Camera toDevice() const noexcept override { return device_struct; }
 };
 
 }  // namespace host

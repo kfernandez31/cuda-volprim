@@ -2,19 +2,20 @@
 
 #include "thesis/pch.h"
 
+#include "thesis/geometry/mesh.h"
+#include "thesis/host/primitive.h"
 #include "thesis/optix/logging.h"
 #include "thesis/utils/check.h"
-#include "thesis/utils/io.h"
-#include "thesis/geometry/mesh.h"
 #include "thesis/utils/data.h"
+#include "thesis/utils/io.h"
 
-#include <sutil/vec_math.h>
-#include <spdlog/spdlog.h>
-
+#include <array>        // TODO(kacper): remove
+#include <glm/glm.hpp>  // TODO(kacper): remove
 #include <optional>
-#include <string> // TODO(kacper): remove
-#include <array> // TODO(kacper): remove
-#include <vector> // TODO(kacper): remove
+#include <spdlog/spdlog.h>
+#include <string>  // TODO(kacper): remove
+#include <sutil/vec_math.h>
+#include <vector>  // TODO(kacper): remove
 
 // TODO(kacper): remove
 #define ICOSPHERE_N 0
@@ -38,6 +39,7 @@ Renderer::Renderer(const AppConfig& config)
 
           return optix::DeviceContextHandle(opts, cuda_ctx_.get());
       }()),
+      stream_(),
       env_map_(config_.env_map_path_),
       image_(config_.image_width_, config_.aspect_ratio_),
       camera_([&] {
@@ -50,8 +52,7 @@ Renderer::Renderer(const AppConfig& config)
           cam.vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
           cam.build();
           return cam;
-      }()),
-      stream_() {
+      }()) {
     initGAS();
     createPipeline();
 }
@@ -73,7 +74,9 @@ void Renderer::initGAS() {
     // Combine indices
     std::vector<glm::uvec3> all_indices;
     for (size_t i = 0; i < icos.size(); ++i) {
-        auto offset = static_cast<unsigned int>(i * geometry::Icosphere<ICOSPHERE_N>::NumVertices); // important, since indexing is local
+        auto offset = static_cast<unsigned int>(
+            i *
+            geometry::Icosphere<ICOSPHERE_N>::NumVertices);  // important, since indexing is local
 
         const auto& is = icos[i].getIndices();
         for (const auto& tri : is) {
@@ -81,14 +84,9 @@ void Renderer::initGAS() {
         }
     }
 
-    gas_ = optix::TriangleGAS(
-        stream_.get(), // TODO(kacper): should I create this on the same stream as I call the pipeline on?
-        optix_ctx_.get(),
-        data::reinterpretSpan<float3, glm::vec3>(all_vertices),
-        data::reinterpretSpan<uint3, glm::uvec3>(all_indices)
-    );
-
-    cuda::StreamHandle::synchronizeDevice(); // TODO(kacper): needed?
+    gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(),
+                              data::reinterpretSpan<float3, glm::vec3>(all_vertices),
+                              data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
 }
 
 void Renderer::uploadParams() {
@@ -100,13 +98,26 @@ void Renderer::uploadParams() {
     par.image_ = image_.toDevice();
     par.env_map_ = env_map_.toDevice();
     par.camera_ = camera_.toDevice();
-    
+
+    spdlog::info("created host primitives");
+    std::vector<host::Primitive> host_primitives;
+    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+        // auto color = make_float3(static_cast<float>(i) /
+        // static_cast<float>(par.num_primitives_));
+        glm::vec3 albedo(0);
+        float optical_depth_scale = 0;
+        auto id = glm::identity<glm::mat4>();
+        host_primitives.emplace_back(id, id, id, albedo, optical_depth_scale);
+    }
+
+    spdlog::info("create device primitives");
     primitives_ = cuda::Buffer<device::Primitive>(NUM_PRIMITIVES);
-    for (size_t i = 0; i < primitives_.size(); ++i) {
-        auto color = static_cast<float>(i) / static_cast<float>(par.num_primitives_);
-        primitives_.host()[i] = device::Primitive(make_float3(color));
+    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+        spdlog::info("i = {}", i);
+        primitives_.host()[i] = std::move(host_primitives[i].toDevice());
     }
     par.primitives_ = primitives_.upload();
+    spdlog::info("uploaded device params");
 
     launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
     spdlog::info("Uploaded launch params");

@@ -12,6 +12,7 @@
 #include <functional>
 #include <ios>
 #include <iostream>
+#include <math.h>  // TODO(kacper): pch for device?
 #include <memory>
 #include <optional>
 #include <span>
@@ -36,7 +37,11 @@
 
 // 3rd Party
 #include <CLI11/CLI11.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
+#include <glm/gtx/component_wise.hpp>
+#include <glm/gtx/optimum_pow.hpp>
+#include <glm/gtx/transform.hpp>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 #include <stb/stb_image.h>
