@@ -8,6 +8,7 @@
 
 #include "common.cuh"
 
+// TODO(kacper): remove
 __forceinline__ __device__ size_t getPrimitiveIndex() {
     const auto triangle_idx = optixGetPrimitiveIndex();
     const auto prim_idx = triangle_idx / params.num_triangles_per_primitive_;

@@ -13,7 +13,8 @@ namespace fs = std::filesystem;
 struct AppConfig {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
-    std::string hitgroup_function_name_ = "__closesthit__ch";
+    std::string closesthit_function_name_ = "__closesthit__ch";
+    std::string anyhit_function_name = "__anyhit__ah";
     std::string launch_params_variable_name_ = "params";
 
     fs::path output_path_ = "output.exr";
@@ -49,7 +50,7 @@ struct AppConfig {
             ->required(false);
         app.add_option("-m,--miss", miss_function_name_, "Name of the miss function in the PTX")
             ->required(false);
-        app.add_option("-c,--closesthit", hitgroup_function_name_,
+        app.add_option("-c,--closesthit", closesthit_function_name_,
                        "Name of the hitgroup function in the PTX")
             ->required(false);
         app.add_option("-l,--launch_params", launch_params_variable_name_,

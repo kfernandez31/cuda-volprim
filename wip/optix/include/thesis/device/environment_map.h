@@ -26,8 +26,8 @@ struct THESIS_ALIGNMENT EnvironmentMap {
         const auto theta = atan2f(dir.z, dir.x);
         const auto phi = acosf(math::clamp(dir.y, -1.0f, 1.0f));
 
-        const auto u = (theta + math::PI_F) * math::HALF_INV_PI_F;
-        const auto v = phi * math::INV_PI_F;
+        const auto u = (theta + math::PI_F) * math::ONE_OVER_TWO_PI_F;
+        const auto v = phi * math::ONE_OVER_PI_F;
 
         const auto x = static_cast<size_t>(u * width_) % width_;
         const auto y = static_cast<size_t>(v * height_) % height_;

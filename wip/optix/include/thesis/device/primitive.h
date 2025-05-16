@@ -26,6 +26,19 @@ class THESIS_ALIGNMENT Primitive {
     float optical_depth_scale_ = 0;
     float erf_denominator_base_ = 0;
 
+// __device__ float Primitive::sigma_t_at(const float3& p) const {
+//     // Evaluate unnormalized Gaussian (or other kernel) at point `p`
+//     // Use your density kernel scaled by optical_depth_scale_
+//     // Example: isotropic Gaussian centered at origin in local space
+//     float3 local = transform<true>(M_for_integrating_inv_, p);
+//     float3 e2 = -make_float3(
+//         local.x * local.x / S_diag_squared_.x,
+//         local.y * local.y / S_diag_squared_.y,
+//         local.z * local.z / S_diag_squared_.z
+//     );
+//     return optical_depth_scale_ * expf(e2.x + e2.y + e2.z);
+// }
+
 #ifdef __CUDACC__
     __inline__ __device__ float optical_depth(const Ray& r_global) const noexcept {
         const auto r_local = r_global.transformed(M_for_integrating_inv_);
@@ -49,7 +62,7 @@ class THESIS_ALIGNMENT Primitive {
                          ww.x * (xx.y * S_diag_squared_.z + xx.z * S_diag_squared_.y);
         const auto C_1 = 0.5f * (C_3 + C_4) * math::pow2(C_0_invsqrt);
 
-        return optical_depth_scale_ * expf(-C_1) * C_0_sqrt * math::INV_PI_F;
+        return optical_depth_scale_ * expf(-C_1) * C_0_sqrt * math::ONE_OVER_PI_F;
     }
 
     __inline__ __device__ float optical_depth(const Ray& r_global, float2 t_range) const noexcept {
@@ -82,7 +95,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto erf_max = erf((t_range.y * C_0 + C_2) * denom);
 
         return optical_depth_scale_ * expf(-C_1) * C_0_sqrt * (erf_max - erf_min) *
-               math::HALF_INV_PI_F;
+               math::ONE_OVER_TWO_PI_F;
     }
 #endif  // __CUDACC__
    public:

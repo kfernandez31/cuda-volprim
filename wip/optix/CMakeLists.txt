@@ -228,6 +228,7 @@ endif()
 target_link_libraries(thesis PRIVATE
     CUDA::cuda_driver
     CUDA::cudart
+    CUDA::curand
 )
 
 # === Compile-Time Defines ===

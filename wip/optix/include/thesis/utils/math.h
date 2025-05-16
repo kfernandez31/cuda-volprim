@@ -10,12 +10,19 @@ namespace thesis {
 namespace math {
 
 constexpr auto PI_F = CUDART_PI_F;
-constexpr auto INV_PI_F = 1.0f / CUDART_PI_F;
-constexpr auto HALF_INV_PI_F = 0.5f * INV_PI_F;
+constexpr auto TWO_PI_F = 2.0f * PI_F;
+constexpr auto FOUR_PI_F = 4.0f * PI_F;
+constexpr auto ONE_OVER_PI_F = 1.0f / PI_F;
+constexpr auto ONE_OVER_TWO_PI_F = 1.Of / (2.0f * PI_F);
+constexpr auto ONE_OVER_FOUR_PI_F = 1.Of / (4.0f * PI_F);
 
 constexpr auto SQRT2_F = CUDART_SQRT_TWO_F;
-constexpr auto INV_SQRT_TWO_F = 1.0f / CUDART_SQRT_TWO_F;
-constexpr auto HALF_INV_SQRT_TWO_F = 0.5f * INV_SQRT_TWO_F;
+constexpr auto TWO_SQRT2_F = 2.0f * SQRT2_F;
+constexpr auto FOUR_SQRT2_F = 4.0f * SQRT2_F;
+constexpr auto ONE_OVER_SQRT2_F = 1.0f / SQRT2_F;
+constexpr auto ONE_OVER_TWO_SQRT2_F = 1.Of / (2.0f * SQRT2_F);
+constexpr auto ONE_OVER_FOUR_SQRT2_F = 1.Of / (4.0f * SQRT2_F);
+
 
 THESIS_HOST_DEVICE THESIS_INLINE float clamp(float x, float min_val, float max_val) {
     return x < min_val ? min_val : (x > max_val ? max_val : x);

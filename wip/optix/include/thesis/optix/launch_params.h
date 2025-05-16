@@ -14,11 +14,6 @@
 namespace thesis {
 namespace optix {
 
-enum RayType {
-    RAY_TYPE_RADIANCE = 0,
-    RAY_TYPE_COUNT,
-};
-
 struct THESIS_ALIGNMENT LaunchParams {
     OptixTraversableHandle gas_handle_;
     size_t num_samples_per_pixel_;

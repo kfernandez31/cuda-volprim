@@ -67,7 +67,7 @@ class Primitive : public Convertible<device::Primitive> {
             host::toDevice(M_for_intersecting_), host::toDevice(M_for_intersecting_inv_),
             host::toDevice(M_for_integrating_inv_), data::toFloat3(S_diag_squared_),
             data::toFloat3(albedo_), optical_depth_scale_,
-            math::HALF_INV_SQRT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_)));
+            math::ONE_OVER_TWO_SQRT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_)));
     }
 };
 

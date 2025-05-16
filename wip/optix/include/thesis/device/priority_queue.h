@@ -64,7 +64,9 @@ struct PriorityQueue {
     }
 
     THESIS_INLINE THESIS_HOST_DEVICE void pop() noexcept {
-        if (size == 0) return false;
+        if (size == 0) {
+            return false;
+        }
 
         heap[0] = heap[--size];
 

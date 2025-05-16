@@ -5,28 +5,21 @@
 #include "thesis/device/ray.h"
 
 #include <vector_types.h>
-#include <optix>
+#include <curand_kernel.h>
+#include <optix.h>
 
 #include <sutil/vec_math.h>
 
-// TODO(kacper): opt for another approach
-__forceinline__ __device__ float2 sample_random_2d(int sample_index) {
-    const auto idx = optixGetLaunchIndex();
-
-    auto seed = idx.x * 73856093u ^ idx.y * 19349663u ^ sample_index * 83492791u;
-
-    seed ^= seed << 13;
-    seed ^= seed >> 17;
-    seed ^= seed << 5;
-
-    const auto x = (static_cast<float>((seed >> 0) & 0xFFFFu) / 65536.0f) - 0.5f;
-    const auto y = (static_cast<float>((seed >> 16) & 0xFFFFu) / 65536.0f) - 0.5f;
-    return {x, y};
+__device__ __forceinline__ float sample_uniform(curandState* state) {
+    return static_cast<float>(curand(state)) / static_cast<float>(UINT_MAX);
 }
 
-__forceinline__ __device__ thesis::device::Ray compute_jittered_ray(const float2& jitter) {
-    const auto idx = optixGetLaunchIndex();
+__device__ __forceinline__ float2 sample_random_2d(curandState* state, float2 offset=make_float2(0.5f)) {
+    auto u = make_float2(sample_uniform(state), sample_uniform(state));
+    return u - offset;
+}
 
+__forceinline__ __device__ thesis::device::Ray compute_jittered_ray(float2 jitter, uint3 idx) {
     const auto pixel = make_float2(idx.x + jitter.x, idx.y + jitter.y);
     const auto origin = params.camera_.eye_;
     const auto direction = normalize(
@@ -35,5 +28,5 @@ __forceinline__ __device__ thesis::device::Ray compute_jittered_ray(const float2
         pixel.y * params.camera_.pixel_dv_ -
         origin
     );
-    return {origin, direction};
+    return thesis::device::Ray::spawn(origin, direction);
 }

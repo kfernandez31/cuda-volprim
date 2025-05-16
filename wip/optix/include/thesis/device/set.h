@@ -9,46 +9,46 @@ namespace thesis {
 namespace device {
 
 template <typename T, size_t Capacity>
-class Vector {
+class Set {
     T data_[Capacity];
     size_t size_ = 0;
 
 public:
-    Vector() = default;
+    Set() = default;
 
     THESIS_INLINE THESIS_HOST_DEVICE size_t size() const noexcept { return size_; }
     THESIS_INLINE THESIS_HOST_DEVICE constexpr size_t capacity() const noexcept { return Capacity; }
     THESIS_INLINE THESIS_HOST_DEVICE bool empty() const noexcept { return size_ == 0; }
     THESIS_INLINE THESIS_HOST_DEVICE bool full() const noexcept { return size_ == Capacity; }
 
-    THESIS_INLINE THESIS_HOST_DEVICE T& operator[](size_t i) noexcept { return data_[i]; }
-    THESIS_INLINE THESIS_HOST_DEVICE const T& operator[](size_t i) const noexcept { return data_[i]; }
-
     THESIS_INLINE THESIS_HOST_DEVICE void clear() noexcept { size_ = 0; }
 
-    THESIS_INLINE THESIS_HOST_DEVICE bool push_back(const T& value) noexcept {
-        if (full()) {
+    THESIS_INLINE THESIS_HOST_DEVICE bool contains(const T& value) const noexcept {
+        for (size_t i = 0; i < size_; ++i) {
+            if (data_[i] == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    THESIS_INLINE THESIS_HOST_DEVICE bool insert(const T& value) noexcept {
+        if (contains(value) || full()) {
             return false;
         }
         data_[size_++] = value;
         return true;
     }
 
-    THESIS_INLINE THESIS_HOST_DEVICE bool pop_back() noexcept {
-        if (empty()) {
-            return false;
+    // Erase if present (compacts array)
+    THESIS_INLINE THESIS_HOST_DEVICE bool erase(const T& value) noexcept {
+        for (size_t i = 0; i < size_; ++i) {
+            if (data_[i] == value) {
+                data_[i] = utility::move(data_[--size_]);
+                return true;
+            }
         }
-        --size_;
-        return true;
-    }
-
-    template <typename... Args>
-    THESIS_INLINE THESIS_HOST_DEVICE bool emplace_back(Args&&... args) noexcept {
-        if (full()) {
-            return false;
-        }
-        data_[size_++] = T(utility::forward<Args>(args)...);
-        return true;
+        return false;
     }
 
     THESIS_INLINE THESIS_HOST_DEVICE T* begin() noexcept { return data_; }

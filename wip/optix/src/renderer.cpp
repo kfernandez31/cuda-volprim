@@ -19,7 +19,7 @@
 
 // TODO(kacper): remove
 #define ICOSPHERE_N 0
-#define NUM_PRIMITIVES 3
+#define NUM_PRIMITIVES 1
 
 namespace thesis {
 
@@ -59,10 +59,11 @@ Renderer::Renderer(const AppConfig& config)
 
 void Renderer::initGAS() {
     std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
+    icos[0].translate(glm::vec3(0.0f, 0.0f, 0.5f));
 
-    icos[0].translate(glm::vec3(2.0f, 0.0f, 0.5f));
-    icos[1].translate(glm::vec3(0.0f, 0.0f, 0.5f));
-    icos[2].translate(glm::vec3(-2.0f, 0.0f, 0.5f));
+    // icos[0].translate(glm::vec3(2.0f, 0.0f, 0.5f));
+    // icos[1].translate(glm::vec3(0.0f, 0.0f, 0.5f));
+    // icos[2].translate(glm::vec3(-2.0f, 0.0f, 0.5f));
 
     // Combine vertices
     std::vector<glm::vec3> all_vertices;
@@ -127,7 +128,7 @@ void Renderer::createRaygenPG() {
     OptixProgramGroupDesc desc = {};
     desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
     desc.raygen.module = module_.get();
-    desc.raygen.entryFunctionName = config_.raygen_function_name_.data();
+    desc.raygen.entryFunctionName = config_.raygen_function_name_.c_str();
 
     raygen_pg_ = optix::ProgramGroupHandle(optix_ctx_.get(), desc);
     spdlog::debug("Raygen program group created");
@@ -137,7 +138,7 @@ void Renderer::createMissPG() {
     OptixProgramGroupDesc desc = {};
     desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
     desc.miss.module = module_.get();
-    desc.miss.entryFunctionName = config_.miss_function_name_.data();
+    desc.miss.entryFunctionName = config_.miss_function_name_.c_str();
 
     miss_pg_ = optix::ProgramGroupHandle(optix_ctx_.get(), desc);
     spdlog::debug("Miss program group created");
@@ -146,8 +147,12 @@ void Renderer::createMissPG() {
 void Renderer::createHitgroupPG() {
     OptixProgramGroupDesc desc = {};
     desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+
     desc.hitgroup.moduleCH = module_.get();
-    desc.hitgroup.entryFunctionNameCH = config_.hitgroup_function_name_.data();
+    desc.hitgroup.entryFunctionNameCH = config_.closesthit_function_name_.c_str();
+
+    desc.hitgroup.moduleAH = module_.get();
+    desc.hitgroup.entryFunctionNameAH = config_.anyhit_function_name.c_str();
 
     hitgroup_pg_ = optix::ProgramGroupHandle(optix_ctx_.get(), desc);
     spdlog::debug("Hitgroup program group created");
@@ -160,7 +165,7 @@ void Renderer::createPipeline() {
     OptixModuleCompileOptions mco = {};
 
     OptixPipelineCompileOptions pco = {};
-    pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.data();
+    pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = 3;
 
     module_ = optix::ModuleHandle(optix_ctx_.get(), mco, pco, ptx);

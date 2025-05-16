@@ -16,12 +16,24 @@ namespace thesis {
 namespace device {
 
 struct THESIS_ALIGNMENT Ray {
+private:
+    Ray(float3 origin, float3 direction)
+        : origin_(origin), direction_(direction) {}
+public:
     float3 origin_;
     float3 direction_;
 
     Ray() = default;
-    THESIS_HOST_DEVICE Ray(float3 origin, float3 direction)
-        : origin_(origin), direction_(direction) {}
+
+#ifdef __CUDACC__
+    static __forceinline__ __device__ Ray spawn(float3 o, float3 d) noexcept {
+        return {o, normalize(d)};
+    }
+
+    static __forceinline__ __device__ Ray spawn_unchecked(float3 o, float3 d) noexcept {
+        return {o, d}; // assume caller normalized
+    }
+#endif
 
 #ifdef __CUDACC__
     static __forceinline__ __device__ Ray getCurrentRay() noexcept {
