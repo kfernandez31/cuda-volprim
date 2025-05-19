@@ -1,0 +1,43 @@
+#pragma once
+
+#include "thesis/device/camera.h"
+#include "thesis/device/environment_map.h"
+#include "thesis/device/image.h"
+#include "thesis/device/primitive.h"
+#include "thesis/utils/preprocessor.h"
+#include "thesis/utils/types.h"
+
+#include <optix.h>
+#include <vector_types.h>
+
+#include <cstddef>
+
+namespace thesis {
+namespace optix {
+
+struct THESIS_ALIGNMENT LaunchParams {
+    OptixTraversableHandle gas_handle_;
+    size_t num_samples_per_pixel_;
+    size_t num_primitives_;
+    size_t num_triangles_per_primitive_;
+    device::Image image_;
+    device::EnvironmentMap env_map_;
+    device::Camera camera_;
+    device::Primitive* primitives_;
+    uint seed;
+};
+
+struct RayGenData {
+    // No data needed
+};
+
+struct MissData {
+    // No data needed
+};
+
+struct HitGroupData {
+    // No data needed
+};
+
+}  // namespace optix
+}  // namespace thesis

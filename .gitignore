@@ -1,6 +1,7 @@
-.vscode/
+tests/
 build/
-others/
-*.ppm
+ignore/
+.vscode/
+.vscodium/
 *.exr
-main
+*.out
