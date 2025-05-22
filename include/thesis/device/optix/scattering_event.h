@@ -2,19 +2,17 @@
 
 #include "thesis/common/utils/preprocessor.h"
 
-#include "thes"
-
 #include <cstddef>
 
 namespace thesis {
 namespace device {
 
-template <typename N>
+template <size_t Capacity>
 struct THESIS_ALIGNMENT ScatteringEvent {
-    float t_;
     float3 position_;
     float3 direction_;
-    utils::Set<uint, N> active_prims_;
+    float t_;
+    utils::Set<uint, Capacity> active_prims_;
 };
 
 }  // namespace device

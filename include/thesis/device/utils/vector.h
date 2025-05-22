@@ -9,7 +9,6 @@ namespace thesis {
 namespace device {
 namespace utils {
 
-// TODO(kacper): remove?
 template <typename T, size_t Capacity>
 class THESIS_ALIGNMENT Vector {
 private:

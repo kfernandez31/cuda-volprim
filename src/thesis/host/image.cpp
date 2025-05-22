@@ -1,10 +1,10 @@
-#include "thesis/pch.h"
-#include "thesis/host/image.h"
-#include "device/average_samples.cuh"
-#include "thesis/cuda/buffer.h"
-#include "thesis/utils/math.h"
-#include "thesis/cuda/stream_handle.h"
-#include "thesis/utils/io.h"
+// #include "thesis/host/pch.h"
+#include "thesis/host/params/image.h"
+#include "device/kernels/core/average_samples.cuh"
+#include "thesis/host/cuda/buffer.h"
+#include "thesis/common/utils/math.h"
+#include "thesis/host/cuda/stream_handle.h"
+#include "thesis/host/utils/io.h"
 
 #include <cstddef>
 #include <filesystem>

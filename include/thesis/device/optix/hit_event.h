@@ -7,11 +7,10 @@
 namespace thesis {
 namespace device {
 
-// TODO(kacper): order of member vars
 struct THESIS_ALIGNMENT HitEvent {
-    bool is_entry_;
-    float t_;
     size_t prim_idx_;
+    float t_;
+    bool is_entry_;
 
     struct Less {
         THESIS_INLINE THESIS_HOST_DEVICE constexpr bool operator()(const HitEvent& a, const HitEvent& b) const noexcept {

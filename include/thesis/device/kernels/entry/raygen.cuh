@@ -42,7 +42,7 @@ extern "C" __global__ void __raygen__rg() {
     curand_init(params.seed, pixel.y * params.image_width + pixel.x, sample_idx, &rng);
 
     const auto jitter = tdevice::random::sample_uniform_2d(&rng, 0.5f);
-    auto ray = tdevice::random::compute_jittered_ray(jitter, pixel.idx);
+    auto ray = tdevice::Camera::jittered_ray(pixel, jitter);
 
     auto throughput = make_float3(1.0f);
     auto radiance = make_float3(0.0f);
@@ -50,7 +50,7 @@ extern "C" __global__ void __raygen__rg() {
     for (size_t bounce = 0; bounce < tdevice::consts::MAX_BOUNCES; ++bounce) {
         auto evt = tdevice::sample_scattering_event(ray, &rng);
 
-        // no scattering - escaped medium
+        // no scattering - escaped mediums
         if (!evt) {
             auto tau = tdevice::compute_optical_depth_along_ray(ray);
             auto env = params.env_map_.sample(ray.direction_);

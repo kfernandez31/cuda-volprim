@@ -1,4 +1,3 @@
-// TODO(kacper): return to this once closesthit works
 #pragma once
 
 #include "thesis/device/kernels/launch_params.cuh"
@@ -18,18 +17,10 @@ __forceinline__ __device__ uint getPrimitiveIndex() {
     return prim_idx;
 }
 
-__forceinline__ __device__ getPayloadPointer() {
-    uint32_t p0 = optixGetPayload_0();
-    uint32_t p1 = optixGetPayload_1();
-    return reinterpret_cast<optix::AnyhitPayload*>(data::unpackPointer(p0, p1));
-}
-
 } // namespace device
 } // namespace thesis
 
-extern "C" __global__ void __anyhit__ah() {
-    auto* payload = getPayloadPointer();
-
+extern "C" __global__ void __closesthit__ch() {
     const float t = optixGetRayTmax();
     const uint prim_idx = thesis::device::getPrimitiveIndex();
     const bool is_exit = optixIsTriangleBackFaceHit();
@@ -37,10 +28,4 @@ extern "C" __global__ void __anyhit__ah() {
     optixSetPayload_0(__float_as_uint(t));
     optixSetPayload_1(prim_idx);
     optixSetPayload_2(is_exit);
-
-    if (!payload->events.full()) {
-        payload->events.push_back({is_exit, t, prim_idx});
-        optixIgnoreIntersection();  // Continue traversal
-    }
-    // else: implicitly accept this hit and stop traversal
 }
