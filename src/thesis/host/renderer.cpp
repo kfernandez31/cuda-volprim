@@ -10,7 +10,6 @@
 #include "thesis/host/utils/data.h"
 #include "thesis/common/utils/types.h"
 
-#include <optional>
 #include <filesystem>
 #include <utility>
 #include <spdlog/spdlog.h>

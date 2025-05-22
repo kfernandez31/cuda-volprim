@@ -1,9 +1,14 @@
 #pragma once
 
+// C / C++ Standard Library
 #include <math.h>
-#include <optix.h>
-#include <sutil/vec_math.h>
-#include <vector_types.h>
+
+// CUDA
 #include <curand_kernel.h>
 
-// TODO(kacper): precompile this for the cmake nvcc step
+// OptiX
+#include <optix.h>
+
+// 3rd Party
+#include <sutil/vec_math.h>
+#include <vector_types.h>

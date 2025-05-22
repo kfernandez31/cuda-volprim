@@ -9,7 +9,6 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
-#include <optional>
 #include <span>
 #include <string>
 #include <tinyexr/tinyexr.h>
