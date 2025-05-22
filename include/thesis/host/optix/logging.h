@@ -1,0 +1,20 @@
+#pragma once
+
+#include "thesis/common/utils/types.h"
+
+namespace thesis::optix {
+
+// OptiX log levels (matching internal behavior)
+enum class LogLevel : unsigned char {
+    None = 0,
+    Fatal = 1,
+    Error = 2,
+    Warning = 3,
+    Print = 4,
+    All = Print,
+    Info = Print,
+};
+
+void contextLogCb(uint level, const char* tag, const char* message, void* cbdata);
+
+}  // namespace thesis::optix
