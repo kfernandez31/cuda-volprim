@@ -5,8 +5,8 @@
 #include <CLI11/CLI11.hpp>
 #include <cstddef>
 #include <filesystem>
-#include <stdexcept>
 #include <string>
+#include <sstream>
 
 namespace thesis {
 

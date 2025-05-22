@@ -43,7 +43,7 @@ endif()
 # === Project Paths ===
 set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR     "${CMAKE_SOURCE_DIR}/include")
-set(DEVICE_DIR      "${CMAKE_SOURCE_DIR}/device")
+set(KERNELS_DIR      "${CMAKE_SOURCE_DIR}/thesis/device/kernels")
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 
 # === OptiX SDK Root ===
@@ -109,7 +109,7 @@ target_compile_options(thirdparty_objects PRIVATE
 set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for")
 
 # === Compile OptiX program ===
-set(DEVICE_ENTRY "${DEVICE_DIR}/device_program.cu")
+set(DEVICE_ENTRY "${SRC_DIR}/thesis/device/kernels/device_program.cu")
 set(PTX_OUTPUT "${CMAKE_BINARY_DIR}/device_program.ptx")
 
 add_custom_command(
@@ -117,7 +117,7 @@ add_custom_command(
     COMMAND "${CMAKE_CUDA_COMPILER}"
         -I "${OPTIX_ROOT}/include"
         -I "${INCLUDE_DIR}"
-        -I "${DEVICE_DIR}"
+        -I "${KERNELS_DIR}"
         -I "${THIRD_PARTY_DIR}"
         "${NVCC_STD_FLAG}"
         --ptx
@@ -146,7 +146,7 @@ add_executable(thesis
 target_sources(thesis PRIVATE $<TARGET_OBJECTS:thirdparty_objects>)
 
 # === Precompiled Header ===
-target_precompile_headers(thesis PRIVATE "include/thesis/pch.h")
+# target_precompile_headers(thesis PRIVATE "include/thesis/pch.h")
 
 # === Target Settings ===
 set_target_properties(thesis PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})

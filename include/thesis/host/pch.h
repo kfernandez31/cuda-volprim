@@ -1,41 +1,38 @@
 #pragma once
 
-// C / C++ Standard Library
+#include "thesis/device/pch.h"
+
+// C / C++ Standard Library (host-only)
 #include <array>
 #include <cerrno>
-#include <cstddef>
 #include <cstdlib>
-#include <cstring>
 #include <expected>
+#include <sstream>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <ios>
 #include <iostream>
-#include <math.h>
 #include <memory>
-#include <optional>
 #include <span>
+#include <unordered_map>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-// CUDA
+// CUDA (host-side only)
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
-#include <vector_types.h>
 
-// OptiX
-#include <optix.h>
+// OptiX (host-side only)
 #include <optix_host.h>
 #include <optix_stubs.h>
 #include <optix_types.h>
 
-// 3rd Party
+// 3rd Party (host-side only)
 #include <CLI11/CLI11.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
@@ -45,5 +42,4 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 #include <stb/stb_image.h>
-#include <sutil/vec_math.h>
 #include <tinyexr/tinyexr.h>

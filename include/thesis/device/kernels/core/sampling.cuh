@@ -126,7 +126,7 @@ __device__ utils::Optional<ScatteringEvent<MAX_HITS>> sample_scattering_event(co
 
     for (size_t hit = 0; hit < MAX_HITS; ++hit) {
         uint t_raw, prim_idx, is_entry;
-        trace(ray, {t_total + EPSILON, INF_F}, t_raw, prim_idx, is_entry);
+        trace_chray, {t_total + EPSILON, INF_F}, t_raw, prim_idx, is_entry);
 
         auto t_hit = __uint_as_float(t_raw);
         if (t_hit >= INF_F)
@@ -174,7 +174,7 @@ __device__ float3 compute_optical_depth_along_ray(const Ray& ray) {
 
     for (size_t hit = 0; hit < MAX_HITS; ++hit) {
         uint t_raw, prim_idx, is_entry;
-        trace(ray, t_old + EPSILON, INF_F, t_raw, prim_idx, is_entry);
+        trace_chray, t_old + EPSILON, INF_F, t_raw, prim_idx, is_entry);
 
         const auto t_new = __uint_as_float(t_raw);
         if (t_new >= INF_F) {

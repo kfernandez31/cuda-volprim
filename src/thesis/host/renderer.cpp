@@ -1,17 +1,15 @@
-#include "thesis/renderer.h"
+#include "thesis/host/renderer.h"
 
-#include "thesis/pch.h"
+// #include "thesis/host/pch.h"
 
-#include "thesis/geometry/mesh.h"
-#include "thesis/host/primitive.h"
-#include "thesis/optix/logging.h"
-#include "thesis/optix/ptx_handle.h"
-#include "thesis/utils/check.h"
-#include "thesis/utils/data.h"
-#include "thesis/utils/glm.h"
-#include "thesis/utils/types.h"
+#include "thesis/host/geometry/mesh.h"
+#include "thesis/host/params/primitive.h"
+#include "thesis/host/optix/logging.h"
+#include "thesis/host/optix/ptx_handle.h"
+#include "thesis/host/utils/check.h"
+#include "thesis/host/utils/data.h"
+#include "thesis/common/utils/types.h"
 
-#include <optional>
 #include <filesystem>
 #include <utility>
 #include <spdlog/spdlog.h>

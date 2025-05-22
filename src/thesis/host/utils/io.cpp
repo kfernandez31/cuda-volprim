@@ -1,6 +1,6 @@
-#include "thesis/utils/io.h"
+#include "thesis/host/utils/io.h"
 
-#include "thesis/pch.h"
+// #include "thesis/host/pch.h"
 
 #include <vector_types.h>
 
@@ -9,7 +9,6 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
-#include <optional>
 #include <span>
 #include <string>
 #include <tinyexr/tinyexr.h>

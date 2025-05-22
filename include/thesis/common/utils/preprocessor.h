@@ -15,7 +15,4 @@
 #endif
 
 #define THESIS_HOSTDEVICE THESIS_HOST THESIS_DEVICE
-
-// TODO(kacper): think of this
-#define THESIS_ALIGNMENT
-// #define THESIS_ALIGNMENT alignas(16)
+#define THESIS_ALIGNMENT alignas(16)

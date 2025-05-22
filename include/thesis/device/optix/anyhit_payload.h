@@ -1,3 +1,4 @@
+// TODO(kacper): return to this once closesthit works
 #pragma once
 
 #include "thesis/common/utils/preprocessor.h"
@@ -5,15 +6,13 @@
 
 #include <cstddef>
 
-static constexpr auto MAX_HIT_EVENTS = 64u;
-
 namespace thesis {
 namespace device {
 namespace optix {
 
-// TODO(kacper): remove?
+template <size_t Capacity>
 struct THESIS_ALIGNMENT AnyhitPayload {
-    utils::Vector<HitEvent, MAX_HIT_EVENTS> events;
+    utils::Vector<HitEvent, Capacity> events;
 };
 
 }  // namespace optix

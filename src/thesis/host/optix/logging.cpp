@@ -1,7 +1,7 @@
-#include "thesis/pch.h"
+// #include "thesis/pch.h"
 
-#include "thesis/optix/logging.h"
-#include "thesis/utils/types.h"
+#include "thesis/host/optix/logging.h"
+#include "thesis/common/utils/types.h"
 
 #include <array>
 #include <functional>
