@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/host/utils/check.h"
 #include "thesis/common/utils/types.h"
+#include "thesis/host/utils/check.h"
 
 #include <cuda.h>
 #include <optix_stubs.h>
@@ -86,13 +86,12 @@ class PipelineHandle : public Handle<OptixPipeline, optixPipelineDestroy> {
                    const OptixPipelineLinkOptions& plo, const OptixProgramGroup* groups,
                    size_t num_groups) {
         OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups,
-                                              static_cast<uint>(num_groups), log.data(),
-                                              &log_size, &handle_));
+                                              static_cast<uint>(num_groups), log.data(), &log_size,
+                                              &handle_));
     }
 
     void launch(CUstream stream, CUdeviceptr params, size_t params_size,
-                const OptixShaderBindingTable& sbt, uint width, uint height,
-                uint depth) const {
+                const OptixShaderBindingTable& sbt, uint width, uint height, uint depth) const {
         OPTIX_CHECK(optixLaunch(handle_, stream, params, params_size, &sbt, width, height, depth));
     }
 };

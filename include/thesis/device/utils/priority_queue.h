@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/common/utils/preprocessor.h"
 #include "thesis/device/utils/utility.h"
+#include "thesis/common/utils/preprocessor.h"
 
 #include <cstddef>
 
@@ -12,18 +12,17 @@ namespace utils {
 // Default comparator (min-data_ behavior)
 template <typename T>
 struct Less {
-    THESIS_INLINE THESIS_HOST_DEVICE bool operator()(const T& a, const T& b) const {
-        return a < b;
-    }
+    THESIS_INLINE THESIS_HOST_DEVICE bool operator()(const T& a, const T& b) const { return a < b; }
 };
 
 // TODO(kacper): remove?
 template <typename T, size_t Capacity, typename Compare = Less<T>>
 struct THESIS_ALIGNMENT PriorityQueue {
-private:
+   private:
     T data_[Capacity];
     size_t size_;
-public:
+
+   public:
     THESIS_INLINE THESIS_HOST_DEVICE bool push(const T& e) noexcept {
         if (size_ >= Capacity) {
             return false;
@@ -93,7 +92,6 @@ public:
             i = best;
         }
     }
-
 
     THESIS_INLINE THESIS_HOST_DEVICE T& top() noexcept { return data_[0]; }
     THESIS_INLINE THESIS_HOST_DEVICE const T& top() const noexcept { return data_[0]; }

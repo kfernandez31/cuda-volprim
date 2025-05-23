@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <expected>
+#include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 #include <string>
 #include <string_view>
@@ -15,6 +16,13 @@
             return std::unexpected(std::move(__res.error())); \
         std::move(*__res);                                    \
     })
+
+// #define TRY_ASSIGN(var, expr)                                  \
+//     do {                                                       \
+//         auto&& _try_result = (expr);                           \
+//         if (!_try_result) return std::unexpected(_try_result.error()); \
+//         var = std::move(*_try_result);                         \
+//     } while (0)
 
 namespace thesis::core {
 
@@ -48,10 +56,8 @@ struct Error {
     std::string msg_;
 
     Error(int code, std::string_view msg) : code_(code), msg_(msg) {}
-    explicit Error(std::string_view msg) : Error(errno, msg) {}
-
-    Error(int code, const std::string& msg) : Error(code, std::string_view(msg)) {}
     Error(int code, std::string&& msg) : code_(code), msg_(std::move(msg)) {}
+    explicit Error(std::string_view msg) : Error(errno, msg) {}
 
     template <typename... Args>
     Error(int code, fmt::format_string<Args...> fmt_str, Args&&... args)

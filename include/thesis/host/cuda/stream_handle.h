@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/host/utils/check.h"
 #include "thesis/common/utils/types.h"
+#include "thesis/host/utils/check.h"
 
 #include <cuda_runtime_api.h>
 
@@ -18,6 +18,7 @@ class StreamHandle {
             CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
         }
     }
+
    public:
     explicit StreamHandle(uint flags = cudaStreamDefault) {
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, flags));

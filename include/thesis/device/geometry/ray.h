@@ -5,7 +5,7 @@
 #include <vector_types.h>
 
 #ifdef __CUDACC__
-#include "thesis/device/matrix.h"
+#include "thesis/device/geometry/matrix.h"
 
 #include <optix.h>
 
@@ -16,10 +16,10 @@ namespace thesis {
 namespace device {
 
 class THESIS_ALIGNMENT Ray {
-private:
-    Ray(float3 origin, float3 direction)
-        : origin_(origin), direction_(direction) {}
-public:
+   private:
+     __device__ Ray(float3 origin, float3 direction) : origin_(origin), direction_(direction) {}
+
+   public:
     float3 origin_;
     float3 direction_;
 
@@ -36,7 +36,7 @@ public:
     }
 
     static __forceinline__ __device__ Ray spawn_unchecked(float3 o, float3 d) noexcept {
-        return {o, d}; // assume caller normalized
+        return {o, d};  // assume caller normalized
     }
 
     static __forceinline__ __device__ Ray getCurrentRay() noexcept {
@@ -58,7 +58,8 @@ public:
     }
 
     __forceinline__ __device__ Ray transformed(const Matrix3x4& mat) const noexcept {
-        return {Matrix3x4::transform<true>(mat, origin_), Matrix3x4::transform<false>(mat, direction_)};
+        return {Matrix3x4::transform<true>(mat, origin_),
+                Matrix3x4::transform<false>(mat, direction_)};
     }
 #endif  // __CUDACC__
 };

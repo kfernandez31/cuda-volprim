@@ -5,15 +5,16 @@
 #include <vector_types.h>
 
 #include <sutil/vec_math.h>
+#include <glm/gtx/optimum_pow.hpp>
 
 namespace thesis {
 namespace device {
 
 class Matrix3x4 {
-private:
+   private:
     float m[3][4];
 
-public:
+   public:
     struct RowProxy {
         float* row;
 
@@ -40,16 +41,17 @@ public:
         return RowProxy{const_cast<float*>(m[row])};
     }
 
-    #ifdef __CUDACC__
+#ifdef __CUDACC__
     template <bool WithTranslate>
-    THESIS_INLINE THESIS_HOST_DEVICE static float3 transform(const Matrix3x4& mat, float3 v) noexcept {
+    THESIS_INLINE THESIS_HOST_DEVICE static float3 transform(const Matrix3x4& mat,
+                                                             float3 v) noexcept {
         auto result = make_float3(mat[0] * v, mat[1] * v, mat[2] * v);
         if constexpr (WithTranslate) {
             result += make_float3(mat[0][3], mat[1][3], mat[2][3]);
         }
         return result;
     }
-    #endif  // __CUDACC__
+#endif  // __CUDACC__
 };
 
 }  // namespace device

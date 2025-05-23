@@ -24,6 +24,7 @@ template <typename T>
 class Record {
    private:
     cuda::Buffer<SBTRecord<T>> buffer_;
+
    public:
     Record() = default;
 
@@ -40,13 +41,16 @@ class Record {
         buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly(&record, 1);
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept { return reinterpret_cast<CUdeviceptr>(buffer_.device()); }
+    [[nodiscard]] CUdeviceptr get() const noexcept {
+        return reinterpret_cast<CUdeviceptr>(buffer_.device());
+    }
 };
 
 template <>
 class Record<void> {
    private:
     cuda::Buffer<std::byte> buffer_;
+
    public:
     Record() = default;
 
@@ -63,7 +67,9 @@ class Record<void> {
                                                         OPTIX_SBT_RECORD_HEADER_SIZE);
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept { return reinterpret_cast<CUdeviceptr>(buffer_.device()); }
+    [[nodiscard]] CUdeviceptr get() const noexcept {
+        return reinterpret_cast<CUdeviceptr>(buffer_.device());
+    }
 };
 
 }  // namespace thesis::optix

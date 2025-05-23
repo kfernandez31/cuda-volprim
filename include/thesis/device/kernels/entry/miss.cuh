@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thesis/device/kernels/launch_params.cuh"
+#include "thesis/device/kernels/core/launch_params.cuh"
 #include "thesis/common/params/launch_params.h"
 
 #include <optix.h>

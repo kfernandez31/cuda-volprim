@@ -18,17 +18,16 @@ struct Optional {
     bool has_value_;
     T value_;
 
-    Optional() : has_value_(false) {}
-    Optional(NullOptTag) : has_value_(false) {}
+   __device__ Optional() : has_value_(false) {}
+   __device__ Optional(NullOptTag) : has_value_(false) {}
 
-    template <typename U>
-    Optional(U&& v)
-        : has_value_(true), value_(utility::forward<U>(v)) {}
+    template <typename... Args>
+    __device__ Optional(Args&&... args)
+        : has_value_(true), value_(T(utility::forward<Args>(args)...)) {}
 
-    Optional(Optional&&) noexcept
-        : has_value_(utility::exchange(other.has_value_, false))
-        , value_(utility::exchange(other.value_, 0))
-        {}
+    __device__ Optional(Optional&& other) noexcept
+        : has_value_(utility::exchange(other.has_value_, false)),
+          value_(utility::exchange(other.value_, 0)) {}
 
     THESIS_INLINE THESIS_HOST_DEVICE Optional& operator=(Optional&& other) noexcept {
         has_value_ = utility::exchange(other.has_value_, false);
@@ -37,7 +36,7 @@ struct Optional {
     }
 
     Optional(const Optional&) = default;
-    THESIS_INLINE THESIS_HOST_DEVICE Optional& operator=(const Optional&) = default;
+    Optional& operator=(const Optional&) = default;
 
     THESIS_INLINE THESIS_HOST_DEVICE Optional& operator=(const T& v) noexcept {
         has_value_ = true;
@@ -69,6 +68,11 @@ struct Optional {
     THESIS_INLINE THESIS_HOST_DEVICE const T* operator->() const noexcept { return &value_; }
     THESIS_INLINE THESIS_HOST_DEVICE T* operator->() noexcept { return &value_; }
 };
+
+template <typename T, typename... Args>
+THESIS_INLINE THESIS_HOST_DEVICE Optional<T> make_optional(Args&&... args) {
+    return Optional<T>(utility::forward<Args>(args)...);
+}
 
 }  // namespace utils
 }  // namespace device

@@ -7,7 +7,6 @@
 #include <cerrno>
 #include <cstdlib>
 #include <expected>
-#include <sstream>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -15,9 +14,10 @@
 #include <iostream>
 #include <memory>
 #include <span>
-#include <unordered_map>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -37,6 +37,7 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtx/component_wise.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/optimum_pow.hpp>
 #include <glm/gtx/transform.hpp>
 #include <spdlog/fmt/fmt.h>

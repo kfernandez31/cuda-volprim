@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thesis/utils/math.h"
+#include "thesis/common/utils/math.h"
 
 #include <cstddef>
 #include <unordered_map>
@@ -44,52 +44,39 @@ class Mesh {
                        [&](auto v) { return transformation_matrix * glm::vec4(v, 1.0f); });
     }
 
-    void offsetIndices(size_t offset) noexcept {
+    void offsetIndices(uint offset) noexcept {
         std::transform(indices_.begin(), indices_.end(), indices_.begin(),
                        [&](auto i) { return i + offset; });
     }
 };
 
 template <size_t N>
-class Icosphere : public Mesh {
+struct  Icosphere : public Mesh {
     static constexpr size_t NumVertices = 10 * math::pow<size_t>(4, N) + 2;
     static constexpr size_t NumIndices = 20 * math::pow<size_t>(4, N);
 
-    Icosphere() = delete;
-
-    Icosphere(Icosphere&&) noexcept = default;
-    Icosphere& operator=(Icosphere&&) noexcept = default;
-
-    Icosphere(const Icosphere&) = default;
-    Icosphere& operator=(const Icosphere&) = default;
-
-    explicit Icosphere(float t = 0.5f * (1.0f + glm::sqrt(5.0f)))
+    explicit Icosphere(float t)
         : Mesh(
+            // clang-format off
               {
-                  {-1, t, 0},
-                  {1, t, 0},
-                  {-1, -t, 0},
-                  {1, -t, 0},
-                  {0, -1, t},
-                  {0, 1, t},
-                  {0, -1, -t},
-                  {0, 1, -t},
-                  {t, 0, -1},
-                  {t, 0, 1},
-                  {-t, 0, -1},
-                  {-t, 0, 1},
+                {-1,  t,  0}, { 1,  t,  0}, {-1, -t,  0}, { 1, -t,  0},
+                { 0, -1,  t}, { 0,  1,  t}, { 0, -1, -t}, { 0,  1, -t},
+                { t,  0, -1}, { t,  0,  1}, {-t,  0, -1}, {-t,  0,  1},
               },
+              // clang-format off
               {
-                  {0, 11, 5}, {0, 5, 1},  {0, 1, 7},   {0, 7, 10}, {0, 10, 11},
-                  {1, 5, 9},  {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
-                  {3, 9, 4},  {3, 4, 2},  {3, 2, 6},   {3, 6, 8},  {3, 8, 9},
-                  {4, 9, 5},  {2, 4, 11}, {6, 2, 10},  {8, 6, 7},  {9, 8, 1},
+                {0, 11, 5}, {0,  5,  1}, { 0,  1,  7}, { 0, 7, 10}, {0, 10, 11},
+                {1,  5, 9}, {5, 11,  4}, {11, 10,  2}, {10, 7,  6}, {7,  1,  8},
+                {3,  9, 4}, {3,  4,  2}, { 3,  2,  6}, { 3, 6,  8}, {3,  8,  9},
+                {4,  9, 5}, {2,  4, 11}, { 6,  2, 10}, { 8, 6,  7}, {9,  8,  1},
               }) {
-        for (auto& v : vertices_)
+        for (auto& v : vertices_) {
             v = glm::normalize(v);
+        }
 
-        if constexpr (N == 0)
+        if constexpr (N == 0) {
             return;
+        }
 
         // Prealloc since we know the space bounds
         vertices_.reserve(NumVertices);
@@ -130,6 +117,14 @@ class Icosphere : public Mesh {
             indices_.swap(temp_indices);
         }
     }
+
+    Icosphere() : Icosphere(0.5f * (1.0f + glm::sqrt(5.0f))) {}
+
+    Icosphere(Icosphere&&) noexcept = default;
+    Icosphere& operator=(Icosphere&&) noexcept = default;
+
+    Icosphere(const Icosphere&) = default;
+    Icosphere& operator=(const Icosphere&) = default;
 };
 
 static const Icosphere<0> BaseIcosphere;

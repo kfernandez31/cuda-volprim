@@ -20,6 +20,7 @@ class ContextHandle {
             device_ = -1;
         }
     }
+
    public:
     explicit ContextHandle(int device_ordinal = 0) {
         CU_CHECK(cuInit(0));

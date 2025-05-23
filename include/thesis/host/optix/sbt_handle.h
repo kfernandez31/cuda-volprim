@@ -15,6 +15,7 @@ class SBTHandle {
     thesis::optix::Record<void> miss_record_;
     thesis::optix::Record<void> hitgroup_record_;
     OptixShaderBindingTable sbt_ = {};
+
    public:
     SBTHandle() = default;
 

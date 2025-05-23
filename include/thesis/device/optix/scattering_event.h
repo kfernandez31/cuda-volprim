@@ -1,8 +1,10 @@
 #pragma once
 
 #include "thesis/common/utils/preprocessor.h"
+#include "thesis/device/utils/set.h"
 
 #include <cstddef>
+#include <vector_types.h>
 
 namespace thesis {
 namespace device {
@@ -17,5 +19,3 @@ struct THESIS_ALIGNMENT ScatteringEvent {
 
 }  // namespace device
 }  // namespace thesis
-
-

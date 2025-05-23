@@ -13,7 +13,7 @@ cppcheck `
     --force `
     --quiet `
     --suppress=missingIncludeSystem `
-    -I include -I src -I device `
+    -I include -I src `
     --project=build/compile_commands.json `
     -i third_party
 

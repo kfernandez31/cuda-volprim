@@ -2,21 +2,25 @@
 
 // #include "thesis/host/pch.h"
 
+#include "thesis/common/utils/types.h"
 #include "thesis/host/geometry/mesh.h"
-#include "thesis/host/params/primitive.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/optix/ptx_handle.h"
+#include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/check.h"
+#include "thesis/host/utils/result.h"
 #include "thesis/host/utils/data.h"
-#include "thesis/common/utils/types.h"
+#include "thesis/device/utils/vector.h"
 
 #include <filesystem>
-#include <utility>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <sutil/vec_math.h>
+#include <utility>
 
-#define MOCK_PRIMS // TODO(kacper): remove
+#define SEED 42
+
+#define MOCK_PRIMS  // TODO(kacper): remove
 #ifdef MOCK_PRIMS
 
 #include <array>
@@ -25,7 +29,7 @@
 
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
-#endif // MOCK_PRIMS
+#endif  // MOCK_PRIMS
 
 namespace thesis {
 
@@ -47,7 +51,7 @@ Renderer::Renderer(const AppConfig& config)
       }()),
       stream_(),
       env_map_(config_.env_map_path_),
-      image_(config_.image_width_, config_.aspect_ratio_)
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_),
       camera_([&] {
           host::Camera cam;
           cam.aspect_ratio_ = config_.aspect_ratio_;
@@ -65,7 +69,7 @@ Renderer::Renderer(const AppConfig& config)
 
 void Renderer::initGAS() {
     std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
-    icos[0].translate(glm::vec3(0.0f, 0.0f, 0.5f));
+    // icos[0].translate(glm::vec3(0.0f, 0.0f, 0.5f));
 
     // icos[0].translate(glm::vec3(2.0f, 0.0f, 0.5f));
     // icos[1].translate(glm::vec3(0.0f, 0.0f, 0.5f));
@@ -99,8 +103,7 @@ void Renderer::initGAS() {
 void Renderer::uploadParams() {
     optix::LaunchParams par = {};
     par.gas_handle_ = gas_.get();
-    par.num_samples_per_pixel_ = config_.num_samples_per_pixel_;
-    par.num_primitives_ = NUM_PRIMITIVES;
+    par.seed_ = SEED;
     par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
     par.image_ = image_.toDevice();
     par.env_map_ = env_map_.toDevice();
@@ -123,7 +126,7 @@ void Renderer::uploadParams() {
         spdlog::info("i = {}", i);
         primitives_.host()[i] = std::move(host_primitives[i].toDevice());
     }
-    par.primitives_ = primitives_.upload();
+    par.primitives_ = device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
     spdlog::info("uploaded device params");
 
     launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
@@ -165,7 +168,7 @@ void Renderer::createHitgroupPG() {
 }
 
 void Renderer::createPipeline() {
-    auto ptx = try_unwrap_or_exit<PtxHandle>(PtxHandle::load(config_.ptx_path_));
+    auto ptx = core::try_unwrap_or_exit<optix::PtxHandle>(optix::PtxHandle::load(config_.ptx_path_));
     spdlog::info("PTX loaded ({} bytes)", ptx.size());
 
     OptixModuleCompileOptions mco = {};
@@ -197,15 +200,16 @@ void Renderer::render() {
 
     spdlog::info("Launching OptiX pipeline...");
     pipeline_.launch(stream_.get(), reinterpret_cast<CUdeviceptr>(launch_params_.device()),
-                     sizeof(optix::LaunchParams), sbt_.get(),
-                     static_cast<uint>(image_.width()),
-                     static_cast<uint>(image_.height()),
-                     params_.samples_per_pixel_
-                    );
+                    sizeof(optix::LaunchParams), sbt_.get(),
+                    static_cast<uint>(image_.width()),
+                    static_cast<uint>(image_.height()),
+                    static_cast<uint>(image_.num_samples_per_pixel()));
+
+    spdlog::info("Launching OptiX pipeline...");
     cuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
-    try_unwrap_or_exit(image_.save(config.output_path_, stream_));
+    core::try_unwrap_or_exit(image_.save(config_.output_path_, stream_));
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 

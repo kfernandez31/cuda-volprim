@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thesis/device/utils/math.h"
+#include "thesis/common/utils/math.h"
 #include "thesis/common/utils/preprocessor.h"
 
 #include <vector_types.h>

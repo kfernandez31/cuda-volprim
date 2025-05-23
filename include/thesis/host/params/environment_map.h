@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/host/cuda/buffer.h"
 #include "thesis/device/params/environment_map.h"
+#include "thesis/host/cuda/buffer.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/check.h"
 

@@ -1,9 +1,13 @@
 #pragma once
 
-#include "thesis/device/kernels/launch_params.cuh"
+// TODO(kacper): which ones to __forceinline__?
+
+#include "thesis/device/kernels/core/launch_params.cuh"
 #include "thesis/common/params/launch_params.h"
 #include "thesis/device/utils/vector.h"
-#include "thesis/device/utils/math.h"
+#include "thesis/device/utils/set.h"
+#include "thesis/common/utils/math.h"
+#include "thesis/device/optix/scattering_event.h"
 #include "thesis/device/utils/optional.h"
 
 #include "thesis/common/utils/preprocessor.h"
@@ -13,7 +17,6 @@
 #include <math.h>
 #include <sutil/vec_math.h>
 
-#include "thesis/device/kernels/core/common.cuh"
 #include "thesis/device/kernels/core/random.cuh"
 #include "thesis/device/kernels/core/trace.cuh"
 
@@ -23,7 +26,6 @@ namespace device {
 namespace consts {
 
 constexpr auto MAX_HITS = 64u;
-constexpr auto EPSILON = 1e-8f;
 constexpr auto PHASE_VALUE = math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
 
 } // namespace consts
@@ -54,19 +56,49 @@ __device__ __forceinline__ float sample_target_optical_depth(float uniform_sampl
     return -logf(fmaxf(1.0f - uniform_sample, 1e-6f));
 }
 
-__device__ float optical_depth_accumulated(
+__device__ __forceinline__ float optical_depth_accumulated(
     const Ray& ray,
     float2 segment,
-    utils::Set<uint, MAX_HITS>& prim_indices
+    utils::Set<uint, consts::MAX_HITS>& prims
 ) {
-    AUTO tau = 0.0f;
+    auto tau = 0.0f;
 
-    for (auto idx : prim_indices) {
+    for (auto idx : prims) {
         const auto& prim = params.primitives_[idx];
         tau += prim.optical_depth(ray, segment);
     }
 
     return tau;
+}
+
+__device__ __forceinline__ float3 integrate_primitives(
+    const Ray& ray,
+    float2 t_range,
+    const utils::Set<uint, consts::MAX_HITS>& prims
+) {
+    float3 result = make_float3(0.0f);
+
+    for (auto idx : prims) {
+        const auto& prim = params.primitives_[idx];
+        result += prim.density_integral(ray, t_range);
+    }
+
+    return result;
+}
+
+__device__ __forceinline__ float3 integrate_primitives(
+    const Ray& ray,
+    float t_min,
+    const utils::Set<uint, consts::MAX_HITS>& prims
+) {
+    float3 result = make_float3(0.0f);
+
+    for (auto idx : prims) {
+        const auto& prim = params.primitives_[idx];
+        result += prim.density_integral(ray, t_min);
+    }
+
+    return result;
 }
 
 // TODO(kacper) potential to optimize: don't invert, select random position on the segment which we call the ... and here the conversation with Jorge broke so I don't know what he meant
@@ -75,7 +107,7 @@ __device__ float sample_distance_bisection(
     const Ray& ray,
     float2 segment,
     float tau_needed,
-    utils::Set<uint, MAX_HITS>& prim_indices
+    utils::Set<uint, consts::MAX_HITS>& prims
 ) {
     constexpr auto MAX_ITER = 24u;
     constexpr auto EPS = 1e-4f;
@@ -85,7 +117,7 @@ __device__ float sample_distance_bisection(
 
     for (size_t i = 0; i < MAX_ITER && (t_hi - t_lo) > EPS; ++i) {
         auto t_mid = 0.5f * (t_lo + t_hi);
-        auto tau = optical_depth_accumulated(ray, {t_lo, t_mid}, prim_indices);
+        auto tau = optical_depth_accumulated(ray, {t_lo, t_mid}, prims);
 
         if (tau >= tau_needed)
             t_hi = t_mid;
@@ -96,11 +128,11 @@ __device__ float sample_distance_bisection(
     return (t_hi - t_lo <= EPS) ? t_hi : 0.5f * (t_lo + t_hi);
 }
 
-__device__ float3 evaluate_albedo(float3 pos, utils::Set<uint, MAX_HITS>& prim_indices) {
+__device__ __forceinline__ float3 evaluate_albedo(float3 pos, utils::Set<uint, consts::MAX_HITS>& prims) {
     auto accum_albedo = make_float3(0.0f);
     auto accum_weight = 0.0f;
 
-    for (auto idx : prim_indices) {
+    for (auto idx : prims) {
         const auto& prim = params.primitives_[idx];
 
         const auto sigma_t = prim.optical_depth_scale_;  // extinction coefficient
@@ -117,22 +149,21 @@ __device__ float3 evaluate_albedo(float3 pos, utils::Set<uint, MAX_HITS>& prim_i
     return (accum_weight > 0.0f) ? accum_albedo / accum_weight : make_float3(0.0f);
 }
 
-__device__ utils::Optional<ScatteringEvent<MAX_HITS>> sample_scattering_event(const Ray& ray, curandState* rng) {
+__device__ utils::Optional<ScatteringEvent<consts::MAX_HITS>> sample_scattering_event(const Ray& ray, curandState* rng) {
     auto t_total = 0.0f;
     auto tau_cumulative = 0.0f;
 
-    utils::Set<uint, MAX_HITS> active_prims;
+    utils::Set<uint, consts::MAX_HITS> active_prims;
     const auto tau_target = sample_target_optical_depth(random::sample_uniform(rng));
 
-    for (size_t hit = 0; hit < MAX_HITS; ++hit) {
-        uint t_raw, prim_idx, is_entry;
-        trace_chray, {t_total + EPSILON, INF_F}, t_raw, prim_idx, is_entry);
-
-        auto t_hit = __uint_as_float(t_raw);
-        if (t_hit >= INF_F)
+    for (size_t hit = 0; hit < consts::MAX_HITS; ++hit) {
+        uint prim_idx, is_entry;
+        auto t_hit = trace_ch(ray, t_total, prim_idx, is_entry);
+        if (!t_hit) {
             break;
+        }
 
-        const auto segment = make_float2(t_total, t_hit);
+        const auto segment = make_float2(t_total, *t_hit);
         const auto tau_segment = optical_depth_accumulated(ray, segment, active_prims);
 
         // scattering occurred
@@ -144,9 +175,11 @@ __device__ utils::Optional<ScatteringEvent<MAX_HITS>> sample_scattering_event(co
             auto t = sample_distance_bisection(ray, segment, tau_needed, active_prims);
             auto pos = ray.at(t);
             auto rnd = random::sample_uniform_2d(rng);
-            auto dir_out = sample_phase(-ray.direction_, rnd);
+            auto dir = sample_phase(-ray.direction_, rnd);
 
-            return {t, pos, dir_out, active_prims};
+            // return utils::make_optional(pos, dir, t, active_prims);
+            // TODO(kacper): fix
+            return utils::nullopt;
         }
 
         // Update primitive state
@@ -158,7 +191,7 @@ __device__ utils::Optional<ScatteringEvent<MAX_HITS>> sample_scattering_event(co
             active_prims.erase(prim_idx);
         }
 
-        t_total = t_hit;
+        t_total = *t_hit;
         tau_cumulative += tau_segment;
     }
 
@@ -170,18 +203,16 @@ __device__ float3 compute_optical_depth_along_ray(const Ray& ray) {
     auto acc_optical_depth = make_float3(0.0f);
     auto t_old = 0.0f;
 
-    utils::Set<uint, MAX_HITS> active_prims;
+    utils::Set<uint, consts::MAX_HITS> active_prims;
 
-    for (size_t hit = 0; hit < MAX_HITS; ++hit) {
-        uint t_raw, prim_idx, is_entry;
-        trace_chray, t_old + EPSILON, INF_F, t_raw, prim_idx, is_entry);
-
-        const auto t_new = __uint_as_float(t_raw);
-        if (t_new >= INF_F) {
+    for (size_t hit = 0; hit < consts::MAX_HITS; ++hit) {
+        uint prim_idx, is_entry;
+        auto t_new = trace_ch(ray, t_old, prim_idx, is_entry);
+        if (!t_new) {
             break;
         }
 
-        acc_optical_depth += integrate_primitives(ray, {t_old, t_new}, active_prims);
+        acc_optical_depth += integrate_primitives(ray, {t_old, *t_new}, active_prims);
 
         if (is_entry) {
             active_prims.insert(prim_idx);
@@ -192,11 +223,11 @@ __device__ float3 compute_optical_depth_along_ray(const Ray& ray) {
             active_prims.erase(prim_idx);
         }
 
-        t_old = t_new;
+        t_old = *t_new;
     }
 
-    // drain remaining primitives
-    acc_optical_depth += integrate_primitives(ray, {t_old, INF_F}, active_prims);
+    // drain remaining primitives until infinity
+    acc_optical_depth += integrate_primitives(ray, t_old, active_prims);
 
     return acc_optical_depth;
 }

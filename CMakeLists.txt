@@ -43,7 +43,7 @@ endif()
 # === Project Paths ===
 set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR     "${CMAKE_SOURCE_DIR}/include")
-set(KERNELS_DIR      "${CMAKE_SOURCE_DIR}/thesis/device/kernels")
+set(KERNELS_DIR     "${INCLUDE_DIR}/thesis/device/kernels")
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 
 # === OptiX SDK Root ===
@@ -119,10 +119,11 @@ add_custom_command(
         -I "${INCLUDE_DIR}"
         -I "${KERNELS_DIR}"
         -I "${THIRD_PARTY_DIR}"
-        "${NVCC_STD_FLAG}"
+        ${NVCC_STD_FLAG}
         --ptx
         --expt-relaxed-constexpr
         --expt-extended-lambda
+        -DGLM_ENABLE_EXPERIMENTAL
         -O3
         -arch=sm_${CUDA_ARCH}
         -o "${PTX_OUTPUT}"
@@ -135,11 +136,15 @@ add_custom_command(
 
 add_custom_target(build_ptx DEPENDS ${PTX_OUTPUT})
 
+# === CUDA Kernels with Host Wrappers ===
+file(GLOB CUDA_WRAPPER_SRCS CONFIGURE_DEPENDS "${SRC_DIR}/thesis/device/kernels/core/*_wrapper.cu")
+
 # === Executable Target ===
 add_executable(thesis
     ${C_SRCS}
     ${CXX_SRCS}
     ${PTX_OUTPUT}
+    ${CUDA_WRAPPER_SRCS}
 )
 
 # === Link 3rd-party object files ===

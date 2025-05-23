@@ -1,5 +1,6 @@
 #pragma once
 
+#include "thesis/host/utils/check.h"
 #include <cuda_runtime.h>
 
 #include <memory>

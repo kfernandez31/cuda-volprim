@@ -56,7 +56,7 @@ core::Result<std::string> readFileToString(const std::filesystem::path& filename
     }
 }
 
-core::Result saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+core::Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
                           const std::filesystem::path& filename, bool flip_vertical) noexcept {
     try {
         constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
@@ -109,7 +109,8 @@ core::Result saveExrImage(std::span<const float3> framebuffer, size_t width, siz
         header.requested_pixel_types = pixel_types.data();
 
         const char* err = nullptr;
-        if (SaveEXRImageToFile(&image, &header, filename.string().c_str(), &err) != TINYEXR_SUCCESS) {
+        if (SaveEXRImageToFile(&image, &header, filename.string().c_str(), &err) !=
+            TINYEXR_SUCCESS) {
             std::string err_msg(err);
             FreeEXRErrorMessage(err);
             return core::make_error("EXR save failed: {}", err_msg);

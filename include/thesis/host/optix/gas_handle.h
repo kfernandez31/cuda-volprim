@@ -16,6 +16,7 @@ class GASHandle {
     OptixDeviceContext context_ = nullptr;
     thesis::cuda::Buffer<std::byte> output_buffer_;
     OptixTraversableHandle gas_handle_ = 0;
+
    public:
     GASHandle() = default;
 
@@ -53,6 +54,7 @@ class TriangleGAS {
     cuda::Buffer<float3> vertices_;
     cuda::Buffer<uint3> indices_;
     optix::GASHandle gas_;
+
    public:
     TriangleGAS() = default;
 

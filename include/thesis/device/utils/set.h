@@ -1,7 +1,7 @@
 #pragma once
 
 #include "thesis/common/utils/preprocessor.h"
-#include "thesis/common/utils/utility.h"
+#include "thesis/device/utils/utility.h"
 
 #include <cstddef>
 
@@ -12,10 +12,11 @@ namespace utils {
 // TODO(kacper): remove?
 template <typename T, size_t Capacity>
 class THESIS_ALIGNMENT Set {
-private:
+   private:
     T data_[Capacity];
     size_t size_ = 0;
-public:
+
+   public:
     THESIS_INLINE THESIS_HOST_DEVICE size_t size() const noexcept { return size_; }
     THESIS_INLINE THESIS_HOST_DEVICE constexpr size_t capacity() const noexcept { return Capacity; }
     THESIS_INLINE THESIS_HOST_DEVICE bool empty() const noexcept { return size_ == 0; }
@@ -40,7 +41,6 @@ public:
         return true;
     }
 
-    // Erase if present (compacts array)
     THESIS_INLINE THESIS_HOST_DEVICE bool erase(const T& value) noexcept {
         for (size_t i = 0; i < size_; ++i) {
             if (data_[i] == value) {

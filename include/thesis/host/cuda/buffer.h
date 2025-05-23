@@ -1,13 +1,13 @@
 #pragma once
 
-#include "thesis/cuda/device_ptr.h"
-#include "thesis/utils/check.h"
+#include "thesis/host/cuda/device_ptr.h"
+#include "thesis/host/utils/check.h"
 
 #include <cuda_runtime.h>
 
 #include <cstddef>
-#include <span>
 #include <memory>
+#include <span>
 
 // TODO(kacper): for real-time rendering and interop, opt for something like:
 // C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h"
@@ -20,6 +20,7 @@ class Buffer {
     size_t count_ = 0;
     std::unique_ptr<T[]> host_ptr_ = nullptr;
     UniqueDevicePtr<T> device_ptr_ = nullptr;
+
    public:
     Buffer() = default;
 

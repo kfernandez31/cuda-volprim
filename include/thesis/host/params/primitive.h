@@ -1,9 +1,10 @@
 #pragma once
 
+#include "thesis/host/utils/data.h"
 #include "thesis/device/params/primitive.h"
-#include "thesis/host/params/convertible.h"
 #include "thesis/host/geometry/matrix.h"
-#include "thesis/commmon/utils/data.h"
+#include "thesis/host/params/convertible.h"
+#include "thesis/common/utils/math.h"
 
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
@@ -51,7 +52,6 @@ class Primitive : public Convertible<device::Primitive> {
     }
 
    public:
-
     Primitive() = delete;
 
     Primitive(Primitive&&) noexcept = default;
@@ -75,7 +75,7 @@ class Primitive : public Convertible<device::Primitive> {
             host::toDevice(M_for_intersecting_), host::toDevice(M_for_intersecting_inv_),
             host::toDevice(M_for_integrating_inv_), data::toFloat3(S_diag_squared_),
             data::toFloat3(albedo_), optical_depth_scale_,
-            math::ONE_OVER_TWO_SQRT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_)));
+            math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_)));
     }
 };
 

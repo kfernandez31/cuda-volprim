@@ -1,16 +1,16 @@
 #pragma once
 
-#include "thesis/host/utils/app_config.h"
+#include "thesis/device/params/primitive.h"
 #include "thesis/host/cuda/context_handle.h"
 #include "thesis/host/cuda/stream_handle.h"
 #include "thesis/host/optix/gas_handle.h"
 #include "thesis/host/optix/handle.h"
-#include "thesis/host/optix/launch_params.h"
+#include "thesis/common/params/launch_params.h"
 #include "thesis/host/optix/sbt_handle.h"
-#include "thesis/device/params/primitive.h"
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
+#include "thesis/host/utils/app_config.h"
 
 namespace thesis {
 
@@ -44,6 +44,7 @@ class Renderer {
     optix::ProgramGroupHandle hitgroup_pg_;
     optix::SBTHandle sbt_;
     optix::PipelineHandle pipeline_;
+
    public:
     Renderer() = delete;
 

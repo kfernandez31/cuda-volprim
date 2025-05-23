@@ -3,6 +3,7 @@
 #include "thesis/device/geometry/matrix.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace thesis {
 namespace host {

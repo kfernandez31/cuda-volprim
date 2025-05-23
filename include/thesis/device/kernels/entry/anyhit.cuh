@@ -1,34 +1,36 @@
 // TODO(kacper): return to this once closesthit works
 #pragma once
 
-#include "thesis/device/kernels/launch_params.cuh"
+extern "C" __global__ void __anyhit__ah() {}
+
+/*
+
+#include "thesis/device/kernels/core/launch_params.cuh"
+#include "thesis/device/kernels/core/primitive.cuh"
 #include "thesis/common/params/launch_params.h"
 #include "thesis/common/utils/types.h"
 #include "thesis/device/utils/data.h"
+#include "thesis/device/optix/anyhit_payload.h"
 
 #include <optix.h>
+#include <cstddef>
 
 namespace thesis {
 namespace device {
 
-// TODO(kacper): think of whether this should return a size_t
-__forceinline__ __device__ uint getPrimitiveIndex() {
-    const auto triangle_idx = optixGetPrimitiveIndex();
-    const auto prim_idx = triangle_idx / params.num_triangles_per_primitive_;
-    return prim_idx;
-}
-
-__forceinline__ __device__ getPayloadPointer() {
+template <size_t Capacity>
+__forceinline__ __device__ optix::AnyhitPayload<Capacity>* getPayloadPointer() {
     uint32_t p0 = optixGetPayload_0();
     uint32_t p1 = optixGetPayload_1();
-    return reinterpret_cast<optix::AnyhitPayload*>(data::unpackPointer(p0, p1));
+    return reinterpret_cast<optix::AnyhitPayload<Capacity>*>(data::unpackPointer(p0, p1));
 }
 
 } // namespace device
 } // namespace thesis
 
 extern "C" __global__ void __anyhit__ah() {
-    auto* payload = getPayloadPointer();
+    // auto* payload = getPayloadPointer();
+    thesis::device::optix::AnyhitPayload<1>* payload = nullptr; // TODO(kacper): fix
 
     const float t = optixGetRayTmax();
     const uint prim_idx = thesis::device::getPrimitiveIndex();
@@ -39,8 +41,10 @@ extern "C" __global__ void __anyhit__ah() {
     optixSetPayload_2(is_exit);
 
     if (!payload->events.full()) {
-        payload->events.push_back({is_exit, t, prim_idx});
+        payload->events.emplace_back(prim_idx, t, is_exit);
         optixIgnoreIntersection();  // Continue traversal
     }
     // else: implicitly accept this hit and stop traversal
 }
+
+*/

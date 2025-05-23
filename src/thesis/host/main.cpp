@@ -1,9 +1,9 @@
 // #include "thesis/host/pch.h"
 
-#include "thesis/host/utils/app_config.h"
-#include "thesis/host/utils/result.h"
 #include "thesis/host/renderer.h"
+#include "thesis/host/utils/app_config.h"
 #include "thesis/host/utils/logging.h"
+#include "thesis/host/utils/result.h"
 
 #include <optix_function_table_definition.h>
 

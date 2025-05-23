@@ -1,18 +1,30 @@
 // #include "thesis/host/pch.h"
 #include "thesis/host/params/image.h"
-#include "device/kernels/core/average_samples.cuh"
-#include "thesis/host/cuda/buffer.h"
+
+#include "thesis/device/kernels/core/average_samples.cuh"
+
 #include "thesis/common/utils/math.h"
+#include "thesis/host/cuda/buffer.h"
 #include "thesis/host/cuda/stream_handle.h"
 #include "thesis/host/utils/io.h"
 
 #include <cstddef>
 #include <filesystem>
+#include <sutil/vec_math.h>
 
 namespace thesis {
 namespace host {
 
-core::Result Image::average_host() {
+extern "C" void launch_average_samples_kernel(
+    float3* out_img,
+    const float3* in_buf,
+    size_t width,
+    size_t height,
+    size_t num_samples_per_pixel,
+    cudaStream_t stream
+);
+
+core::Result<> Image::average_host() {
     sample_buffer_.download();
 
     const auto* src = sample_buffer_.host();
@@ -20,25 +32,16 @@ core::Result Image::average_host() {
 
     for (size_t i = 0; i < pixel_count(); ++i) {
         auto acc = make_float3(0.0f);
-        for (size_t s = 0; s < samples_per_pixel_; ++s)
+        for (size_t s = 0; s < num_samples_per_pixel_; ++s)
             acc += src[s * pixel_count() + i];
-        dst[i] = acc / static_cast<float>(samples_per_pixel_);
+        dst[i] = acc / static_cast<float>(num_samples_per_pixel_);
     }
 
     return {};
 }
 
-core::Result Image::average_device(const cuda::StreamHandle& stream) {
-    const dim3 block(16, 16);
-    const dim3 grid(math::ceil_div(width_, block.x), math::ceil_div(height_, block.y));
-
-    average_samples_kernel<<<grid, block, 0, stream>>>(
-        averaged_pixels_.device(),
-        sample_buffer_.device(),
-        width_,
-        height_,
-        samples_per_pixel_
-    );
+core::Result<> Image::average_device(const cuda::StreamHandle& stream) {
+    launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(), width_, height_, num_samples_per_pixel_, stream.get());
 
     stream.synchronize();
     averaged_pixels_.download();
@@ -46,17 +49,19 @@ core::Result Image::average_device(const cuda::StreamHandle& stream) {
     return {};
 }
 
-core::Result Image::average(const cuda::StreamHandle& stream) {
+core::Result<> Image::average(const cuda::StreamHandle& stream) {
     // TODO(kacper): select experimentally
-    constexpr size_t PIXEL_THRESHOLD = math::pow2(512);
+    constexpr size_t PIXEL_THRESHOLD = math::pow(512, 2u);
     constexpr size_t SAMPLE_THRESHOLD = 8;
 
-    return (pixel_count() <= PIXEL_THRESHOLD && samples_per_pixel_ <= SAMPLE_THRESHOLD)
-        ? average_host() : average_device(stream);
+    return (pixel_count() <= PIXEL_THRESHOLD && num_samples_per_pixel_ <= SAMPLE_THRESHOLD)
+               ? average_host()
+               : average_device(stream);
 }
 
-core::Result Image::save(const std::filesystem::path& filename, const cuda::StreamHandle& stream) noexcept {
-    TRY(average(stream));
+core::Result<> Image::save(const std::filesystem::path& filename,
+                         const cuda::StreamHandle& stream) noexcept {
+    // TRY(average(stream)); // TODO(kacper): fix
     return io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
 }
 
