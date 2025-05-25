@@ -31,13 +31,13 @@ struct DynamicStorage {
     size_t capacity_ = 0;
     T* data_ = nullptr;
 
-    THESIS_HOST_DEVICE DynamicStorage() = default;
+    DynamicStorage() = default;
 
     THESIS_HOST_DEVICE DynamicStorage(T* ptr, size_t cap)
         : data_(ptr), capacity_(cap) {}
 
-    THESIS_HOST_DEVICE DynamicStorage(const DynamicStorage&) = default;
-    THESIS_HOST_DEVICE DynamicStorage& operator=(const DynamicStorage&) = default;
+    DynamicStorage(const DynamicStorage&) = default;
+    DynamicStorage& operator=(const DynamicStorage&) = default;
 
     THESIS_HOST_DEVICE DynamicStorage(DynamicStorage&& other) noexcept
         : data_(utility::exchange(other.data_, nullptr)),
@@ -69,13 +69,13 @@ public:
     using Storage::data;
     using Storage::capacity;
 
-    THESIS_HOST_DEVICE VectorBase() = default;
+    VectorBase() = default;
 
     THESIS_HOST_DEVICE explicit VectorBase(Storage&& s)
         : Storage(utility::move(s)) {}
 
-    THESIS_HOST_DEVICE VectorBase(const VectorBase&) = default;
-    THESIS_HOST_DEVICE VectorBase& operator=(const VectorBase&) = default;
+    VectorBase(const VectorBase&) = default;
+    VectorBase& operator=(const VectorBase&) = default;
 
     THESIS_HOST_DEVICE VectorBase(VectorBase&& other) noexcept
         : Storage(utility::move(other)),

@@ -1,7 +1,7 @@
 // #include "thesis/host/pch.h"
 #include "thesis/host/params/image.h"
 
-#include "thesis/device/kernels/core/average_samples.cuh"
+#include "kernels/average_samples.h"
 
 #include "thesis/common/utils/math.h"
 #include "thesis/host/cuda/buffer.h"
@@ -14,15 +14,6 @@
 
 namespace thesis {
 namespace host {
-
-extern "C" void launch_average_samples_kernel(
-    float3* out_img,
-    const float3* in_buf,
-    size_t width,
-    size_t height,
-    size_t num_samples_per_pixel,
-    cudaStream_t stream
-);
 
 core::Result<> Image::average_host() {
     sample_buffer_.download();
@@ -41,7 +32,7 @@ core::Result<> Image::average_host() {
 }
 
 core::Result<> Image::average_device(const cuda::StreamHandle& stream) {
-    launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(), width_, height_, num_samples_per_pixel_, stream.get());
+    device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(), width_, height_, num_samples_per_pixel_, stream.get());
 
     stream.synchronize();
     averaged_pixels_.download();

@@ -1,14 +1,13 @@
 // #include "device/kernels/pch.cuh"
-#include "device/kernels/avarage_samples.cuh"
+#include "kernels/average_samples.h"
 
 #include <vector_types.h>
 #include <cstddef>
-#include <sutil/vec_math.h>
+#include <vec_math.h>
 // #include <cuda_runtime.h>
 
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
-#include "thesis/host/utils/check.h"
 
 namespace thesis {
 namespace device {
@@ -50,19 +49,7 @@ void launch_average_samples_kernel(
     const dim3 block(16, 16);
     const dim3 grid(math::ceil_div(static_cast<uint>(width), block.x), math::ceil_div(static_cast<uint>(width), block.y));
 
-
-    // TODO(kacper): which to go for
-    // void* args[] = { &out_img, &in_buf, &width, &height, &num_samples_per_pixel };
-
-    // CUDA_CHECK(cudaLaunchKernel(
-    //     (void*)device::average_samples_kernel,
-    //     grid, block,
-    //     args,
-    //     0,
-    //     stream
-    // ));
-
-    device::average_samples_kernel<<<grid, block, 0, stream>>>(out_img, in_buf, width, height, num_samples_per_pixel);
+    average_samples_kernel<<<grid, block, 0, stream>>>(out_img, in_buf, width, height, num_samples_per_pixel);
 }
 
 } // namespace device

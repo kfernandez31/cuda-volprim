@@ -1,6 +1,6 @@
 #pragma once
 
-#include "device/core/primitive.cuh"
+#include "core/primitive.cuh"
 #include "thesis/common/utils/types.h"
 
 #include <optix.h>

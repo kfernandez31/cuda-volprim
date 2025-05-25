@@ -5,7 +5,6 @@
 #include <vector_types.h>
 
 #include <sutil/vec_math.h>
-#include <glm/gtx/optimum_pow.hpp>
 
 namespace thesis {
 namespace device {

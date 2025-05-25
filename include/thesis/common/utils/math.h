@@ -1,10 +1,6 @@
 #pragma once
 
-// TODO(kacper): split into host/device
-
 #include "thesis/common/utils/preprocessor.h"
-
-#include <concepts>
 
 namespace thesis {
 namespace math {
@@ -23,8 +19,7 @@ constexpr auto ONE_OVER_ROOT_TWO_F = 1.0f / ROOT_TWO_F;
 constexpr auto ONE_OVER_TWO_ROOT_TWO_F = 1.0f / (2.0f * ROOT_TWO_F);
 constexpr auto ONE_OVER_FOUR_ROOT_TWO_F = 1.0f / (4.0f * ROOT_TWO_F);
 
-template <typename T, std::unsigned_integral Exponent>
-    requires(std::integral<T> || std::floating_point<T>)
+template <typename T, typename Exponent>
 THESIS_HOST_DEVICE constexpr T pow(T base, Exponent exp) noexcept {
     return (exp == 0) ? T(1) : base * pow(base, exp - 1);
 }

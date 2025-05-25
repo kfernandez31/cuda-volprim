@@ -1,8 +1,8 @@
 #pragma once
 
-#include "device/core/launch_params.cuh"
-#include "device/core/sampling.cuh"
-#include "device/core/random.cuh"
+#include "core/launch_params.cuh"
+#include "core/sampling.cuh"
+#include "core/random.cuh"
 
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"

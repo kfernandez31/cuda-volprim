@@ -40,7 +40,7 @@ IncludeCategories:
     Priority: 5
   - Regex: '^"thesis/.*"' # Project headers
     Priority: 6
-  - Regex: '^"(CLI11|glm|spdlog|stb|sutil|tinyexr)/.*"' # Third-party headers
+  - Regex: '^"(CLI11|glm|happly|spdlog|stb|sutil|tinyexr)/.*"' # Third-party headers
     Priority: 7
   - Regex: '^<((optix|cuda|vector_types|driver_types|vector_functions|math_constants|curand_kernel)[^>]*)>' # Cuda & OptiX SDKs
     Priority: 8

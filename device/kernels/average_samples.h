@@ -6,7 +6,7 @@
 namespace thesis {
 namespace device {
 
-void launch_average_samples_kernel(
+extern "C" void launch_average_samples_kernel(
     float3* out_img,
     const float3* in_buf,
     size_t width,

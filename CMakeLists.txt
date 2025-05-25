@@ -39,11 +39,10 @@ else()
     message(FATAL_ERROR "Unsupported CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD} for NVCC")
 endif()
 
-# === Project Paths ===
+# === Project Paths === # TODO(kacper): review
 set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR     "${CMAKE_SOURCE_DIR}/include")
 set(DEVICE_DIR      "${CMAKE_SOURCE_DIR}/device")
-set(KERNELS_DIR     "${DEVICE_DIR}/kernels")
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 
 # === OptiX SDK Root ===
@@ -71,54 +70,48 @@ include_directories(SYSTEM
     "${OPTIX_ROOT}/include"
 )
 
-# ===  3rd-party Includes (suppress warnings) ===
-file(GLOB THIRD_PARTY_SUBDIRS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*")
-foreach(dir ${THIRD_PARTY_SUBDIRS})
-    if(IS_DIRECTORY ${dir})
-        include_directories(SYSTEM ${dir})
-    endif()
-endforeach()
-include_directories(SYSTEM ${THIRD_PARTY_DIR})
-
 # === Source Files (project)
 file(GLOB_RECURSE C_SRCS CONFIGURE_DEPENDS "${SRC_DIR}/*.c")
 file(GLOB_RECURSE CXX_SRCS CONFIGURE_DEPENDS "${SRC_DIR}/*.cpp")
 
-# === Source Files (third-party, compiled with warnings disabled) ===
-file(GLOB_RECURSE THIRD_PARTY_C_SRCS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*.c")
-file(GLOB_RECURSE THIRD_PARTY_CXX_SRCS CONFIGURE_DEPENDS "${THIRD_PARTY_DIR}/*.cpp")
-
-add_library(thirdparty_objects OBJECT
-    ${THIRD_PARTY_C_SRCS}
-    ${THIRD_PARTY_CXX_SRCS}
-)
-
-# target_compile_options(thirdparty_objects PRIVATE
-#     # Fix MSVC warnings about missing exception unwind semantics
-#     $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
-#     $<$<C_COMPILER_ID:MSVC>:/EHsc>
-# 
-#     $<$<CXX_COMPILER_ID:GNU,Clang>:-w>
-#     $<$<C_COMPILER_ID:GNU,Clang>:-w>
-# 
-#     $<$<CXX_COMPILER_ID:MSVC>:/W0>
-#     $<$<C_COMPILER_ID:MSVC>:/W0>
-# )
-
 # === Target Settings ===
 set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for")
 
+file(GLOB DEVICE_CU_SRCS CONFIGURE_DEPENDS  "${DEVICE_DIR}/**/*.cu")
+
+add_library(device STATIC
+    ${DEVICE_CU_SRCS}
+)
+
+########################################################################
+target_include_directories(device PUBLIC
+    ${DEVICE_DIR}
+    ${INCLUDE_DIR}
+    ${THIRD_PARTY_DIR}/sutil
+)
+
+set_target_properties(device PROPERTIES 
+    CUDA_ARCHITECTURES ${CUDA_ARCH}
+    CUDA_SEPARABLE_COMPILATION ON
+)
+
+target_link_libraries(device PRIVATE
+    CUDA::cuda_driver
+    CUDA::cudart
+    CUDA::curand
+)
+
 # === Compile OptiX program ===
 set(DEVICE_ENTRY "${DEVICE_DIR}/device_program.cu")
-set(PTX_OUTPUT "${CMAKE_BINARY_DIR}/device_program.ptx")
+set(PTX_OUTPUT   "${CMAKE_BINARY_DIR}/device_program.ptx")
 
 add_custom_command(
     OUTPUT ${PTX_OUTPUT}
+    COMMAND ${CMAKE_COMMAND} -E echo "Compiling PTX: ${DEVICE_ENTRY} -> ${PTX_OUTPUT}"
     COMMAND "${CMAKE_CUDA_COMPILER}"
         -I "${OPTIX_ROOT}/include"
         -I "${INCLUDE_DIR}"
         -I "${DEVICE_DIR}"
-        -I "${KERNELS_DIR}"
         -I "${THIRD_PARTY_DIR}"
         ${NVCC_STD_FLAG}
         --ptx
@@ -137,23 +130,26 @@ add_custom_command(
 
 add_custom_target(build_ptx DEPENDS ${PTX_OUTPUT})
 
-# === CUDA Kernels with Host Wrappers ===
-file(GLOB CUDA_WRAPPER_SRCS CONFIGURE_DEPENDS "${KERNELS_DIR}/*_wrapper.cu")
-file(GLOB CUDA_KERNEL_SRCS CONFIGURE_DEPENDS "${DEVICE_DIR}/core/*.cu")
-
 # === Executable Target ===
 add_executable(thesis)
 
 target_sources(thesis PRIVATE
     ${C_SRCS}
     ${CXX_SRCS}
-    ${CUDA_WRAPPER_SRCS}
+    ${THIRD_PARTY_DIR}/stb/stb_image.c
+    ${THIRD_PARTY_DIR}/tinyexr/tinyexr.cpp
+    ${THIRD_PARTY_DIR}/tinyexr/miniz.c
+)
+
+# Suppress warnings for those files
+set_source_files_properties(
+    ${THIRD_PARTY_DIR}/tinyexr/tinyexr.cpp
+    ${THIRD_PARTY_DIR}/tinyexr/miniz.c
+    ${THIRD_PARTY_DIR}/stb/stb_image.cpp
+    PROPERTIES COMPILE_OPTIONS "-w"
 )
 
 add_dependencies(thesis build_ptx)
-
-# === Link 3rd-party object files ===
-target_sources(thesis PRIVATE $<TARGET_OBJECTS:thirdparty_objects>)
 
 # === Precompiled Header ===
 # target_precompile_headers(thesis PRIVATE "include/thesis/pch.h")
@@ -236,9 +232,30 @@ elseif(UNIX)
 endif()
 
 target_link_libraries(thesis PRIVATE
+    device
     CUDA::cuda_driver
     CUDA::cudart
     CUDA::curand
+)
+
+target_include_directories(thesis
+    PRIVATE
+        ${INCLUDE_DIR}
+    SYSTEM
+        ${THIRD_PARTY_DIR}
+)
+
+if (MSVC)
+    set(WARNING_SUPPRESS_FLAG "/w")
+else()
+    set(WARNING_SUPPRESS_FLAG "-w")
+endif()
+
+set_source_files_properties(
+    ${THIRD_PARTY_DIR}/stb/stb_image.c
+    ${THIRD_PARTY_DIR}/tinyexr/tinyexr.cpp
+    ${THIRD_PARTY_DIR}/tinyexr/miniz.c
+    PROPERTIES COMPILE_OPTIONS "${WARNING_SUPPRESS_FLAG}"
 )
 
 # === Compile-Time Defines ===

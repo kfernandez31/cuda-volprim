@@ -2,9 +2,9 @@
 
 // TODO(kacper): which ones to __forceinline__?
 
-#include "device/core/launch_params.cuh"
-#include "device/core/random.cuh"
-#include "device/core/trace.cuh"
+#include "core/launch_params.cuh"
+#include "core/random.cuh"
+#include "core/trace.cuh"
 
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"

@@ -34,7 +34,7 @@
 
 #include <vector_types.h>
 
-#include <sutil/Preprocessor.h>
+#include "Preprocessor.h"
 #include <vector_functions.h>
 
 #if !defined(__CUDACC_RTC__)
