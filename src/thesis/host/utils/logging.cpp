@@ -1,6 +1,6 @@
-#include "thesis/host/utils/logging.h"
+#include "thesis/pch.h"
 
-// #include "thesis/pch.h"
+#include "thesis/host/utils/logging.h"
 
 #include <spdlog/spdlog.h>
 

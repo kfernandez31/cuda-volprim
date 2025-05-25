@@ -27,7 +27,8 @@ ninja -C build
 ```
 
 <!-- ### Static analysis -->
-<!-- include-what-you-use ^
+<!-- 
+include-what-you-use ^
   -std=c++20 ^
   -DUNICODE -D_CRT_SECURE_NO_WARNINGS ^
   -DGLM_ENABLE_EXPERIMENTAL ^
@@ -36,7 +37,8 @@ ninja -C build
   -Ithird_party ^
   -I"C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0/include" ^
   -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/include" ^
-  src/main.cpp -->
+  src/thesis/host/main.cpp 
+  -->
 
 
 <!-- cppcheck --enable=all --inconclusive --inline-suppr --std=c++20 --quiet -->

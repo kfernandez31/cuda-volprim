@@ -1,4 +1,5 @@
-// #include "thesis/host/pch.h"
+#include "thesis/pch.h"
+
 #include "thesis/host/params/image.h"
 
 #include "kernels/average_samples.h"

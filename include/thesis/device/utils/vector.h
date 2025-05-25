@@ -33,19 +33,19 @@ struct DynamicStorage {
 
     DynamicStorage() = default;
 
-    THESIS_HOST_DEVICE DynamicStorage(T* ptr, size_t cap) : data_(ptr), capacity_(cap) {}
+    THESIS_HOST_DEVICE DynamicStorage(T* ptr, size_t cap) : capacity_(cap), data_(ptr) {}
 
     DynamicStorage(const DynamicStorage&) = default;
     DynamicStorage& operator=(const DynamicStorage&) = default;
 
     THESIS_HOST_DEVICE DynamicStorage(DynamicStorage&& other) noexcept
-        : data_(utility::exchange(other.data_, nullptr)),
-          capacity_(utility::exchange(other.capacity_, 0)) {}
+        : capacity_(utility::exchange(other.capacity_, 0))
+        , data_(utility::exchange(other.data_, nullptr)) {}
 
     THESIS_HOST_DEVICE DynamicStorage& operator=(DynamicStorage&& other) noexcept {
         if (this != &other) {
-            data_ = utility::exchange(other.data_, nullptr);
             capacity_ = utility::exchange(other.capacity_, 0);
+            data_ = utility::exchange(other.data_, nullptr);
         }
         return *this;
     }

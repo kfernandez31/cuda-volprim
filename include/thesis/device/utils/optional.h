@@ -18,14 +18,14 @@ struct Optional {
     bool has_value_;
     T value_;
 
-    __device__ Optional() : has_value_(false) {}
-    __device__ Optional(NullOptTag) : has_value_(false) {}
+    THESIS_HOST_DEVICE Optional() : has_value_(false) {}
+    THESIS_HOST_DEVICE explicit Optional(NullOptTag) : has_value_(false) {}
 
     template <typename... Args>
-    __device__ Optional(Args&&... args)
+    THESIS_HOST_DEVICE Optional(Args&&... args)
         : has_value_(true), value_(T(utility::forward<Args>(args)...)) {}
 
-    __device__ Optional(Optional&& other) noexcept
+    THESIS_HOST_DEVICE Optional(Optional&& other) noexcept
         : has_value_(utility::exchange(other.has_value_, false)),
           value_(utility::exchange(other.value_, 0)) {}
 

@@ -1,6 +1,6 @@
-#include "thesis/host/renderer.h"
+#include "thesis/pch.h"
 
-// #include "thesis/host/pch.h"
+#include "thesis/host/renderer.h"
 
 #include "thesis/common/utils/types.h"
 #include "thesis/device/utils/vector.h"

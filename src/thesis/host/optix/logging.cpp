@@ -1,4 +1,4 @@
-// #include "thesis/pch.h"
+#include "thesis/pch.h"
 
 #include "thesis/host/optix/logging.h"
 

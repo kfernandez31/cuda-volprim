@@ -1,4 +1,4 @@
-// #include "thesis/host/pch.h"
+#include "thesis/pch.h"
 
 #include "thesis/host/renderer.h"
 #include "thesis/host/utils/app_config.h"

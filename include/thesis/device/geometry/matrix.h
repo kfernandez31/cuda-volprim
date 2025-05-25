@@ -11,7 +11,7 @@ namespace device {
 
 class Matrix3x4 {
    private:
-    float m[3][4];
+    float m[3][4] = {};
 
    public:
     struct RowProxy {
