@@ -1,10 +1,8 @@
-// #include "device/kernels/pch.cuh"
 #include "kernels/average_samples.h"
 
 #include <vector_types.h>
 #include <cstddef>
 #include <vec_math.h>
-// #include <cuda_runtime.h>
 
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
