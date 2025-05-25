@@ -9,20 +9,22 @@
 #include <string_view>
 #include <utility>
 
-#define TRY(expr)                                             \
-    ({                                                        \
-        auto&& __res = (expr);                                \
-        if (!__res)                                           \
-            return std::unexpected(std::move(__res.error())); \
-        std::move(*__res);                                    \
-    })
+#define TRY_ASSIGN(var, expr)                            \
+    do {                                                 \
+        auto&& _try_result = (expr);                     \
+        if (!_try_result) {                              \
+            return std::unexpected(_try_result.error()); \
+        }                                                \
+        var = std::move(*_try_result);                   \
+    } while (0)
 
-// #define TRY_ASSIGN(var, expr)                                  \
-//     do {                                                       \
-//         auto&& _try_result = (expr);                           \
-//         if (!_try_result) return std::unexpected(_try_result.error()); \
-//         var = std::move(*_try_result);                         \
-//     } while (0)
+#define TRY(expr)                                        \
+    do {                                                 \
+        auto&& _try_result = (expr);                     \
+        if (!_try_result) {                              \
+            return std::unexpected(_try_result.error()); \
+        }                                                \
+    } while (0)
 
 namespace thesis::core {
 

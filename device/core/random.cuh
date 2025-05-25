@@ -1,10 +1,7 @@
 #pragma once
 
-#include "thesis/device/geometry/ray.h"
-
 #include <vector_types.h>
 #include <curand_kernel.h>
-#include <optix.h>
 #include <sutil/vec_math.h>
 
 namespace thesis {

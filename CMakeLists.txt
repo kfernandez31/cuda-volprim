@@ -25,7 +25,6 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Needed by Clang-Tidy and IWYU
 
 # Map CMAKE_CXX_STANDARD to a supported NVCC flag
 if (CMAKE_CXX_STANDARD GREATER_EQUAL 23)
@@ -43,7 +42,8 @@ endif()
 # === Project Paths ===
 set(SRC_DIR         "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR     "${CMAKE_SOURCE_DIR}/include")
-set(KERNELS_DIR     "${INCLUDE_DIR}/thesis/device/kernels")
+set(DEVICE_DIR      "${CMAKE_SOURCE_DIR}/device")
+set(KERNELS_DIR     "${DEVICE_DIR}/kernels")
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 
 # === OptiX SDK Root ===
@@ -93,23 +93,23 @@ add_library(thirdparty_objects OBJECT
     ${THIRD_PARTY_CXX_SRCS}
 )
 
-target_compile_options(thirdparty_objects PRIVATE
-    # Fix MSVC warnings about missing exception unwind semantics
-    $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
-    $<$<C_COMPILER_ID:MSVC>:/EHsc>
-
-    $<$<CXX_COMPILER_ID:GNU,Clang>:-w>
-    $<$<C_COMPILER_ID:GNU,Clang>:-w>
-
-    $<$<CXX_COMPILER_ID:MSVC>:/W0>
-    $<$<C_COMPILER_ID:MSVC>:/W0>
-)
+# target_compile_options(thirdparty_objects PRIVATE
+#     # Fix MSVC warnings about missing exception unwind semantics
+#     $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+#     $<$<C_COMPILER_ID:MSVC>:/EHsc>
+# 
+#     $<$<CXX_COMPILER_ID:GNU,Clang>:-w>
+#     $<$<C_COMPILER_ID:GNU,Clang>:-w>
+# 
+#     $<$<CXX_COMPILER_ID:MSVC>:/W0>
+#     $<$<C_COMPILER_ID:MSVC>:/W0>
+# )
 
 # === Target Settings ===
 set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for")
 
 # === Compile OptiX program ===
-set(DEVICE_ENTRY "${SRC_DIR}/thesis/device/kernels/device_program.cu")
+set(DEVICE_ENTRY "${DEVICE_DIR}/device_program.cu")
 set(PTX_OUTPUT "${CMAKE_BINARY_DIR}/device_program.ptx")
 
 add_custom_command(
@@ -117,6 +117,7 @@ add_custom_command(
     COMMAND "${CMAKE_CUDA_COMPILER}"
         -I "${OPTIX_ROOT}/include"
         -I "${INCLUDE_DIR}"
+        -I "${DEVICE_DIR}"
         -I "${KERNELS_DIR}"
         -I "${THIRD_PARTY_DIR}"
         ${NVCC_STD_FLAG}
@@ -137,15 +138,19 @@ add_custom_command(
 add_custom_target(build_ptx DEPENDS ${PTX_OUTPUT})
 
 # === CUDA Kernels with Host Wrappers ===
-file(GLOB CUDA_WRAPPER_SRCS CONFIGURE_DEPENDS "${SRC_DIR}/thesis/device/kernels/core/*_wrapper.cu")
+file(GLOB CUDA_WRAPPER_SRCS CONFIGURE_DEPENDS "${KERNELS_DIR}/*_wrapper.cu")
+file(GLOB CUDA_KERNEL_SRCS CONFIGURE_DEPENDS "${DEVICE_DIR}/core/*.cu")
 
 # === Executable Target ===
-add_executable(thesis
+add_executable(thesis)
+
+target_sources(thesis PRIVATE
     ${C_SRCS}
     ${CXX_SRCS}
-    ${PTX_OUTPUT}
     ${CUDA_WRAPPER_SRCS}
 )
+
+add_dependencies(thesis build_ptx)
 
 # === Link 3rd-party object files ===
 target_sources(thesis PRIVATE $<TARGET_OBJECTS:thirdparty_objects>)
@@ -245,34 +250,6 @@ target_compile_definitions(thesis PRIVATE
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<PLATFORM_ID:Windows>>:_AMD64_>
     $<$<AND:$<C_COMPILER_ID:MSVC>,$<PLATFORM_ID:Windows>>:_AMD64_>
 )
-
-# === Static Analysis: Clang-Tidy ===
-find_program(CLANG_TIDY NAMES clang-tidy)
-if(CLANG_TIDY)
-    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY}")
-    message(STATUS "Clang-Tidy enabled: ${CLANG_TIDY}")
-endif()
-
-# === Static Analysis: Cppcheck ===
-find_program(CPPCHECK NAMES cppcheck)
-if(CPPCHECK)
-    set(CMAKE_CXX_CPPCHECK "${CPPCHECK};--enable=all;--inconclusive;--inline-suppr;--std=c++20;--quiet")
-    message(STATUS "Cppcheck enabled: ${CPPCHECK}")
-endif()
-
-# === Formatting: Clang-Format ===
-find_program(CLANG_FORMAT NAMES clang-format)
-if (CLANG_FORMAT)
-    file(GLOB_RECURSE ALL_SOURCE_FILES
-        "${CMAKE_SOURCE_DIR}/src/*.cpp"
-        "${CMAKE_SOURCE_DIR}/include/*.h"
-    )
-    add_custom_target(
-        format
-        COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES}
-        COMMENT "Running clang-format"
-    )
-endif()
 
 # === Generator Fallback ===
 if(NOT CMAKE_GENERATOR)

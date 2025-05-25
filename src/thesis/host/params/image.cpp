@@ -61,7 +61,7 @@ core::Result<> Image::average(const cuda::StreamHandle& stream) {
 
 core::Result<> Image::save(const std::filesystem::path& filename,
                          const cuda::StreamHandle& stream) noexcept {
-    // TRY(average(stream)); // TODO(kacper): fix
+    TRY(average(stream));
     return io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
 }
 

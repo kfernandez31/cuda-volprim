@@ -19,7 +19,7 @@ namespace optix {
 struct THESIS_ALIGNMENT LaunchParams {
     OptixTraversableHandle gas_handle_;
     size_t num_triangles_per_primitive_;
-    uint seed_; // TODO(kacper): use?
+    uint seed_;
     device::Image image_;
     device::EnvironmentMap env_map_;
     device::Camera camera_;

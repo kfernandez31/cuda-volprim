@@ -2,8 +2,10 @@
 
 // TODO(kacper): which ones to __forceinline__?
 
-#include "thesis/device/kernels/core/launch_params.cuh"
-#include "thesis/common/params/launch_params.h"
+#include "device/core/launch_params.cuh"
+#include "device/core/random.cuh"
+#include "device/core/trace.cuh"
+
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"
 #include "thesis/common/utils/math.h"
@@ -16,9 +18,6 @@
 #include <optix.h>
 #include <math.h>
 #include <sutil/vec_math.h>
-
-#include "thesis/device/kernels/core/random.cuh"
-#include "thesis/device/kernels/core/trace.cuh"
 
 namespace thesis {
 namespace device {

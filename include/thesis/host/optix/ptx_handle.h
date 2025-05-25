@@ -17,7 +17,7 @@ class PtxHandle {
    public:
     static core::Result<PtxHandle> load(const std::filesystem::path& filename) noexcept {
         PtxHandle result;
-        // result.data_ = TRY(io::readFileToString(filename)); // TODO(kacper): fix
+        TRY_ASSIGN(result.data_, io::readFileToString(filename);
         return result;
     }
 

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "thesis/device/kernels/core/launch_params.cuh"
-#include "thesis/device/kernels/core/sampling.cuh"
-#include "thesis/common/params/launch_params.h"
+#include "device/core/launch_params.cuh"
+#include "device/core/sampling.cuh"
+#include "device/core/random.cuh"
+
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
-#include "thesis/device/kernels/core/random.cuh"
 
 #include <optix.h>
 #include <vector_types.h>
