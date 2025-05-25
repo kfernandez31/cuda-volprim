@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/device/utils/utility.h"
 #include "thesis/common/utils/preprocessor.h"
+#include "thesis/device/utils/utility.h"
 
 #include <cstddef>
 

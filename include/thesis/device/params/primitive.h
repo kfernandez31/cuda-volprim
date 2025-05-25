@@ -41,25 +41,26 @@ class THESIS_ALIGNMENT Primitive {
         const auto ww = math::pow2(w);
         const auto xw = x * w;
 
-        const auto C0 = (S2.x * S2.y * ww.z) +
-                         (S2.x * S2.z * ww.y) +
-                         (S2.y * S2.z * ww.x);
+        const auto C0 = (S2.x * S2.y * ww.z) + (S2.x * S2.z * ww.y) + (S2.y * S2.z * ww.x);
         const auto C0_rsqrt = rsqrtf(C0);
         const auto C0_sqrt = C0 * C0_rsqrt;
 
-        const auto C2 = (x.z * S2.x * S2.y * w.z) + (x.y * S2.x * S2.z * w.y) + (x.x * S2.y * S2.z * w.x);
-        const auto C3 = (xx.x * S2.y + xx.y * S2.x) * ww.z -
-                         2.0f * xw.z * (xw.y * S2.y + xw.x * S2.x);
-        const auto C4 = ww.y * (xx.x * S2.z + xx.z * S2.x) -
-                         2.0f * (xw.x * xw.y * S2.z) +
-                         ww.x * (xx.y * S2.z + xx.z * S2.y);
+        const auto C2 =
+            (x.z * S2.x * S2.y * w.z) + (x.y * S2.x * S2.z * w.y) + (x.x * S2.y * S2.z * w.x);
+        const auto C3 =
+            (xx.x * S2.y + xx.y * S2.x) * ww.z - 2.0f * xw.z * (xw.y * S2.y + xw.x * S2.x);
+        const auto C4 = ww.y * (xx.x * S2.z + xx.z * S2.x) - 2.0f * (xw.x * xw.y * S2.z) +
+                        ww.x * (xx.y * S2.z + xx.z * S2.y);
         const auto C1 = 0.5f * (C3 + C4) * math::pow2(C0_rsqrt);
 
         return {C0, C0_rsqrt, C0_sqrt, C1, C2};
     }
 
-    __inline__ __device__ float optical_depth_internal(const OpticalCoefficients& coeffs, float erf_min, float erf_max) const noexcept {
-        return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * (erf_max - erf_min) * math::ONE_OVER_TWO_PI_F;
+    __inline__ __device__ float optical_depth_internal(const OpticalCoefficients& coeffs,
+                                                       float erf_min,
+                                                       float erf_max) const noexcept {
+        return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * (erf_max - erf_min) *
+               math::ONE_OVER_TWO_PI_F;
     }
 #endif  // __CUDACC__
 
@@ -106,7 +107,8 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     // [t_min, t_max]
-    __inline__ __device__ float optical_depth(const Ray& ray_global, float2 t_range) const noexcept {
+    __inline__ __device__ float optical_depth(const Ray& ray_global,
+                                              float2 t_range) const noexcept {
         const auto coeffs = compute_optical_coeffs(ray_global);
 
         const auto denom = coeffs.C0_rsqrt * erf_denominator_base_;
@@ -134,7 +136,7 @@ class THESIS_ALIGNMENT Primitive {
     }
     __inline__ __device__ float3 density_integral(const Ray& ray, float t_min) const noexcept {
         return albedo_ * optical_depth(ray, t_min);
-    }    
+    }
 #endif  // __CUDACC__
 };
 

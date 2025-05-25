@@ -18,8 +18,8 @@ struct Optional {
     bool has_value_;
     T value_;
 
-   __device__ Optional() : has_value_(false) {}
-   __device__ Optional(NullOptTag) : has_value_(false) {}
+    __device__ Optional() : has_value_(false) {}
+    __device__ Optional(NullOptTag) : has_value_(false) {}
 
     template <typename... Args>
     __device__ Optional(Args&&... args)

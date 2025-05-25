@@ -3,14 +3,14 @@
 // #include "thesis/host/pch.h"
 
 #include "thesis/common/utils/types.h"
+#include "thesis/device/utils/vector.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/optix/ptx_handle.h"
 #include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/check.h"
-#include "thesis/host/utils/result.h"
 #include "thesis/host/utils/data.h"
-#include "thesis/device/utils/vector.h"
+#include "thesis/host/utils/result.h"
 
 #include <filesystem>
 #include <spdlog/spdlog.h>
@@ -126,7 +126,8 @@ void Renderer::uploadParams() {
         spdlog::info("i = {}", i);
         primitives_.host()[i] = std::move(host_primitives[i].toDevice());
     }
-    par.primitives_ = device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
+    par.primitives_ =
+        device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
     spdlog::info("uploaded device params");
 
     launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
@@ -168,7 +169,8 @@ void Renderer::createHitgroupPG() {
 }
 
 void Renderer::createPipeline() {
-    auto ptx = core::try_unwrap_or_exit<optix::PtxHandle>(optix::PtxHandle::load(config_.ptx_path_));
+    auto ptx =
+        core::try_unwrap_or_exit<optix::PtxHandle>(optix::PtxHandle::load(config_.ptx_path_));
     spdlog::info("PTX loaded ({} bytes)", ptx.size());
 
     OptixModuleCompileOptions mco = {};
@@ -200,10 +202,9 @@ void Renderer::render() {
 
     spdlog::info("Launching OptiX pipeline...");
     pipeline_.launch(stream_.get(), reinterpret_cast<CUdeviceptr>(launch_params_.device()),
-                    sizeof(optix::LaunchParams), sbt_.get(),
-                    static_cast<uint>(image_.width()),
-                    static_cast<uint>(image_.height()),
-                    static_cast<uint>(image_.num_samples_per_pixel()));
+                     sizeof(optix::LaunchParams), sbt_.get(), static_cast<uint>(image_.width()),
+                     static_cast<uint>(image_.height()),
+                     static_cast<uint>(image_.num_samples_per_pixel()));
 
     spdlog::info("Launching OptiX pipeline...");
     cuda::StreamHandle::synchronizeDevice();

@@ -3,25 +3,25 @@
 // C / C++ Standard Library
 #include <array>
 #include <cerrno>
-#include <cstdlib>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <expected>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <ios>
 #include <iostream>
+#include <math.h>
 #include <memory>
 #include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <math.h>
-#include <type_traits>
 
 // CUDA
 #include <cuda.h>
@@ -37,10 +37,10 @@
 
 // 3rd Party
 #include <CLI11/CLI11.hpp>
-#include <glm/glm.hpp>
 #include <glm/ext/matrix_transform.hpp>
-#include <glm/gtx/component_wise.hpp>
+#include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/component_wise.hpp>
 #include <glm/gtx/optimum_pow.hpp>
 #include <glm/gtx/transform.hpp>
 #include <happly/happly.h>

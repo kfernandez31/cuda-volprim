@@ -30,17 +30,20 @@ struct AppConfig {
 
     static core::Result<AppConfig> parse(int argc, char* argv[]) noexcept {
         AppConfig result;
-        
+
         CLI::App app{"OptiX-based raytracer of kernel mixture models"};
         app.add_option("-o,--output", result.output_path_, "Path to save the rendered image");
         app.add_option("-p,--ptx", result.ptx_path_, "Path to the PTX file");
         app.add_option("-e,--env_map", result.env_map_path_, "Path to the environment map");
-        app.add_option("-s,--samples_per_pixel", result.num_samples_per_pixel_, "Number of samples per pixel");
+        app.add_option("-s,--samples_per_pixel", result.num_samples_per_pixel_,
+                       "Number of samples per pixel");
         app.add_option("-y,--width", result.image_width_, "Width of the output image");
         app.add_option("-r,--raygen", result.raygen_function_name_, "Name of raygen function");
         app.add_option("-m,--miss", result.miss_function_name_, "Name of miss function");
-        app.add_option("-c,--closesthit", result.closesthit_function_name_, "Name of closesthit function");
-        app.add_option("-l,--launch_params", result.launch_params_variable_name_, "Launch param name");
+        app.add_option("-c,--closesthit", result.closesthit_function_name_,
+                       "Name of closesthit function");
+        app.add_option("-l,--launch_params", result.launch_params_variable_name_,
+                       "Launch param name");
 
         std::optional<size_t> height_opt;
         std::optional<float> aspect_opt;
@@ -65,7 +68,8 @@ struct AppConfig {
             result.aspect_ratio_ = static_cast<float>(result.image_width_) / result.image_height_;
         } else if (aspect_opt) {
             result.aspect_ratio_ = *aspect_opt;
-            result.image_height_ = static_cast<size_t>(static_cast<float>(result.image_width_) / result.aspect_ratio_);
+            result.image_height_ =
+                static_cast<size_t>(static_cast<float>(result.image_width_) / result.aspect_ratio_);
         }
 
         return result;

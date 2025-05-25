@@ -17,7 +17,7 @@ namespace device {
 
 class THESIS_ALIGNMENT Ray {
    private:
-     __device__ Ray(float3 origin, float3 direction) : origin_(origin), direction_(direction) {}
+    __device__ Ray(float3 origin, float3 direction) : origin_(origin), direction_(direction) {}
 
    public:
     float3 origin_;

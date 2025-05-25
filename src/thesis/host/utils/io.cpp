@@ -57,7 +57,7 @@ core::Result<std::string> readFileToString(const std::filesystem::path& filename
 }
 
 core::Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
-                          const std::filesystem::path& filename, bool flip_vertical) noexcept {
+                            const std::filesystem::path& filename, bool flip_vertical) noexcept {
     try {
         constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
 

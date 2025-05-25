@@ -3,8 +3,8 @@
 #include <cerrno>
 #include <cstdlib>
 #include <expected>
-#include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
 #include <utility>

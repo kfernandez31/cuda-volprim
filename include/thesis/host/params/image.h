@@ -66,7 +66,7 @@ class Image : public Convertible<device::Image> {
     }
 
     core::Result<> save(const std::filesystem::path& filename,
-                      const cuda::StreamHandle& stream) noexcept;
+                        const cuda::StreamHandle& stream) noexcept;
 };
 
 }  // namespace host

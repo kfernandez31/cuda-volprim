@@ -1,5 +1,5 @@
 $extensions = @("*.cpp", "*.c", "*.cc", "*.cxx", "*.h", "*.hpp", "*.hh", "*.cu")
-$directories = @("src", "include")
+$directories = @("src", "include", "device")
 
 Write-Host "Running clang-format on: $directories"
 Write-Host ""

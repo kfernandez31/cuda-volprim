@@ -3,8 +3,9 @@
 #include "thesis/common/utils/preprocessor.h"
 #include "thesis/device/utils/set.h"
 
-#include <cstddef>
 #include <vector_types.h>
+
+#include <cstddef>
 
 namespace thesis {
 namespace device {

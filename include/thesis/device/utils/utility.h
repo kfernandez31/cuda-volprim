@@ -20,7 +20,8 @@ THESIS_INLINE THESIS_HOST_DEVICE constexpr T&& forward(
 }
 
 template <typename T>
-THESIS_INLINE THESIS_HOST_DEVICE constexpr typename std::remove_reference<T>::type&& move(T&& t) noexcept {
+THESIS_INLINE THESIS_HOST_DEVICE constexpr typename std::remove_reference<T>::type&& move(
+    T&& t) noexcept {
     return static_cast<typename std::remove_reference<T>::type&&>(t);
 }
 

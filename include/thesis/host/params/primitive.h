@@ -1,10 +1,10 @@
 #pragma once
 
-#include "thesis/host/utils/data.h"
+#include "thesis/common/utils/math.h"
 #include "thesis/device/params/primitive.h"
 #include "thesis/host/geometry/matrix.h"
 #include "thesis/host/params/convertible.h"
-#include "thesis/common/utils/math.h"
+#include "thesis/host/utils/data.h"
 
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>

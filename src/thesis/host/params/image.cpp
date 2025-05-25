@@ -2,7 +2,6 @@
 #include "thesis/host/params/image.h"
 
 #include "kernels/average_samples.h"
-
 #include "thesis/common/utils/math.h"
 #include "thesis/host/cuda/buffer.h"
 #include "thesis/host/cuda/stream_handle.h"
@@ -32,7 +31,8 @@ core::Result<> Image::average_host() {
 }
 
 core::Result<> Image::average_device(const cuda::StreamHandle& stream) {
-    device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(), width_, height_, num_samples_per_pixel_, stream.get());
+    device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
+                                          width_, height_, num_samples_per_pixel_, stream.get());
 
     stream.synchronize();
     averaged_pixels_.download();
@@ -51,7 +51,7 @@ core::Result<> Image::average(const cuda::StreamHandle& stream) {
 }
 
 core::Result<> Image::save(const std::filesystem::path& filename,
-                         const cuda::StreamHandle& stream) noexcept {
+                           const cuda::StreamHandle& stream) noexcept {
     TRY(average(stream));
     return io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
 }

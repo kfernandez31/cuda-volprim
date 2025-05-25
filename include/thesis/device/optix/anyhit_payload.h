@@ -1,9 +1,9 @@
 // TODO(kacper): return to this once closesthit works
 #pragma once
 
+#include "thesis/common/utils/preprocessor.h"
 #include "thesis/device/optix/hit_event.h"
 #include "thesis/device/utils/vector.h"
-#include "thesis/common/utils/preprocessor.h"
 
 #include <cstddef>
 
