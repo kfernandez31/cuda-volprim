@@ -4,6 +4,7 @@
 
 #include "thesis/common/utils/types.h"
 #include "thesis/device/utils/vector.h"
+#include "thesis/device/payloads/registry.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/optix/ptx_handle.h"
@@ -17,8 +18,6 @@
 #include <string>
 #include <sutil/vec_math.h>
 #include <utility>
-
-#define SEED 42
 
 #define MOCK_PRIMS  // TODO(kacper): remove
 #ifdef MOCK_PRIMS
@@ -68,12 +67,13 @@ Renderer::Renderer(const AppConfig& config)
 }
 
 void Renderer::initGAS() {
-    std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
-    // icos[0].translate(glm::vec3(0.0f, 0.0f, 0.5f));
+    std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;    
+    icos[0].transform(glm::identity<glm::mat4>());
+    // icos[0].transform(glm::translate({0.0f, 0.0f, 0.5f}));
 
-    // icos[0].translate(glm::vec3(2.0f, 0.0f, 0.5f));
-    // icos[1].translate(glm::vec3(0.0f, 0.0f, 0.5f));
-    // icos[2].translate(glm::vec3(-2.0f, 0.0f, 0.5f));
+    // icos[0].transform(glm::translate({2.0f, 0.0f, 0.5f}));
+    // icos[1].transform(glm::translate({0.0f, 0.0f, 0.5f}));
+    // icos[2].transform(glm::translate({-2.0f, 0.0f, 0.5f}));
 
     // Combine vertices
     std::vector<glm::vec3> all_vertices;
@@ -81,18 +81,16 @@ void Renderer::initGAS() {
         const auto& vs = ico.getVertices();
         all_vertices.insert(all_vertices.end(), vs.begin(), vs.end());
     }
-
+    
     // Combine indices
+    // clang-format off
     std::vector<glm::uvec3> all_indices;
     for (size_t i = 0; i < icos.size(); ++i) {
-        auto offset = static_cast<uint>(
-            i *
-            geometry::Icosphere<ICOSPHERE_N>::NumVertices);  // important, since indexing is local
+        auto offset = static_cast<uint>(i * geometry::Icosphere<ICOSPHERE_N>::NumVertices);
+        icos[i].offsetIndices(offset);
 
         const auto& is = icos[i].getIndices();
-        for (const auto& tri : is) {
-            all_indices.emplace_back(tri + offset);
-        }
+        all_indices.insert(all_indices.end(), is.begin(), is.end());
     }
 
     gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(),
@@ -103,7 +101,7 @@ void Renderer::initGAS() {
 void Renderer::uploadParams() {
     optix::LaunchParams par = {};
     par.gas_handle_ = gas_.get();
-    par.seed_ = SEED;
+    par.seed_ = config_.seed_;
     par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
     par.image_ = image_.toDevice();
     par.env_map_ = env_map_.toDevice();
@@ -112,15 +110,15 @@ void Renderer::uploadParams() {
     spdlog::info("created host primitives");
     std::vector<host::Primitive> host_primitives;
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        // auto color = make_float3(static_cast<float>(i) /
-        // static_cast<float>(par.num_primitives_));
+        auto color = glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
+        
         glm::vec3 albedo(0);
         float optical_depth_scale = 0;
         auto id = glm::identity<glm::mat4>();
-        host_primitives.emplace_back(id, id, id, albedo, optical_depth_scale);
+        host_primitives.emplace_back(id, id, id, color, optical_depth_scale);
     }
 
-    spdlog::info("create device primitives");
+    spdlog::info("created device primitives");
     primitives_ = cuda::Buffer<device::Primitive>(NUM_PRIMITIVES);
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
         spdlog::info("i = {}", i);
@@ -128,7 +126,7 @@ void Renderer::uploadParams() {
     }
     par.primitives_ =
         device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
-    spdlog::info("uploaded device params");
+    spdlog::info("uploaded primitives");
 
     launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
     spdlog::info("Uploaded launch params");
@@ -177,7 +175,7 @@ void Renderer::createPipeline() {
 
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
-    pco.numPayloadValues = 3;
+    pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
 
     module_ = optix::ModuleHandle(optix_ctx_.get(), mco, pco, ptx.data());
 
@@ -206,7 +204,6 @@ void Renderer::render() {
                      static_cast<uint>(image_.height()),
                      static_cast<uint>(image_.num_samples_per_pixel()));
 
-    spdlog::info("Launching OptiX pipeline...");
     cuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 

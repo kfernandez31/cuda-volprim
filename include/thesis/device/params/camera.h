@@ -11,8 +11,8 @@ namespace device {
 class THESIS_ALIGNMENT Camera {
    private:
 #ifdef __CUDACC__
-    __forceinline__ __device__ float3 ray_direction(float2 pixel) const noexcept {
-        return pixel00_ + (pixel.x * pixel_du_) + (pixel.y * pixel_dv_) - eye_;
+    __forceinline__ __device__ float3 ray_direction(float2 jittered_pixel) const noexcept {
+        return pixel00_ + (jittered_pixel.x * pixel_du_) + (jittered_pixel.y * pixel_dv_) - eye_;
     }
 #endif  // __CUDACC__
 

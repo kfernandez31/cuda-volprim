@@ -1,16 +1,17 @@
 #pragma once
 
 #include "core/primitive.cuh"
-#include "thesis/common/utils/types.h"
+#include "thesis/device/payloads/closesthit.h"
 
 #include <optix.h>
 
 extern "C" __global__ void __closesthit__ch() {
-    const float t = optixGetRayTmax();
-    const uint prim_idx = thesis::device::getPrimitiveIndex();
-    const bool is_exit = optixIsTriangleBackFaceHit();
+    using namespace thesis::device;
 
-    optixSetPayload_0(__float_as_uint(t));
-    optixSetPayload_1(prim_idx);
-    optixSetPayload_2(is_exit);
+    payloads::ClosestHit p;
+    p.t_hit = optixGetRayTmax();
+    p.prim_idx = getPrimitiveIndex();
+    p.is_exit = optixIsTriangleBackFaceHit();
+
+    p.packToOptix();
 }

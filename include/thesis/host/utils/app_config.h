@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/host/utils/result.h"
+#include "thesis/common/utils/types.h"
 
 #include <CLI11/CLI11.hpp>
 #include <cstddef>
@@ -23,32 +24,35 @@ struct AppConfig {
     fs::path ptx_path_ = fs::path("build") / "device_program.ptx";
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
-    size_t num_samples_per_pixel_ = 10;
-    size_t image_width_ = 800;
-    size_t image_height_ = 600;
+    size_t num_samples_per_pixel_ = 100;
+    size_t image_width_ = 1200;
+    size_t image_height_ = 900;
     float aspect_ratio_ = static_cast<float>(image_width_) / image_height_;
+
+    uint seed_ = 42;
 
     static core::Result<AppConfig> parse(int argc, char* argv[]) noexcept {
         AppConfig result;
 
         CLI::App app{"OptiX-based raytracer of kernel mixture models"};
-        app.add_option("-o,--output", result.output_path_, "Path to save the rendered image");
-        app.add_option("-p,--ptx", result.ptx_path_, "Path to the PTX file");
-        app.add_option("-e,--env_map", result.env_map_path_, "Path to the environment map");
-        app.add_option("-s,--samples_per_pixel", result.num_samples_per_pixel_,
+        app.add_option("--output", result.output_path_, "Path to save the rendered image");
+        app.add_option("--ptx", result.ptx_path_, "Path to the PTX file");
+        app.add_option("--env_map", result.env_map_path_, "Path to the environment map");
+        app.add_option("--samples_per_pixel", result.num_samples_per_pixel_,
                        "Number of samples per pixel");
-        app.add_option("-y,--width", result.image_width_, "Width of the output image");
-        app.add_option("-r,--raygen", result.raygen_function_name_, "Name of raygen function");
-        app.add_option("-m,--miss", result.miss_function_name_, "Name of miss function");
-        app.add_option("-c,--closesthit", result.closesthit_function_name_,
+        app.add_option("--width", result.image_width_, "Width of the output image");
+        app.add_option("--raygen", result.raygen_function_name_, "Name of raygen function");
+        app.add_option("--miss", result.miss_function_name_, "Name of miss function");
+        app.add_option("--closesthit", result.closesthit_function_name_,
                        "Name of closesthit function");
-        app.add_option("-l,--launch_params", result.launch_params_variable_name_,
-                       "Launch param name");
+        app.add_option("--launch_params", result.launch_params_variable_name_,
+                       "Launch parameters variable name");
+        app.add_option("--seed", result.seed_, "Random seed");
 
         std::optional<size_t> height_opt;
         std::optional<float> aspect_opt;
-        app.add_option("-x,--height", height_opt, "Explicit height of the output image");
-        app.add_option("-a,--aspect_ratio", aspect_opt, "Aspect ratio = width / height");
+        app.add_option("--height", height_opt, "Explicit height of the output image");
+        app.add_option("--aspect_ratio", aspect_opt, "Aspect ratio = width / height");
 
         argv = app.ensure_utf8(argv);
         try {

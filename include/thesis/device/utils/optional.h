@@ -19,11 +19,13 @@ struct Optional {
     T value_;
 
     THESIS_HOST_DEVICE Optional() : has_value_(false) {}
-    THESIS_HOST_DEVICE explicit Optional(NullOptTag) : has_value_(false) {}
+    THESIS_HOST_DEVICE Optional(NullOptTag) : has_value_(false) {}
 
-    template <typename... Args>
-    THESIS_HOST_DEVICE Optional(Args&&... args)
-        : has_value_(true), value_(T(utility::forward<Args>(args)...)) {}
+    THESIS_INLINE THESIS_HOST_DEVICE Optional(const T& v) noexcept 
+        : has_value_(true), value_(v) {}
+
+    THESIS_INLINE THESIS_HOST_DEVICE Optional(T&& v) noexcept 
+        : has_value_(true), value_(utility::move(v)) {}
 
     THESIS_HOST_DEVICE Optional(Optional&& other) noexcept
         : has_value_(utility::exchange(other.has_value_, false)),
@@ -38,6 +40,11 @@ struct Optional {
     Optional(const Optional&) = default;
     Optional& operator=(const Optional&) = default;
 
+    THESIS_INLINE THESIS_HOST_DEVICE Optional& operator=(NullOptTag) noexcept {
+        has_value_ = false;
+        return *this;
+    }
+
     THESIS_INLINE THESIS_HOST_DEVICE Optional& operator=(const T& v) noexcept {
         has_value_ = true;
         value_ = v;
@@ -51,7 +58,7 @@ struct Optional {
     }
 
     template <typename... Args>
-    THESIS_INLINE THESIS_HOST_DEVICE void emplace(Args&&... args) {
+    THESIS_INLINE THESIS_HOST_DEVICE void emplace(Args&&... args) noexcept {
         has_value_ = true;
         value_ = T(utility::forward<Args>(args)...);
     }

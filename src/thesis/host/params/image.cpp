@@ -16,6 +16,7 @@ namespace thesis {
 namespace host {
 
 core::Result<> Image::average_host() {
+    spdlog::info("running on host");
     sample_buffer_.download();
 
     const auto* src = sample_buffer_.host();

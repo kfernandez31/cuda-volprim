@@ -37,7 +37,13 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr float3 pow2(float3 v) noexcept {
     return {pow2(v.x), pow2(v.y), pow2(v.z)};
 }
 
-THESIS_INLINE THESIS_HOST_DEVICE constexpr float max(float a, float b) noexcept {
+template <typename T>
+THESIS_INLINE THESIS_HOST_DEVICE constexpr float max(T a, T b) noexcept {
+    return a > b ? a : b;
+}
+
+template <typename T>
+THESIS_INLINE THESIS_HOST_DEVICE constexpr float min(T a, T b) noexcept {
     return a < b ? a : b;
 }
 
@@ -45,8 +51,16 @@ THESIS_INLINE THESIS_HOST_DEVICE constexpr float max(float3 v) noexcept {
     return max(max(v.x, v.y), v.z);
 }
 
+THESIS_INLINE THESIS_HOST_DEVICE constexpr float min(float3 v) noexcept {
+    return min(min(v.x, v.y), v.z);
+}
+
 THESIS_INLINE THESIS_HOST_DEVICE constexpr float sum(float3 v) noexcept {
     return v.x + v.y + v.z;
+}
+
+THESIS_INLINE THESIS_HOST_DEVICE constexpr float prod(float3 v) noexcept {
+    return v.x * v.y * v.z;
 }
 
 template <typename T>

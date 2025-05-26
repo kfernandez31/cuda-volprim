@@ -28,15 +28,16 @@ constexpr auto RR_MAX_SURVIVAL     = 0.99f;
 } // namespace thesis
 
 extern "C" __global__ void __raygen__rg() {
+    using namespace thesis::device;
+
     const auto launch_idx = optixGetLaunchIndex();
     const auto pixel = make_uint2(launch_idx.x, launch_idx.y);
     const auto sample_idx = launch_idx.z;
 
-    // initialize rng
     curandState rng;
     curand_init(params.seed_, pixel.y * params.image_.width_ + pixel.x, sample_idx, &rng);
 
-    const auto jitter = thesis::device::random::sample_uniform_2d(&rng, 0.5f);
+    const auto jitter = random::sample_uniform_2d(&rng, 0.0f);
     auto ray = params.camera_.jittered_ray(pixel, jitter);
 
     auto throughput = make_float3(1.0f);
@@ -44,7 +45,6 @@ extern "C" __global__ void __raygen__rg() {
 
     for (size_t bounce = 0; bounce < thesis::device::consts::MAX_BOUNCES; ++bounce) {
         auto evt = thesis::device::sample_scattering_event(ray, &rng);
-
         // no scattering - escaped mediums
         if (!evt) {
             auto tau = thesis::device::compute_optical_depth_along_ray(ray);
@@ -79,6 +79,5 @@ extern "C" __global__ void __raygen__rg() {
         }
     }
 
-    radiance /= static_cast<float>(params.image_.num_samples_per_pixel_);
     params.image_[pixel.y][pixel.x] = radiance;
 }

@@ -24,7 +24,7 @@ namespace device {
 
 namespace consts {
 
-constexpr auto MAX_HITS = 64u;
+constexpr auto MAX_HITS = 2137u; // TODO(kacper): tweak this with Jorge and argue about it
 constexpr auto PHASE_VALUE = math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
 
 } // namespace consts
@@ -149,6 +149,7 @@ __device__ __forceinline__ float3 evaluate_albedo(float3 pos, utils::Set<uint, c
 }
 
 __device__ utils::Optional<ScatteringEvent<consts::MAX_HITS>> sample_scattering_event(const Ray& ray, curandState* rng) {
+
     auto t_total = 0.0f;
     auto tau_cumulative = 0.0f;
 
@@ -156,13 +157,18 @@ __device__ utils::Optional<ScatteringEvent<consts::MAX_HITS>> sample_scattering_
     const auto tau_target = sample_target_optical_depth(random::sample_uniform(rng));
 
     for (size_t hit = 0; hit < consts::MAX_HITS; ++hit) {
-        uint prim_idx, is_entry;
-        auto t_hit = trace_ch(ray, t_total, prim_idx, is_entry);
-        if (!t_hit) {
+        const auto result = trace_ch(ray, t_total);
+    
+        if (!result) {
             break;
         }
 
-        const auto segment = make_float2(t_total, *t_hit);
+        const auto& payload = result.unwrap();
+        const auto t_hit = payload.t_hit;
+        const auto prim_idx = payload.prim_idx;
+        const auto is_exit = payload.is_exit;
+
+        const auto segment = make_float2(t_total, t_hit);
         const auto tau_segment = optical_depth_accumulated(ray, segment, active_prims);
 
         // scattering occurred
@@ -182,7 +188,7 @@ __device__ utils::Optional<ScatteringEvent<consts::MAX_HITS>> sample_scattering_
         }
 
         // Update primitive state
-        if (is_entry) {
+        if (!is_exit) {
             active_prims.insert(prim_idx);
             if (active_prims.full())
                 break; // TODO(kacper): what to do here?
@@ -190,7 +196,7 @@ __device__ utils::Optional<ScatteringEvent<consts::MAX_HITS>> sample_scattering_
             active_prims.erase(prim_idx);
         }
 
-        t_total = *t_hit;
+        t_total = t_hit;
         tau_cumulative += tau_segment;
     }
 
@@ -205,15 +211,20 @@ __device__ float3 compute_optical_depth_along_ray(const Ray& ray) {
     utils::Set<uint, consts::MAX_HITS> active_prims;
 
     for (size_t hit = 0; hit < consts::MAX_HITS; ++hit) {
-        uint prim_idx, is_entry;
-        auto t_new = trace_ch(ray, t_old, prim_idx, is_entry);
-        if (!t_new) {
+        const auto result = trace_ch(ray, t_old);
+
+        if (!result) {
             break;
         }
 
-        acc_optical_depth += integrate_primitives(ray, {t_old, *t_new}, active_prims);
+        const auto& payload = result.unwrap();
+        const auto t_new = payload.t_hit;
+        const auto prim_idx = payload.prim_idx;
+        const auto is_exit = payload.is_exit;
 
-        if (is_entry) {
+        acc_optical_depth += integrate_primitives(ray, {t_old, t_new}, active_prims);
+
+        if (!is_exit) {
             active_prims.insert(prim_idx);
             if (active_prims.full()) {
                 break; // TODO(kacper): what to do here?
@@ -222,7 +233,7 @@ __device__ float3 compute_optical_depth_along_ray(const Ray& ray) {
             active_prims.erase(prim_idx);
         }
 
-        t_old = *t_new;
+        t_old = t_new;
     }
 
     // drain remaining primitives until infinity
