@@ -17,6 +17,7 @@ namespace thesis {
 class Renderer {
    private:
     void initGAS();
+    void initPrimitives();
     void uploadParams();
     void createRaygenPG();
     void createMissPG();

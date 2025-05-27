@@ -1,10 +1,10 @@
-#include "thesis/pch.h"
-
 #include "thesis/host/renderer.h"
 
+#include "thesis/pch.h"
+
 #include "thesis/common/utils/types.h"
-#include "thesis/device/utils/vector.h"
 #include "thesis/device/payloads/registry.h"
+#include "thesis/device/utils/vector.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/optix/ptx_handle.h"
@@ -14,21 +14,16 @@
 #include "thesis/host/utils/result.h"
 
 #include <filesystem>
+#include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <sutil/vec_math.h>
 #include <utility>
-
-#define MOCK_PRIMS  // TODO(kacper): remove
-#ifdef MOCK_PRIMS
-
-#include <array>
-#include <glm/glm.hpp>
 #include <vector>
 
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
-#endif  // MOCK_PRIMS
 
 namespace thesis {
 
@@ -63,17 +58,18 @@ Renderer::Renderer(const AppConfig& config)
           return cam;
       }()) {
     initGAS();
+    initPrimitives();
     createPipeline();
 }
 
 void Renderer::initGAS() {
-    std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;    
-    icos[0].transform(glm::identity<glm::mat4>());
-    // icos[0].transform(glm::translate({0.0f, 0.0f, 0.5f}));
+    std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
+    // icos[0].transform(glm::identity<glm::mat4>());
+    icos[0].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
 
-    // icos[0].transform(glm::translate({2.0f, 0.0f, 0.5f}));
-    // icos[1].transform(glm::translate({0.0f, 0.0f, 0.5f}));
-    // icos[2].transform(glm::translate({-2.0f, 0.0f, 0.5f}));
+    // icos[0].transform(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
+    // icos[1].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
+    // icos[2].transform(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
 
     // Combine vertices
     std::vector<glm::vec3> all_vertices;
@@ -81,7 +77,7 @@ void Renderer::initGAS() {
         const auto& vs = ico.getVertices();
         all_vertices.insert(all_vertices.end(), vs.begin(), vs.end());
     }
-    
+
     // Combine indices
     // clang-format off
     std::vector<glm::uvec3> all_indices;
@@ -98,6 +94,29 @@ void Renderer::initGAS() {
                               data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
 }
 
+void Renderer::initPrimitives() {
+    std::vector<host::Primitive> host_primitives;
+    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+        // auto color = glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
+        auto albedo = glm::vec3(1.0f, 0.0f, 0.0f);
+        
+        auto translation = glm::translate(glm::vec3(0.0f, 0.0f, 0.5f));
+        auto optical_depth_scale = 500.0f;
+
+        // clang-format off
+        host_primitives.emplace_back(
+            translation,
+            glm::identity<glm::mat4>(),
+            glm::scale(glm::vec3(0.3f)),
+            albedo, 
+            optical_depth_scale
+        );
+    }
+
+    primitives_ = cuda::Buffer<device::Primitive>(NUM_PRIMITIVES);
+    std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
+}
+
 void Renderer::uploadParams() {
     optix::LaunchParams par = {};
     par.gas_handle_ = gas_.get();
@@ -106,27 +125,7 @@ void Renderer::uploadParams() {
     par.image_ = image_.toDevice();
     par.env_map_ = env_map_.toDevice();
     par.camera_ = camera_.toDevice();
-
-    spdlog::info("created host primitives");
-    std::vector<host::Primitive> host_primitives;
-    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        auto color = glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
-        
-        glm::vec3 albedo(0);
-        float optical_depth_scale = 0;
-        auto id = glm::identity<glm::mat4>();
-        host_primitives.emplace_back(id, id, id, color, optical_depth_scale);
-    }
-
-    spdlog::info("created device primitives");
-    primitives_ = cuda::Buffer<device::Primitive>(NUM_PRIMITIVES);
-    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        spdlog::info("i = {}", i);
-        primitives_.host()[i] = std::move(host_primitives[i].toDevice());
-    }
-    par.primitives_ =
-        device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
-    spdlog::info("uploaded primitives");
+    par.primitives_ = device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
 
     launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
     spdlog::info("Uploaded launch params");

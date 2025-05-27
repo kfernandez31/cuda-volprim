@@ -20,18 +20,9 @@ class Image : public Convertible<device::Image> {
     cuda::Buffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
     cuda::Buffer<float3> averaged_pixels_;  // Single-layer output
 
-    core::Result<> average_host();
-    core::Result<> average_device(const cuda::StreamHandle& stream);
     core::Result<> average(const cuda::StreamHandle& stream);
 
    public:
-    Image(size_t width, size_t height, size_t num_samples_per_pixel)
-        : width_(width),
-          height_(height),
-          num_samples_per_pixel_(num_samples_per_pixel),
-          sample_buffer_(width * height * num_samples_per_pixel),
-          averaged_pixels_(width * height) {}
-
     Image() = default;
 
     Image(Image&&) noexcept = default;
@@ -39,6 +30,13 @@ class Image : public Convertible<device::Image> {
 
     Image(const Image&) = delete;
     Image& operator=(const Image&) = delete;
+
+    Image(size_t width, size_t height, size_t num_samples_per_pixel)
+        : width_(width),
+          height_(height),
+          num_samples_per_pixel_(num_samples_per_pixel),
+          sample_buffer_(width * height * num_samples_per_pixel),
+          averaged_pixels_(width * height) {}
 
     [[nodiscard]] float3* host() noexcept { return sample_buffer_.host(); }
     [[nodiscard]] const float3* host() const noexcept { return sample_buffer_.host(); }
@@ -58,7 +56,7 @@ class Image : public Convertible<device::Image> {
 
     [[nodiscard]] device::Image toDevice() const noexcept override {
         device::Image result;
-        result.data_ = const_cast<float3*>(sample_buffer_.device());
+        result.sample_buffer_ = const_cast<float3*>(sample_buffer_.device());
         result.width_ = width_;
         result.height_ = height_;
         result.num_samples_per_pixel_ = num_samples_per_pixel_;

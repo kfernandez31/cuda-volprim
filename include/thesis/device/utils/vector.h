@@ -39,8 +39,8 @@ struct DynamicStorage {
     DynamicStorage& operator=(const DynamicStorage&) = default;
 
     THESIS_HOST_DEVICE DynamicStorage(DynamicStorage&& other) noexcept
-        : capacity_(utility::exchange(other.capacity_, 0))
-        , data_(utility::exchange(other.data_, nullptr)) {}
+        : capacity_(utility::exchange(other.capacity_, 0)),
+          data_(utility::exchange(other.data_, nullptr)) {}
 
     THESIS_HOST_DEVICE DynamicStorage& operator=(DynamicStorage&& other) noexcept {
         if (this != &other) {

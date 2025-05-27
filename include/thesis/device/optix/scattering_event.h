@@ -10,12 +10,12 @@
 namespace thesis {
 namespace device {
 
-template <size_t Capacity>
+template <size_t MaxPrims>
 struct THESIS_ALIGNMENT ScatteringEvent {
+    float t_hit_;
     float3 position_;
     float3 direction_;
-    float t_;
-    utils::Set<uint, Capacity> active_prims_;
+    utils::Set<uint, MaxPrims> active_prims_;
 };
 
 }  // namespace device

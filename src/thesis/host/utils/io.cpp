@@ -1,6 +1,6 @@
-#include "thesis/pch.h"
-
 #include "thesis/host/utils/io.h"
+
+#include "thesis/pch.h"
 
 #include <vector_types.h>
 

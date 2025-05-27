@@ -1,7 +1,8 @@
 #pragma once
 
-#include "thesis/common/utils/types.h"
 #include "thesis/common/utils/preprocessor.h"
+#include "thesis/common/utils/types.h"
+
 #include <optix.h>
 
 namespace thesis {
@@ -17,6 +18,7 @@ enum class Tag : uint {
     AnyHit = 3,
 };
 
+// TODO(kacper): underscore member vars
 template <typename Derived, Tag T>
 struct THESIS_ALIGNMENT Base {
     static constexpr Tag tag_v = T;
@@ -38,7 +40,9 @@ struct THESIS_ALIGNMENT Base {
         static_cast<const Derived*>(this)->pack(payloads);
         static_assert(Derived::Count <= MAX_PAYLOADS, "Max number of payloads exceeded.");
 
-        #define CASE(n) case (n): optixSetPayload_##n(payloads[(n)]);
+#define CASE(n) \
+    case (n):   \
+        optixSetPayload_##n(payloads[(n)]);
 
         switch (Derived::Count - 1) {
             CASE(31);
@@ -73,12 +77,13 @@ struct THESIS_ALIGNMENT Base {
             CASE(2);
             CASE(1);
             CASE(0);
-            default: break;
+            default:
+                break;
         }
 
-        #undef CASE
+#undef CASE
     }
-#endif // __CUDACC__
+#endif  // __CUDACC__
 };
 
 }  // namespace payloads

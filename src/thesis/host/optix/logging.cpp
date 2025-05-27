@@ -1,6 +1,6 @@
-#include "thesis/pch.h"
-
 #include "thesis/host/optix/logging.h"
+
+#include "thesis/pch.h"
 
 #include "thesis/common/utils/types.h"
 

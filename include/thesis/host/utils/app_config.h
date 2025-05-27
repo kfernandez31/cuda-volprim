@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/host/utils/result.h"
 #include "thesis/common/utils/types.h"
+#include "thesis/host/utils/result.h"
 
 #include <CLI11/CLI11.hpp>
 #include <cstddef>
@@ -24,9 +24,9 @@ struct AppConfig {
     fs::path ptx_path_ = fs::path("build") / "device_program.ptx";
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
-    size_t num_samples_per_pixel_ = 100;
-    size_t image_width_ = 1200;
-    size_t image_height_ = 900;
+    size_t num_samples_per_pixel_ = 1 << 4;
+    size_t image_width_ = 1600;
+    size_t image_height_ = 1200;
     float aspect_ratio_ = static_cast<float>(image_width_) / image_height_;
 
     uint seed_ = 42;

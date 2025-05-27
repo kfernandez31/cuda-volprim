@@ -21,10 +21,9 @@ struct Optional {
     THESIS_HOST_DEVICE Optional() : has_value_(false) {}
     THESIS_HOST_DEVICE Optional(NullOptTag) : has_value_(false) {}
 
-    THESIS_INLINE THESIS_HOST_DEVICE Optional(const T& v) noexcept 
-        : has_value_(true), value_(v) {}
+    THESIS_INLINE THESIS_HOST_DEVICE Optional(const T& v) noexcept : has_value_(true), value_(v) {}
 
-    THESIS_INLINE THESIS_HOST_DEVICE Optional(T&& v) noexcept 
+    THESIS_INLINE THESIS_HOST_DEVICE Optional(T&& v) noexcept
         : has_value_(true), value_(utility::move(v)) {}
 
     THESIS_HOST_DEVICE Optional(Optional&& other) noexcept
@@ -66,8 +65,10 @@ struct Optional {
     THESIS_INLINE THESIS_HOST_DEVICE void reset() noexcept { has_value_ = false; }
 
     THESIS_INLINE THESIS_HOST_DEVICE bool has() const noexcept { return has_value_; }
-
     THESIS_INLINE THESIS_HOST_DEVICE operator bool() const noexcept { return has_value_; }
+
+    THESIS_INLINE THESIS_HOST_DEVICE T& unwrap() noexcept { return value_; }
+    THESIS_INLINE THESIS_HOST_DEVICE const T& unwrap() const noexcept { return value_; }
 
     THESIS_INLINE THESIS_HOST_DEVICE const T& operator*() const noexcept { return value_; }
     THESIS_INLINE THESIS_HOST_DEVICE T& operator*() noexcept { return value_; }

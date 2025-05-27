@@ -17,11 +17,11 @@ struct Result {
 
     THESIS_HOST_DEVICE Result() : is_ok_(false), err_value_() {}
 
-    THESIS_HOST_DEVICE explicit Result(const T& ok) : is_ok_(true), ok_value_(ok) {}
-    THESIS_HOST_DEVICE explicit Result(T&& ok) : is_ok_(true), ok_value_(utility::move(ok)) {}
+    THESIS_HOST_DEVICE Result(const T& ok) : is_ok_(true), ok_value_(ok) {}
+    THESIS_HOST_DEVICE Result(T&& ok) : is_ok_(true), ok_value_(utility::move(ok)) {}
 
-    THESIS_HOST_DEVICE explicit Result(const E& err) : is_ok_(false), err_value_(err) {}
-    THESIS_HOST_DEVICE explicit Result(E&& err) : is_ok_(false), err_value_(utility::move(err)) {}
+    THESIS_HOST_DEVICE Result(const E& err) : is_ok_(false), err_value_(err) {}
+    THESIS_HOST_DEVICE Result(E&& err) : is_ok_(false), err_value_(utility::move(err)) {}
 
     THESIS_HOST_DEVICE Result(Result&& other) noexcept : is_ok_(other.is_ok_) {
         if (is_ok_)
