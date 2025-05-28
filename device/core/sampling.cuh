@@ -1,7 +1,5 @@
 #pragma once
 
-// TODO(kacper): which ones to __forceinline__?
-
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
 #include "core/trace.cuh"
@@ -46,7 +44,7 @@ __forceinline__ __device__ float3 sample_phase(curandState& rng) {
 }
 
 //  inverse CDF for τ
-__device__ __forceinline__ float sample_target_optical_depth(float uniform_sample) {
+__forceinline__ __device__ float sample_target_optical_depth(float uniform_sample) {
     // Inverse transform sampling from exponential distribution:
     // PDF:   p(τ) = e^(-τ)
     // CDF:   F(τ) = 1 - e^(-τ)
@@ -56,7 +54,7 @@ __device__ __forceinline__ float sample_target_optical_depth(float uniform_sampl
     return -logf(fmaxf(1.0f - uniform_sample, 1e-6f));
 }
 
-__device__ float optical_depth_accumulated(
+__forceinline__ __device__ float optical_depth_accumulated(
     const Ray& ray,
     float2 segment,
     const PrimsSet& prims
@@ -72,7 +70,7 @@ __device__ float optical_depth_accumulated(
 }
 
 template <typename T>
-__device__ float3 integrate_primitives(
+__forceinline__ __device__ float3 integrate_primitives(
     const Ray& ray,
     T t,
     const PrimsSet& prims

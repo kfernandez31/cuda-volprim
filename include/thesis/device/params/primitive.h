@@ -17,11 +17,9 @@ namespace device {
 
 class THESIS_ALIGNMENT Primitive {
    private:
-    Matrix3x4 M_for_intersecting_;      // TODO(kacper): will I use this?
-    Matrix3x4 M_for_intersecting_inv_;  // TODO(kacper): will I use this?
     Matrix3x4 M_for_integrating_inv_;
-
-    float3 S_diag_squared_;
+    float3 S2_;
+    float S2_xy_, S2_xz_, S2_yz_;
     float erf_denominator_base_;
 
 #ifdef __CUDACC__
@@ -30,9 +28,8 @@ class THESIS_ALIGNMENT Primitive {
         float C1, C2;
     };
 
+    // ~54 FLOPs, ~60–80 cycles
     __device__ OpticalCoefficients compute_optical_coeffs(const Ray& r_global) const noexcept {
-        const auto& S2 = S_diag_squared_;
-
         const auto r_local = r_global.transformed(M_for_integrating_inv_);
         const auto& x = r_local.origin_;
         const auto& w = r_local.direction_;
@@ -41,16 +38,15 @@ class THESIS_ALIGNMENT Primitive {
         const auto ww = math::pow2(w);
         const auto xw = x * w;
 
-        const auto C0 = (S2.x * S2.y * ww.z) + (S2.x * S2.z * ww.y) + (S2.y * S2.z * ww.x);
+        const auto C0 = (S2_xy_ * ww.z) + (S2_xz_ * ww.y) + (S2_yz_ * ww.x);
         const auto C0_rsqrt = rsqrtf(C0);
         const auto C0_sqrt = C0 * C0_rsqrt;
 
-        const auto C2 =
-            (x.z * S2.x * S2.y * w.z) + (x.y * S2.x * S2.z * w.y) + (x.x * S2.y * S2.z * w.x);
+        const auto C2 = (x.z * S2_xy_ * w.z) + (x.y * S2_xz_ * w.y) + (x.x * S2_yz_ * w.x);
         const auto C3 =
-            (xx.x * S2.y + xx.y * S2.x) * ww.z - 2.0f * xw.z * (xw.y * S2.y + xw.x * S2.x);
-        const auto C4 = ww.y * (xx.x * S2.z + xx.z * S2.x) - 2.0f * (xw.x * xw.y * S2.z) +
-                        ww.x * (xx.y * S2.z + xx.z * S2.y);
+            (xx.x * S2_.y + xx.y * S2_.x) * ww.z - 2.0f * xw.z * (xw.y * S2_.y + xw.x * S2_.x);
+        const auto C4 = ww.y * (xx.x * S2_.z + xx.z * S2_.x) - 2.0f * (xw.x * xw.y * S2_.z) +
+                        ww.x * (xx.y * S2_.z + xx.z * S2_.y);
         const auto C1 = 0.5f * (C3 + C4) * math::pow2(C0_rsqrt);
 
         return {C0, C0_rsqrt, C0_sqrt, C1, C2};
@@ -76,13 +72,19 @@ class THESIS_ALIGNMENT Primitive {
     Primitive(const Primitive&) = default;
     Primitive& operator=(const Primitive&) = default;
 
-    Primitive(const Matrix3x4& M_for_intersecting, const Matrix3x4& M_for_intersecting_inv,
-              const Matrix3x4& M_for_integrating_inv, float3 S_diag_squared, float3 albedo,
-              float optical_depth_scale, float erf_denominator_base)
-        : M_for_intersecting_(M_for_intersecting),
-          M_for_intersecting_inv_(M_for_intersecting_inv),
-          M_for_integrating_inv_(M_for_integrating_inv),
-          S_diag_squared_(S_diag_squared),
+    // clang-format off
+    Primitive(
+        const Matrix3x4& M_for_integrating_inv, 
+        float3 S_diag_squared,
+        float3 albedo,
+        float optical_depth_scale,
+        float erf_denominator_base
+    )
+        : M_for_integrating_inv_(M_for_integrating_inv),
+          S2_(S_diag_squared),
+          S2_xy_(S2_.x * S2_.y),
+          S2_xz_(S2_.x * S2_.z),
+          S2_yz_(S2_.y * S2_.z),
           erf_denominator_base_(erf_denominator_base),
           albedo_(albedo),
           optical_depth_scale_(optical_depth_scale) {}
@@ -94,7 +96,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto local = Matrix3x4::transform<true>(M_for_integrating_inv_, pos);
 
         // Evaluate the unnormalized density (e.g., Gaussian profile)
-        const auto e2 = -math::pow2(local) / S_diag_squared_;
+        const auto e2 = -math::pow2(local) / S2_;
 
         return expf(math::sum(e2));
     }

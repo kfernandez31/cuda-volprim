@@ -20,7 +20,7 @@ class Image : public Convertible<device::Image> {
     cuda::Buffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
     cuda::Buffer<float3> averaged_pixels_;  // Single-layer output
 
-    core::Result<> average(const cuda::StreamHandle& stream);
+    void average(const cuda::StreamHandle& stream);
 
    public:
     Image() = default;

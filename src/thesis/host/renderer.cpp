@@ -64,12 +64,11 @@ Renderer::Renderer(const AppConfig& config)
 
 void Renderer::initGAS() {
     std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
-    // icos[0].transform(glm::identity<glm::mat4>());
     icos[0].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
 
-    // icos[0].transform(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
+    // icos[0].transform(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
     // icos[1].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
-    // icos[2].transform(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
+    // icos[2].transform(glm::translate(glm::vec3(+2.0f, 0.0f, 0.5f)));
 
     // Combine vertices
     std::vector<glm::vec3> all_vertices;
@@ -96,11 +95,23 @@ void Renderer::initGAS() {
 
 void Renderer::initPrimitives() {
     std::vector<host::Primitive> host_primitives;
+
+    glm::vec3 colors[NUM_PRIMITIVES] = {
+        // glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        // glm::vec3(0.0f, 0.0f, 1.0f),
+    };
+
+    glm::vec3 translations[NUM_PRIMITIVES] = {
+        // glm::vec3(-2.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f,  0.0f, 0.5f),
+        // glm::vec3(+2.0f, 0.0f, 0.5f),
+    };
+
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
         // auto color = glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
-        auto albedo = glm::vec3(1.0f, 0.0f, 0.0f);
-        
-        auto translation = glm::translate(glm::vec3(0.0f, 0.0f, 0.5f));
+        auto albedo = colors[i];
+        auto translation = glm::translate(translations[i]);
         auto optical_depth_scale = 500.0f;
 
         // clang-format off

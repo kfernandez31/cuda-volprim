@@ -35,6 +35,7 @@ struct Unit {
 
 struct Error;
 
+// TODO(kacper): think of using in places that use the CHECK macros
 template <typename T = Unit>
 using Result = std::expected<T, Error>;
 

@@ -12,6 +12,8 @@
 // TODO(kacper): for real-time rendering and interop, opt for something like:
 // C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h"
 
+// TODO(kacper): what about pinned memory?
+
 namespace thesis::cuda {
 
 template <typename T>

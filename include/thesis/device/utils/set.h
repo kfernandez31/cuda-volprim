@@ -9,7 +9,8 @@ namespace thesis {
 namespace device {
 namespace utils {
 
-// TODO(kacper): remove?
+// TODO(kacper): think of a implicit binary tree after a certain threshold (16/32/64), determine
+// with nvprof/nsight
 template <typename T, size_t Capacity>
 class THESIS_ALIGNMENT Set {
    private:

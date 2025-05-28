@@ -1,5 +1,6 @@
 #pragma once
 
+#include "thesis/common/utils/types.h"
 #include "thesis/host/cuda/buffer.h"
 #include "thesis/host/utils/check.h"
 
@@ -26,10 +27,11 @@ class GASHandle {
     GASHandle(const GASHandle&) = delete;
     GASHandle& operator=(const GASHandle&) = delete;
 
-    GASHandle(OptixDeviceContext context, const OptixBuildInput& build_input, cudaStream_t stream)
+    GASHandle(OptixDeviceContext context, const OptixBuildInput& build_input, cudaStream_t stream,
+              uint build_flags = OPTIX_BUILD_FLAG_NONE)
         : context_(context) {
         OptixAccelBuildOptions accel_options = {};
-        accel_options.buildFlags = OPTIX_BUILD_FLAG_NONE;
+        accel_options.buildFlags = build_flags;
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
         OptixAccelBufferSizes gas_buffer_sizes;

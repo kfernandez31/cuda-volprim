@@ -15,18 +15,16 @@
 namespace thesis {
 namespace host {
 
-// TODO(kacper): why does this return a Result?
-core::Result<> Image::average(const cuda::StreamHandle& stream) {
+void Image::average(const cuda::StreamHandle& stream) {
     device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
                                           width_, height_, num_samples_per_pixel_, stream.get());
     stream.synchronize();
     averaged_pixels_.download();
-    return {};
 }
 
 core::Result<> Image::save(const std::filesystem::path& filename,
                            const cuda::StreamHandle& stream) noexcept {
-    TRY(average(stream));
+    average(stream);
     return io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
 }
 
