@@ -10,7 +10,7 @@
 #include <span>
 #include <string>
 
-namespace thesis::io {
+namespace thesis::host::io {
 
 core::Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept;
 
@@ -18,4 +18,4 @@ core::Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, s
                             const std::filesystem::path& filename,
                             bool flip_vertical = true) noexcept;
 
-}  // namespace thesis::io
+}  // namespace thesis::host::io

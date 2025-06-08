@@ -7,8 +7,7 @@
 #include <string.h>
 #include <string_view>
 
-namespace thesis {
-namespace optix {
+namespace thesis::host::optix {
 
 class PtxHandle {
    private:
@@ -25,5 +24,4 @@ class PtxHandle {
     [[nodiscard]] size_t size() const noexcept { return data_.size(); }
 };
 
-}  // namespace optix
-}  // namespace thesis
+}  // namespace thesis::host::optix

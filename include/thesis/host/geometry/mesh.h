@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace thesis::geometry {
+namespace thesis::host::geometry {
 
 class Mesh {
    protected:
@@ -129,4 +129,4 @@ struct Icosphere : public Mesh {
 
 static const Icosphere<0> BaseIcosphere;
 
-}  // namespace thesis::geometry
+}  // namespace thesis::host::geometry

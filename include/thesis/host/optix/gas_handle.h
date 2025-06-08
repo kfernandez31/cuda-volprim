@@ -10,12 +10,12 @@
 #include <cstddef>
 #include <span>
 
-namespace thesis::optix {
+namespace thesis::host::optix {
 
 class GASHandle {
    private:
     OptixDeviceContext context_ = nullptr;
-    thesis::cuda::Buffer<std::byte> output_buffer_;
+    cuda::Buffer<std::byte> output_buffer_;
     OptixTraversableHandle gas_handle_ = 0;
 
    public:
@@ -95,4 +95,4 @@ class TriangleGAS {
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }
 };
 
-}  // namespace thesis::optix
+}  // namespace thesis::host::optix

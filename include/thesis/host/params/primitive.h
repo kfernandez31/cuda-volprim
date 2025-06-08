@@ -12,8 +12,7 @@
 #include <glm/gtx/optimum_pow.hpp>
 #include <glm/gtx/transform.hpp>
 
-namespace thesis {
-namespace host {
+namespace thesis::host::params {
 
 class Primitive : public Convertible<device::params::Primitive> {
    private:
@@ -47,7 +46,7 @@ class Primitive : public Convertible<device::params::Primitive> {
         glm::vec3 albedo,
         float optical_depth_scale
     ) : M_for_integrating_inv_(get_M_for_integrating_inv(T, R)),
-        S_diag_(getDiagonal(S)),
+        S_diag_(geometry::getDiagonal(S)),
         S_diag_squared_(glm::pow2(S_diag_)),
         albedo_(albedo),
         optical_depth_scale_(optical_depth_scale) {}
@@ -55,7 +54,7 @@ class Primitive : public Convertible<device::params::Primitive> {
     [[nodiscard]] device::params::Primitive toDevice() const noexcept override {
         // clang-format off
         return device::params::Primitive(
-            host::toDevice(M_for_integrating_inv_),
+            host::geometry::toDevice(M_for_integrating_inv_),
             data::toFloat3(S_diag_squared_),
             data::toFloat3(albedo_),
             optical_depth_scale_,
@@ -64,5 +63,4 @@ class Primitive : public Convertible<device::params::Primitive> {
     }
 };
 
-}  // namespace host
-}  // namespace thesis
+}  // namespace thesis::host::params

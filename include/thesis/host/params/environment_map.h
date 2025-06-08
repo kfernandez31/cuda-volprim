@@ -12,8 +12,7 @@
 #include <stb/stb_image.h>
 #include <string_view>
 
-namespace thesis {
-namespace host {
+namespace thesis::host::params {
 
 class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
    private:
@@ -55,5 +54,4 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
     }
 };
 
-}  // namespace host
-}  // namespace thesis
+}  // namespace thesis::host::params

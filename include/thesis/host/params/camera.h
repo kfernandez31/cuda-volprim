@@ -7,8 +7,7 @@
 #include <cstddef>
 #include <glm/glm.hpp>
 
-namespace thesis {
-namespace host {
+namespace thesis::host::params {
 
 class Camera : public Convertible<device::params::Camera> {
    private:
@@ -62,5 +61,4 @@ class Camera : public Convertible<device::params::Camera> {
     [[nodiscard]] device::params::Camera toDevice() const noexcept override { return device_struct_; }
 };
 
-}  // namespace host
-}  // namespace thesis
+}  // namespace thesis::host::params

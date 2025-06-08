@@ -7,7 +7,7 @@
 
 #include <utility>
 
-namespace thesis::cuda {
+namespace thesis::host::cuda {
 
 class StreamHandle {
    private:
@@ -44,4 +44,4 @@ class StreamHandle {
     static void synchronizeDevice() { CUDA_CHECK(cudaDeviceSynchronize()); }
 };
 
-}  // namespace thesis::cuda
+}  // namespace thesis::host::cuda

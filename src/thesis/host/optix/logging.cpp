@@ -8,7 +8,7 @@
 #include <functional>
 #include <spdlog/spdlog.h>
 
-namespace thesis::optix {
+namespace thesis::host::optix {
 
 void contextLogCb(uint level, const char* /*tag*/, const char* message, void* /*cbdata*/) {
     using Logger = std::function<void(const char*)>;
@@ -28,4 +28,4 @@ void contextLogCb(uint level, const char* /*tag*/, const char* message, void* /*
     }
 }
 
-}  // namespace thesis::optix
+}  // namespace thesis::host::optix

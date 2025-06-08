@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <utility>
 
-namespace thesis::optix {
+namespace thesis::host::optix {
 
 template <typename T>
 struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SBTRecord {
@@ -72,4 +72,4 @@ class Record<void> {
     }
 };
 
-}  // namespace thesis::optix
+}  // namespace thesis::host::optix

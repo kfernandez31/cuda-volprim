@@ -14,7 +14,7 @@ using namespace thesis::host;
 int main(int argc, char* argv[]) {
     app::logging::initLogging();
 
-    auto config = thesis::core::try_unwrap_or_exit(app::Config::parse(argc, argv));
+    auto config = core::try_unwrap_or_exit(app::Config::parse(argc, argv));
     app::Renderer renderer(config);
     renderer.render();
 

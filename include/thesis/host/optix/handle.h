@@ -13,7 +13,7 @@
 // Generic OptiX Handle
 // -------------------------
 
-namespace thesis::optix {
+namespace thesis::host::optix {
 
 template <typename T, auto DestroyFn>
 class Handle {
@@ -96,4 +96,4 @@ class PipelineHandle : public Handle<OptixPipeline, optixPipelineDestroy> {
     }
 };
 
-}  // namespace thesis::optix
+}  // namespace thesis::host::optix

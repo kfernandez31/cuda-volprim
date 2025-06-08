@@ -26,7 +26,7 @@
         }                                                \
     } while (0)
 
-namespace thesis::core {
+namespace thesis::host::core {
 
 struct Unit {
     constexpr bool operator==(Unit) const noexcept { return true; }
@@ -79,4 +79,4 @@ struct Error {
         : Error(errno, fmt_str, std::forward<Args>(args)...) {}
 };
 
-}  // namespace thesis::core
+}  // namespace thesis::host::core

@@ -12,8 +12,7 @@
 #include <filesystem>
 #include <sutil/vec_math.h>
 
-namespace thesis {
-namespace host {
+namespace thesis::host::params {
 
 void Image::average(const cuda::StreamHandle& stream) {
     device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
@@ -28,5 +27,4 @@ core::Result<> Image::save(const std::filesystem::path& filename,
     return io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
 }
 
-}  // namespace host
-}  // namespace thesis
+} // namespace thesis::host::params

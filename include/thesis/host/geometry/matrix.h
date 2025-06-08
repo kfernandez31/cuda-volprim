@@ -6,8 +6,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/optimum_pow.hpp>
 
-namespace thesis {
-namespace host {
+namespace thesis::host::geometry {
 
 inline glm::vec3 getDiagonal(const glm::mat4& mat) noexcept {
     return {mat[0][0], mat[1][1], mat[2][2]};
@@ -53,7 +52,4 @@ inline glm::mat4 rotationMatrixFromNormalizedQuaternion(const glm::quat& q) noex
     return result;
 }
 
-} // namespace host
-} // namespace thesis
-
-// __CUDACC__
+} // namespace thesis::host::geometry

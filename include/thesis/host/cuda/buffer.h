@@ -1,6 +1,5 @@
 #pragma once
 
-#include "thesis/host/cuda/device_ptr.h"
 #include "thesis/host/utils/check.h"
 
 #include <cuda_runtime.h>
@@ -9,12 +8,21 @@
 #include <memory>
 #include <span>
 
-// TODO(kacper): for real-time rendering and interop, opt for something like:
-// C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0\SDK\sutil\CUDAOutputBuffer.h"
+namespace thesis::host::cuda {
 
-// TODO(kacper): what about pinned memory?
+struct CudaDeleter {
+    inline void operator()(void* ptr) const noexcept { CUDA_CHECK_NOEXCEPT(cudaFree(ptr)); }
+};
 
-namespace thesis::cuda {
+template <typename T>
+using UniqueDevicePtr = std::unique_ptr<T, CudaDeleter>;
+
+template <typename T>
+UniqueDevicePtr<T> makeDevicePtr(size_t count) {
+    void* raw = nullptr;
+    CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
+    return UniqueDevicePtr<T>(static_cast<T*>(raw));
+}
 
 template <typename T>
 class Buffer {
@@ -94,4 +102,4 @@ class Buffer {
     [[nodiscard]] const T* cend() const noexcept { return host_ptr_.get() + count_; }
 };
 
-}  // namespace thesis::cuda
+}  // namespace thesis::host::cuda

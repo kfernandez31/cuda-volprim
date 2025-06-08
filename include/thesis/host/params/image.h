@@ -9,8 +9,7 @@
 #include <cstddef>
 #include <filesystem>
 
-namespace thesis {
-namespace host {
+namespace thesis::host::params {
 
 class Image : public Convertible<device::params::Image> {
    private:
@@ -67,5 +66,4 @@ class Image : public Convertible<device::params::Image> {
                         const cuda::StreamHandle& stream) noexcept;
 };
 
-}  // namespace host
-}  // namespace thesis
+}  // namespace thesis::host::params

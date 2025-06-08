@@ -33,9 +33,9 @@ class Renderer {
 
     optix::TriangleGAS gas_;
 
-    host::EnvironmentMap env_map_;
-    host::Image image_;
-    host::Camera camera_;
+    host::params::EnvironmentMap env_map_;
+    host::params::Image image_;
+    host::params::Camera camera_;
     cuda::Buffer<device::params::Primitive> primitives_;
     cuda::Buffer<common::params::LaunchParams> launch_params_;
 

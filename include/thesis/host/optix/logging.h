@@ -2,7 +2,7 @@
 
 #include "thesis/common/utils/types.h"
 
-namespace thesis::optix {
+namespace thesis::host::optix {
 
 // OptiX log levels (matching internal behavior)
 enum class LogLevel : unsigned char {
@@ -17,4 +17,4 @@ enum class LogLevel : unsigned char {
 
 void contextLogCb(uint level, const char* tag, const char* message, void* cbdata);
 
-}  // namespace thesis::optix
+}  // namespace thesis::host::optix

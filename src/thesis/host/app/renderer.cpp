@@ -47,7 +47,7 @@ Renderer::Renderer(const app::Config& config)
       env_map_(config_.env_map_path_),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_),
       camera_([&] {
-          host::Camera cam;
+          host::params::Camera cam;
           cam.aspect_ratio_ = config_.aspect_ratio_;
           cam.image_width_ = config_.image_width_;
           cam.vertical_fov_ = 90.0f;
@@ -94,7 +94,7 @@ void Renderer::initGAS() {
 }
 
 void Renderer::initPrimitives() {
-    std::vector<host::Primitive> host_primitives;
+    std::vector<host::params::Primitive> host_primitives;
 
     glm::vec3 colors[NUM_PRIMITIVES] = {
         // glm::vec3(1.0f, 0.0f, 0.0f),

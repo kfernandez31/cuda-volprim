@@ -7,13 +7,13 @@
 #include <optix_stubs.h>
 #include <optix_types.h>
 
-namespace thesis::optix {
+namespace thesis::host::optix {
 
 class SBTHandle {
    private:
-    thesis::optix::Record<void> raygen_record_;
-    thesis::optix::Record<void> miss_record_;
-    thesis::optix::Record<void> hitgroup_record_;
+    Record<void> raygen_record_;
+    Record<void> miss_record_;
+    Record<void> hitgroup_record_;
     OptixShaderBindingTable sbt_ = {};
 
    public:
@@ -41,4 +41,4 @@ class SBTHandle {
     const OptixShaderBindingTable& get() const noexcept { return sbt_; }
 };
 
-}  // namespace thesis::optix
+}  // namespace thesis::host::optix

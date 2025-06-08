@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace thesis::cuda {
+namespace thesis::host::cuda {
 
 class ContextHandle {
    private:
@@ -51,4 +51,4 @@ class ContextHandle {
     [[nodiscard]] CUdevice device() const noexcept { return device_; }
 };
 
-}  // namespace thesis::cuda
+}  // namespace thesis::host::cuda

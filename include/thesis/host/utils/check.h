@@ -8,11 +8,9 @@
 #include <cstdlib>
 #include <spdlog/spdlog.h>
 
-namespace thesis {
+namespace thesis::host::utils {
 
-namespace logging {
-constexpr auto MAX_LOG_SIZE = 2048u;
-}  // namespace logging
+constexpr size_t MAX_LOG_SIZE = 2048;
 
 template <bool exit_on_error = true>
 inline void cudaCheck(cudaError_t err, const char* file, int line) noexcept {
@@ -59,24 +57,24 @@ inline void checkNotNull(const T* ptr, const char* expr, const char* file, int l
     }
 }
 
-}  // namespace thesis
+}  // namespace thesis::host::utils
 
-#define CUDA_CHECK(call) thesis::cudaCheck<true>((call), __FILE__, __LINE__)
-#define CUDA_CHECK_NOEXCEPT(call) thesis::cudaCheck<false>((call), __FILE__, __LINE__)
+#define CUDA_CHECK(call) thesis::host::utils::cudaCheck<true>((call), __FILE__, __LINE__)
+#define CUDA_CHECK_NOEXCEPT(call) thesis::host::utils::cudaCheck<false>((call), __FILE__, __LINE__)
 
-#define OPTIX_CHECK(call) thesis::optixCheck<true>((call), __FILE__, __LINE__)
-#define OPTIX_CHECK_NOEXCEPT(call) thesis::optixCheck<false>((call), __FILE__, __LINE__)
+#define OPTIX_CHECK(call) thesis::host::utils::optixCheck<true>((call), __FILE__, __LINE__)
+#define OPTIX_CHECK_NOEXCEPT(call) thesis::host::utils::optixCheck<false>((call), __FILE__, __LINE__)
 
-#define CU_CHECK(call) thesis::cuCheck<true>((call), __FILE__, __LINE__)
-#define CU_CHECK_NOEXCEPT(call) thesis::cuCheck<false>((call), __FILE__, __LINE__)
+#define CU_CHECK(call) thesis::host::utils::cuCheck<true>((call), __FILE__, __LINE__)
+#define CU_CHECK_NOEXCEPT(call) thesis::host::utils::cuCheck<false>((call), __FILE__, __LINE__)
 
 #define CHECK_NOT_NULL(ptr, ...) \
-    thesis::checkNotNull((ptr), #ptr, __FILE__, __LINE__, ##__VA_ARGS__)
+    thesis::host::utils::checkNotNull((ptr), #ptr, __FILE__, __LINE__, ##__VA_ARGS__)
 
 #define OPTIX_CALL_LOGGED(call)                                                                  \
     do {                                                                                         \
-        std::array<char, thesis::logging::MAX_LOG_SIZE> log = {};                                \
-        size_t log_size = thesis::logging::MAX_LOG_SIZE;                                         \
+        std::array<char, thesis::host::utils::MAX_LOG_SIZE> log = {};                            \
+        size_t log_size = log.size();                                                            \
         const OptixResult res = (call);                                                          \
         if (log_size > 1 && log[0] != '\0') {                                                    \
             spdlog::debug("OptiX Log: {}", log.data());                                          \

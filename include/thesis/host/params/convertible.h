@@ -1,7 +1,6 @@
 #pragma once
 
-namespace thesis {
-namespace host {
+namespace thesis::host::params {
 
 template <typename DeviceType>
 class Convertible {
@@ -11,5 +10,4 @@ class Convertible {
     [[nodiscard]] virtual DeviceType toDevice() const noexcept = 0;
 };
 
-}  // namespace host
-}  // namespace thesis
+}  // namespace thesis::host::params
