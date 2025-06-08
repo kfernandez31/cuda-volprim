@@ -14,7 +14,7 @@ class PtxHandle {
     std::string data_;
 
    public:
-    static core::Result<PtxHandle> load(const std::filesystem::path& filename) noexcept {
+    static utils::Result<PtxHandle> load(const std::filesystem::path& filename) noexcept {
         PtxHandle result;
         TRY_ASSIGN(result.data_, utils::io::readFileToString(filename));
         return result;

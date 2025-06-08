@@ -39,11 +39,11 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) noexcept 
 
 namespace thesis::host::utils::io {
 
-core::Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept {
+Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept {
     try {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
         if (!file) {
-            return core::make_error("Failed to open file: {}", filename.string());
+            return make_error("Failed to open file: {}", filename.string());
         }
 
         std::string ptx(file.tellg(), '\0');
@@ -52,11 +52,11 @@ core::Result<std::string> readFileToString(const std::filesystem::path& filename
 
         return ptx;
     } catch (const std::exception& e) {
-        return core::make_error("Exception in readFileToString: {}", e.what());
+        return make_error("Exception in readFileToString: {}", e.what());
     }
 }
 
-core::Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
                             const std::filesystem::path& filename, bool flip_vertical) noexcept {
     try {
         constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
@@ -113,12 +113,12 @@ core::Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, s
             TINYEXR_SUCCESS) {
             std::string err_msg(err);
             FreeEXRErrorMessage(err);
-            return core::make_error("EXR save failed: {}", err_msg);
+            return make_error("EXR save failed: {}", err_msg);
         }
 
         return {};
     } catch (const std::exception& e) {
-        return core::make_error("Exception in saveExrImage: {}", e.what());
+        return make_error("Exception in saveExrImage: {}", e.what());
     }
 }
 

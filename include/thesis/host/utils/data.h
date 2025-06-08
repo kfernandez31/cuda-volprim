@@ -7,7 +7,7 @@
 #include <span>
 #include <type_traits>
 
-namespace thesis::host::data {
+namespace thesis::host::utils::data {
 
 template <typename To, typename From>
 inline std::span<const To> reinterpretSpan(std::span<const From> src) {
@@ -25,4 +25,4 @@ inline glm::vec3 toVec3(const float3& v) noexcept {
     return {v.x, v.y, v.z};
 }
 
-}  // namespace thesis::host::data
+}  // namespace thesis::host::utils::data

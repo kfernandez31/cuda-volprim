@@ -63,7 +63,7 @@ __forceinline__ __device__ float optical_depth_accumulated(
     auto tau = 0.0f;
 
     for (auto idx : prims) {
-        const auto& prim = params.primitives_[idx];
+        const auto& prim = launch_params.primitives_[idx];
         tau += prim.optical_depth(ray, segment);
     }
 
@@ -79,7 +79,7 @@ __forceinline__ __device__ float3 integrate_primitives(
     float3 result = make_float3(0.0f);
 
     for (auto idx : prims) {
-        const auto& prim = params.primitives_[idx];
+        const auto& prim = launch_params.primitives_[idx];
         result += prim.density_integral(ray, t);
     }
 
@@ -121,7 +121,7 @@ __device__ __forceinline__ float3 evaluate_albedo(
     auto accum_weight = 0.0f;
 
     for (auto idx : prims) {
-        const auto& prim = params.primitives_[idx];
+        const auto& prim = launch_params.primitives_[idx];
 
         const auto sigma_t = prim.optical_depth_scale_;  // extinction coefficient
         const auto albedo = prim.albedo_;
@@ -184,7 +184,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         tau_cumulative += tau_segment;
     }
 
-    auto color = params.env_map_.sample(ray.direction_);
+    auto color = launch_params.env_map_.sample(ray.direction_);
     miss = payloads::Miss(color);
     return false;
 }

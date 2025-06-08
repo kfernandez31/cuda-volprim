@@ -21,12 +21,6 @@ class Image : public Convertible<device::params::Image> {
     cuda::Buffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
     cuda::Buffer<float3> averaged_pixels_;  // Single-layer output
 
-    void average(const cuda::StreamHandle& stream) {
-        device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
-                                            width_, height_, num_samples_per_pixel_, stream.get());
-        averaged_pixels_.download();
-    }
-
    public:
     Image() = default;
 
@@ -40,11 +34,8 @@ class Image : public Convertible<device::params::Image> {
         : width_(width),
           height_(height),
           num_samples_per_pixel_(num_samples_per_pixel),
-          sample_buffer_(width * height * num_samples_per_pixel),
-          averaged_pixels_(width * height) {}
-
-    [[nodiscard]] float3* host() noexcept { return sample_buffer_.host(); }
-    [[nodiscard]] const float3* host() const noexcept { return sample_buffer_.host(); }
+          sample_buffer_(cuda::Buffer<float3>::onDeviceOnly(total_size())),
+          averaged_pixels_(pixel_count()) {}
 
     [[nodiscard]] size_t width() const noexcept { return width_; }
     [[nodiscard]] size_t height() const noexcept { return height_; }
@@ -60,19 +51,21 @@ class Image : public Convertible<device::params::Image> {
     }
 
     [[nodiscard]] device::params::Image toDevice() const noexcept override {
-        device::params::Image result;
-        result.sample_buffer_ = const_cast<float3*>(sample_buffer_.device());
-        result.width_ = width_;
-        result.height_ = height_;
-        result.num_samples_per_pixel_ = num_samples_per_pixel_;
-        return result;
+        device::params::Image img;
+        img.sample_buffer_ = const_cast<float3*>(sample_buffer_.device());
+        img.width_ = width_;
+        img.height_ = height_;
+        img.num_samples_per_pixel_ = num_samples_per_pixel_;
+        return img;
     }
 
-    [[nodiscard]] core::Result<> save(const std::filesystem::path& filename,
-                        const cuda::StreamHandle& stream) noexcept {
-        average(stream);
-        return utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
-    }
+    void save(const std::filesystem::path& filename, cudaStream_t stream) {
+        device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
+                                              width_, height_, num_samples_per_pixel_, stream);
+        averaged_pixels_.download();
+        // TODO(kacper): fix asap
+        // core::try_unwrap_or_exit(utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename));
+    }    
 };
 
 }  // namespace thesis::host::params

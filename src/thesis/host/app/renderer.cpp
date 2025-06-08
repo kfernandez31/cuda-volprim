@@ -46,17 +46,7 @@ Renderer::Renderer(const app::Config& config)
       stream_(),
       env_map_(config_.env_map_path_),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_),
-      camera_([&] {
-          host::params::Camera cam;
-          cam.aspect_ratio_ = config_.aspect_ratio_;
-          cam.image_width_ = config_.image_width_;
-          cam.vertical_fov_ = 90.0f;
-          cam.lookfrom_ = glm::vec3(0.0f, 0.0f, -2.0f);
-          cam.lookat_ = glm::vec3(0.0f, 0.0f, 0.0f);
-          cam.vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
-          cam.build();
-          return cam;
-      }()) {
+      camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)) {
     initGAS();
     initPrimitives();
     createPipeline();
@@ -89,8 +79,8 @@ void Renderer::initGAS() {
     }
 
     gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(),
-                              data::reinterpretSpan<float3, glm::vec3>(all_vertices),
-                              data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
+                              utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
+                              utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
 }
 
 void Renderer::initPrimitives() {
@@ -178,7 +168,7 @@ void Renderer::createHitgroupPG() {
 
 void Renderer::createPipeline() {
     auto ptx =
-        core::try_unwrap_or_exit<optix::PtxHandle>(optix::PtxHandle::load(config_.ptx_path_));
+        utils::try_unwrap_or_exit<optix::PtxHandle>(optix::PtxHandle::load(config_.ptx_path_));
     spdlog::info("PTX loaded ({} bytes)", ptx.size());
 
     OptixModuleCompileOptions mco = {};
@@ -217,8 +207,9 @@ void Renderer::render() {
     cuda::StreamHandle::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
-    core::try_unwrap_or_exit(image_.save(config_.output_path_, stream_));
+    // TODO(kacper): fix asap
+    // utils::try_unwrap_or_exit(image_.save(config_.output_path_, stream_.get()));
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 
-}  // namespace thesis::host:;app
+}  // namespace thesis::host::app

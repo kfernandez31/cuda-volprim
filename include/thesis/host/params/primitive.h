@@ -55,8 +55,8 @@ class Primitive : public Convertible<device::params::Primitive> {
         // clang-format off
         return device::params::Primitive(
             host::geometry::toDevice(M_for_integrating_inv_),
-            data::toFloat3(S_diag_squared_),
-            data::toFloat3(albedo_),
+            utils::data::toFloat3(S_diag_squared_),
+            utils::data::toFloat3(albedo_),
             optical_depth_scale_,
             common::math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_))
         );

@@ -9,7 +9,7 @@
 extern "C" __global__ void __miss__ms() {
     using namespace thesis::device;
     const auto ray_direction = optixGetWorldRayDirection();
-    const auto color = params.env_map_.sample(ray_direction);
+    const auto color = launch_params.env_map_.sample(ray_direction);
 
     payloads::Miss p;
     p.r = color.x;

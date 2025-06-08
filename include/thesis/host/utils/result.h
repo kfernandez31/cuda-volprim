@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <expected>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -26,7 +27,7 @@
         }                                                \
     } while (0)
 
-namespace thesis::host::core {
+namespace thesis::host::utils {
 
 struct Unit {
     constexpr bool operator==(Unit) const noexcept { return true; }
@@ -39,8 +40,8 @@ struct Error;
 template <typename T = Unit>
 using Result = std::expected<T, Error>;
 
-template <typename T = void>
-T try_unwrap_or_exit(std::expected<T, Error>&& res) {
+template <typename T = Unit>
+T try_unwrap_or_exit(Result<T>&& res) {
     if (!res) {
         const Error& err = res.error();
         spdlog::error("Fatal: {} (code {})", err.msg_, err.code_);
@@ -62,6 +63,8 @@ struct Error {
     Error(int code, std::string&& msg) : code_(code), msg_(std::move(msg)) {}
     explicit Error(std::string_view msg) : Error(errno, msg) {}
 
+    static Error fromErrno() { return Error(errno, std::string_view(std::strerror(errno))); }
+
     template <typename... Args>
     Error(int code, fmt::format_string<Args...> fmt_str, Args&&... args)
         : code_(code), msg_(fmt::format(fmt_str, std::forward<Args>(args)...)) {}
@@ -79,4 +82,14 @@ struct Error {
         : Error(errno, fmt_str, std::forward<Args>(args)...) {}
 };
 
-}  // namespace thesis::host::core
+}  // namespace thesis::host::utils
+
+template <>
+struct fmt::formatter<thesis::host::utils::Error> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template <typename FormatContext>
+    auto format(const thesis::host::utils::Error& err, FormatContext& ctx) const {
+        return fmt::format_to(ctx.out(), "[code={}] {}", err.code_, err.msg_);
+    }
+};

@@ -13,7 +13,7 @@ void initLogging() {
     spdlog::set_level(spdlog::level::info);
 #endif  // DEBUG
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
-    spdlog::info("Starting OptiX application");
+    spdlog::info("Starting application, logging enabled.");
 }
 
 }  // namespace thesis::host::app::logging

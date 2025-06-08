@@ -53,7 +53,7 @@ __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min
     uint ps[payloads::MAX_PAYLOADS] = {};
 
     optixTrace(
-        params.gas_handle_,
+        launch_params.gas_handle_,
         ray.origin_,
         ray.direction_,
         t_min + eps,       // Min intersection distance

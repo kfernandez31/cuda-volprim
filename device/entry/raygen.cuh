@@ -35,19 +35,19 @@ extern "C" __global__ void __raygen__rg() {
     const auto launch_idx = optixGetLaunchIndex();
 
     // RNG setup
-    const auto global_sample_idx = params.image_.getGlobalSampleIndex(launch_idx);
+    const auto global_sample_idx = launch_params.image_.getGlobalSampleIndex(launch_idx);
     curandState rng;
-    curand_init(params.seed_, global_sample_idx, 0, &rng);
+    curand_init(launch_params.seed_, global_sample_idx, 0, &rng);
 
     // Ray setup
     const auto pixel_idx = make_uint2(launch_idx.x, launch_idx.y);
     const auto jitter = random::sample_uniform_2d(rng, 0.5f);
-    auto ray = params.camera_.jittered_ray(pixel_idx, jitter);
+    auto ray = launch_params.camera_.jittered_ray(pixel_idx, jitter);
 
     auto throughput = make_float3(1.0f);
     auto radiance = make_float3(0.0f);
 
-    ScatteringEvent<consts::MAX_PRIMS> event;
+    optix::ScatteringEvent<consts::MAX_PRIMS> event;
     payloads::Miss miss;
 
     for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
@@ -62,7 +62,7 @@ extern "C" __global__ void __raygen__rg() {
 
         // Evaluate albedo and environment lighting
         auto albedo = evaluate_albedo(event.position_, event.active_prims_);
-        auto env = params.env_map_.sample(event.direction_);
+        auto env = launch_params.env_map_.sample(event.direction_);
         radiance += throughput * albedo * env * consts::PHASE_VALUE;
 
         // Update energy by scattered amount (albedo)
@@ -89,5 +89,5 @@ extern "C" __global__ void __raygen__rg() {
         event.active_prims_.clear();
     }
 
-    params.image_[global_sample_idx] = radiance;
+    launch_params.image_[global_sample_idx] = radiance;
 }
