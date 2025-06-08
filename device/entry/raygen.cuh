@@ -83,7 +83,7 @@ extern "C" __global__ void __raygen__rg() {
         }
 
         // Prepare next ray
-        ray = Ray::spawn(event.position_, event.direction_);
+        ray = geometry::Ray::spawn(event.position_, event.direction_);
 
         // Clear active prims
         event.active_prims_.clear();

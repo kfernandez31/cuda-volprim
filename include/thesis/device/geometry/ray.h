@@ -14,6 +14,7 @@
 
 namespace thesis {
 namespace device {
+namespace geometry {
 
 class THESIS_ALIGNMENT Ray {
    private:
@@ -64,5 +65,6 @@ class THESIS_ALIGNMENT Ray {
 #endif  // __CUDACC__
 };
 
+}  // namespace matrix
 }  // namespace device
 }  // namespace thesis

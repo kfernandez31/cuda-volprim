@@ -8,6 +8,7 @@
 
 namespace thesis {
 namespace device {
+namespace geometry {
 
 class Matrix3x4 {
    private:
@@ -53,5 +54,6 @@ class Matrix3x4 {
 #endif  // __CUDACC__
 };
 
+}  // namespace geometry
 }  // namespace device
 }  // namespace thesis

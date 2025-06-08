@@ -56,7 +56,7 @@ __forceinline__ __device__ float sample_target_optical_depth(float uniform_sampl
 }
 
 __forceinline__ __device__ float optical_depth_accumulated(
-    const Ray& ray,
+    const geometry::Ray& ray,
     float2 segment,
     const PrimsSet& prims
 ) {
@@ -72,7 +72,7 @@ __forceinline__ __device__ float optical_depth_accumulated(
 
 template <typename T>
 __forceinline__ __device__ float3 integrate_primitives(
-    const Ray& ray,
+    const geometry::Ray& ray,
     T t,
     const PrimsSet& prims
 ) {
@@ -89,7 +89,7 @@ __forceinline__ __device__ float3 integrate_primitives(
 // TODO(kacper) potential to optimize: don't invert, select random position on the segment which we call the ... and here the conversation with Jorge broke so I don't know what he meant
 // bisection solver for τ(t) = χ
 __device__ float sample_distance_bisection(
-    const Ray& ray,
+    const geometry::Ray& ray,
     float2 segment,
     float tau_needed,
     const PrimsSet& prims
@@ -137,7 +137,7 @@ __device__ __forceinline__ float3 evaluate_albedo(
     return (accum_weight > 0.0f) ? accum_albedo / accum_weight : make_float3(0.0f);
 }
 
-__device__ bool sample_scattering_event(const Ray& ray, curandState& rng, ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
+__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
     auto t_total = 0.0f;
     auto tau_cumulative = 0.0f;
     
@@ -189,7 +189,7 @@ __device__ bool sample_scattering_event(const Ray& ray, curandState& rng, Scatte
     return false;
 }
 
-__device__ float3 compute_optical_depth_along_ray(const Ray& ray) {
+__device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
     auto acc_optical_depth = make_float3(0.0f);
     auto t_old = 0.0f;
 

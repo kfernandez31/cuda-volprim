@@ -49,7 +49,7 @@ constexpr auto INF_F = 1e20f;
 constexpr auto VISIBILITY_ALL = 0xFFu;
 
 template <uint FLAGS>
-__device__ __forceinline__ auto trace_impl(const Ray& ray, float t_min, float eps=1e-8f) {
+__device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=1e-8f) {
     uint ps[payloads::MAX_PAYLOADS] = {};
 
     optixTrace(
@@ -61,8 +61,8 @@ __device__ __forceinline__ auto trace_impl(const Ray& ray, float t_min, float ep
         0.0f,                  // Disable motion blur
         VISIBILITY_ALL,
         FLAGS,
-        Ray::Type::RADIANCE,   // SBT offset
-        Ray::Type::COUNT,      // SBT stride
+        geometry::Ray::Type::RADIANCE,   // SBT offset
+        geometry::Ray::Type::COUNT,      // SBT stride
         0,                     // miss SBT index: first miss program
         TRACE_PAYLOADS_3(ps)
     );
@@ -83,11 +83,11 @@ __device__ __forceinline__ auto trace_impl(const Ray& ray, float t_min, float ep
     return result;
 }
 
-__device__ __forceinline__ auto trace_ch(const Ray& ray, float t_min) {
+__device__ __forceinline__ auto trace_ch(const geometry::Ray& ray, float t_min) {
     return trace_impl<OPTIX_RAY_FLAG_DISABLE_ANYHIT>(ray, t_min);
 }
 
-__device__ __forceinline__ auto trace_ah(const Ray& ray, float t_min) {
+__device__ __forceinline__ auto trace_ah(const geometry::Ray& ray, float t_min) {
     return trace_impl<OPTIX_RAY_FLAG_ENFORCE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT>(ray, t_min);
 }
 

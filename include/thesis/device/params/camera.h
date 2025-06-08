@@ -22,10 +22,10 @@ class THESIS_ALIGNMENT Camera {
     float3 pixel_du_;
     float3 pixel_dv_;
 #ifdef __CUDACC__
-    __forceinline__ __device__ Ray jittered_ray(uint2 pixel, float2 jitter) const noexcept {
+    __forceinline__ __device__ geometry::Ray jittered_ray(uint2 pixel, float2 jitter) const noexcept {
         const auto p = make_float2(pixel.x + jitter.x, pixel.y + jitter.y);
         const auto dir = ray_direction(p);
-        return Ray::spawn(eye_, dir);
+        return geometry::Ray::spawn(eye_, dir);
     }
 #endif  // __CUDACC__
 };
