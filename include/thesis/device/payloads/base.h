@@ -45,6 +45,7 @@ struct THESIS_ALIGNMENT Base {
         optixSetPayload_##n(payloads[(n)]);
 
         switch (Derived::Count - 1) {
+            // clang-format off
             CASE(31);
             CASE(30);
             CASE(29);

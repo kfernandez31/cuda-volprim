@@ -10,9 +10,6 @@ namespace thesis {
 namespace device {
 namespace utils {
 
-//
-// === Static Storage ===
-//
 template <typename T, size_t Capacity>
 struct StaticStorage {
     T data_[Capacity];
@@ -23,9 +20,6 @@ struct StaticStorage {
     static constexpr size_t capacity = Capacity;
 };
 
-//
-// === Dynamic Storage ===
-//
 template <typename T>
 struct DynamicStorage {
     size_t capacity_ = 0;
@@ -56,9 +50,6 @@ struct DynamicStorage {
     THESIS_INLINE THESIS_HOST_DEVICE size_t capacity() const noexcept { return capacity_; }
 };
 
-//
-// === VectorBase ===
-//
 template <typename T, typename Storage>
 class VectorBase : private Storage {
    protected:
@@ -98,16 +89,18 @@ class VectorBase : private Storage {
     THESIS_INLINE THESIS_HOST_DEVICE void clear() noexcept { size_ = 0; }
 
     THESIS_INLINE THESIS_HOST_DEVICE bool push_back(const T& value) noexcept {
-        if (full())
+        if (full()) {
             return false;
+        }
         data()[size_++] = value;
         return true;
     }
 
     template <typename... Args>
     THESIS_INLINE THESIS_HOST_DEVICE bool emplace_back(Args&&... args) noexcept {
-        if (full())
+        if (full()) {
             return false;
+        }
         data()[size_++] = T(utility::forward<Args>(args)...);
         return true;
     }
@@ -120,15 +113,14 @@ class VectorBase : private Storage {
 
     THESIS_INLINE THESIS_HOST_DEVICE T* begin() noexcept { return data(); }
     THESIS_INLINE THESIS_HOST_DEVICE T* end() noexcept { return data() + size_; }
+
     THESIS_INLINE THESIS_HOST_DEVICE const T* begin() const noexcept { return data(); }
     THESIS_INLINE THESIS_HOST_DEVICE const T* end() const noexcept { return data() + size_; }
+
     THESIS_INLINE THESIS_HOST_DEVICE const T* cbegin() const noexcept { return data(); }
     THESIS_INLINE THESIS_HOST_DEVICE const T* cend() const noexcept { return data() + size_; }
 };
 
-//
-// === Aliases ===
-//
 template <typename T, size_t Capacity>
 using StaticVector = VectorBase<T, StaticStorage<T, Capacity>>;
 

@@ -1258,6 +1258,9 @@ SUTIL_INLINE SUTIL_HOSTDEVICE uint3 max(const uint3& a, const uint3& b) {
 SUTIL_INLINE SUTIL_HOSTDEVICE uint3 operator+(const uint3& a, const uint3& b) {
     return make_uint3(a.x + b.x, a.y + b.y, a.z + b.z);
 }
+SUTIL_INLINE SUTIL_HOSTDEVICE uint3 operator+(const uint3& a, const unsigned int b) {
+    return make_uint3(a.x + b, a.y + b, a.z + b);
+}
 SUTIL_INLINE SUTIL_HOSTDEVICE void operator+=(uint3& a, const uint3& b) {
     a.x += b.x;
     a.y += b.y;

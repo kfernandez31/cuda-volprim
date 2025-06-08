@@ -2,9 +2,11 @@
 
 #include "thesis/device/params/image.h"
 #include "thesis/host/cuda/buffer.h"
+#include "thesis/host/utils/io.h"
 #include "thesis/host/cuda/stream_handle.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/result.h"
+#include "kernels/average_samples.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -19,7 +21,11 @@ class Image : public Convertible<device::params::Image> {
     cuda::Buffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
     cuda::Buffer<float3> averaged_pixels_;  // Single-layer output
 
-    void average(const cuda::StreamHandle& stream);
+    void average(const cuda::StreamHandle& stream) {
+        device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
+                                            width_, height_, num_samples_per_pixel_, stream.get());
+        averaged_pixels_.download();
+    }
 
    public:
     Image() = default;
@@ -62,8 +68,11 @@ class Image : public Convertible<device::params::Image> {
         return result;
     }
 
-    core::Result<> save(const std::filesystem::path& filename,
-                        const cuda::StreamHandle& stream) noexcept;
+    [[nodiscard]] core::Result<> save(const std::filesystem::path& filename,
+                        const cuda::StreamHandle& stream) noexcept {
+        average(stream);
+        return utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
+    }
 };
 
 }  // namespace thesis::host::params

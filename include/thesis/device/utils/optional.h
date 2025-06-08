@@ -18,8 +18,8 @@ struct Optional {
     bool has_value_;
     T value_;
 
-    THESIS_HOST_DEVICE Optional() : has_value_(false) {}
-    THESIS_HOST_DEVICE Optional(NullOptTag) : has_value_(false) {}
+    THESIS_HOST_DEVICE Optional() noexcept : has_value_(false) {}
+    THESIS_HOST_DEVICE Optional(NullOptTag) noexcept : has_value_(false) {}
 
     THESIS_INLINE THESIS_HOST_DEVICE Optional(const T& v) noexcept : has_value_(true), value_(v) {}
 
@@ -28,11 +28,11 @@ struct Optional {
 
     THESIS_HOST_DEVICE Optional(Optional&& other) noexcept
         : has_value_(utility::exchange(other.has_value_, false)),
-          value_(utility::exchange(other.value_, 0)) {}
+          value_(utility::exchange(other.value_, T{})) {}
 
     THESIS_INLINE THESIS_HOST_DEVICE Optional& operator=(Optional&& other) noexcept {
         has_value_ = utility::exchange(other.has_value_, false);
-        value_ = utility::exchange(other.value_, 0);
+        value_ = utility::exchange(other.value_, T{});
         return *this;
     }
 
@@ -78,7 +78,7 @@ struct Optional {
 };
 
 template <typename T, typename... Args>
-THESIS_INLINE THESIS_HOST_DEVICE Optional<T> make_optional(Args&&... args) {
+THESIS_INLINE THESIS_HOST_DEVICE Optional<T> make_optional(Args&&... args) noexcept {
     return Optional<T>(utility::forward<Args>(args)...);
 }
 

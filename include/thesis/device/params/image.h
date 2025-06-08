@@ -25,6 +25,7 @@ struct THESIS_ALIGNMENT Image {
     __forceinline__ __device__ float3& operator[](size_t global_idx) noexcept {
         return sample_buffer_[global_idx];
     }
+
     __forceinline__ __device__ const float3& operator[](size_t global_idx) const noexcept {
         return sample_buffer_[global_idx];
     }

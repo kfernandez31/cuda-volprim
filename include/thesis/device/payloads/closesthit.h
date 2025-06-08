@@ -9,7 +9,7 @@ namespace device {
 namespace payloads {
 
 struct THESIS_ALIGNMENT ClosestHit : public Base<ClosestHit, Tag::ClosestHit> {
-    static constexpr int Count = 1 + 3;
+    static constexpr size_t Count = 1 + 3;
 
     float t_hit;
     uint prim_idx;

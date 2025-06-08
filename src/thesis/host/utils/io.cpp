@@ -37,7 +37,7 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) noexcept 
 
 }  // namespace
 
-namespace thesis::host::io {
+namespace thesis::host::utils::io {
 
 core::Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept {
     try {
@@ -122,4 +122,4 @@ core::Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, s
     }
 }
 
-}  // namespace thesis::host::io
+}  // namespace thesis::host::utils::io

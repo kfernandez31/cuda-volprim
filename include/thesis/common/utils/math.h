@@ -29,31 +29,42 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr float pow2(float a) noexcept {
     return a * a;
 }
 
-THESIS_HOST_DEVICE THESIS_INLINE constexpr float clamp(float x, float min_val,
-                                                       float max_val) noexcept {
-    return x < min_val ? min_val : (x > max_val ? max_val : x);
-}
-
 THESIS_HOST_DEVICE THESIS_INLINE constexpr float3 pow2(float3 v) noexcept {
     return {pow2(v.x), pow2(v.y), pow2(v.z)};
 }
 
 template <typename T>
-THESIS_INLINE THESIS_HOST_DEVICE constexpr float max(T a, T b) noexcept {
-    return a > b ? a : b;
+THESIS_INLINE THESIS_HOST_DEVICE constexpr T min(T a) noexcept {
+    return a;
+}
+
+template <typename T, typename... Ts>
+THESIS_INLINE THESIS_HOST_DEVICE constexpr T min(T a, Ts... args) noexcept {
+    T m = min(args...);
+    return a < m ? a : m;
+}
+
+THESIS_INLINE THESIS_HOST_DEVICE constexpr float min(float3 v) noexcept {
+    return min(min(v.x, v.y), v.z);
 }
 
 template <typename T>
-THESIS_INLINE THESIS_HOST_DEVICE constexpr float min(T a, T b) noexcept {
-    return a < b ? a : b;
+THESIS_INLINE THESIS_HOST_DEVICE constexpr T max(T a) noexcept {
+    return a;
+}
+
+template <typename T, typename... Ts>
+THESIS_INLINE THESIS_HOST_DEVICE constexpr T max(T a, Ts... args) noexcept {
+    T m = max(args...);
+    return a > m ? a : m;
 }
 
 THESIS_INLINE THESIS_HOST_DEVICE constexpr float max(float3 v) noexcept {
     return max(max(v.x, v.y), v.z);
 }
 
-THESIS_INLINE THESIS_HOST_DEVICE constexpr float min(float3 v) noexcept {
-    return min(min(v.x, v.y), v.z);
+THESIS_HOST_DEVICE THESIS_INLINE constexpr float clamp(float x, float lo, float hi) noexcept {
+    return max(lo, min(x, hi));
 }
 
 THESIS_INLINE THESIS_HOST_DEVICE constexpr float sum(float3 v) noexcept {
@@ -65,8 +76,8 @@ THESIS_INLINE THESIS_HOST_DEVICE constexpr float prod(float3 v) noexcept {
 }
 
 template <typename T>
-THESIS_INLINE THESIS_HOST_DEVICE constexpr T ceil_div(T numerator, T denominator) noexcept {
-    return (numerator + denominator - 1) / denominator;
+THESIS_INLINE THESIS_HOST_DEVICE constexpr T ceil_div(T num, T den) noexcept {
+    return (num + den - 1) / den;
 }
 
 }  // namespace math

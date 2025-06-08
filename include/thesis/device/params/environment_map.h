@@ -22,14 +22,16 @@ struct THESIS_ALIGNMENT EnvironmentMap {
     __forceinline__ __device__ float3 sample(float3 dir) const noexcept {
         namespace math = common::math;
 
+        assert(data_ != nullptr);
+
         const auto theta = atan2f(dir.z, dir.x);
         const auto phi = acosf(math::clamp(dir.y, -1.0f, 1.0f));
 
         const auto u = (theta + math::PI_F) * math::ONE_OVER_TWO_PI_F;
         const auto v = phi * math::ONE_OVER_PI_F;
 
-        const auto x = static_cast<size_t>(u * width_) % width_;
-        const auto y = static_cast<size_t>(v * height_) % height_;
+        const auto x = math::min(static_cast<size_t>(u * width_), width_ - 1);
+        const auto y = math::min(static_cast<size_t>(v * height_), height_ - 1);
         const auto idx = (y * width_ + x) * num_channels_;
 
         return make_float3(data_[idx + 0], data_[idx + 1], data_[idx + 2]);

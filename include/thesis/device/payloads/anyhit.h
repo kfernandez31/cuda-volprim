@@ -9,7 +9,7 @@ namespace device {
 namespace payloads {
 
 struct THESIS_ALIGNMENT AnyHit : public Base<AnyHit, Tag::AnyHit> {
-    static constexpr int Count = 1;
+    static constexpr size_t Count = 1 + 0;
 
     // empty for now
 
