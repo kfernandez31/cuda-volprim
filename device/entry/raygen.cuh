@@ -22,7 +22,7 @@ constexpr auto MAX_BOUNCES         = 500u;
 constexpr auto RUSSIAN_ROULETTE_DEPTH = 3u;
 constexpr auto MIN_THROUGHPUT      = 1e-3f;
 constexpr auto RR_MAX_SURVIVAL     = 0.99f;
-constexpr auto PHASE_VALUE = math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
+constexpr auto PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
 
 } // namespace consts
 } // namespace device
@@ -30,7 +30,7 @@ constexpr auto PHASE_VALUE = math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere sur
 
 extern "C" __global__ void __raygen__rg() {
     using namespace thesis::device;
-    namespace math = thesis::math;
+    namespace math = thesis::common::math;
 
     const auto launch_idx = optixGetLaunchIndex();
 

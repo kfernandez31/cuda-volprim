@@ -30,6 +30,8 @@ class THESIS_ALIGNMENT Primitive {
 
     // ~54 FLOPs, ~60–80 cycles
     __device__ OpticalCoefficients compute_optical_coeffs(const Ray& r_global) const noexcept {
+        namespace math = common::math;
+
         const auto r_local = r_global.transformed(M_for_integrating_inv_);
         const auto& x = r_local.origin_;
         const auto& w = r_local.direction_;
@@ -56,7 +58,7 @@ class THESIS_ALIGNMENT Primitive {
                                                        float erf_min,
                                                        float erf_max) const noexcept {
         return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * (erf_max - erf_min) *
-               math::ONE_OVER_TWO_PI_F;
+               common::math::ONE_OVER_TWO_PI_F;
     }
 #endif  // __CUDACC__
 
@@ -74,7 +76,7 @@ class THESIS_ALIGNMENT Primitive {
 
     // clang-format off
     Primitive(
-        const Matrix3x4& M_for_integrating_inv, 
+        const Matrix3x4& M_for_integrating_inv,
         float3 S_diag_squared,
         float3 albedo,
         float optical_depth_scale,
@@ -92,6 +94,8 @@ class THESIS_ALIGNMENT Primitive {
 #ifdef __CUDACC__
     // TODO(kacper): validate w/Jorge
     __inline__ __device__ float kernel_pdf(const float3& pos) const noexcept {
+        namespace math = common::math;
+
         // Transform the point into the local space of the primitive
         const auto local = Matrix3x4::transform<true>(M_for_integrating_inv_, pos);
 
@@ -105,7 +109,7 @@ class THESIS_ALIGNMENT Primitive {
     __inline__ __device__ float optical_depth(const Ray& ray_global) const noexcept {
         const auto coeffs = compute_optical_coeffs(ray_global);
 
-        return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * math::ONE_OVER_PI_F;
+        return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * common::math::ONE_OVER_PI_F;
     }
 
     // [t_min, t_max]

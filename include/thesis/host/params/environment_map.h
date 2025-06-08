@@ -21,7 +21,6 @@ class EnvironmentMap : public Convertible<device::EnvironmentMap> {
     size_t height_ = 0;
     size_t num_channels_ = 0;
     cuda::Buffer<float> device_data_;
-    float3 fallback_bg_color_ = {};
 
    public:
     explicit EnvironmentMap(const std::filesystem::path& filepath) {
@@ -49,7 +48,6 @@ class EnvironmentMap : public Convertible<device::EnvironmentMap> {
     [[nodiscard]] device::EnvironmentMap toDevice() const noexcept override {
         device::EnvironmentMap result;
         result.data_ = const_cast<float*>(device_data_.device());
-        result.fallback_bg_color_ = fallback_bg_color_;
         result.width_ = width_;
         result.height_ = height_;
         result.num_channels_ = num_channels_;

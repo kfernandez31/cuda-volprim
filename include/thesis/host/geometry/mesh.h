@@ -52,8 +52,8 @@ class Mesh {
 
 template <size_t N>
 struct Icosphere : public Mesh {
-    static constexpr size_t NumVertices = 10 * math::pow<size_t>(4, N) + 2;
-    static constexpr size_t NumIndices = 20 * math::pow<size_t>(4, N);
+    static constexpr size_t NumVertices = 10 * common::math::pow<size_t>(4, N) + 2;
+    static constexpr size_t NumIndices = 20 * common::math::pow<size_t>(4, N);
 
     explicit Icosphere(float t)
         : Mesh(

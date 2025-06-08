@@ -30,6 +30,7 @@ namespace consts {
 using PrimsSet = utils::Set<uint, consts::MAX_PRIMS>;
 
 __forceinline__ __device__ float3 sample_phase(curandState& rng) {
+    namespace math = thesis::common::math;
     // Isotropic phase function: uniform over sphere
     // Role:
     // Determines in which direction light scatters after the event.

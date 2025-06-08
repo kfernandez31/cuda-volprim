@@ -3,6 +3,7 @@
 #include "thesis/common/utils/preprocessor.h"
 
 namespace thesis {
+namespace common {
 namespace math {
 
 constexpr auto PI_F = 3.14159265358979323846f;
@@ -69,4 +70,5 @@ THESIS_INLINE THESIS_HOST_DEVICE constexpr T ceil_div(T numerator, T denominator
 }
 
 }  // namespace math
+}  // namespace common
 }  // namespace thesis

@@ -35,8 +35,8 @@ void launch_average_samples_kernel(float3* out_img, const float3* in_buf, size_t
                                    cudaStream_t stream) {
     // TODO(kacper): select experimentally
     const dim3 block(16, 16);
-    const dim3 grid(math::ceil_div(static_cast<uint>(width), block.x),
-                    math::ceil_div(static_cast<uint>(width), block.y));
+    const dim3 grid(common::math::ceil_div(static_cast<uint>(width), block.x),
+                    common::math::ceil_div(static_cast<uint>(width), block.y));
 
     average_samples_kernel<<<grid, block, 0, stream>>>(out_img, in_buf, width, height,
                                                        num_samples_per_pixel);

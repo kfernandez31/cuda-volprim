@@ -59,7 +59,7 @@ class Primitive : public Convertible<device::Primitive> {
             data::toFloat3(S_diag_squared_),
             data::toFloat3(albedo_),
             optical_depth_scale_,
-            math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_))
+            common::math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_))
         );
     }
 };

@@ -13,16 +13,13 @@ namespace device {
 
 struct THESIS_ALIGNMENT EnvironmentMap {
     float* data_ = nullptr;
-    float3 fallback_bg_color_ = {};
     size_t width_ = 0;
     size_t height_ = 0;
     size_t num_channels_ = 0;
 
 #ifdef __CUDACC__
     __forceinline__ __device__ float3 sample(float3 dir) const noexcept {
-        if (!data_) {
-            return fallback_bg_color_;
-        }
+        namespace math = common::math;
 
         const auto theta = atan2f(dir.z, dir.x);
         const auto phi = acosf(math::clamp(dir.y, -1.0f, 1.0f));
