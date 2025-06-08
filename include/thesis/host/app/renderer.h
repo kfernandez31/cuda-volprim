@@ -10,7 +10,7 @@
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
-#include "thesis/host/utils/app_config.h"
+#include "thesis/host/app/config.h"
 
 namespace thesis {
 
@@ -25,7 +25,7 @@ class Renderer {
     void createPrimitives();
     void createPipeline();
 
-    AppConfig config_;
+    app::Config config_;
 
     cuda::ContextHandle cuda_ctx_;
     optix::DeviceContextHandle optix_ctx_;
@@ -55,7 +55,7 @@ class Renderer {
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
 
-    explicit Renderer(const AppConfig& config);
+    explicit Renderer(const app::Config& config);
 
     void render();
 };

@@ -1,4 +1,4 @@
-#include "thesis/host/renderer.h"
+#include "thesis/host/app/renderer.h"
 
 #include "thesis/pch.h"
 
@@ -27,8 +27,8 @@
 
 namespace thesis {
 
-Renderer::Renderer(const AppConfig& config)
-    : config_(std::move(config)),
+Renderer::Renderer(const app::Config& config)
+    : config_(config),
       cuda_ctx_(),
       optix_ctx_([&] {
           OPTIX_CHECK(optixInit());

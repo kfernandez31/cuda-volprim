@@ -1,4 +1,4 @@
-#include "thesis/host/utils/logging.h"
+#include "thesis/host/app/logging.h"
 
 #include "thesis/pch.h"
 

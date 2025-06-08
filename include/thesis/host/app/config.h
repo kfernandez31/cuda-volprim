@@ -9,11 +9,12 @@
 #include <sstream>
 #include <string>
 
-namespace thesis {
+namespace thesis::app {
 
 namespace fs = std::filesystem;
 
-struct AppConfig {
+// TODO(kacper): move ctor
+struct Config {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
     std::string closesthit_function_name_ = "__closesthit__ch";
@@ -31,8 +32,8 @@ struct AppConfig {
 
     uint seed_ = 42;
 
-    static core::Result<AppConfig> parse(int argc, char* argv[]) noexcept {
-        AppConfig result;
+    static core::Result<Config> parse(int argc, char* argv[]) noexcept {
+        Config result;
 
         CLI::App app{"OptiX-based raytracer of kernel mixture models"};
         app.add_option("--output", result.output_path_, "Path to save the rendered image");
@@ -80,4 +81,4 @@ struct AppConfig {
     }
 };
 
-}  // namespace thesis
+}  // namespace thesis::app
