@@ -9,7 +9,7 @@
 #include <sstream>
 #include <string>
 
-namespace thesis::app {
+namespace thesis::host::app {
 
 namespace fs = std::filesystem;
 
@@ -81,4 +81,4 @@ struct Config {
     }
 };
 
-}  // namespace thesis::app
+}  // namespace thesis::host::app

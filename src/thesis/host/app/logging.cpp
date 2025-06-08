@@ -4,7 +4,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace thesis::logging {
+namespace thesis::host::app::logging {
 
 void initLogging() {
 #ifdef DEBUG
@@ -16,4 +16,4 @@ void initLogging() {
     spdlog::info("Starting OptiX application");
 }
 
-}  // namespace thesis::logging
+}  // namespace thesis::host::app::logging

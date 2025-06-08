@@ -6,6 +6,7 @@
 
 namespace thesis {
 namespace device {
+namespace optix {
 
 struct THESIS_ALIGNMENT HitEvent {
     size_t prim_idx_;
@@ -20,5 +21,6 @@ struct THESIS_ALIGNMENT HitEvent {
     };
 };
 
+}  // namespace optix
 }  // namespace device
 }  // namespace thesis

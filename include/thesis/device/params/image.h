@@ -8,6 +8,7 @@
 
 namespace thesis {
 namespace device {
+namespace params {
 
 struct THESIS_ALIGNMENT Image {
     float3* sample_buffer_ = nullptr;
@@ -31,5 +32,6 @@ struct THESIS_ALIGNMENT Image {
 #endif  // __CUDACC__
 };
 
+}  // namespace params
 }  // namespace device
 }  // namespace thesis

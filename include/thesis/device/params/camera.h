@@ -7,6 +7,7 @@
 
 namespace thesis {
 namespace device {
+namespace params {
 
 class THESIS_ALIGNMENT Camera {
    private:
@@ -30,5 +31,6 @@ class THESIS_ALIGNMENT Camera {
 #endif  // __CUDACC__
 };
 
+}  // namespace params
 }  // namespace device
 }  // namespace thesis

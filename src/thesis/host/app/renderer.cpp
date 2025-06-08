@@ -25,7 +25,7 @@
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
 
-namespace thesis {
+namespace thesis::host::app {
 
 Renderer::Renderer(const app::Config& config)
     : config_(config),
@@ -124,7 +124,7 @@ void Renderer::initPrimitives() {
         );
     }
 
-    primitives_ = cuda::Buffer<device::Primitive>(NUM_PRIMITIVES);
+    primitives_ = cuda::Buffer<device::params::Primitive>(NUM_PRIMITIVES);
     std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
 }
 
@@ -136,7 +136,7 @@ void Renderer::uploadParams() {
     par.image_ = image_.toDevice();
     par.env_map_ = env_map_.toDevice();
     par.camera_ = camera_.toDevice();
-    par.primitives_ = device::utils::DynamicVector<device::Primitive>(primitives_.upload(), primitives_.size());
+    par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.upload(), primitives_.size());
 
     launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
     spdlog::info("Uploaded launch params");
@@ -221,4 +221,4 @@ void Renderer::render() {
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 
-}  // namespace thesis
+}  // namespace thesis::host:;app

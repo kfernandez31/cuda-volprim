@@ -14,6 +14,7 @@
 
 namespace thesis {
 namespace device {
+namespace params {
 
 class THESIS_ALIGNMENT Primitive {
    private:
@@ -146,5 +147,6 @@ class THESIS_ALIGNMENT Primitive {
 #endif  // __CUDACC__
 };
 
+}  // namespace params
 }  // namespace device
 }  // namespace thesis

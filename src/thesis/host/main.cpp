@@ -5,17 +5,17 @@
 #include "thesis/host/app/logging.h"
 #include "thesis/host/utils/result.h"
 
-#include <optix_function_table_definition.h>
+#include <optix_function_table_definition.h> // important - do not remove or include in another file!
 
 #include <utility>
 
-using namespace thesis;
+using namespace thesis::host;
 
 int main(int argc, char* argv[]) {
-    logging::initLogging();
+    app::logging::initLogging();
 
-    auto config = core::try_unwrap_or_exit(app::Config::parse(argc, argv));
-    Renderer renderer(config);
+    auto config = thesis::core::try_unwrap_or_exit(app::Config::parse(argc, argv));
+    app::Renderer renderer(config);
     renderer.render();
 
     return 0;

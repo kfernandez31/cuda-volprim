@@ -15,7 +15,7 @@
 namespace thesis {
 namespace host {
 
-class EnvironmentMap : public Convertible<device::EnvironmentMap> {
+class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
    private:
     size_t width_ = 0;
     size_t height_ = 0;
@@ -45,8 +45,8 @@ class EnvironmentMap : public Convertible<device::EnvironmentMap> {
     EnvironmentMap(const EnvironmentMap&) = delete;
     EnvironmentMap& operator=(const EnvironmentMap&) = delete;
 
-    [[nodiscard]] device::EnvironmentMap toDevice() const noexcept override {
-        device::EnvironmentMap result;
+    [[nodiscard]] device::params::EnvironmentMap toDevice() const noexcept override {
+        device::params::EnvironmentMap result;
         result.data_ = const_cast<float*>(device_data_.device());
         result.width_ = width_;
         result.height_ = height_;

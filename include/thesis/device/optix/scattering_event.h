@@ -9,6 +9,7 @@
 
 namespace thesis {
 namespace device {
+namespace optix {
 
 template <size_t MaxPrims>
 struct THESIS_ALIGNMENT ScatteringEvent {
@@ -18,5 +19,6 @@ struct THESIS_ALIGNMENT ScatteringEvent {
     utils::Set<uint, MaxPrims> active_prims_;
 };
 
+}  // namespace optix
 }  // namespace device
 }  // namespace thesis

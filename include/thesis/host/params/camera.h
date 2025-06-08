@@ -10,9 +10,9 @@
 namespace thesis {
 namespace host {
 
-class Camera : public Convertible<device::Camera> {
+class Camera : public Convertible<device::params::Camera> {
    private:
-    device::Camera device_struct_;
+    device::params::Camera device_struct_;
 
    public:
     size_t image_width_ = 100;
@@ -59,7 +59,7 @@ class Camera : public Convertible<device::Camera> {
         device_struct_.pixel_dv_ = data::toFloat3(pixel_dv);
     }
 
-    [[nodiscard]] device::Camera toDevice() const noexcept override { return device_struct_; }
+    [[nodiscard]] device::params::Camera toDevice() const noexcept override { return device_struct_; }
 };
 
 }  // namespace host

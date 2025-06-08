@@ -10,6 +10,7 @@
 
 namespace thesis {
 namespace device {
+namespace params {
 
 struct THESIS_ALIGNMENT EnvironmentMap {
     float* data_ = nullptr;
@@ -36,5 +37,6 @@ struct THESIS_ALIGNMENT EnvironmentMap {
 #endif  // __CUDACC__
 };
 
+}  // namespace params
 }  // namespace device
 }  // namespace thesis

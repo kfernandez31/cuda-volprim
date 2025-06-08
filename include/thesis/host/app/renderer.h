@@ -12,7 +12,7 @@
 #include "thesis/host/params/image.h"
 #include "thesis/host/app/config.h"
 
-namespace thesis {
+namespace thesis::host::app {
 
 class Renderer {
    private:
@@ -36,7 +36,7 @@ class Renderer {
     host::EnvironmentMap env_map_;
     host::Image image_;
     host::Camera camera_;
-    cuda::Buffer<device::Primitive> primitives_;
+    cuda::Buffer<device::params::Primitive> primitives_;
     cuda::Buffer<common::params::LaunchParams> launch_params_;
 
     optix::ModuleHandle module_;
@@ -60,4 +60,4 @@ class Renderer {
     void render();
 };
 
-}  // namespace thesis
+}  // namespace thesis::host::app

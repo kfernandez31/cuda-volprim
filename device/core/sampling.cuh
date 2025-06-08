@@ -137,7 +137,7 @@ __device__ __forceinline__ float3 evaluate_albedo(
     return (accum_weight > 0.0f) ? accum_albedo / accum_weight : make_float3(0.0f);
 }
 
-__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
+__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
     auto t_total = 0.0f;
     auto tau_cumulative = 0.0f;
     

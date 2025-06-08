@@ -15,7 +15,7 @@
 namespace thesis {
 namespace host {
 
-class Primitive : public Convertible<device::Primitive> {
+class Primitive : public Convertible<device::params::Primitive> {
    private:
     glm::mat4 M_for_integrating_inv_;
     glm::vec3 S_diag_, S_diag_squared_;
@@ -52,9 +52,9 @@ class Primitive : public Convertible<device::Primitive> {
         albedo_(albedo),
         optical_depth_scale_(optical_depth_scale) {}
 
-    [[nodiscard]] device::Primitive toDevice() const noexcept override {
+    [[nodiscard]] device::params::Primitive toDevice() const noexcept override {
         // clang-format off
-        return device::Primitive(
+        return device::params::Primitive(
             host::toDevice(M_for_integrating_inv_),
             data::toFloat3(S_diag_squared_),
             data::toFloat3(albedo_),

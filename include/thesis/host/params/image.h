@@ -12,7 +12,7 @@
 namespace thesis {
 namespace host {
 
-class Image : public Convertible<device::Image> {
+class Image : public Convertible<device::params::Image> {
    private:
     size_t width_ = 0;
     size_t height_ = 0;
@@ -54,8 +54,8 @@ class Image : public Convertible<device::Image> {
         return static_cast<float>(width_) / static_cast<float>(height_);
     }
 
-    [[nodiscard]] device::Image toDevice() const noexcept override {
-        device::Image result;
+    [[nodiscard]] device::params::Image toDevice() const noexcept override {
+        device::params::Image result;
         result.sample_buffer_ = const_cast<float3*>(sample_buffer_.device());
         result.width_ = width_;
         result.height_ = height_;
