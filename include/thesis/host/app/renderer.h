@@ -37,7 +37,7 @@ class Renderer {
     host::Image image_;
     host::Camera camera_;
     cuda::Buffer<device::Primitive> primitives_;
-    cuda::Buffer<optix::LaunchParams> launch_params_;
+    cuda::Buffer<common::params::LaunchParams> launch_params_;
 
     optix::ModuleHandle module_;
     optix::ProgramGroupHandle raygen_pg_;

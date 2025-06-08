@@ -129,7 +129,7 @@ void Renderer::initPrimitives() {
 }
 
 void Renderer::uploadParams() {
-    optix::LaunchParams par = {};
+    common::params::LaunchParams par = {};
     par.gas_handle_ = gas_.get();
     par.seed_ = config_.seed_;
     par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
@@ -210,7 +210,7 @@ void Renderer::render() {
 
     spdlog::info("Launching OptiX pipeline...");
     pipeline_.launch(stream_.get(), reinterpret_cast<CUdeviceptr>(launch_params_.device()),
-                     sizeof(optix::LaunchParams), sbt_.get(), static_cast<uint>(image_.width()),
+                     sizeof(common::params::LaunchParams), sbt_.get(), static_cast<uint>(image_.width()),
                      static_cast<uint>(image_.height()),
                      static_cast<uint>(image_.num_samples_per_pixel()));
 

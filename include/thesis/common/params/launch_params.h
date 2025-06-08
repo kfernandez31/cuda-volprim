@@ -14,7 +14,8 @@
 #include <cstddef>
 
 namespace thesis {
-namespace optix {
+namespace common {
+namespace params {
 
 struct THESIS_ALIGNMENT LaunchParams {
     OptixTraversableHandle gas_handle_;
@@ -26,17 +27,6 @@ struct THESIS_ALIGNMENT LaunchParams {
     device::utils::DynamicVector<device::Primitive> primitives_;
 };
 
-struct THESIS_ALIGNMENT RayGenData {
-    // No data needed
-};
-
-struct THESIS_ALIGNMENT MissData {
-    // No data needed
-};
-
-struct THESIS_ALIGNMENT HitGroupData {
-    // No data needed
-};
-
-}  // namespace optix
+}  // namespace params
+}  // namespace common
 }  // namespace thesis
