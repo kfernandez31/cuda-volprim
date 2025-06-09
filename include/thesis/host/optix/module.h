@@ -1,9 +1,10 @@
 #pragma once
 
-#include "thesis/host/utils/check.h"
 #include "thesis/host/optix/logging.h"
+#include "thesis/host/utils/check.h"
 
 #include <optix_stubs.h>
+
 #include <string_view>
 #include <utility>
 
@@ -16,7 +17,7 @@ class Module {
     Module() = default;
 
     Module(OptixDeviceContext ctx, const OptixModuleCompileOptions& mco,
-                 const OptixPipelineCompileOptions& pco, std::string_view ptx) {
+           const OptixPipelineCompileOptions& pco, std::string_view ptx) {
         OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.data(), ptx.size(), log.data(),
                                             &log_size, &handle_));
     }
@@ -30,8 +31,7 @@ class Module {
     Module(const Module&) = delete;
     Module& operator=(const Module&) = delete;
 
-    Module(Module&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    Module(Module&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
 
     Module& operator=(Module&& other) noexcept {
         if (this != &other) {

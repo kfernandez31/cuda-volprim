@@ -1,10 +1,11 @@
 #pragma once
 
-#include "thesis/host/utils/check.h"
 #include "thesis/host/optix/logging.h"
+#include "thesis/host/utils/check.h"
 
 #include <cuda.h>
 #include <optix_stubs.h>
+
 #include <spdlog/spdlog.h>
 #include <utility>
 

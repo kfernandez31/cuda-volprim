@@ -20,7 +20,7 @@ struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SBTRecord {
     T data;
 };
 
-template <typename T>
+template <typename T = void>
 class Record {
    private:
     cuda::Buffer<SBTRecord<T>> buffer_;
@@ -34,11 +34,11 @@ class Record {
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
 
-    Record(OptixProgramGroup pg, const T& data) {
+    Record(OptixProgramGroup pg, const T& data, CUcontext ctx) {
         SBTRecord<T> record = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record));
         record.data = data;
-        buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly(&record, 1);
+        buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly(&record, 1, ctx);
     }
 
     [[nodiscard]] CUdeviceptr get() const noexcept {
@@ -60,11 +60,11 @@ class Record<void> {
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
 
-    explicit Record(OptixProgramGroup pg) {
+    Record(OptixProgramGroup pg, CUcontext ctx) {
         alignas(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, header));
         buffer_ = cuda::Buffer<std::byte>::onDeviceOnly(reinterpret_cast<std::byte*>(header),
-                                                        OPTIX_SBT_RECORD_HEADER_SIZE);
+                                                        OPTIX_SBT_RECORD_HEADER_SIZE, ctx);
     }
 
     [[nodiscard]] CUdeviceptr get() const noexcept {

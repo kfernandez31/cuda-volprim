@@ -1,9 +1,9 @@
 #pragma once
 
 #include "thesis/common/utils/preprocessor.h"
-#include "thesis/device/utils/utility.h"
 #include "thesis/device/utils/binary_set.h"
 #include "thesis/device/utils/linear_set.h"
+#include "thesis/device/utils/utility.h"
 
 #include <cstddef>
 #include <type_traits>

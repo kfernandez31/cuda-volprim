@@ -22,7 +22,7 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
     cuda::Buffer<float> device_data_;
 
    public:
-    explicit EnvironmentMap(const std::filesystem::path& filepath) {
+    EnvironmentMap(const std::filesystem::path& filepath, CUcontext ctx) {
         stbi_set_flip_vertically_on_load(true);
 
         int w, h, c;
@@ -34,7 +34,7 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
         num_channels_ = static_cast<size_t>(c);
 
         const auto total_floats = width_ * height_ * num_channels_;
-        device_data_ = cuda::Buffer<float>::onDeviceOnly(host_data, total_floats);
+        device_data_ = cuda::Buffer<float>::onDeviceOnly(host_data, total_floats, ctx);
         stbi_image_free(host_data);
     }
 

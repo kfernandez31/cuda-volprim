@@ -63,7 +63,8 @@ inline void checkNotNull(const T* ptr, const char* expr, const char* file, int l
 #define CUDA_CHECK_NOEXCEPT(call) thesis::host::utils::cudaCheck<false>((call), __FILE__, __LINE__)
 
 #define OPTIX_CHECK(call) thesis::host::utils::optixCheck<true>((call), __FILE__, __LINE__)
-#define OPTIX_CHECK_NOEXCEPT(call) thesis::host::utils::optixCheck<false>((call), __FILE__, __LINE__)
+#define OPTIX_CHECK_NOEXCEPT(call) \
+    thesis::host::utils::optixCheck<false>((call), __FILE__, __LINE__)
 
 #define CU_CHECK(call) thesis::host::utils::cuCheck<true>((call), __FILE__, __LINE__)
 #define CU_CHECK_NOEXCEPT(call) thesis::host::utils::cuCheck<false>((call), __FILE__, __LINE__)

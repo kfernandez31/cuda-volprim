@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/host/utils/check.h"
 #include "thesis/host/cuda/context.h"
+#include "thesis/host/utils/check.h"
 
 #include <cuda_runtime.h>
 
@@ -19,16 +19,9 @@ template <typename T>
 using UniqueDevicePtr = std::unique_ptr<T, CudaDeleter>;
 
 template <typename T>
-UniqueDevicePtr<T> makeDevicePtr(size_t count) {
-    void* raw = nullptr;
-    CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
-    return UniqueDevicePtr<T>(static_cast<T*>(raw));
-}
+UniqueDevicePtr<T> makeDevicePtr(size_t count, CUcontext ctx) {
+    Context::Guard guard(ctx);
 
-template <typename T>
-UniqueDevicePtr<T> makeDevicePtr(size_t count, CUcontext context) {
-    Context::Guard guard(context);
-    
     void* raw = nullptr;
     CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
     return UniqueDevicePtr<T>(static_cast<T*>(raw));
@@ -50,24 +43,24 @@ class Buffer {
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
 
-    explicit Buffer(size_t count)
+    Buffer(size_t count, CUcontext ctx)
         : count_(count),
           host_ptr_(std::make_unique<T[]>(count)),
-          device_ptr_(makeDevicePtr<T>(count)) {}
+          device_ptr_(makeDevicePtr<T>(count, ctx)) {}
 
-    Buffer(const T* data, size_t count) : Buffer(count) {
+    Buffer(const T* data, size_t count, CUcontext ctx) : Buffer(count, ctx) {
         CUDA_CHECK(cudaMemcpy(device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
     }
 
-    static Buffer onDeviceOnly(size_t count) {
+    static Buffer onDeviceOnly(size_t count, CUcontext ctx) {
         Buffer buf;
         buf.count_ = count;
-        buf.device_ptr_ = makeDevicePtr<T>(count);
+        buf.device_ptr_ = makeDevicePtr<T>(count, ctx);
         return buf;
     }
 
-    static Buffer onDeviceOnly(const T* data, size_t count) {
-        Buffer buf = onDeviceOnly(count);
+    static Buffer onDeviceOnly(const T* data, size_t count, CUcontext ctx) {
+        Buffer buf = onDeviceOnly(count, ctx);
         CUDA_CHECK(
             cudaMemcpy(buf.device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
         return buf;

@@ -1,12 +1,12 @@
 #pragma once
 
+#include "kernels/average_samples.h"
 #include "thesis/device/params/image.h"
 #include "thesis/host/cuda/buffer.h"
-#include "thesis/host/utils/io.h"
 #include "thesis/host/cuda/stream.h"
 #include "thesis/host/params/convertible.h"
+#include "thesis/host/utils/io.h"
 #include "thesis/host/utils/result.h"
-#include "kernels/average_samples.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -30,12 +30,12 @@ class Image : public Convertible<device::params::Image> {
     Image(const Image&) = delete;
     Image& operator=(const Image&) = delete;
 
-    Image(size_t width, size_t height, size_t num_samples_per_pixel)
+    Image(size_t width, size_t height, size_t num_samples_per_pixel, CUcontext ctx)
         : width_(width),
           height_(height),
           num_samples_per_pixel_(num_samples_per_pixel),
-          sample_buffer_(cuda::Buffer<float3>::onDeviceOnly(total_size())),
-          averaged_pixels_(pixel_count()) {}
+          sample_buffer_(cuda::Buffer<float3>::onDeviceOnly(total_size(), ctx)),
+          averaged_pixels_(pixel_count(), ctx) {}
 
     [[nodiscard]] size_t width() const noexcept { return width_; }
     [[nodiscard]] size_t height() const noexcept { return height_; }
@@ -64,7 +64,7 @@ class Image : public Convertible<device::params::Image> {
                                               width_, height_, num_samples_per_pixel_, stream);
         averaged_pixels_.download();
         return utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
-    }    
+    }
 };
 
 }  // namespace thesis::host::params

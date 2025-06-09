@@ -26,7 +26,7 @@ class Context {
         CU_CHECK(cuInit(0));
         CU_CHECK(cuDeviceGet(&device_, device_ordinal));
         CU_CHECK(cuCtxCreate(&context_, 0, device_));
-        CU_CHECK(cuCtxSetCurrent(context_));    
+        CU_CHECK(cuCtxSetCurrent(context_));
     }
 
     ~Context() { reset(); }
@@ -50,13 +50,9 @@ class Context {
     struct Guard {
         CUcontext prev = nullptr;
 
-        Guard(CUcontext ctx) {
-            CU_CHECK(cuCtxPushCurrent(ctx));
-        }
+        Guard(CUcontext ctx) { CU_CHECK(cuCtxPushCurrent(ctx)); }
 
-        ~Guard() {
-            CU_CHECK_NOEXCEPT(cuCtxPopCurrent(&prev));
-        }
+        ~Guard() { CU_CHECK_NOEXCEPT(cuCtxPopCurrent(&prev)); }
 
         Guard(Guard&& other) noexcept : prev(std::exchange(other.prev, nullptr)) {}
         Guard& operator=(Guard&& other) noexcept {

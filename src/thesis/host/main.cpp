@@ -1,11 +1,11 @@
 #include "thesis/pch.h"
 
-#include "thesis/host/app/renderer.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/app/logging.h"
+#include "thesis/host/app/renderer.h"
 #include "thesis/host/utils/result.h"
 
-#include <optix_function_table_definition.h> // important - do not remove or include in another file!
+#include <optix_function_table_definition.h>  // important - do not remove or include in another file!
 
 #include <utility>
 

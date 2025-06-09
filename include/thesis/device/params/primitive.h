@@ -30,7 +30,8 @@ class THESIS_ALIGNMENT Primitive {
     };
 
     // ~54 FLOPs, ~60–80 cycles
-    __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& r_global) const noexcept {
+    __device__ OpticalCoefficients
+    compute_optical_coeffs(const geometry::Ray& r_global) const noexcept {
         namespace math = common::math;
 
         const auto r_local = r_global.transformed(M_for_integrating_inv_);

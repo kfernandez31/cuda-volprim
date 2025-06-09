@@ -11,9 +11,9 @@ namespace thesis::host::optix {
 
 class SBT {
    private:
-    Record<void> raygen_record_;
-    Record<void> miss_record_;
-    Record<void> hitgroup_record_;
+    Record<> raygen_record_;
+    Record<> miss_record_;
+    Record<> hitgroup_record_;
     OptixShaderBindingTable sbt_ = {};
 
    public:
@@ -25,8 +25,8 @@ class SBT {
     SBT(const SBT&) = delete;
     SBT& operator=(const SBT&) = delete;
 
-    SBT(OptixProgramGroup raygen, OptixProgramGroup miss, OptixProgramGroup hitgroup)
-        : raygen_record_(raygen), miss_record_(miss), hitgroup_record_(hitgroup) {
+    SBT(OptixProgramGroup raygen, OptixProgramGroup miss, OptixProgramGroup hitgroup, CUcontext ctx)
+        : raygen_record_(raygen, ctx), miss_record_(miss, ctx), hitgroup_record_(hitgroup, ctx) {
         sbt_.raygenRecord = raygen_record_.get();
 
         sbt_.missRecordBase = miss_record_.get();

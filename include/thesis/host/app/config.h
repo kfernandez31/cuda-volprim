@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/common/utils/types.h"
+#include "thesis/host/utils/result.h"
 
 #include <CLI11/CLI11.hpp>
 #include <cstddef>

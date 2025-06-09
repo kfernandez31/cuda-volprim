@@ -2,13 +2,13 @@
 
 #include "thesis/pch.h"
 
-#include "thesis/host/params/primitive.h"
 #include "thesis/common/utils/types.h"
 #include "thesis/device/payloads/registry.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/optix/ptx.h"
+#include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/check.h"
 #include "thesis/host/utils/data.h"
 #include "thesis/host/utils/result.h"
@@ -32,8 +32,9 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       stream_(),
-      env_map_(config_.env_map_path_),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_),
+      env_map_(config_.env_map_path_, cuda_ctx_.get()),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_,
+             cuda_ctx_.get()),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)) {
     initGAS();
     initPrimitives();
@@ -68,7 +69,7 @@ void Renderer::initGAS() {
 
     gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(),
                               utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
-                              utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
+                              utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices), cuda_ctx_.get());
 }
 
 void Renderer::initPrimitives() {
@@ -102,7 +103,7 @@ void Renderer::initPrimitives() {
         );
     }
 
-    primitives_ = cuda::Buffer<device::params::Primitive>(NUM_PRIMITIVES);
+    primitives_ = cuda::Buffer<device::params::Primitive>(NUM_PRIMITIVES, cuda_ctx_.get());
     std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
 }
 
@@ -116,7 +117,7 @@ void Renderer::uploadParams() {
     par.camera_ = camera_.toDevice();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.upload(), primitives_.size());
 
-    launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1);
+    launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1, cuda_ctx_.get());
     spdlog::info("Uploaded launch params");
 }
 
@@ -171,7 +172,7 @@ void Renderer::createPipeline() {
     createMissPG();
     createHitgroupPG();
 
-    sbt_ = optix::SBT(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
+    sbt_ = optix::SBT(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get(), cuda_ctx_.get());
     spdlog::debug("SBT created");
 
     OptixPipelineLinkOptions plo = {};

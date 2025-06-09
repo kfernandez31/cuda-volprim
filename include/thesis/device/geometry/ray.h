@@ -65,6 +65,6 @@ class THESIS_ALIGNMENT Ray {
 #endif  // __CUDACC__
 };
 
-}  // namespace matrix
+}  // namespace geometry
 }  // namespace device
 }  // namespace thesis

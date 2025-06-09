@@ -2,19 +2,18 @@
 
 #include "thesis/common/params/launch_params.h"
 #include "thesis/device/params/primitive.h"
+#include "thesis/host/app/config.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream.h"
+#include "thesis/host/optix/device_context.h"
 #include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/module.h"
 #include "thesis/host/optix/pipeline.h"
-#include "thesis/host/optix/device_context.h"
 #include "thesis/host/optix/program_group.h"
-#include "thesis/host/optix/pipeline.h"
 #include "thesis/host/optix/sbt.h"
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
-#include "thesis/host/app/config.h"
 
 namespace thesis::host::app {
 

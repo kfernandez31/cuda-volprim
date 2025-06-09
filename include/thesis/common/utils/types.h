@@ -4,4 +4,4 @@ namespace thesis {
 
 using uint = unsigned int;
 
-} // namespace thesis
+}  // namespace thesis

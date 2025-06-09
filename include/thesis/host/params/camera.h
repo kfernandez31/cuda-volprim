@@ -38,7 +38,9 @@ class Camera : public Convertible<device::params::Camera> {
     Camera(const Camera&) = default;
     Camera& operator=(const Camera&) = default;
 
-    [[nodiscard]] device::params::Camera toDevice() const noexcept override { return device_struct_; }
+    [[nodiscard]] device::params::Camera toDevice() const noexcept override {
+        return device_struct_;
+    }
 
    private:
     void build() noexcept {
@@ -71,4 +73,3 @@ class Camera : public Convertible<device::params::Camera> {
 };
 
 }  // namespace thesis::host::params
-
