@@ -38,10 +38,6 @@ class Mesh {
     [[nodiscard]] std::span<const glm::vec3> getVertices() const noexcept { return vertices_; }
     [[nodiscard]] std::span<const glm::uvec3> getIndices() const noexcept { return indices_; }
 
-    [[nodiscard]] std::span<glm::uvec3> getIndices() noexcept {
-        return indices_;
-    }  // TODO(kacper): remove
-
     void transform(const glm::mat4& transformation_matrix) noexcept {
         std::transform(vertices_.begin(), vertices_.end(), vertices_.begin(),
                        [&](auto v) { return transformation_matrix * glm::vec4(v, 1.0f); });

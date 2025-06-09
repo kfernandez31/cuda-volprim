@@ -14,14 +14,13 @@
 
 namespace thesis::host::optix {
 
-static constexpr uint BUILD_FLAGS = OPTIX_BUILD_FLAG_NONE;
-// OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
+static constexpr uint BUILD_FLAGS = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
 
 class GAS {
    private:
     cuda::Buffer<std::byte> temp_, out_;
     cuda::Buffer<size_t> compacted_size_;
-    OptixTraversableHandle gas_handle_ = 0;
+    OptixTraversableHandle handle_ = 0;
 
    public:
     GAS(CUcontext ctx) : compacted_size_(cuda::Buffer<size_t>::onBoth(1, ctx)) {};
@@ -44,12 +43,33 @@ class GAS {
         temp_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.tempSizeInBytes, cuda_ctx);
         out_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.outputSizeInBytes, cuda_ctx);
 
+        OptixAccelEmitDesc emit = {};
+        emit.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+        
+        compacted_size_[0] = 0; // initial value
+        compacted_size_.upload();
+        emit.result = compacted_size_.cu_device_ptr();
+
         OPTIX_CHECK(optixAccelBuild(optix_ctx, stream, &opts, &input, 1, temp_.cu_device_ptr(),
-                                    temp_.size(), out_.cu_device_ptr(), out_.size(), &gas_handle_,
-                                    nullptr, 0));
+                                    temp_.size(), out_.cu_device_ptr(), out_.size(), &handle_,
+                                    &emit, 1));
+
+        compacted_size_.download();
+        auto compacted_size = compacted_size_[0];
+        if (compacted_size > 0) {
+            spdlog::info("compacted_size = {}", compacted_size);
+            out_ = cuda::Buffer<std::byte>::onDeviceOnly(compacted_size, cuda_ctx);
+
+            spdlog::info("compact()");
+            OPTIX_CHECK(optixAccelCompact(optix_ctx, stream, handle_,
+                                        reinterpret_cast<CUdeviceptr>(out_.device()),
+                                        compacted_size, &handle_));
+        } else {
+            spdlog::warn("GAS compaction skipped (compacted_size = 0)");
+        }
     }
 
-    [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_handle_; }
+    [[nodiscard]] OptixTraversableHandle get() const noexcept { return handle_; }
 };
 
 class TriangleGAS {
@@ -62,9 +82,9 @@ class TriangleGAS {
     TriangleGAS() = default;
 
     TriangleGAS(size_t num_vertices, size_t num_indices, CUcontext ctx)
-        // : vertices_(cuda::Buffer<float3>::onBoth(num_vertices, ctx))
-        // , indices_(cuda::Buffer<uint3>::onBoth(num_indices, ctx))
-        : gas_(ctx) {}
+        : vertices_(cuda::Buffer<float3>::onBoth(num_vertices, ctx))
+        , indices_(cuda::Buffer<uint3>::onBoth(num_indices, ctx))
+        , gas_(ctx) {}
 
     TriangleGAS(TriangleGAS&&) noexcept = default;
     TriangleGAS& operator=(TriangleGAS&&) noexcept = default;
@@ -72,28 +92,10 @@ class TriangleGAS {
     TriangleGAS(const TriangleGAS&) = delete;
     TriangleGAS& operator=(const TriangleGAS&) = delete;
 
-    // void appendGeometry(const geometry::Mesh& mesh) {
-    //     auto vertex_offset = static_cast<uint>(vertices_.size());
-    //     vertices_.push_back(utils::data::reinterpretSpan<float3, glm::vec3>(mesh.getVertices()));
-
-    //     auto old_size = indices_.size();
-    //     indices_.push_back(utils::data::reinterpretSpan<uint3, glm::uvec3>(mesh.getIndices()));
-
-    //     std::transform(indices_.begin() + old_size, indices_.begin() + indices_.size(),
-    //                    indices_.begin() + old_size, [=](uint3 tri) { return tri + vertex_offset;
-    //                    });
-    // }
-
     void build(cudaStream_t stream, CUcontext cuda_ctx, OptixDeviceContext optix_ctx,
                std::span<const float3> vs, std::span<const uint3> is) {
-        vertices_ = cuda::Buffer<float3>::onDeviceOnly(vs, cuda_ctx);
-        indices_ = cuda::Buffer<uint3>::onDeviceOnly(is, cuda_ctx);
-
-        // spdlog::info("vertices_.uploadAll()");
-        // vertices_.upload();
-
-        // spdlog::info("indices_.uploadAll()");
-        // indices_.upload();
+        vertices_.upload(vs.data());
+        indices_.upload(is.data());
 
         OptixBuildInput input = {};
         input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;

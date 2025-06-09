@@ -67,8 +67,9 @@ void Renderer::initGAS() {
     std::vector<glm::uvec3> all_indices;
     for (size_t i = 0; i < icos.size(); ++i) {
         auto offset = i * geometry::Icosphere<ICOSPHERE_N>::NumVertices;
-        auto is = icos[i].getIndices();
-        for (auto& idx : is) idx += offset;
+        icos[i].offsetIndices(offset);
+    
+        const auto& is = icos[i].getIndices();
         all_indices.insert(all_indices.end(), is.begin(), is.end());
     }
 

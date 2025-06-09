@@ -52,7 +52,7 @@ class Buffer {
 
     static Buffer onBoth(std::span<const T> data, CUcontext ctx) {
         auto buf = onBoth(data.size(), ctx);
-        buf.push_back(data);
+        buf.upload(data);
         return buf;
     }
 
@@ -96,6 +96,10 @@ class Buffer {
 
     [[nodiscard]] const T* begin() const noexcept { return host(); }
     [[nodiscard]] const T* end() const noexcept { return host() + count_; }
+
+    [[nodiscard]] T& operator[](size_t index) noexcept { return host()[index]; }
+    [[nodiscard]] const T& operator[](size_t index) const noexcept { return host()[index]; }
+
 };
 
 }  // namespace thesis::host::cuda
