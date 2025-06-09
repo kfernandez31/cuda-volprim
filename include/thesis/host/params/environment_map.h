@@ -26,7 +26,8 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
         stbi_set_flip_vertically_on_load(true);
 
         int w, h, c;
-        auto* raw = stbi_loadf(filepath.string().c_str(), &w, &h, &c, 0); // TODO(kacper): what's the 0 arg?
+        auto* raw = stbi_loadf(filepath.string().c_str(), &w, &h, &c,
+                               0);  // TODO(kacper): what's the 0 arg?
         CHECK_NOT_NULL(raw, "Failed to load HDR environment map");
 
         width_ = static_cast<size_t>(w);

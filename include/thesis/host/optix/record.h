@@ -34,16 +34,16 @@ class Record {
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
 
-    Record(OptixProgramGroup pg, const T& data, CUcontext ctx) {
+    Record(OptixProgramGroup pg, const T& data, CUcontext ctx)
+        : buffer_(cuda::Buffer<SBTRecord<T>>::onDeviceOnly(1, ctx)) {
         SBTRecord<T> record = {};
-        OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record));
+        OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record.header));
         record.data = data;
-        buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly({&record, 1}, ctx);
+
+        buffer_.upload(&record);
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept {
-        return reinterpret_cast<CUdeviceptr>(buffer_.device());
-    }
+    [[nodiscard]] CUdeviceptr get() const noexcept { return buffer_; }
 };
 
 template <>
@@ -60,16 +60,15 @@ class Record<void> {
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
 
-    Record(OptixProgramGroup pg, CUcontext ctx) {
-        alignas(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
+    Record(OptixProgramGroup pg, CUcontext ctx)
+        : buffer_(cuda::Buffer<std::byte>::onDeviceOnly(OPTIX_SBT_RECORD_HEADER_SIZE, ctx)) {
+        alignas(OPTIX_SBT_RECORD_ALIGNMENT) std::byte header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, header));
-        buffer_ = cuda::Buffer<std::byte>::onDeviceOnly({reinterpret_cast<std::byte*>(header), // TODO(kacper): drop the cast?
-                                                        OPTIX_SBT_RECORD_HEADER_SIZE}, ctx);
+
+        buffer_.upload(header);
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept {
-        return reinterpret_cast<CUdeviceptr>(buffer_.device());
-    }
+    [[nodiscard]] CUdeviceptr get() const noexcept { return buffer_.cu_device_ptr(); }
 };
 
 }  // namespace thesis::host::optix

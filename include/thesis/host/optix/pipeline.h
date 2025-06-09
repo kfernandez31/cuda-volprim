@@ -49,8 +49,11 @@ class Pipeline {
     }
 
     void launch(CUstream stream, CUdeviceptr params, size_t params_size,
-                const OptixShaderBindingTable& sbt, uint width, uint height, uint depth) const {
-        OPTIX_CHECK(optixLaunch(handle_, stream, params, params_size, &sbt, width, height, depth));
+                const OptixShaderBindingTable& sbt, size_t width, size_t height,
+                size_t depth) const {
+        OPTIX_CHECK(optixLaunch(handle_, stream, params, params_size, &sbt,
+                                static_cast<uint>(width), static_cast<uint>(height),
+                                static_cast<uint>(depth)));
     }
 
     [[nodiscard]] OptixPipeline get() const noexcept { return handle_; }

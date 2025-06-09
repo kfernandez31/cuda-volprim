@@ -24,7 +24,7 @@
 
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
-#define NUM_TOTAL_INDICES  (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
+#define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
 #define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
 namespace thesis::host::app {
@@ -39,7 +39,8 @@ Renderer::Renderer(const app::Config& config)
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_,
              cuda_ctx_.get()),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(cuda::Buffer<device::params::Primitive>::onBoth(NUM_PRIMITIVES, cuda_ctx_.get())) {
+      primitives_(
+          cuda::Buffer<device::params::Primitive>::onBoth(NUM_PRIMITIVES, cuda_ctx_.get())) {
     spdlog::info("initGAS");
     initGAS();
 
@@ -119,7 +120,7 @@ void Renderer::uploadParams() {
     par.image_ = image_.toDevice();
     par.env_map_ = env_map_.toDevice();
     par.camera_ = camera_.toDevice();
-    par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.upload(), primitives_.size());
+    par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
 
     launch_params_ = cuda::Buffer<common::params::LaunchParams>::onDeviceOnly({&par, 1}, cuda_ctx_.get());
     spdlog::info("Uploaded launch params");
@@ -192,10 +193,11 @@ void Renderer::render() {
     uploadParams();
 
     spdlog::info("Launching OptiX pipeline...");
-    pipeline_.launch(stream_.get(), reinterpret_cast<CUdeviceptr>(launch_params_.device()),
-                     sizeof(common::params::LaunchParams), sbt_.get(), static_cast<uint>(image_.width()),
-                     static_cast<uint>(image_.height()),
-                     static_cast<uint>(image_.num_samples_per_pixel()));
+    pipeline_.launch(stream_.get(), launch_params_.cu_device_ptr(),
+                     sizeof(common::params::LaunchParams), sbt_.get(),
+                     image_.width(),
+                     image_.height(),
+                     image_.num_samples_per_pixel());
 
     cuda::Stream::synchronizeDevice();
     spdlog::info("Pipeline execution complete");

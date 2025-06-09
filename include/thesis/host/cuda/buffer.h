@@ -34,10 +34,10 @@ class Buffer {
     std::unique_ptr<T[]> host_ptr_ = nullptr;
     UniqueDevicePtr<T> device_ptr_ = nullptr;
 
-    Buffer(size_t cap, CUcontext ctx, bool device_only = false)
-        : count_(cap),
-          host_ptr_(device_only ? nullptr : std::make_unique<T[]>(cap)),
-          device_ptr_(makeDevicePtr<T>(cap, ctx)) {}
+    Buffer(size_t cnt, CUcontext ctx, bool device_only = false)
+        : count_(cnt),
+          host_ptr_(device_only ? nullptr : std::make_unique<T[]>(cnt)),
+          device_ptr_(makeDevicePtr<T>(cnt, ctx)) {}
 
    public:
     Buffer() = default;
@@ -48,9 +48,7 @@ class Buffer {
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
 
-    static Buffer onBoth(size_t cap, CUcontext ctx) {
-        return Buffer(cap, ctx);
-    }
+    static Buffer onBoth(size_t cap, CUcontext ctx) { return Buffer(cap, ctx); }
 
     static Buffer onBoth(std::span<const T> data, CUcontext ctx) {
         auto buf = onBoth(data.size(), ctx);
@@ -58,54 +56,46 @@ class Buffer {
         return buf;
     }
 
-    static Buffer onDeviceOnly(size_t cap, CUcontext ctx) { 
-        return Buffer(cap, ctx, true);
-    }
+    static Buffer onDeviceOnly(size_t cap, CUcontext ctx) { return Buffer(cap, ctx, true); }
 
     static Buffer onDeviceOnly(std::span<const T> data, CUcontext ctx) {
         auto buf = onDeviceOnly(data.size(), ctx);
-        CUDA_CHECK(cudaMemcpy(buf.device(), data.data(), data.size() * sizeof(T),
-                              cudaMemcpyHostToDevice));
+        buf.upload(data.data());
         return buf;
     }
 
-    T* upload() {
-        CUDA_CHECK(cudaMemcpy(device_ptr_.get(), host_ptr_.get(), count_ * sizeof(T),
-                              cudaMemcpyHostToDevice));
-        return device();
+    void upload(const T* src) {
+        CUDA_CHECK(cudaMemcpy(device(), src, size_in_bytes(), cudaMemcpyHostToDevice));
     }
 
-    T* download() {
-        CUDA_CHECK(cudaMemcpy(host_ptr_.get(), device_ptr_.get(), count_ * sizeof(T),
-                              cudaMemcpyDeviceToHost));
-        return host();
+    void upload() { upload(host()); }
+
+    void download(T* dst) {
+        CUDA_CHECK(cudaMemcpy(dst, device(), size_in_bytes(), cudaMemcpyDeviceToHost));
     }
 
-    [[nodiscard]] std::span<const T> host_view() const noexcept {
-        return std::span<const T>(host_ptr_.get(), count_);
-    }
+    void download() { download(host()); }
 
-    [[nodiscard]] std::span<T> host_view() noexcept {
-        return std::span<T>(host_ptr_.get(), count_);
-    }
+    [[nodiscard]] size_t size() const noexcept { return count_; }
+    [[nodiscard]] size_t size_in_bytes() const noexcept { return count_ * sizeof(T); }
 
     [[nodiscard]] T* host() noexcept { return host_ptr_.get(); }
     [[nodiscard]] const T* host() const noexcept { return host_ptr_.get(); }
 
     [[nodiscard]] T* device() noexcept { return device_ptr_.get(); }
     [[nodiscard]] const T* device() const noexcept { return device_ptr_.get(); }
+    [[nodiscard]] CUdeviceptr cu_device_ptr() const noexcept {
+        return reinterpret_cast<CUdeviceptr>(device());
+    }
 
-    [[nodiscard]] size_t size() const noexcept { return count_; }
-    [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
+    [[nodiscard]] std::span<T> host_view() noexcept { return {host(), count_}; }
+    [[nodiscard]] std::span<const T> host_view() const noexcept { return {host(), count_}; }
 
-    [[nodiscard]] T* begin() noexcept { return host_ptr_.get(); }
-    [[nodiscard]] T* end() noexcept { return host_ptr_.get() + count_; }
+    [[nodiscard]] T* begin() noexcept { return host(); }
+    [[nodiscard]] T* end() noexcept { return host() + count_; }
 
-    [[nodiscard]] const T* begin() const noexcept { return host_ptr_.get(); }
-    [[nodiscard]] const T* end() const noexcept { return host_ptr_.get() + count_; }
-
-    [[nodiscard]] const T* cbegin() const noexcept { return host_ptr_.get(); }
-    [[nodiscard]] const T* cend() const noexcept { return host_ptr_.get() + count_; }
+    [[nodiscard]] const T* begin() const noexcept { return host(); }
+    [[nodiscard]] const T* end() const noexcept { return host() + count_; }
 };
 
 }  // namespace thesis::host::cuda
