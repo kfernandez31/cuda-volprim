@@ -1,8 +1,10 @@
 #pragma once
 
 #include "thesis/common/utils/types.h"
+#include "thesis/host/utils/data.h"
 #include "thesis/host/cuda/buffer.h"
 #include "thesis/host/utils/check.h"
+#include "thesis/host/geometry/mesh.h"
 
 #include <cuda.h>
 #include <optix.h>
@@ -17,12 +19,12 @@ static constexpr uint BUILD_FLAGS = OPTIX_BUILD_FLAG_NONE;
 
 class GAS {
    private:
-    OptixDeviceContext context_ = nullptr;
-    cuda::Buffer<std::byte> output_buffer_;
+    cuda::Buffer<std::byte> temp_, out_;
+    cuda::Buffer<size_t> compacted_size_;
     OptixTraversableHandle gas_handle_ = 0;
 
    public:
-    GAS() = default;
+    GAS(CUcontext ctx) : compacted_size_(cuda::Buffer<size_t>::onBoth(1, ctx)) {};
 
     GAS(GAS&&) noexcept = default;
     GAS& operator=(GAS&&) noexcept = default;
@@ -30,24 +32,21 @@ class GAS {
     GAS(const GAS&) = delete;
     GAS& operator=(const GAS&) = delete;
 
-    GAS(OptixDeviceContext context, const OptixBuildInput& build_input, cudaStream_t stream,
-        CUcontext ctx)
-        : context_(context) {
+    void build(OptixBuildInput& input, cudaStream_t stream, CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
         OptixAccelBuildOptions opts = {};
         opts.buildFlags = BUILD_FLAGS;
         opts.operation = OPTIX_BUILD_OPERATION_BUILD;
 
         OptixAccelBufferSizes sizes;
-        OPTIX_CHECK(optixAccelComputeMemoryUsage(context_, &opts, &build_input, 1, &sizes));
+        OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx, &opts, &input, 1, &sizes));
 
-        auto temp_buffer = cuda::Buffer<std::byte>::onDeviceOnly(sizes.tempSizeInBytes, ctx);
-        output_buffer_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.outputSizeInBytes, ctx);
+        temp_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.tempSizeInBytes, cuda_ctx);
+        out_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.outputSizeInBytes, cuda_ctx);
 
-        OPTIX_CHECK(optixAccelBuild(context_, stream, &opts, &build_input, 1,
-                                    reinterpret_cast<CUdeviceptr>(temp_buffer.device()),
-                                    temp_buffer.size(),
-                                    reinterpret_cast<CUdeviceptr>(output_buffer_.device()),
-                                    output_buffer_.size(), &gas_handle_, nullptr, 0));
+        OPTIX_CHECK(optixAccelBuild(optix_ctx, stream, &opts, &input, 1,
+                                    reinterpret_cast<CUdeviceptr>(temp_.device()), temp_.size(),
+                                    reinterpret_cast<CUdeviceptr>(out_.device()), out_.size(),
+                                    &gas_handle_, nullptr, 0));
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_handle_; }
@@ -55,12 +54,17 @@ class GAS {
 
 class TriangleGAS {
    private:
+    GAS gas_;
     cuda::Buffer<float3> vertices_;
     cuda::Buffer<uint3> indices_;
-    optix::GAS gas_;
 
    public:
     TriangleGAS() = default;
+
+    TriangleGAS(size_t num_vertices, size_t num_indices, CUcontext ctx)
+        // : vertices_(cuda::Buffer<float3>::onBoth(num_vertices, ctx))
+        // , indices_(cuda::Buffer<uint3>::onBoth(num_indices, ctx))
+        : gas_(ctx) {}
 
     TriangleGAS(TriangleGAS&&) noexcept = default;
     TriangleGAS& operator=(TriangleGAS&&) noexcept = default;
@@ -68,29 +72,50 @@ class TriangleGAS {
     TriangleGAS(const TriangleGAS&) = delete;
     TriangleGAS& operator=(const TriangleGAS&) = delete;
 
-    TriangleGAS(cudaStream_t stream, OptixDeviceContext context, std::span<const float3> vertices,
-                std::span<const uint3> indices, CUcontext ctx)
-        : vertices_(vertices.data(), vertices.size(), ctx),
-          indices_(indices.data(), indices.size(), ctx) {
-        CUdeviceptr vertexBuffer = reinterpret_cast<CUdeviceptr>(vertices_.device());
-        CUdeviceptr indexBuffer = reinterpret_cast<CUdeviceptr>(indices_.device());
+    // void appendGeometry(const geometry::Mesh& mesh) {
+    //     auto vertex_offset = static_cast<uint>(vertices_.size());
+    //     vertices_.push_back(utils::data::reinterpretSpan<float3, glm::vec3>(mesh.getVertices()));
 
-        OptixBuildInput build_input = {};
-        build_input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+    //     auto old_size = indices_.size();
+    //     indices_.push_back(utils::data::reinterpretSpan<uint3, glm::uvec3>(mesh.getIndices()));
 
-        build_input.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-        build_input.triangleArray.vertexBuffers = &vertexBuffer;
-        build_input.triangleArray.numVertices = static_cast<uint32_t>(vertices_.size());
+    //     std::transform(indices_.begin() + old_size, indices_.begin() + indices_.size(),
+    //                    indices_.begin() + old_size, [=](uint3 tri) { return tri + vertex_offset; });
+    // }
 
-        build_input.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-        build_input.triangleArray.indexBuffer = indexBuffer;
-        build_input.triangleArray.numIndexTriplets = static_cast<uint32_t>(indices_.size());
+    void build(cudaStream_t stream, CUcontext cuda_ctx, OptixDeviceContext optix_ctx, 
+        std::span<const float3> vs, 
+        std::span<const uint3> is
+    ) {
+        vertices_ = cuda::Buffer<float3>::onDeviceOnly(vs, cuda_ctx);
+        indices_ = cuda::Buffer<uint3>::onDeviceOnly(is, cuda_ctx);
 
-        static constexpr uint32_t input_flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
-        build_input.triangleArray.flags = input_flags;
-        build_input.triangleArray.numSbtRecords = 1;
+        // spdlog::info("vertices_.uploadAll()");
+        // vertices_.upload();
 
-        gas_ = GAS(context, build_input, stream, ctx);
+        // spdlog::info("indices_.uploadAll()");
+        // indices_.upload();
+
+        OptixBuildInput input = {};
+        input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+
+        auto vertexBuffer = reinterpret_cast<CUdeviceptr>(vertices_.device());
+        input.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+        input.triangleArray.vertexBuffers = &vertexBuffer;
+        input.triangleArray.numVertices = static_cast<uint32_t>(vertices_.size());
+
+        auto indexBuffer = reinterpret_cast<CUdeviceptr>(indices_.device());
+        input.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+        input.triangleArray.indexBuffer = indexBuffer;
+        input.triangleArray.numIndexTriplets = static_cast<uint32_t>(indices_.size());
+
+        // clang-format off
+        static constexpr uint32_t input_flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};  // TODO(kacper): uint32_t?
+        input.triangleArray.flags = input_flags;
+        input.triangleArray.numSbtRecords = 1;
+
+        spdlog::info("gas.build()");
+        gas_.build(input, stream, cuda_ctx, optix_ctx);    
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

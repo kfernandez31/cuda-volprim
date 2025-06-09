@@ -24,6 +24,8 @@
 
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
+#define NUM_TOTAL_INDICES  (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
+#define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
 namespace thesis::host::app {
 
@@ -32,22 +34,25 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       stream_(),
+      gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
       env_map_(config_.env_map_path_, cuda_ctx_.get()),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_,
              cuda_ctx_.get()),
-      camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)) {
+      camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
+      primitives_(cuda::Buffer<device::params::Primitive>::onBoth(NUM_PRIMITIVES, cuda_ctx_.get())) {
+    spdlog::info("initGAS");
     initGAS();
+
+    spdlog::info("initPrimitives");
     initPrimitives();
+
+    spdlog::info("createPipeline");
     createPipeline();
 }
 
 void Renderer::initGAS() {
     std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
     icos[0].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
-
-    // icos[0].transform(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
-    // icos[1].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
-    // icos[2].transform(glm::translate(glm::vec3(+2.0f, 0.0f, 0.5f)));
 
     // Combine vertices
     std::vector<glm::vec3> all_vertices;
@@ -60,16 +65,15 @@ void Renderer::initGAS() {
     // clang-format off
     std::vector<glm::uvec3> all_indices;
     for (size_t i = 0; i < icos.size(); ++i) {
-        auto offset = static_cast<uint>(i * geometry::Icosphere<ICOSPHERE_N>::NumVertices);
-        icos[i].offsetIndices(offset);
-
-        const auto& is = icos[i].getIndices();
+        auto offset = i * geometry::Icosphere<ICOSPHERE_N>::NumVertices;
+        auto is = icos[i].getIndices();
+        for (auto& idx : is) idx += offset;
         all_indices.insert(all_indices.end(), is.begin(), is.end());
     }
 
-    gas_ = optix::TriangleGAS(stream_.get(), optix_ctx_.get(),
+    gas_.build(stream_.get(), cuda_ctx_.get(), optix_ctx_.get(),
                               utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
-                              utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices), cuda_ctx_.get());
+                              utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
 }
 
 void Renderer::initPrimitives() {
@@ -103,8 +107,8 @@ void Renderer::initPrimitives() {
         );
     }
 
-    primitives_ = cuda::Buffer<device::params::Primitive>(NUM_PRIMITIVES, cuda_ctx_.get());
     std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
+    primitives_.upload();
 }
 
 void Renderer::uploadParams() {
@@ -117,7 +121,7 @@ void Renderer::uploadParams() {
     par.camera_ = camera_.toDevice();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.upload(), primitives_.size());
 
-    launch_params_ = cuda::Buffer<decltype(par)>::onDeviceOnly(&par, 1, cuda_ctx_.get());
+    launch_params_ = cuda::Buffer<common::params::LaunchParams>::onDeviceOnly({&par, 1}, cuda_ctx_.get());
     spdlog::info("Uploaded launch params");
 }
 
@@ -173,7 +177,7 @@ void Renderer::createPipeline() {
     createHitgroupPG();
 
     sbt_ = optix::SBT(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get(), cuda_ctx_.get());
-    spdlog::debug("SBT created");
+    spdlog::info("SBT created");
 
     OptixPipelineLinkOptions plo = {};
     plo.maxTraceDepth = 1;

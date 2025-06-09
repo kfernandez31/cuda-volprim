@@ -34,6 +34,11 @@ class Buffer {
     std::unique_ptr<T[]> host_ptr_ = nullptr;
     UniqueDevicePtr<T> device_ptr_ = nullptr;
 
+    Buffer(size_t cap, CUcontext ctx, bool device_only = false)
+        : count_(cap),
+          host_ptr_(device_only ? nullptr : std::make_unique<T[]>(cap)),
+          device_ptr_(makeDevicePtr<T>(cap, ctx)) {}
+
    public:
     Buffer() = default;
 
@@ -43,26 +48,24 @@ class Buffer {
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
 
-    Buffer(size_t count, CUcontext ctx)
-        : count_(count),
-          host_ptr_(std::make_unique<T[]>(count)),
-          device_ptr_(makeDevicePtr<T>(count, ctx)) {}
-
-    Buffer(const T* data, size_t count, CUcontext ctx) : Buffer(count, ctx) {
-        CUDA_CHECK(cudaMemcpy(device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
+    static Buffer onBoth(size_t cap, CUcontext ctx) {
+        return Buffer(cap, ctx);
     }
 
-    static Buffer onDeviceOnly(size_t count, CUcontext ctx) {
-        Buffer buf;
-        buf.count_ = count;
-        buf.device_ptr_ = makeDevicePtr<T>(count, ctx);
+    static Buffer onBoth(std::span<const T> data, CUcontext ctx) {
+        auto buf = onBoth(data.size(), ctx);
+        buf.push_back(data);
         return buf;
     }
 
-    static Buffer onDeviceOnly(const T* data, size_t count, CUcontext ctx) {
-        Buffer buf = onDeviceOnly(count, ctx);
-        CUDA_CHECK(
-            cudaMemcpy(buf.device_ptr_.get(), data, sizeof(T) * count, cudaMemcpyHostToDevice));
+    static Buffer onDeviceOnly(size_t cap, CUcontext ctx) { 
+        return Buffer(cap, ctx, true);
+    }
+
+    static Buffer onDeviceOnly(std::span<const T> data, CUcontext ctx) {
+        auto buf = onDeviceOnly(data.size(), ctx);
+        CUDA_CHECK(cudaMemcpy(buf.device(), data.data(), data.size() * sizeof(T),
+                              cudaMemcpyHostToDevice));
         return buf;
     }
 

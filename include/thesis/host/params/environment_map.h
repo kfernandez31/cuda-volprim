@@ -26,16 +26,16 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
         stbi_set_flip_vertically_on_load(true);
 
         int w, h, c;
-        auto* host_data = stbi_loadf(filepath.string().c_str(), &w, &h, &c, 0);
-        CHECK_NOT_NULL(host_data, "Failed to load HDR environment map");
+        auto* raw = stbi_loadf(filepath.string().c_str(), &w, &h, &c, 0); // TODO(kacper): what's the 0 arg?
+        CHECK_NOT_NULL(raw, "Failed to load HDR environment map");
 
         width_ = static_cast<size_t>(w);
         height_ = static_cast<size_t>(h);
         num_channels_ = static_cast<size_t>(c);
 
         const auto total_floats = width_ * height_ * num_channels_;
-        device_data_ = cuda::Buffer<float>::onDeviceOnly(host_data, total_floats, ctx);
-        stbi_image_free(host_data);
+        device_data_ = cuda::Buffer<float>::onDeviceOnly({raw, total_floats}, ctx);
+        stbi_image_free(raw);
     }
 
     EnvironmentMap(EnvironmentMap&&) noexcept = default;

@@ -38,7 +38,7 @@ class Record {
         SBTRecord<T> record = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record));
         record.data = data;
-        buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly(&record, 1, ctx);
+        buffer_ = cuda::Buffer<SBTRecord<T>>::onDeviceOnly({&record, 1}, ctx);
     }
 
     [[nodiscard]] CUdeviceptr get() const noexcept {
@@ -63,8 +63,8 @@ class Record<void> {
     Record(OptixProgramGroup pg, CUcontext ctx) {
         alignas(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, header));
-        buffer_ = cuda::Buffer<std::byte>::onDeviceOnly(reinterpret_cast<std::byte*>(header),
-                                                        OPTIX_SBT_RECORD_HEADER_SIZE, ctx);
+        buffer_ = cuda::Buffer<std::byte>::onDeviceOnly({reinterpret_cast<std::byte*>(header), // TODO(kacper): drop the cast?
+                                                        OPTIX_SBT_RECORD_HEADER_SIZE}, ctx);
     }
 
     [[nodiscard]] CUdeviceptr get() const noexcept {

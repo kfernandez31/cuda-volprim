@@ -35,7 +35,7 @@ class Image : public Convertible<device::params::Image> {
           height_(height),
           num_samples_per_pixel_(num_samples_per_pixel),
           sample_buffer_(cuda::Buffer<float3>::onDeviceOnly(total_size(), ctx)),
-          averaged_pixels_(pixel_count(), ctx) {}
+          averaged_pixels_(cuda::Buffer<float3>::onBoth(pixel_count(), ctx)) {}
 
     [[nodiscard]] size_t width() const noexcept { return width_; }
     [[nodiscard]] size_t height() const noexcept { return height_; }

@@ -35,7 +35,6 @@ class Renderer {
     cuda::Stream stream_;
 
     optix::TriangleGAS gas_;
-
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
