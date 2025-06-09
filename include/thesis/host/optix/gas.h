@@ -12,22 +12,22 @@
 
 namespace thesis::host::optix {
 
-class GASHandle {
+class GAS {
    private:
     OptixDeviceContext context_ = nullptr;
     cuda::Buffer<std::byte> output_buffer_;
     OptixTraversableHandle gas_handle_ = 0;
 
    public:
-    GASHandle() = default;
+    GAS() = default;
 
-    GASHandle(GASHandle&&) noexcept = default;
-    GASHandle& operator=(GASHandle&&) noexcept = default;
+    GAS(GAS&&) noexcept = default;
+    GAS& operator=(GAS&&) noexcept = default;
 
-    GASHandle(const GASHandle&) = delete;
-    GASHandle& operator=(const GASHandle&) = delete;
+    GAS(const GAS&) = delete;
+    GAS& operator=(const GAS&) = delete;
 
-    GASHandle(OptixDeviceContext context, const OptixBuildInput& build_input, cudaStream_t stream,
+    GAS(OptixDeviceContext context, const OptixBuildInput& build_input, cudaStream_t stream,
               uint build_flags = OPTIX_BUILD_FLAG_NONE)
         : context_(context) {
         OptixAccelBuildOptions accel_options = {};
@@ -55,7 +55,7 @@ class TriangleGAS {
    private:
     cuda::Buffer<float3> vertices_;
     cuda::Buffer<uint3> indices_;
-    optix::GASHandle gas_;
+    optix::GAS gas_;
 
    public:
     TriangleGAS() = default;
@@ -89,7 +89,7 @@ class TriangleGAS {
         build_input.triangleArray.flags = input_flags;
         build_input.triangleArray.numSbtRecords = 1;
 
-        gas_ = GASHandle(context, build_input, stream);
+        gas_ = GAS(context, build_input, stream);
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

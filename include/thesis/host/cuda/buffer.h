@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/host/utils/check.h"
+#include "thesis/host/cuda/context.h"
 
 #include <cuda_runtime.h>
 
@@ -19,6 +20,15 @@ using UniqueDevicePtr = std::unique_ptr<T, CudaDeleter>;
 
 template <typename T>
 UniqueDevicePtr<T> makeDevicePtr(size_t count) {
+    void* raw = nullptr;
+    CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
+    return UniqueDevicePtr<T>(static_cast<T*>(raw));
+}
+
+template <typename T>
+UniqueDevicePtr<T> makeDevicePtr(size_t count, CUcontext context) {
+    Context::Guard guard(context);
+    
     void* raw = nullptr;
     CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
     return UniqueDevicePtr<T>(static_cast<T*>(raw));

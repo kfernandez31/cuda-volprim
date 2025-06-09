@@ -8,7 +8,7 @@
 
 namespace thesis::host::cuda {
 
-class ContextHandle {
+class Context {
    private:
     CUcontext context_ = nullptr;
     CUdevice device_ = -1;
@@ -22,20 +22,20 @@ class ContextHandle {
     }
 
    public:
-    explicit ContextHandle(int device_ordinal = 0) {
+    explicit Context(int device_ordinal = 0) {
         CU_CHECK(cuInit(0));
         CU_CHECK(cuDeviceGet(&device_, device_ordinal));
         CU_CHECK(cuCtxCreate(&context_, 0, device_));
-        CU_CHECK(cuCtxSetCurrent(context_));
+        CU_CHECK(cuCtxSetCurrent(context_));    
     }
 
-    ~ContextHandle() { reset(); }
+    ~Context() { reset(); }
 
-    ContextHandle(ContextHandle&& other) noexcept
+    Context(Context&& other) noexcept
         : context_(std::exchange(other.context_, nullptr)),
           device_(std::exchange(other.device_, -1)) {}
 
-    ContextHandle& operator=(ContextHandle&& other) noexcept {
+    Context& operator=(Context&& other) noexcept {
         if (this != &other) {
             reset();
             context_ = std::exchange(other.context_, nullptr);
@@ -44,8 +44,30 @@ class ContextHandle {
         return *this;
     }
 
-    ContextHandle(const ContextHandle&) = delete;
-    ContextHandle& operator=(const ContextHandle&) = delete;
+    Context(const Context&) = delete;
+    Context& operator=(const Context&) = delete;
+
+    struct Guard {
+        CUcontext prev = nullptr;
+
+        Guard(CUcontext ctx) {
+            CU_CHECK(cuCtxPushCurrent(ctx));
+        }
+
+        ~Guard() {
+            CU_CHECK_NOEXCEPT(cuCtxPopCurrent(&prev));
+        }
+
+        Guard(Guard&& other) noexcept : prev(std::exchange(other.prev, nullptr)) {}
+        Guard& operator=(Guard&& other) noexcept {
+            if (this != &other) {
+                prev = std::exchange(other.prev, nullptr);
+            }
+        }
+
+        Guard(const Guard&) = delete;
+        Guard& operator=(const Guard&) = delete;
+    };
 
     [[nodiscard]] CUcontext get() const noexcept { return context_; }
     [[nodiscard]] CUdevice device() const noexcept { return device_; }

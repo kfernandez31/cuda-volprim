@@ -2,11 +2,15 @@
 
 #include "thesis/common/params/launch_params.h"
 #include "thesis/device/params/primitive.h"
-#include "thesis/host/cuda/context_handle.h"
-#include "thesis/host/cuda/stream_handle.h"
-#include "thesis/host/optix/gas_handle.h"
-#include "thesis/host/optix/handle.h"
-#include "thesis/host/optix/sbt_handle.h"
+#include "thesis/host/cuda/context.h"
+#include "thesis/host/cuda/stream.h"
+#include "thesis/host/optix/gas.h"
+#include "thesis/host/optix/module.h"
+#include "thesis/host/optix/pipeline.h"
+#include "thesis/host/optix/device_context.h"
+#include "thesis/host/optix/program_group.h"
+#include "thesis/host/optix/pipeline.h"
+#include "thesis/host/optix/sbt.h"
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
@@ -27,9 +31,9 @@ class Renderer {
 
     app::Config config_;
 
-    cuda::ContextHandle cuda_ctx_;
-    optix::DeviceContextHandle optix_ctx_;
-    cuda::StreamHandle stream_;
+    cuda::Context cuda_ctx_;
+    optix::DeviceContext optix_ctx_;
+    cuda::Stream stream_;
 
     optix::TriangleGAS gas_;
 
@@ -39,12 +43,12 @@ class Renderer {
     cuda::Buffer<device::params::Primitive> primitives_;
     cuda::Buffer<common::params::LaunchParams> launch_params_;
 
-    optix::ModuleHandle module_;
-    optix::ProgramGroupHandle raygen_pg_;
-    optix::ProgramGroupHandle miss_pg_;
-    optix::ProgramGroupHandle hitgroup_pg_;
-    optix::SBTHandle sbt_;
-    optix::PipelineHandle pipeline_;
+    optix::Module module_;
+    optix::ProgramGroup raygen_pg_;
+    optix::ProgramGroup miss_pg_;
+    optix::ProgramGroup hitgroup_pg_;
+    optix::SBT sbt_;
+    optix::Pipeline pipeline_;
 
    public:
     Renderer() = delete;

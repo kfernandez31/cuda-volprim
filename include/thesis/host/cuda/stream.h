@@ -9,7 +9,7 @@
 
 namespace thesis::host::cuda {
 
-class StreamHandle {
+class Stream {
    private:
     cudaStream_t stream_ = nullptr;
 
@@ -20,14 +20,14 @@ class StreamHandle {
     }
 
    public:
-    explicit StreamHandle(uint flags = cudaStreamDefault) {
+    explicit Stream(uint flags = cudaStreamDefault) {
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, flags));
     }
 
-    ~StreamHandle() { reset(); }
+    ~Stream() { reset(); }
 
-    StreamHandle(StreamHandle&& other) noexcept : stream_(std::exchange(other.stream_, nullptr)) {}
-    StreamHandle& operator=(StreamHandle&& other) noexcept {
+    Stream(Stream&& other) noexcept : stream_(std::exchange(other.stream_, nullptr)) {}
+    Stream& operator=(Stream&& other) noexcept {
         if (this != &other) {
             reset();
             stream_ = std::exchange(other.stream_, nullptr);
@@ -35,8 +35,8 @@ class StreamHandle {
         return *this;
     }
 
-    StreamHandle(const StreamHandle&) = delete;
-    StreamHandle& operator=(const StreamHandle&) = delete;
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
 
     [[nodiscard]] cudaStream_t get() const noexcept { return stream_; }
 

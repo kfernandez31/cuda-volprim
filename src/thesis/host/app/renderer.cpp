@@ -2,13 +2,13 @@
 
 #include "thesis/pch.h"
 
+#include "thesis/host/params/primitive.h"
 #include "thesis/common/utils/types.h"
 #include "thesis/device/payloads/registry.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
-#include "thesis/host/optix/ptx_handle.h"
-#include "thesis/host/params/primitive.h"
+#include "thesis/host/optix/ptx.h"
 #include "thesis/host/utils/check.h"
 #include "thesis/host/utils/data.h"
 #include "thesis/host/utils/result.h"
@@ -30,19 +30,7 @@ namespace thesis::host::app {
 Renderer::Renderer(const app::Config& config)
     : config_(config),
       cuda_ctx_(),
-      optix_ctx_([&] {
-          OPTIX_CHECK(optixInit());
-          spdlog::debug("OptiX initialized");
-
-          OptixDeviceContextOptions opts = {};
-          opts.logCallbackFunction = &optix::contextLogCb;
-          opts.logCallbackLevel = static_cast<int>(optix::LogLevel::Warning);
-#ifdef DEBUG
-          opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
-#endif  // DEBUG
-
-          return optix::DeviceContextHandle(opts, cuda_ctx_.get());
-      }()),
+      optix_ctx_(cuda_ctx_.get()),
       stream_(),
       env_map_(config_.env_map_path_),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_),
@@ -138,7 +126,7 @@ void Renderer::createRaygenPG() {
     desc.raygen.module = module_.get();
     desc.raygen.entryFunctionName = config_.raygen_function_name_.c_str();
 
-    raygen_pg_ = optix::ProgramGroupHandle(optix_ctx_.get(), desc);
+    raygen_pg_ = optix::ProgramGroup(optix_ctx_.get(), desc);
     spdlog::debug("Raygen program group created");
 }
 
@@ -148,7 +136,7 @@ void Renderer::createMissPG() {
     desc.miss.module = module_.get();
     desc.miss.entryFunctionName = config_.miss_function_name_.c_str();
 
-    miss_pg_ = optix::ProgramGroupHandle(optix_ctx_.get(), desc);
+    miss_pg_ = optix::ProgramGroup(optix_ctx_.get(), desc);
     spdlog::debug("Miss program group created");
 }
 
@@ -162,13 +150,13 @@ void Renderer::createHitgroupPG() {
     desc.hitgroup.moduleAH = module_.get();
     desc.hitgroup.entryFunctionNameAH = config_.anyhit_function_name.c_str();
 
-    hitgroup_pg_ = optix::ProgramGroupHandle(optix_ctx_.get(), desc);
+    hitgroup_pg_ = optix::ProgramGroup(optix_ctx_.get(), desc);
     spdlog::debug("Hitgroup program group created");
 }
 
 void Renderer::createPipeline() {
     auto ptx =
-        utils::try_unwrap_or_exit<optix::PtxHandle>(optix::PtxHandle::load(config_.ptx_path_));
+        utils::try_unwrap_or_exit<optix::PTX>(optix::PTX::load(config_.ptx_path_));
     spdlog::info("PTX loaded ({} bytes)", ptx.size());
 
     OptixModuleCompileOptions mco = {};
@@ -177,13 +165,13 @@ void Renderer::createPipeline() {
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
 
-    module_ = optix::ModuleHandle(optix_ctx_.get(), mco, pco, ptx.data());
+    module_ = optix::Module(optix_ctx_.get(), mco, pco, ptx.data());
 
     createRaygenPG();
     createMissPG();
     createHitgroupPG();
 
-    sbt_ = optix::SBTHandle(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
+    sbt_ = optix::SBT(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
     spdlog::debug("SBT created");
 
     OptixPipelineLinkOptions plo = {};
@@ -191,7 +179,7 @@ void Renderer::createPipeline() {
 
     std::array<OptixProgramGroup, 3> pgs = {raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get()};
 
-    pipeline_ = optix::PipelineHandle(optix_ctx_.get(), pco, plo, pgs.data(), pgs.size());
+    pipeline_ = optix::Pipeline(optix_ctx_.get(), pco, plo, pgs.data(), pgs.size());
     spdlog::info("OptiX pipeline built");
 }
 
@@ -204,11 +192,10 @@ void Renderer::render() {
                      static_cast<uint>(image_.height()),
                      static_cast<uint>(image_.num_samples_per_pixel()));
 
-    cuda::StreamHandle::synchronizeDevice();
+    cuda::Stream::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
 
-    // TODO(kacper): fix asap
-    // utils::try_unwrap_or_exit(image_.save(config_.output_path_, stream_.get()));
+    utils::try_unwrap_or_exit(image_.save(config_.output_path_, stream_.get()));
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 

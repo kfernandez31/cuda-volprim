@@ -3,7 +3,7 @@
 #include "thesis/device/params/image.h"
 #include "thesis/host/cuda/buffer.h"
 #include "thesis/host/utils/io.h"
-#include "thesis/host/cuda/stream_handle.h"
+#include "thesis/host/cuda/stream.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/result.h"
 #include "kernels/average_samples.h"
@@ -59,12 +59,11 @@ class Image : public Convertible<device::params::Image> {
         return img;
     }
 
-    void save(const std::filesystem::path& filename, cudaStream_t stream) {
+    [[nodiscard]] utils::Result<> save(const std::filesystem::path& filename, cudaStream_t stream) {
         device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
                                               width_, height_, num_samples_per_pixel_, stream);
         averaged_pixels_.download();
-        // TODO(kacper): fix asap
-        // core::try_unwrap_or_exit(utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename));
+        return utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
     }    
 };
 

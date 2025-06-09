@@ -9,7 +9,7 @@
 
 namespace thesis::host::optix {
 
-class SBTHandle {
+class SBT {
    private:
     Record<void> raygen_record_;
     Record<void> miss_record_;
@@ -17,15 +17,15 @@ class SBTHandle {
     OptixShaderBindingTable sbt_ = {};
 
    public:
-    SBTHandle() = default;
+    SBT() = default;
 
-    SBTHandle(SBTHandle&& other) noexcept = default;
-    SBTHandle& operator=(SBTHandle&& other) noexcept = default;
+    SBT(SBT&& other) noexcept = default;
+    SBT& operator=(SBT&& other) noexcept = default;
 
-    SBTHandle(const SBTHandle&) = delete;
-    SBTHandle& operator=(const SBTHandle&) = delete;
+    SBT(const SBT&) = delete;
+    SBT& operator=(const SBT&) = delete;
 
-    SBTHandle(OptixProgramGroup raygen, OptixProgramGroup miss, OptixProgramGroup hitgroup)
+    SBT(OptixProgramGroup raygen, OptixProgramGroup miss, OptixProgramGroup hitgroup)
         : raygen_record_(raygen), miss_record_(miss), hitgroup_record_(hitgroup) {
         sbt_.raygenRecord = raygen_record_.get();
 

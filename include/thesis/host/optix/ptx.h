@@ -9,13 +9,13 @@
 
 namespace thesis::host::optix {
 
-class PtxHandle {
+class PTX {
    private:
     std::string data_;
 
    public:
-    static utils::Result<PtxHandle> load(const std::filesystem::path& filename) noexcept {
-        PtxHandle result;
+    static utils::Result<PTX> load(const std::filesystem::path& filename) noexcept {
+        PTX result;
         TRY_ASSIGN(result.data_, utils::io::readFileToString(filename));
         return result;
     }
