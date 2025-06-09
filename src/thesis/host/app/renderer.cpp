@@ -33,7 +33,7 @@ Renderer::Renderer(const app::Config& config)
     : config_(config),
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
-      stream_(),
+      streams_(),
       gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
       env_map_(config_.env_map_path_, cuda_ctx_.get()),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_,
@@ -73,7 +73,7 @@ void Renderer::initGAS() {
         all_indices.insert(all_indices.end(), is.begin(), is.end());
     }
 
-    gas_.build(stream_.get(), cuda_ctx_.get(), optix_ctx_.get(),
+    gas_.build(streams_[cuda::StreamKind::Main]->get(), cuda_ctx_.get(), optix_ctx_.get(),
                               utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
                               utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
 }
@@ -194,16 +194,14 @@ void Renderer::render() {
     uploadParams();
 
     spdlog::info("Launching OptiX pipeline...");
-    pipeline_.launch(stream_.get(), launch_params_.cu_device_ptr(),
+    pipeline_.launch(streams_[cuda::StreamKind::Main]->get(), launch_params_.cu_device_ptr(),
                      sizeof(common::params::LaunchParams), sbt_.get(),
                      image_.width(),
                      image_.height(),
                      image_.num_samples_per_pixel());
 
-    cuda::Stream::synchronizeDevice();
     spdlog::info("Pipeline execution complete");
-
-    utils::try_unwrap_or_exit(image_.save(config_.output_path_, stream_.get()));
+    utils::try_unwrap_or_exit(image_.save(config_.output_path_, streams_[cuda::StreamKind::Main]->get()));
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 

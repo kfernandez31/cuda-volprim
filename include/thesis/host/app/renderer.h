@@ -4,7 +4,7 @@
 #include "thesis/device/params/primitive.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/cuda/context.h"
-#include "thesis/host/cuda/stream.h"
+#include "thesis/host/cuda/stream_dag.h"
 #include "thesis/host/optix/device_context.h"
 #include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/module.h"
@@ -32,7 +32,7 @@ class Renderer {
 
     cuda::Context cuda_ctx_;
     optix::DeviceContext optix_ctx_;
-    cuda::Stream stream_;
+    cuda::StreamDAG streams_;
 
     optix::TriangleGAS gas_;
     host::params::EnvironmentMap env_map_;
