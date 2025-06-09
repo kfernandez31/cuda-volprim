@@ -17,21 +17,23 @@ class Stream {
     cudaEvent_t event_ = nullptr;  // Added: Internal event for signaling completion
     // TODO(kacper): store last error
 
-    using Callback = std::function<utils::Result<>(cudaError_t)>; // TODO(kacper): maybe excessive and new/delete would do
+    using Callback = std::function<utils::Result<>(cudaError_t)>;  // TODO(kacper): maybe excessive
+                                                                   // and new/delete would do
     std::queue<Callback> callbacks_;
 
    public:
-    explicit Stream(bool is_default) { 
-        CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, is_default ? cudaStreamDefault : cudaStreamNonBlocking));
+    explicit Stream(bool is_default) {
+        CUDA_CHECK(cudaStreamCreateWithFlags(
+            &stream_, is_default ? cudaStreamDefault : cudaStreamNonBlocking));
         CUDA_CHECK(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming));
     }
 
     ~Stream() { reset(); }
 
     Stream(Stream&& other) noexcept
-        : stream_(std::exchange(other.stream_, nullptr)), 
-        event_(std::exchange(other.event_, nullptr)), 
-        callbacks_(std::move(other.callbacks_)) {}
+        : stream_(std::exchange(other.stream_, nullptr)),
+          event_(std::exchange(other.event_, nullptr)),
+          callbacks_(std::move(other.callbacks_)) {}
 
     Stream& operator=(Stream&& other) noexcept {
         if (this != &other) {

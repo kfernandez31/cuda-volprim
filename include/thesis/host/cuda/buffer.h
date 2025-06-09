@@ -30,7 +30,7 @@ class Buffer : public BufferBase<T> {
         return buf;
     }
 
-   [[nodiscard]]  static Buffer onDeviceOnly(std::span<const T> data, CUcontext ctx) {
+    [[nodiscard]] static Buffer onDeviceOnly(std::span<const T> data, CUcontext ctx) {
         auto buf = onDeviceOnly(data.size(), ctx);
         buf.upload(data.data());
         return buf;

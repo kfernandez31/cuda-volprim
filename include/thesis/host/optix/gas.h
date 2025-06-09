@@ -14,7 +14,8 @@
 
 namespace thesis::host::optix {
 
-static constexpr uint BUILD_FLAGS = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
+static constexpr uint BUILD_FLAGS =
+    OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
 
 class GAS {
    private:
@@ -45,8 +46,8 @@ class GAS {
 
         OptixAccelEmitDesc emit = {};
         emit.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-        
-        compacted_size_[0] = 0; // initial value
+
+        compacted_size_[0] = 0;  // initial value
         compacted_size_.upload();
         emit.result = compacted_size_.cu_device_ptr();
 
@@ -62,8 +63,8 @@ class GAS {
 
             spdlog::info("compact()");
             OPTIX_CHECK(optixAccelCompact(optix_ctx, stream, handle_,
-                                        reinterpret_cast<CUdeviceptr>(out_.device()),
-                                        compacted_size, &handle_));
+                                          reinterpret_cast<CUdeviceptr>(out_.device()),
+                                          compacted_size, &handle_));
         } else {
             spdlog::warn("GAS compaction skipped (compacted_size = 0)");
         }
@@ -82,9 +83,9 @@ class TriangleGAS {
     TriangleGAS() = default;
 
     TriangleGAS(size_t num_vertices, size_t num_indices, CUcontext ctx)
-        : vertices_(cuda::Buffer<float3>::onBoth(num_vertices, ctx))
-        , indices_(cuda::Buffer<uint3>::onBoth(num_indices, ctx))
-        , gas_(ctx) {}
+        : vertices_(cuda::Buffer<float3>::onBoth(num_vertices, ctx)),
+          indices_(cuda::Buffer<uint3>::onBoth(num_indices, ctx)),
+          gas_(ctx) {}
 
     TriangleGAS(TriangleGAS&&) noexcept = default;
     TriangleGAS& operator=(TriangleGAS&&) noexcept = default;

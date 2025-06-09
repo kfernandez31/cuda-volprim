@@ -24,7 +24,7 @@
 
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
-#define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
+#define NUM_TOTAL_INDICES  (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
 #define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
 namespace thesis::host::app {
@@ -73,9 +73,10 @@ void Renderer::initGAS() {
         all_indices.insert(all_indices.end(), is.begin(), is.end());
     }
 
-    gas_.build(streams_[cuda::StreamKind::Main]->get(), cuda_ctx_.get(), optix_ctx_.get(),
+    gas_.build(streams_[cuda::StreamKind::NonMain]->get(), cuda_ctx_.get(), optix_ctx_.get(),
                               utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
                               utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
+    streams_[cuda::StreamKind::NonMain]->synchronize();
 }
 
 void Renderer::initPrimitives() {
@@ -199,9 +200,12 @@ void Renderer::render() {
                      image_.width(),
                      image_.height(),
                      image_.num_samples_per_pixel());
+    streams_[cuda::StreamKind::NonMain]->synchronize();
 
     spdlog::info("Pipeline execution complete");
     utils::try_unwrap_or_exit(image_.save(config_.output_path_, streams_[cuda::StreamKind::Main]->get()));
+    streams_[cuda::StreamKind::NonMain]->synchronize();
+
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 

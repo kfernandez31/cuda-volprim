@@ -29,17 +29,18 @@ UniqueDevicePtr<T> makeDevicePtr(size_t count, CUcontext ctx) {
     return UniqueDevicePtr<T>(static_cast<T*>(raw));
 }
 
-} // namespace detail
+}  // namespace detail
 
 template <typename T>
 class BufferBase {
-protected:
+   protected:
     size_t count_ = 0;
     detail::UniqueDevicePtr<T> device_ptr_ = nullptr;
 
-    BufferBase(size_t count, CUcontext ctx) : count_(count), device_ptr_(detail::makeDevicePtr<T>(count, ctx)) {}
-    
-public:
+    BufferBase(size_t count, CUcontext ctx)
+        : count_(count), device_ptr_(detail::makeDevicePtr<T>(count, ctx)) {}
+
+   public:
     BufferBase() = default;
     BufferBase(const BufferBase&) = delete;
     BufferBase& operator=(const BufferBase&) = delete;
@@ -79,4 +80,4 @@ public:
     [[nodiscard]] const T& operator[](size_t index) const noexcept { return host()[index]; }
 };
 
-} // namespace thesis::host::cuda
+}  // namespace thesis::host::cuda
