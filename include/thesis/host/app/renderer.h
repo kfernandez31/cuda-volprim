@@ -3,6 +3,7 @@
 #include "thesis/common/params/launch_params.h"
 #include "thesis/device/params/primitive.h"
 #include "thesis/host/app/config.h"
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
 #include "thesis/host/optix/device_context.h"
@@ -38,8 +39,8 @@ class Renderer {
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
-    cuda::Buffer<device::params::Primitive> primitives_;
-    cuda::Buffer<common::params::LaunchParams> launch_params_;
+    cuda::AsyncBuffer<device::params::Primitive> primitives_;
+    cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;
     optix::ProgramGroup raygen_pg_;

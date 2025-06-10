@@ -24,7 +24,7 @@
 
 #define ICOSPHERE_N 0
 #define NUM_PRIMITIVES 1
-#define NUM_TOTAL_INDICES  (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
+#define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
 #define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
 namespace thesis::host::app {
@@ -35,12 +35,15 @@ Renderer::Renderer(const app::Config& config)
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
       gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
+      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       env_map_(config_.env_map_path_, cuda_ctx_.get()),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_,
              cuda_ctx_.get()),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(
-          cuda::Buffer<device::params::Primitive>::onBoth(NUM_PRIMITIVES, cuda_ctx_.get())) {
+      primitives_(cuda::AsyncBuffer<device::params::Primitive>::onBoth(
+          NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain])),
+      launch_params_(cuda::AsyncBuffer<common::params::LaunchParams>::onBoth(
+          1, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain])) {
     spdlog::info("initGAS");
     initGAS();
 
@@ -73,6 +76,7 @@ void Renderer::initGAS() {
         all_indices.insert(all_indices.end(), is.begin(), is.end());
     }
 
+    // TODO(kacper): maybe many-batch upload with memcpyasync
     gas_.build(streams_[cuda::StreamKind::NonMain]->get(), cuda_ctx_.get(), optix_ctx_.get(),
                               utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
                               utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
@@ -112,10 +116,12 @@ void Renderer::initPrimitives() {
 
     std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
     primitives_.upload();
+    streams_[cuda::StreamKind::NonMain]->synchronize();
 }
 
 void Renderer::uploadParams() {
-    common::params::LaunchParams par = {};
+    streams_[cuda::StreamKind::NonMain]->synchronize();
+    auto& par = launch_params_[0];
     par.gas_handle_ = gas_.get();
     par.seed_ = config_.seed_;
     par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
@@ -124,7 +130,8 @@ void Renderer::uploadParams() {
     par.camera_ = camera_.toDevice();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
 
-    launch_params_ = cuda::Buffer<common::params::LaunchParams>::onDeviceOnly({&par, 1}, cuda_ctx_.get());
+    launch_params_.upload();
+    streams_[cuda::StreamKind::NonMain]->synchronize();
     spdlog::info("Uploaded launch params");
 }
 
@@ -179,7 +186,8 @@ void Renderer::createPipeline() {
     createMissPG();
     createHitgroupPG();
 
-    sbt_ = optix::SBT(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get(), cuda_ctx_.get());
+    sbt_.build(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
+    streams_[cuda::StreamKind::NonMain]->synchronize();
     spdlog::info("SBT created");
 
     OptixPipelineLinkOptions plo = {};

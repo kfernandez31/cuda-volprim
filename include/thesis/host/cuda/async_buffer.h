@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/host/cuda/buffer_base.h"
+#include "thesis/host/cuda/stream.h"
 
 namespace thesis::host::cuda {
 
@@ -30,7 +31,7 @@ class AsyncBuffer : public BufferBase<T> {
 
     AsyncBuffer(size_t count, CUcontext ctx, std::shared_ptr<Stream> stream, bool device_only)
         : BufferBase<T>(count, ctx),
-          host_ptr_(device_only ? nullptr : makePinnedHostPtr<T>(count)),
+          host_ptr_(device_only ? nullptr : detail::makePinnedHostPtr<T>(count)),
           stream_(std::move(stream)) {}
 
    public:
@@ -48,14 +49,15 @@ class AsyncBuffer : public BufferBase<T> {
 
     [[nodiscard]] static AsyncBuffer onBoth(std::span<const T> data, CUcontext ctx,
                                             std::shared_ptr<Stream> stream) {
-        auto buf = onBoth(data.size(), ctx, stream);
-        buf.upload(data);
+        auto buf = onBoth(data.size(), ctx);
+        std::memcpy(buf.host(), data.data(), data.size() * sizeof(T));
+        buf.upload();
         return buf;
     }
 
     [[nodiscard]] static AsyncBuffer onDeviceOnly(std::span<const T> data, CUcontext ctx,
                                                   std::shared_ptr<Stream> stream) {
-        auto buf = onDeviceOnly(data.size(),
+        auto buf = onDeviceOnly(data.size(), ctx, std::move(stream));
         buf.upload(data.data());
         return buf;
     }
@@ -68,11 +70,13 @@ class AsyncBuffer : public BufferBase<T> {
 
     void upload(const T* src) override {
         CUDA_CHECK(cudaMemcpyAsync(this->device(), src, this->size_in_bytes(),
-                                   cudaMemcpyHostToDevice, stream->get()));
+                                   cudaMemcpyHostToDevice, stream_->get()));
     }
 
     void download(T* dst) override {
         CUDA_CHECK(cudaMemcpyAsync(dst, this->device(), this->size_in_bytes(),
-                                   cudaMemcpyDeviceToHost, stream->get()));
+                                   cudaMemcpyDeviceToHost, stream_->get()));
     }
+};
+
 }  // namespace thesis::host::cuda

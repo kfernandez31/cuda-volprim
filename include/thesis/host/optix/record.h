@@ -1,6 +1,7 @@
 #pragma once
 
-#include "thesis/host/cuda/buffer.h"
+#include "thesis/host/cuda/async_buffer.h"
+#include "thesis/host/cuda/stream.h"
 #include "thesis/host/utils/check.h"
 
 #include <cuda.h>
@@ -10,6 +11,7 @@
 
 #include <array>
 #include <cstddef>
+#include <memory>
 #include <utility>
 
 namespace thesis::host::optix {
@@ -23,7 +25,7 @@ struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SBTRecord {
 template <typename T = void>
 class Record {
    private:
-    cuda::Buffer<SBTRecord<T>> buffer_;
+    cuda::AsyncBuffer<SBTRecord<T>> buffer_;
 
    public:
     Record() = default;
@@ -34,13 +36,16 @@ class Record {
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
 
-    Record(OptixProgramGroup pg, const T& data, CUcontext ctx)
-        : buffer_(cuda::Buffer<SBTRecord<T>>::onDeviceOnly(1, ctx)) {
-        SBTRecord<T> record = {};
+    Record(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
+        : buffer_(cuda::AsyncBuffer<SBTRecord<T>>::onBoth(1, ctx, stream)) {}
+
+    void build(OptixProgramGroup pg, const T& data) {
+        auto& record = buffer_[0];
+
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record.header));
         record.data = data;
 
-        buffer_.upload(&record);
+        buffer_.upload();
     }
 
     [[nodiscard]] CUdeviceptr get() const noexcept { return buffer_; }
@@ -49,7 +54,7 @@ class Record {
 template <>
 class Record<void> {
    private:
-    cuda::Buffer<std::byte> buffer_;
+    cuda::AsyncBuffer<std::byte> buffer_;
 
    public:
     Record() = default;
@@ -60,12 +65,13 @@ class Record<void> {
     Record(const Record&) = delete;
     Record& operator=(const Record&) = delete;
 
-    Record(OptixProgramGroup pg, CUcontext ctx)
-        : buffer_(cuda::Buffer<std::byte>::onDeviceOnly(OPTIX_SBT_RECORD_HEADER_SIZE, ctx)) {
-        alignas(OPTIX_SBT_RECORD_ALIGNMENT) std::byte header[OPTIX_SBT_RECORD_HEADER_SIZE] = {};
-        OPTIX_CHECK(optixSbtRecordPackHeader(pg, header));
+    Record(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
+        : buffer_(cuda::AsyncBuffer<std::byte>::onBoth(OPTIX_SBT_RECORD_HEADER_SIZE, ctx, stream)) {
+    }
 
-        buffer_.upload(header);
+    void build(OptixProgramGroup pg) {
+        OPTIX_CHECK(optixSbtRecordPackHeader(pg, buffer_.host()));
+        buffer_.upload();
     }
 
     [[nodiscard]] CUdeviceptr get() const noexcept { return buffer_.cu_device_ptr(); }

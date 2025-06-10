@@ -26,7 +26,8 @@ class Buffer : public BufferBase<T> {
 
     [[nodiscard]] static Buffer onBoth(std::span<const T> data, CUcontext ctx) {
         auto buf = onBoth(data.size(), ctx);
-        buf.upload(data);
+        std::memcpy(buf.host(), data.data(), data.size() * sizeof(T));
+        buf.upload();
         return buf;
     }
 

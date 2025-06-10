@@ -9,7 +9,7 @@ namespace thesis::host::cuda {
 
 enum class StreamKind : size_t {
     Main = 0,
-    NonMain, // TODO(kacper): remove
+    NonMain,  // TODO(kacper): remove
     // GAS,
     // EnvMap,
     // Image,
