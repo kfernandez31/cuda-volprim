@@ -37,7 +37,7 @@ Renderer::Renderer(const app::Config& config)
       streams_(),
       gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
-      env_map_(config_.env_map_path_, cuda_ctx_.get()),
+      env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], streams_[cuda::StreamKind::NonMain]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth),
@@ -127,6 +127,8 @@ void Renderer::uploadParams() {
     par.env_map_ = env_map_.toDevice();
     par.camera_ = camera_.toDevice();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
+
+    streams_[cuda::StreamKind::NonMain]->synchronize();
 
     launch_params_.upload();
     streams_[cuda::StreamKind::NonMain]->synchronize();

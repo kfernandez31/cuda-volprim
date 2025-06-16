@@ -2,7 +2,7 @@
 
 #include "kernels/average_samples.h"
 #include "thesis/device/params/image.h"
-#include "thesis/host/cuda/buffer.h"
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/stream.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/io.h"
