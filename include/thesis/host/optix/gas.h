@@ -24,7 +24,7 @@ class GAS {
     OptixTraversableHandle handle_ = 0;
 
    public:
-    GAS(CUcontext ctx) : compacted_size_(cuda::Buffer<size_t>::onBoth(1, ctx)) {};
+    GAS(CUcontext ctx) : compacted_size_(1, ctx, cuda::AllocType::OnBoth) {};
 
     GAS(GAS&&) noexcept = default;
     GAS& operator=(GAS&&) noexcept = default;
@@ -41,8 +41,10 @@ class GAS {
         OptixAccelBufferSizes sizes;
         OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx, &opts, &input, 1, &sizes));
 
-        temp_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.tempSizeInBytes, cuda_ctx);
-        out_ = cuda::Buffer<std::byte>::onDeviceOnly(sizes.outputSizeInBytes, cuda_ctx);
+        temp_ =
+            cuda::Buffer<std::byte>(sizes.tempSizeInBytes, cuda_ctx, cuda::AllocType::OnDeviceOnly);
+        out_ = cuda::Buffer<std::byte>(sizes.outputSizeInBytes, cuda_ctx,
+                                       cuda::AllocType::OnDeviceOnly);
 
         OptixAccelEmitDesc emit = {};
         emit.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
@@ -59,7 +61,7 @@ class GAS {
         auto compacted_size = compacted_size_[0];
         if (compacted_size > 0) {
             spdlog::info("compacted_size = {}", compacted_size);
-            out_ = cuda::Buffer<std::byte>::onDeviceOnly(compacted_size, cuda_ctx);
+            out_ = cuda::Buffer<std::byte>(compacted_size, cuda_ctx, cuda::AllocType::OnDeviceOnly);
 
             spdlog::info("compact()");
             OPTIX_CHECK(optixAccelCompact(optix_ctx, stream, handle_,
@@ -83,8 +85,8 @@ class TriangleGAS {
     TriangleGAS() = default;
 
     TriangleGAS(size_t num_vertices, size_t num_indices, CUcontext ctx)
-        : vertices_(cuda::Buffer<float3>::onBoth(num_vertices, ctx)),
-          indices_(cuda::Buffer<uint3>::onBoth(num_indices, ctx)),
+        : vertices_(num_vertices, ctx, cuda::AllocType::OnBoth),
+          indices_(num_indices, ctx, cuda::AllocType::OnBoth),
           gas_(ctx) {}
 
     TriangleGAS(TriangleGAS&&) noexcept = default;

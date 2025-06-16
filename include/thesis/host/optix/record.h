@@ -37,7 +37,7 @@ class Record {
     Record& operator=(const Record&) = delete;
 
     Record(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : buffer_(cuda::AsyncBuffer<SBTRecord<T>>::onBoth(1, ctx, stream)) {}
+        : buffer_(1, ctx, std::move(stream), cuda::AllocType::OnBoth) {}
 
     void build(OptixProgramGroup pg, const T& data) {
         auto& record = buffer_[0];
@@ -66,8 +66,7 @@ class Record<void> {
     Record& operator=(const Record&) = delete;
 
     Record(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : buffer_(cuda::AsyncBuffer<std::byte>::onBoth(OPTIX_SBT_RECORD_HEADER_SIZE, ctx, stream)) {
-    }
+        : buffer_(OPTIX_SBT_RECORD_HEADER_SIZE, ctx, std::move(stream), cuda::AllocType::OnBoth) {}
 
     void build(OptixProgramGroup pg) {
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, buffer_.host()));

@@ -1,67 +1,51 @@
 #pragma once
 
 #include "thesis/host/cuda/context.h"
-#include "thesis/host/utils/check.h"
 
 #include <cuda_runtime.h>
 
 #include <cstddef>
-#include <memory>
 #include <span>
 
 namespace thesis::host::cuda {
 
-namespace detail {
+enum class AllocType { OnBoth, OnDeviceOnly };
 
-struct DeviceDeleter {
-    inline void operator()(void* ptr) const noexcept { CUDA_CHECK_NOEXCEPT(cudaFree(ptr)); }
-};
-
-template <typename T>
-using UniqueDevicePtr = std::unique_ptr<T, DeviceDeleter>;
-
-template <typename T>
-UniqueDevicePtr<T> makeDevicePtr(size_t count, CUcontext ctx) {
-    Context::Guard guard(ctx);
-
-    void* raw = nullptr;
-    CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
-    return UniqueDevicePtr<T>(static_cast<T*>(raw));
-}
-
-}  // namespace detail
-
-template <typename T>
+template <typename T, typename Policy>
 class BufferBase {
    protected:
     size_t count_ = 0;
-    detail::UniqueDevicePtr<T> device_ptr_ = nullptr;
-
-    BufferBase(size_t count, CUcontext ctx)
-        : count_(count), device_ptr_(detail::makeDevicePtr<T>(count, ctx)) {}
+    typename Policy::device_ptr_type device_ptr_;
+    typename Policy::host_ptr_type host_ptr_;
 
    public:
     BufferBase() = default;
-    BufferBase(const BufferBase&) = delete;
-    BufferBase& operator=(const BufferBase&) = delete;
 
-    BufferBase(BufferBase&&) noexcept = default;
-    BufferBase& operator=(BufferBase&&) noexcept = default;
+    BufferBase(size_t count, CUcontext ctx, typename Policy::ContextParam context_param,
+               AllocType alloc_type = AllocType::OnBoth)
+        : count_(count),
+          device_ptr_(Policy::alloc_device(count, ctx, context_param)),
+          host_ptr_(alloc_type == AllocType::OnBoth ? Policy::alloc_host(count, context_param) : nullptr) {}
+
+    BufferBase(std::span<const T> data, CUcontext ctx, typename Policy::ContextParam context_param,
+               AllocType alloc_type = AllocType::OnBoth)
+        : BufferBase(data.size(), ctx, context_param, alloc_type) {
+        if (alloc_type == AllocType::OnBoth) {
+            std::memcpy(host(), data.data(), data.size_bytes());
+            upload();
+        } else {
+            upload(data.data());
+        }
+    }
 
     [[nodiscard]] size_t size() const noexcept { return count_; }
-    [[nodiscard]] size_t size_in_bytes() const noexcept { return size() * sizeof(T); }
+    [[nodiscard]] size_t size_in_bytes() const noexcept { return count_ * sizeof(T); }
 
-    [[nodiscard]] virtual T* host() noexcept = 0;
-    [[nodiscard]] virtual const T* host() const noexcept = 0;
+    [[nodiscard]] T* host() noexcept { return host_ptr_.get(); }
+    [[nodiscard]] const T* host() const noexcept { return host_ptr_.get(); }
 
     [[nodiscard]] T* device() noexcept { return device_ptr_.get(); }
     [[nodiscard]] const T* device() const noexcept { return device_ptr_.get(); }
-
-    virtual void upload(const T* src) = 0;
-    virtual void download(T* dst) = 0;
-
-    void upload() { upload(host()); }
-    void download() { download(host()); }
 
     [[nodiscard]] CUdeviceptr cu_device_ptr() const noexcept {
         return reinterpret_cast<CUdeviceptr>(device());
@@ -70,14 +54,20 @@ class BufferBase {
     [[nodiscard]] std::span<T> host_view() noexcept { return {host(), count_}; }
     [[nodiscard]] std::span<const T> host_view() const noexcept { return {host(), count_}; }
 
+    void upload() { upload(host()); }
+    void download() { download(host()); }
+
+    void upload(const T* src) { Policy::upload(device(), src, size_in_bytes(), Policy::get_context_param(host_ptr_, device_ptr_)); }
+    void download(T* dst) { Policy::download(dst, device(), size_in_bytes(), Policy::get_context_param(host_ptr_, device_ptr_)); }
+
+    [[nodiscard]] T& operator[](size_t i) noexcept { return host()[i]; }
+    [[nodiscard]] const T& operator[](size_t i) const noexcept { return host()[i]; }
+
     [[nodiscard]] T* begin() noexcept { return host(); }
     [[nodiscard]] T* end() noexcept { return host() + count_; }
 
     [[nodiscard]] const T* begin() const noexcept { return host(); }
     [[nodiscard]] const T* end() const noexcept { return host() + count_; }
-
-    [[nodiscard]] T& operator[](size_t index) noexcept { return host()[index]; }
-    [[nodiscard]] const T& operator[](size_t index) const noexcept { return host()[index]; }
 };
 
 }  // namespace thesis::host::cuda

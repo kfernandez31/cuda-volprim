@@ -30,6 +30,7 @@
 namespace thesis::host::app {
 
 Renderer::Renderer(const app::Config& config)
+    // clang-format off
     : config_(config),
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
@@ -37,13 +38,10 @@ Renderer::Renderer(const app::Config& config)
       gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       env_map_(config_.env_map_path_, cuda_ctx_.get()),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_,
-             cuda_ctx_.get()),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get()),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(cuda::AsyncBuffer<device::params::Primitive>::onBoth(
-          NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain])),
-      launch_params_(cuda::AsyncBuffer<common::params::LaunchParams>::onBoth(
-          1, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain])) {
+      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth),
+      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth) {
     spdlog::info("initGAS");
     initGAS();
 

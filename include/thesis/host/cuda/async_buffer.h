@@ -2,6 +2,9 @@
 
 #include "thesis/host/cuda/buffer_base.h"
 #include "thesis/host/cuda/stream.h"
+#include "thesis/host/utils/check.h"
+
+#include <memory>
 
 namespace thesis::host::cuda {
 
@@ -11,72 +14,65 @@ struct PinnedHostDeleter {
     inline void operator()(void* ptr) const noexcept { CUDA_CHECK_NOEXCEPT(cudaFreeHost(ptr)); }
 };
 
-template <typename T>
-using UniquePinnedHostPtr = std::unique_ptr<T, PinnedHostDeleter>;
-
-template <typename T>
-UniquePinnedHostPtr<T> makePinnedHostPtr(size_t count) {
-    void* raw = nullptr;
-    CUDA_CHECK(cudaHostAlloc(&raw, count * sizeof(T), cudaHostAllocDefault));
-    return UniquePinnedHostPtr<T>(static_cast<T*>(raw));
-}
+struct AsyncDeviceDeleter {
+    std::shared_ptr<Stream> stream_;
+    inline void operator()(void* ptr) const noexcept {
+        CUDA_CHECK_NOEXCEPT(cudaFreeAsync(ptr, stream_->get()));
+    }
+};
 
 }  // namespace detail
 
 template <typename T>
-class AsyncBuffer : public BufferBase<T> {
-   private:
-    detail::UniquePinnedHostPtr<T> host_ptr_;
-    std::shared_ptr<Stream> stream_;
+struct AsyncBufferPolicy {
+    using device_ptr_type = std::unique_ptr<T, detail::AsyncDeviceDeleter>;
+    using host_ptr_type = std::unique_ptr<T, detail::PinnedHostDeleter>;
+    using ContextParam = std::shared_ptr<Stream>;
 
-    AsyncBuffer(size_t count, CUcontext ctx, std::shared_ptr<Stream> stream, bool device_only)
-        : BufferBase<T>(count, ctx),
-          host_ptr_(device_only ? nullptr : detail::makePinnedHostPtr<T>(count)),
-          stream_(std::move(stream)) {}
+    [[nodiscard]] static device_ptr_type alloc_device(size_t count, CUcontext ctx,
+                                                      ContextParam stream) {
+        Context::Guard g(ctx);
+        void* raw = nullptr;
+        CUDA_CHECK(cudaMallocAsync(&raw, count * sizeof(T), stream->get()));
+        return device_ptr_type(static_cast<T*>(raw), {stream});
+    }
 
+    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam) {
+        void* raw = nullptr;
+        CUDA_CHECK(cudaHostAlloc(&raw, count * sizeof(T), cudaHostAllocDefault));
+        return host_ptr_type(static_cast<T*>(raw));
+    }
+
+    static void upload(T* dst_device, const T* src_host, size_t bytes, const ContextParam& stream) {
+        CUDA_CHECK(cudaMemcpyAsync(dst_device, src_host, bytes, cudaMemcpyHostToDevice, stream->get()));
+    }
+
+    static void download(T* dst_host, const T* src_device, size_t bytes, const ContextParam& stream) {
+        CUDA_CHECK(cudaMemcpyAsync(dst_host, src_device, bytes, cudaMemcpyDeviceToHost, stream->get()));
+    }
+
+    [[nodiscard]] static const ContextParam& get_context_param(const host_ptr_type&,
+                                                        const device_ptr_type& device_ptr) {
+        return device_ptr.get_deleter().stream_;
+    }
+};
+
+template <typename T>
+class AsyncBuffer : public BufferBase<T, AsyncBufferPolicy<T>> {
    public:
+    using Base = BufferBase<T, AsyncBufferPolicy<T>>;
+    using Base::download;
+    using Base::upload;
+
     AsyncBuffer() = default;
 
-    [[nodiscard]] static AsyncBuffer onBoth(size_t count, CUcontext ctx,
-                                            std::shared_ptr<Stream> stream) {
-        return AsyncBuffer(count, ctx, std::move(stream), false);
-    }
+    AsyncBuffer(size_t count, CUcontext ctx, std::shared_ptr<Stream> stream,
+                AllocType alloc = AllocType::OnBoth)
+        : Base(count, ctx, std::move(stream), alloc) {}
 
-    [[nodiscard]] static AsyncBuffer onDeviceOnly(size_t count, CUcontext ctx,
-                                                  std::shared_ptr<Stream> stream) {
-        return AsyncBuffer(count, ctx, std::move(stream), true);
-    }
-
-    [[nodiscard]] static AsyncBuffer onBoth(std::span<const T> data, CUcontext ctx,
-                                            std::shared_ptr<Stream> stream) {
-        auto buf = onBoth(data.size(), ctx);
-        std::memcpy(buf.host(), data.data(), data.size() * sizeof(T));
-        buf.upload();
-        return buf;
-    }
-
-    [[nodiscard]] static AsyncBuffer onDeviceOnly(std::span<const T> data, CUcontext ctx,
-                                                  std::shared_ptr<Stream> stream) {
-        auto buf = onDeviceOnly(data.size(), ctx, std::move(stream));
-        buf.upload(data.data());
-        return buf;
-    }
-
-    [[nodiscard]] T* host() noexcept override { return host_ptr_.get(); }
-    [[nodiscard]] const T* host() const noexcept override { return host_ptr_.get(); }
-
-    using BufferBase<T>::upload;
-    using BufferBase<T>::download;
-
-    void upload(const T* src) override {
-        CUDA_CHECK(cudaMemcpyAsync(this->device(), src, this->size_in_bytes(),
-                                   cudaMemcpyHostToDevice, stream_->get()));
-    }
-
-    void download(T* dst) override {
-        CUDA_CHECK(cudaMemcpyAsync(dst, this->device(), this->size_in_bytes(),
-                                   cudaMemcpyDeviceToHost, stream_->get()));
-    }
+    AsyncBuffer(std::span<const T> data, CUcontext ctx, std::shared_ptr<Stream> stream,
+                AllocType alloc = AllocType::OnBoth)
+        : Base(data, ctx, std::move(stream), alloc) {}
 };
 
 }  // namespace thesis::host::cuda
