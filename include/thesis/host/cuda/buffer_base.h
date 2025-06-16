@@ -17,6 +17,7 @@ class BufferBase {
     size_t count_ = 0;
     typename Policy::device_ptr_type device_ptr_;
     typename Policy::host_ptr_type host_ptr_;
+    typename Policy::ContextParam context_param_;
 
    public:
     BufferBase() = default;
@@ -25,7 +26,9 @@ class BufferBase {
                AllocType alloc_type = AllocType::OnBoth)
         : count_(count),
           device_ptr_(Policy::alloc_device(count, ctx, context_param)),
-          host_ptr_(alloc_type == AllocType::OnBoth ? Policy::alloc_host(count, context_param) : nullptr) {}
+          host_ptr_(alloc_type == AllocType::OnBoth ? Policy::alloc_host(count, context_param)
+                                                    : nullptr),
+          context_param_(context_param) {}
 
     BufferBase(std::span<const T> data, CUcontext ctx, typename Policy::ContextParam context_param,
                AllocType alloc_type = AllocType::OnBoth)
@@ -36,6 +39,10 @@ class BufferBase {
         } else {
             upload(data.data());
         }
+    }
+
+    [[nodiscard]] const Policy::ContextParam& get_context_param() {
+        return Policy::get_context_param(host_ptr_, device_ptr_);
     }
 
     [[nodiscard]] size_t size() const noexcept { return count_; }
@@ -57,8 +64,8 @@ class BufferBase {
     void upload() { upload(host()); }
     void download() { download(host()); }
 
-    void upload(const T* src) { Policy::upload(device(), src, size_in_bytes(), Policy::get_context_param(host_ptr_, device_ptr_)); }
-    void download(T* dst) { Policy::download(dst, device(), size_in_bytes(), Policy::get_context_param(host_ptr_, device_ptr_)); }
+    void upload(const T* src) { Policy::upload(device(), src, size_in_bytes(), context_param_); }
+    void download(T* dst) { Policy::download(dst, device(), size_in_bytes(), context_param_); }
 
     [[nodiscard]] T& operator[](size_t i) noexcept { return host()[i]; }
     [[nodiscard]] const T& operator[](size_t i) const noexcept { return host()[i]; }

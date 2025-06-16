@@ -44,15 +44,18 @@ struct AsyncBufferPolicy {
     }
 
     static void upload(T* dst_device, const T* src_host, size_t bytes, const ContextParam& stream) {
-        CUDA_CHECK(cudaMemcpyAsync(dst_device, src_host, bytes, cudaMemcpyHostToDevice, stream->get()));
+        CUDA_CHECK(
+            cudaMemcpyAsync(dst_device, src_host, bytes, cudaMemcpyHostToDevice, stream->get()));
     }
 
-    static void download(T* dst_host, const T* src_device, size_t bytes, const ContextParam& stream) {
-        CUDA_CHECK(cudaMemcpyAsync(dst_host, src_device, bytes, cudaMemcpyDeviceToHost, stream->get()));
+    static void download(T* dst_host, const T* src_device, size_t bytes,
+                         const ContextParam& stream) {
+        CUDA_CHECK(
+            cudaMemcpyAsync(dst_host, src_device, bytes, cudaMemcpyDeviceToHost, stream->get()));
     }
 
     [[nodiscard]] static const ContextParam& get_context_param(const host_ptr_type&,
-                                                        const device_ptr_type& device_ptr) {
+                                                               const device_ptr_type& device_ptr) {
         return device_ptr.get_deleter().stream_;
     }
 };

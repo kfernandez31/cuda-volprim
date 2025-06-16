@@ -38,7 +38,7 @@ Renderer::Renderer(const app::Config& config)
       gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       env_map_(config_.env_map_path_, cuda_ctx_.get()),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get()),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], streams_[cuda::StreamKind::NonMain]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth),
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth) {
@@ -67,7 +67,7 @@ void Renderer::initGAS() {
     // clang-format off
     std::vector<glm::uvec3> all_indices;
     for (size_t i = 0; i < icos.size(); ++i) {
-        auto offset = i * geometry::Icosphere<ICOSPHERE_N>::NumVertices;
+        auto offset = static_cast<uint>(i * geometry::Icosphere<ICOSPHERE_N>::NumVertices);
         icos[i].offsetIndices(offset);
     
         const auto& is = icos[i].getIndices();
@@ -209,7 +209,7 @@ void Renderer::render() {
     streams_[cuda::StreamKind::NonMain]->synchronize();
 
     spdlog::info("Pipeline execution complete");
-    utils::try_unwrap_or_exit(image_.save(config_.output_path_, streams_[cuda::StreamKind::Main]->get()));
+    utils::try_unwrap_or_exit(image_.save(config_.output_path_));
     streams_[cuda::StreamKind::NonMain]->synchronize();
 
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
