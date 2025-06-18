@@ -35,7 +35,7 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
-      gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get()),
+      gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], streams_[cuda::StreamKind::NonMain]),
@@ -53,8 +53,10 @@ Renderer::Renderer(const app::Config& config)
 }
 
 void Renderer::initGAS() {
-    std::array<geometry::Icosphere<ICOSPHERE_N>, NUM_PRIMITIVES> icos;
-    icos[0].transform(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
+    std::vector<geometry::Icosphere<ICOSPHERE_N>> icos;
+    // icos.emplace_back(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
+    icos.emplace_back(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
+    // icos.emplace_back(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
 
     // Combine vertices
     std::vector<glm::vec3> all_vertices;
@@ -75,9 +77,8 @@ void Renderer::initGAS() {
     }
 
     // TODO(kacper): maybe many-batch upload with memcpyasync
-    gas_.build(streams_[cuda::StreamKind::NonMain]->get(), cuda_ctx_.get(), optix_ctx_.get(),
-                              utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices),
-                              utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
+    streams_[cuda::StreamKind::NonMain]->synchronize();
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get(), streams_[cuda::StreamKind::NonMain], utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices), utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
     streams_[cuda::StreamKind::NonMain]->synchronize();
 }
 

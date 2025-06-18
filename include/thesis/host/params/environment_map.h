@@ -2,14 +2,15 @@
 
 #include "thesis/device/params/environment_map.h"
 #include "thesis/host/cuda/async_buffer.h"
+#include "thesis/host/cuda/stream.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/check.h"
-#include "thesis/host/cuda/stream.h"
 
 #include <vector_types.h>
 
 #include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <stb/stb_image.h>
 #include <string_view>
 
@@ -23,7 +24,8 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
     cuda::AsyncBuffer<float> device_data_;
 
    public:
-    EnvironmentMap(const std::filesystem::path& filepath, CUcontext ctx, std::shared_ptr<cuda::Stream> stream) {
+    EnvironmentMap(const std::filesystem::path& filepath, CUcontext ctx,
+                   std::shared_ptr<cuda::Stream> stream) {
         stbi_set_flip_vertically_on_load(true);
 
         int w, h, c;
@@ -35,7 +37,8 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
         num_channels_ = static_cast<size_t>(c);
 
         const auto total_floats = width_ * height_ * num_channels_;
-        device_data_ = cuda::AsyncBuffer<float>({raw, total_floats}, ctx, std::move(stream), cuda::AllocType::OnBoth);
+        device_data_ = cuda::AsyncBuffer<float>({raw, total_floats}, ctx, std::move(stream),
+                                                cuda::AllocType::OnBoth);
         stbi_image_free(raw);
     }
 

@@ -46,7 +46,7 @@ class BufferBase {
     }
 
     [[nodiscard]] size_t size() const noexcept { return count_; }
-    [[nodiscard]] size_t size_in_bytes() const noexcept { return count_ * sizeof(T); }
+    [[nodiscard]] size_t size_bytes() const noexcept { return count_ * sizeof(T); }
 
     [[nodiscard]] T* host() noexcept { return host_ptr_.get(); }
     [[nodiscard]] const T* host() const noexcept { return host_ptr_.get(); }
@@ -64,8 +64,13 @@ class BufferBase {
     void upload() { upload(host()); }
     void download() { download(host()); }
 
-    void upload(const T* src) { Policy::upload(device(), src, size_in_bytes(), context_param_); }
-    void download(T* dst) { Policy::download(dst, device(), size_in_bytes(), context_param_); }
+    void upload(const T* src) { Policy::upload(device(), src, size_bytes(), context_param_); }
+    void download(T* dst) { Policy::download(dst, device(), size_bytes(), context_param_); }
+
+    void set_and_upload(std::span<const T> data) {
+        std::memcpy(host(), data.data(), data.size_bytes());
+        upload();
+    }
 
     [[nodiscard]] T& operator[](size_t i) noexcept { return host()[i]; }
     [[nodiscard]] const T& operator[](size_t i) const noexcept { return host()[i]; }

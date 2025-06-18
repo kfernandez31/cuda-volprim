@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <memory>
 
 namespace thesis::host::params {
 

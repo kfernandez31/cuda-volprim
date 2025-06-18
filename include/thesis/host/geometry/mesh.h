@@ -117,6 +117,11 @@ struct Icosphere : public Mesh {
         }
     }
 
+    explicit Icosphere(const glm::mat4& transform)
+        : Icosphere() {
+        this->transform(transform);
+    }
+
     Icosphere() : Icosphere(0.5f * (1.0f + glm::sqrt(5.0f))) {}
 
     Icosphere(Icosphere&&) noexcept = default;
