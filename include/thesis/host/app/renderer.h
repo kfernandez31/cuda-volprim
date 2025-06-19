@@ -6,7 +6,7 @@
 #include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
-#include "thesis/host/optix/device_context.h"
+#include "thesis/host/optix/context.h"
 #include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/module.h"
 #include "thesis/host/optix/pipeline.h"
@@ -32,7 +32,7 @@ class Renderer {
     app::Config config_;
 
     cuda::Context cuda_ctx_;
-    optix::DeviceContext optix_ctx_;
+    optix::Context optix_ctx_;
     cuda::StreamDAG streams_;
 
     optix::TriangleGAS gas_;

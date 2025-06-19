@@ -35,8 +35,9 @@ class GAS {
     GAS(const GAS&) = delete;
     GAS& operator=(const GAS&) = delete;
 
-    void build(const OptixBuildInput& input, CUcontext cuda_ctx, OptixDeviceContext optix_ctx,
-               std::shared_ptr<cuda::Stream> stream) {
+    void build(const OptixBuildInput& input, CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
+        const auto& stream = compacted_size_.get_context_param();
+
         OptixAccelBuildOptions opts = {};
         opts.buildFlags = BUILD_FLAGS;
         opts.operation = OPTIX_BUILD_OPERATION_BUILD;
@@ -103,8 +104,7 @@ class TriangleGAS {
     TriangleGAS(const TriangleGAS&) = delete;
     TriangleGAS& operator=(const TriangleGAS&) = delete;
 
-    void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx,
-               std::shared_ptr<cuda::Stream> stream, std::span<const float3> vs,
+    void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx, std::span<const float3> vs,
                std::span<const uint3> is) {
         // TODO(kacper): this could be potentially eliminated with an inplace creation of the vs/is
         // inside vertices/indices
@@ -131,7 +131,7 @@ class TriangleGAS {
 
         spdlog::info("gas.build()");
 
-        gas_.build(input, cuda_ctx, optix_ctx, std::move(stream));
+        gas_.build(input, cuda_ctx, optix_ctx);
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

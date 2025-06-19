@@ -35,13 +35,16 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
-      gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
-      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
-      env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain]),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], streams_[cuda::StreamKind::NonMain]),
+      gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
+      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
+      env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth),
-      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::NonMain], cuda::AllocType::OnBoth) {
+      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
+      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth) {
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
+    
     spdlog::info("initGAS");
     initGAS();
 
@@ -77,9 +80,10 @@ void Renderer::initGAS() {
     }
 
     // TODO(kacper): maybe many-batch upload with memcpyasync
-    streams_[cuda::StreamKind::NonMain]->synchronize();
-    gas_.build(cuda_ctx_.get(), optix_ctx_.get(), streams_[cuda::StreamKind::NonMain], utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices), utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
-    streams_[cuda::StreamKind::NonMain]->synchronize();
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get(), 
+        utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices), 
+        utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 }
 
 void Renderer::initPrimitives() {
@@ -115,24 +119,20 @@ void Renderer::initPrimitives() {
 
     std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
     primitives_.upload();
-    streams_[cuda::StreamKind::NonMain]->synchronize();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
 }
 
 void Renderer::uploadParams() {
-    streams_[cuda::StreamKind::NonMain]->synchronize();
     auto& par = launch_params_[0];
-    par.gas_handle_ = gas_.get();
     par.seed_ = config_.seed_;
     par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
-    par.image_ = image_.toDevice();
-    par.env_map_ = env_map_.toDevice();
+    par.gas_handle_ = gas_.get();
     par.camera_ = camera_.toDevice();
+    par.env_map_ = env_map_.toDevice();
+    par.image_ = image_.toDevice();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
 
-    streams_[cuda::StreamKind::NonMain]->synchronize();
-
     launch_params_.upload();
-    streams_[cuda::StreamKind::NonMain]->synchronize();
     spdlog::info("Uploaded launch params");
 }
 
@@ -173,7 +173,7 @@ void Renderer::createHitgroupPG() {
 void Renderer::createPipeline() {
     auto ptx =
         utils::try_unwrap_or_exit<optix::PTX>(optix::PTX::load(config_.ptx_path_));
-    spdlog::info("PTX loaded ({} bytes)", ptx.size());
+    spdlog::info("PTX loaded ({} bytes)", ptx.size()); // TODO(kacper): load async
 
     OptixModuleCompileOptions mco = {};
 
@@ -188,7 +188,7 @@ void Renderer::createPipeline() {
     createHitgroupPG();
 
     sbt_.build(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
-    streams_[cuda::StreamKind::NonMain]->synchronize();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::SBT);
     spdlog::info("SBT created");
 
     OptixPipelineLinkOptions plo = {};
@@ -209,12 +209,9 @@ void Renderer::render() {
                      image_.width(),
                      image_.height(),
                      image_.num_samples_per_pixel());
-    streams_[cuda::StreamKind::NonMain]->synchronize();
-
     spdlog::info("Pipeline execution complete");
-    utils::try_unwrap_or_exit(image_.save(config_.output_path_));
-    streams_[cuda::StreamKind::NonMain]->synchronize();
 
+    utils::try_unwrap_or_exit(image_.save(config_.output_path_));
     spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 

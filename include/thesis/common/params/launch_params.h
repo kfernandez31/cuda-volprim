@@ -18,12 +18,12 @@ namespace common {
 namespace params {
 
 struct THESIS_ALIGNMENT LaunchParams {
-    OptixTraversableHandle gas_handle_;
     size_t num_triangles_per_primitive_;
     uint seed_;
-    device::params::Image image_;
-    device::params::EnvironmentMap env_map_;
+    OptixTraversableHandle gas_handle_;
     device::params::Camera camera_;
+    device::params::EnvironmentMap env_map_;
+    device::params::Image image_;
     device::utils::DynamicVector<device::params::Primitive> primitives_;
 };
 

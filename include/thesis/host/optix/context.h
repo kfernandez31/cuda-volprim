@@ -11,11 +11,11 @@
 
 namespace thesis::host::optix {
 
-class DeviceContext {
+class Context {
     OptixDeviceContext handle_ = nullptr;
 
    public:
-    DeviceContext(CUcontext cu_ctx) {
+    Context(CUcontext cu_ctx) {
         OPTIX_CHECK(optixInit());
 
         OptixDeviceContextOptions opts = {};
@@ -28,32 +28,31 @@ class DeviceContext {
 #endif
 
         OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &opts, &handle_));
-        spdlog::info("Created OptixDeviceContext = {}", reinterpret_cast<uintptr_t>(handle_));
     }
 
-    ~DeviceContext() {
-        if (handle_) {
-            OPTIX_CHECK(optixDeviceContextDestroy(handle_));
-        }
-    }
+    ~Context() { reset(); }
 
-    DeviceContext(const DeviceContext&) = delete;
-    DeviceContext& operator=(const DeviceContext&) = delete;
+    Context(const Context&) = delete;
+    Context& operator=(const Context&) = delete;
 
-    DeviceContext(DeviceContext&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    Context(Context&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
 
-    DeviceContext& operator=(DeviceContext&& other) noexcept {
+    Context& operator=(Context&& other) noexcept {
         if (this != &other) {
-            if (handle_) {
-                OPTIX_CHECK(optixDeviceContextDestroy(handle_));
-            }
+            reset();
             handle_ = std::exchange(other.handle_, nullptr);
         }
         return *this;
     }
 
     [[nodiscard]] OptixDeviceContext get() const noexcept { return handle_; }
+
+   private:
+    void reset() {
+        if (handle_) {
+            OPTIX_CHECK(optixDeviceContextDestroy(handle_));
+        }
+    }
 };
 
 }  // namespace thesis::host::optix
