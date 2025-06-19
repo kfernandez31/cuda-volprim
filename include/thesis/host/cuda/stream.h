@@ -7,19 +7,16 @@
 #include <cuda_runtime_api.h>
 
 #include <functional>
-#include <queue>
 
 namespace thesis::host::cuda {
 
 class Stream {
    private:
     cudaStream_t stream_ = nullptr;
-    cudaEvent_t event_ = nullptr;  // Added: Internal event for signaling completion
+    cudaEvent_t event_ = nullptr;
     // TODO(kacper): store last error
 
-    using Callback = std::function<utils::Result<>(cudaError_t)>;  // TODO(kacper): maybe excessive
-                                                                   // and new/delete would do
-    std::queue<Callback> callbacks_;
+    using Callback = std::function<utils::Result<>(cudaError_t)>;
 
    public:
     explicit Stream(bool is_default) {
@@ -32,15 +29,13 @@ class Stream {
 
     Stream(Stream&& other) noexcept
         : stream_(std::exchange(other.stream_, nullptr)),
-          event_(std::exchange(other.event_, nullptr)),
-          callbacks_(std::move(other.callbacks_)) {}
+          event_(std::exchange(other.event_, nullptr)) {}
 
     Stream& operator=(Stream&& other) noexcept {
         if (this != &other) {
             reset();
             stream_ = std::exchange(other.stream_, nullptr);
             event_ = std::exchange(other.event_, nullptr);
-            callbacks_ = std::move(other.callbacks_);
         }
         return *this;
     }
@@ -58,14 +53,21 @@ class Stream {
 
     template <typename F>
     void addCallback(F&& func) {
-        callbacks_.emplace(std::forward<F>(func));
+        auto* cb_ptr = new Callback(std::forward<F>(func));
 
         CUDA_CHECK(cudaStreamAddCallback(
             stream_,
             [](cudaStream_t, cudaError_t status, void* userData) {
-                static_cast<Stream*>(userData)->executeNextCallback(status);
+                CUDA_CHECK_NOEXCEPT(status);
+
+                auto* cb = static_cast<Callback*>(userData);
+                auto result = (*cb)(status);
+                if (!result) {
+                    spdlog::error("Stream callback failed: {}", result.error());
+                }
+                delete cb;
             },
-            this, 0));
+            static_cast<void*>(cb_ptr), 0));
     }
 
    private:
@@ -76,18 +78,6 @@ class Stream {
 
             CUDA_CHECK_NOEXCEPT(cudaEventDestroy(event_));
             event_ = nullptr;
-        }
-    }
-
-    void executeNextCallback(cudaError_t status) {
-        CUDA_CHECK_NOEXCEPT(status);
-
-        auto cb = std::move(callbacks_.front());
-        callbacks_.pop();
-
-        auto result = cb(status);
-        if (!result) {
-            spdlog::error("Stream callback failed: {}", result.error());
         }
     }
 };

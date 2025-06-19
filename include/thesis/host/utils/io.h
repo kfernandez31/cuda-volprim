@@ -12,9 +12,14 @@
 
 namespace thesis::host::utils::io {
 
-Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept;
+[[nodiscard]] Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept;
 
-Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
-                      const std::filesystem::path& filename, bool flip_vertical = true) noexcept;
+[[nodiscard]] Result<> saveExrImage(std::span<const float3> framebuffer, size_t width,
+                                    size_t height, const std::filesystem::path& filename,
+                                    bool flip_vertical = true) noexcept;
+
+using HDRImagePtr = std::unique_ptr<float, decltype(&stbi_image_free)>;
+[[nodiscard]] Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filepath, size_t& width,
+                                               size_t& height, size_t& channels);
 
 }  // namespace thesis::host::utils::io

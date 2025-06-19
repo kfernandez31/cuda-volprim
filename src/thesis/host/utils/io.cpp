@@ -10,6 +10,7 @@
 #include <fstream>
 #include <ios>
 #include <span>
+#include <stb/stb_image.h>
 #include <string>
 #include <tinyexr/tinyexr.h>
 #include <vector>
@@ -120,6 +121,25 @@ Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t 
     } catch (const std::exception& e) {
         return make_error("Exception in saveExrImage: {}", e.what());
     }
+}
+
+Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filepath, size_t& width,
+                                 size_t& height, size_t& channels) {
+    spdlog::info("Loading environment map from '{}'", filepath.string());
+
+    stbi_set_flip_vertically_on_load(true);
+
+    int w, h, c;
+    auto* raw = stbi_loadf(filepath.string().c_str(), &w, &h, &c, 0);
+    if (!raw) {
+        return make_error("Failed to load HDR image: {}", filepath.string());
+    }
+
+    width = static_cast<size_t>(w);
+    height = static_cast<size_t>(h);
+    channels = static_cast<size_t>(c);
+
+    return HDRImagePtr(raw, stbi_image_free);
 }
 
 }  // namespace thesis::host::utils::io

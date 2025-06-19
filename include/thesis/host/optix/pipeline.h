@@ -20,11 +20,9 @@ class Pipeline {
     Pipeline(OptixDeviceContext ctx, const OptixPipelineCompileOptions& pco,
              const OptixPipelineLinkOptions& plo, const OptixProgramGroup* groups,
              size_t num_groups) {
-        spdlog::info("before");
         OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups,
                                               static_cast<uint>(num_groups), log.data(), &log_size,
                                               &handle_));
-        spdlog::info("after");
     }
 
     ~Pipeline() {

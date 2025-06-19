@@ -4,6 +4,7 @@
 
 #include <cuda.h>
 
+#include <spdlog/spdlog.h>
 #include <utility>
 
 namespace thesis::host::cuda {
@@ -27,6 +28,15 @@ class Context {
         CU_CHECK(cuDeviceGet(&device_, device_ordinal));
         CU_CHECK(cuCtxCreate(&context_, 0, device_));
         CU_CHECK(cuCtxSetCurrent(context_));
+
+        char name[256];
+        CU_CHECK(cuDeviceGetName(name, sizeof(name), device_));
+
+        int major = 0, minor = 0;
+        CU_CHECK(cuDeviceComputeCapability(&major, &minor, device_));
+
+        spdlog::info("Created CUDA context for device {} ({}), compute capability {}.{}",
+                     device_ordinal, name, major, minor);
     }
 
     ~Context() { reset(); }

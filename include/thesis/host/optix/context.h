@@ -28,6 +28,9 @@ class Context {
 #endif
 
         OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &opts, &handle_));
+        spdlog::info(
+            "OptiX device context created (validation mode: {})",
+            opts.validationMode == OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL ? "ALL" : "OFF");
     }
 
     ~Context() { reset(); }

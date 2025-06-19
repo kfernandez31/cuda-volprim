@@ -4,6 +4,7 @@
 
 #include <array>
 #include <memory>
+#include <spdlog/spdlog.h>
 
 namespace thesis::host::cuda {
 
@@ -26,6 +27,9 @@ class StreamDAG {
         for (size_t i = 0; i < streams_.size(); ++i) {
             streams_[i] = std::make_shared<Stream>(i == static_cast<size_t>(StreamKind::Main));
         }
+
+        spdlog::info("Stream DAG created with {} CUDA streams (Main stream is {} index)",
+                     streams_.size(), static_cast<size_t>(StreamKind::Main));
     }
 
     StreamDAG(StreamDAG&&) = default;

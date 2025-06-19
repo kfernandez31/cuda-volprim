@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <memory>
+#include <spdlog/spdlog.h>
 
 namespace thesis::host::params {
 
@@ -67,13 +68,28 @@ class Image : public Convertible<device::params::Image> {
     [[nodiscard]] utils::Result<> save(const std::filesystem::path& filename) {
         const auto& stream = averaged_pixels_.get_context_param();
 
+        spdlog::info("Averaging {} samples per pixel ({}x{}) into EXR '{}'", num_samples_per_pixel_,
+                     width_, height_, filename.string());
+
         device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
                                               width_, height_, num_samples_per_pixel_,
                                               stream->get());
+        spdlog::debug("Launched average_samples_kernel");
+
         averaged_pixels_.download();
+        spdlog::debug("Downloaded averaged pixels to host");
+
+        auto view = averaged_pixels_.host_view();
+        auto w = width_;
+        auto h = height_;
+
+        stream->addCallback([=](cudaError_t) {
+            spdlog::info("Saving EXR to '{}'", filename.string());
+            return utils::io::saveExrImage(view, w, h, filename);
+        });
 
         stream->synchronize();
-        return utils::io::saveExrImage(averaged_pixels_.host_view(), width_, height_, filename);
+        return {};
     }
 };
 

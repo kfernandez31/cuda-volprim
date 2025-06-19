@@ -9,6 +9,7 @@
 #include <optix_types.h>
 
 #include <memory>
+#include <spdlog/spdlog.h>
 
 namespace thesis::host::optix {
 
@@ -44,6 +45,8 @@ class SBT {
         sbt_.hitgroupRecordBase = hitgroup_record_.get();
         sbt_.hitgroupRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
         sbt_.hitgroupRecordCount = 1;
+
+        spdlog::info("Shader Binding Table (SBT) built");
     }
 
     const OptixShaderBindingTable& get() const noexcept { return sbt_; }

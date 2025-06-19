@@ -45,13 +45,8 @@ Renderer::Renderer(const app::Config& config)
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
     
-    spdlog::info("initGAS");
     initGAS();
-
-    spdlog::info("initPrimitives");
     initPrimitives();
-
-    spdlog::info("createPipeline");
     createPipeline();
 }
 
@@ -133,7 +128,6 @@ void Renderer::uploadParams() {
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
 
     launch_params_.upload();
-    spdlog::info("Uploaded launch params");
 }
 
 void Renderer::createRaygenPG() {
@@ -212,7 +206,6 @@ void Renderer::render() {
     spdlog::info("Pipeline execution complete");
 
     utils::try_unwrap_or_exit(image_.save(config_.output_path_));
-    spdlog::info("Image saved to '{}'", config_.output_path_.string());
 }
 
 }  // namespace thesis::host::app

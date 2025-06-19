@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <memory>
 #include <span>
+#include <spdlog/spdlog.h>
 
 namespace thesis::host::optix {
 
@@ -67,11 +68,10 @@ class GAS {
         // compact the GAS
         auto compacted_size = compacted_size_[0];
         if (compacted_size > 0) {
-            spdlog::info("compacted_size = {}", compacted_size);
+            spdlog::info("GAS compaction issued (compacted_size = {} bytes)", compacted_size);
             out_ = cuda::AsyncBuffer<std::byte>(compacted_size, cuda_ctx, stream,
                                                 cuda::AllocType::OnDeviceOnly);
 
-            spdlog::info("compact()");
             OPTIX_CHECK(optixAccelCompact(optix_ctx, stream->get(), handle_,
                                           reinterpret_cast<CUdeviceptr>(out_.device()),
                                           compacted_size, &handle_));
@@ -94,9 +94,7 @@ class TriangleGAS {
                 std::shared_ptr<cuda::Stream> stream)
         : vertices_(num_vertices, ctx, stream, cuda::AllocType::OnBoth),
           indices_(num_indices, ctx, stream, cuda::AllocType::OnBoth),
-          gas_(ctx, std::move(stream)) {
-        spdlog::info("TriangleGAS ctor");
-    }
+          gas_(ctx, std::move(stream)) {}
 
     TriangleGAS(TriangleGAS&&) noexcept = default;
     TriangleGAS& operator=(TriangleGAS&&) noexcept = default;
@@ -108,8 +106,11 @@ class TriangleGAS {
                std::span<const uint3> is) {
         // TODO(kacper): this could be potentially eliminated with an inplace creation of the vs/is
         // inside vertices/indices
+
+        spdlog::info("Uploading triangle vertex and index data to device...");
         vertices_.set_and_upload(vs);
         indices_.set_and_upload(is);
+        spdlog::debug("Uploaded {} vertices and {} indices", vertices_.size(), indices_.size());
 
         OptixBuildInput input = {};
         input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -128,8 +129,6 @@ class TriangleGAS {
         static constexpr uint32_t input_flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};  // TODO(kacper): uint32_t?
         input.triangleArray.flags = input_flags;
         input.triangleArray.numSbtRecords = 1;
-
-        spdlog::info("gas.build()");
 
         gas_.build(input, cuda_ctx, optix_ctx);
     }
