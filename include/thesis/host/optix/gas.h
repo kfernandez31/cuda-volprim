@@ -43,8 +43,6 @@ class GAS {
         opts.buildFlags = BUILD_FLAGS;
         opts.operation = OPTIX_BUILD_OPERATION_BUILD;
 
-        // TODO(kacper): I think this assumes that the input is already on device?
-        stream->synchronize();  // TODO(kacper): needed? maybe use a 2nd stream?
         OptixAccelBufferSizes sizes;
         OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx, &opts, &input, 1, &sizes));
 
