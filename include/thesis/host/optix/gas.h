@@ -102,16 +102,7 @@ class TriangleGAS {
     TriangleGAS(const TriangleGAS&) = delete;
     TriangleGAS& operator=(const TriangleGAS&) = delete;
 
-    void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx, std::span<const float3> vs,
-               std::span<const uint3> is) {
-        // TODO(kacper): this could be potentially eliminated with an inplace creation of the vs/is
-        // inside vertices/indices
-
-        spdlog::info("Uploading triangle vertex and index data to device...");
-        vertices_.set_and_upload(vs);
-        indices_.set_and_upload(is);
-        spdlog::debug("Uploaded {} vertices and {} indices", vertices_.size(), indices_.size());
-
+    void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
         OptixBuildInput input = {};
         input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 
@@ -131,6 +122,25 @@ class TriangleGAS {
         input.triangleArray.numSbtRecords = 1;
 
         gas_.build(input, cuda_ctx, optix_ctx);
+    }
+
+    template <typename Shape>
+    void upload_batch_from(size_t shape_index, const Shape& shape) {
+        // copy vertices
+        const auto v_offset = shape_index * Shape::NumVertices;
+        const auto& vs = utils::data::reinterpretSpan<float3>(shape.getVertices());
+        std::memcpy(vertices_.host() + v_offset, vs.data(), vs.size_bytes());
+        vertices_.upload(v_offset, Shape::NumVertices);
+j
+        // copy indices
+        const auto i_offset = shape_index * Shape::NumIndices;
+        const auto& is = shape.getIndices();
+        for (size_t j = 0; j < is.size(); ++j) {
+            glm::uvec3 tri = is[j];
+            tri += static_cast<uint>(v_offset);
+            indices_[i_offset + j] = utils::data::toUint3(tri);
+        }
+        indices_.upload(i_offset, Shape::NumIndices);
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

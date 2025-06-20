@@ -21,8 +21,8 @@ inline float3 toFloat3(const glm::vec3& v) noexcept {
     return make_float3(v.x, v.y, v.z);
 }
 
-inline glm::vec3 toVec3(const float3& v) noexcept {
-    return {v.x, v.y, v.z};
+inline uint3 toUint3(const glm::uvec3& v) noexcept {
+    return make_uint3(v.x, v.y, v.z);
 }
 
 }  // namespace thesis::host::utils::data

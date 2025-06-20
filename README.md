@@ -1,11 +1,11 @@
 # Readme
 
 ## TODO
+- [ ] test >1 prim
+- [ ] asset from happly
+- [ ] replace stbimage with tinyexr
+- [ ] inplace buffer minibatch
 - [ ] get rid of underscores, they add visual clutter
-- [ ] is a RT-rendering-adapted frame buffer needed?
-- [ ] which GAS type should I use?
-- [ ] what's the max expected prim count => uint or size_t for MAX_PRIMS
-- [ ] raygen - capping at MAX_PRIMS is fine?
 - [ ] quaternion for rotation matrix - will already be normalized?
 
 Additions

@@ -51,33 +51,18 @@ Renderer::Renderer(const app::Config& config)
 }
 
 void Renderer::initGAS() {
-    std::vector<geometry::Icosphere<ICOSPHERE_N>> icos;
+    using geometry::Icosphere;
+
+    std::vector<Icosphere<ICOSPHERE_N>> icos;
     // icos.emplace_back(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
     icos.emplace_back(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
     // icos.emplace_back(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
 
-    // Combine vertices
-    std::vector<glm::vec3> all_vertices;
-    for (const auto& ico : icos) {
-        const auto& vs = ico.getVertices();
-        all_vertices.insert(all_vertices.end(), vs.begin(), vs.end());
-    }
-
-    // Combine indices
-    // clang-format off
-    std::vector<glm::uvec3> all_indices;
     for (size_t i = 0; i < icos.size(); ++i) {
-        auto offset = static_cast<uint>(i * geometry::Icosphere<ICOSPHERE_N>::NumVertices);
-        icos[i].offsetIndices(offset);
-    
-        const auto& is = icos[i].getIndices();
-        all_indices.insert(all_indices.end(), is.begin(), is.end());
+        gas_.upload_batch_from(i, icos[i]);
     }
 
-    // TODO(kacper): maybe many-batch upload with memcpyasync
-    gas_.build(cuda_ctx_.get(), optix_ctx_.get(), 
-        utils::data::reinterpretSpan<float3, glm::vec3>(all_vertices), 
-        utils::data::reinterpretSpan<uint3, glm::uvec3>(all_indices));
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 }
 

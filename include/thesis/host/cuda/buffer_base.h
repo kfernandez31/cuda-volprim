@@ -67,9 +67,8 @@ class BufferBase {
     void upload(const T* src) { Policy::upload(device(), src, size_bytes(), context_param_); }
     void download(T* dst) { Policy::download(dst, device(), size_bytes(), context_param_); }
 
-    void set_and_upload(std::span<const T> data) {
-        std::memcpy(host(), data.data(), data.size_bytes());
-        upload();
+    void upload(size_t offset, size_t count) {
+        Policy::upload(device() + offset, host() + offset, count * sizeof(T), context_param_);
     }
 
     [[nodiscard]] T& operator[](size_t i) noexcept { return host()[i]; }
