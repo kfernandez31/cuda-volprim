@@ -67,8 +67,6 @@ void Renderer::initGAS() {
 }
 
 void Renderer::initPrimitives() {
-    std::vector<host::params::Primitive> host_primitives;
-
     glm::vec3 colors[NUM_PRIMITIVES] = {
         // glm::vec3(1.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f),
@@ -82,23 +80,23 @@ void Renderer::initPrimitives() {
     };
 
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        // auto color = glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
-        auto albedo = colors[i];
-        auto translation = glm::translate(translations[i]);
-        auto optical_depth_scale = 500.0f;
+        const auto albedo = colors[i]; // glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
+        const auto translation = glm::translate(translations[i]);
+        const auto optical_depth_scale = 500.0f;
 
-        // clang-format off
-        host_primitives.emplace_back(
+        host::params::Primitive p(
             translation,
             glm::identity<glm::mat4>(),
             glm::scale(glm::vec3(0.3f)),
-            albedo, 
+            albedo,
             optical_depth_scale
         );
+
+        primitives_.host()[i] = p.toDevice();
+        primitives_.upload(i, 1);  // Upload just this one
     }
 
-    std::transform(host_primitives.begin(), host_primitives.end(), primitives_.host(), [](const auto& p) { return p.toDevice(); });
-    primitives_.upload();
+    // primitives_.upload(); // alternatively, upload all at once
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
 }
 

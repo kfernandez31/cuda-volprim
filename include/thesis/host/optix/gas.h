@@ -131,7 +131,7 @@ class TriangleGAS {
         const auto& vs = utils::data::reinterpretSpan<float3>(shape.getVertices());
         std::memcpy(vertices_.host() + v_offset, vs.data(), vs.size_bytes());
         vertices_.upload(v_offset, Shape::NumVertices);
-j
+
         // copy indices
         const auto i_offset = shape_index * Shape::NumIndices;
         const auto& is = shape.getIndices();
