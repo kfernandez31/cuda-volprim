@@ -23,9 +23,6 @@ class Renderer {
     void initGAS();
     void initPrimitives();
     void uploadParams();
-    void createRaygenPG();
-    void createMissPG();
-    void createHitgroupPG();
     void createPrimitives();
     void createPipeline();
 

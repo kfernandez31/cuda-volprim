@@ -93,10 +93,9 @@ void Renderer::initPrimitives() {
         );
 
         primitives_.host()[i] = p.toDevice();
-        primitives_.upload(i, 1);  // Upload just this one
     }
 
-    // primitives_.upload(); // alternatively, upload all at once
+    primitives_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
 }
 
@@ -113,40 +112,6 @@ void Renderer::uploadParams() {
     launch_params_.upload();
 }
 
-void Renderer::createRaygenPG() {
-    OptixProgramGroupDesc desc = {};
-    desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-    desc.raygen.module = module_.get();
-    desc.raygen.entryFunctionName = config_.raygen_function_name_.c_str();
-
-    raygen_pg_ = optix::ProgramGroup(optix_ctx_.get(), desc);
-    spdlog::debug("Raygen program group created");
-}
-
-void Renderer::createMissPG() {
-    OptixProgramGroupDesc desc = {};
-    desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    desc.miss.module = module_.get();
-    desc.miss.entryFunctionName = config_.miss_function_name_.c_str();
-
-    miss_pg_ = optix::ProgramGroup(optix_ctx_.get(), desc);
-    spdlog::debug("Miss program group created");
-}
-
-void Renderer::createHitgroupPG() {
-    OptixProgramGroupDesc desc = {};
-    desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-
-    desc.hitgroup.moduleCH = module_.get();
-    desc.hitgroup.entryFunctionNameCH = config_.closesthit_function_name_.c_str();
-
-    desc.hitgroup.moduleAH = module_.get();
-    desc.hitgroup.entryFunctionNameAH = config_.anyhit_function_name.c_str();
-
-    hitgroup_pg_ = optix::ProgramGroup(optix_ctx_.get(), desc);
-    spdlog::debug("Hitgroup program group created");
-}
-
 void Renderer::createPipeline() {
     auto ptx =
         utils::try_unwrap_or_exit<optix::PTX>(optix::PTX::load(config_.ptx_path_));
@@ -160,9 +125,27 @@ void Renderer::createPipeline() {
 
     module_ = optix::Module(optix_ctx_.get(), mco, pco, ptx.data());
 
-    createRaygenPG();
-    createMissPG();
-    createHitgroupPG();
+    // raygen
+    raygen_pg_ = optix::ProgramGroup::createRaygen(
+        optix_ctx_.get(),
+        module_.get(),
+        config_.raygen_function_name_.c_str()
+    );
+
+    // miss
+    miss_pg_ = optix::ProgramGroup::createMiss(
+        optix_ctx_.get(),
+        module_.get(),
+        config_.miss_function_name_.c_str()
+    );
+
+    // hitgroup
+    hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
+        optix_ctx_.get(),
+        module_.get(),
+        config_.closesthit_function_name_.c_str(),
+        config_.anyhit_function_name.empty() ? nullptr : config_.anyhit_function_name.c_str()
+    );
 
     sbt_.build(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::SBT);
