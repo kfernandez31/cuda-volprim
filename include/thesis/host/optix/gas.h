@@ -62,6 +62,7 @@ class GAS {
                                     temp_.cu_device_ptr(), temp_.size(), out_.cu_device_ptr(),
                                     out_.size(), &handle_, &emit, 1));
         compacted_size_.download();
+        stream->synchronize();
 
         // compact the GAS
         auto compacted_size = compacted_size_[0];

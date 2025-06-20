@@ -23,7 +23,7 @@
 #include <vector>
 
 #define ICOSPHERE_N 0
-#define NUM_PRIMITIVES 1
+#define NUM_PRIMITIVES 2
 #define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
 #define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
@@ -54,9 +54,9 @@ void Renderer::initGAS() {
     using geometry::Icosphere;
 
     std::vector<Icosphere<ICOSPHERE_N>> icos;
-    // icos.emplace_back(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
-    icos.emplace_back(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
-    // icos.emplace_back(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
+    icos.emplace_back(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
+    // icos.emplace_back(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
+    icos.emplace_back(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
 
     for (size_t i = 0; i < icos.size(); ++i) {
         gas_.upload_batch_from(i, icos[i]);
@@ -68,15 +68,15 @@ void Renderer::initGAS() {
 
 void Renderer::initPrimitives() {
     glm::vec3 colors[NUM_PRIMITIVES] = {
-        // glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f),
-        // glm::vec3(0.0f, 0.0f, 1.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        // glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f),
     };
 
     glm::vec3 translations[NUM_PRIMITIVES] = {
-        // glm::vec3(-2.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f,  0.0f, 0.5f),
-        // glm::vec3(+2.0f, 0.0f, 0.5f),
+        glm::vec3(-2.0f, 0.0f, 0.0f),
+        // glm::vec3(0.0f,  0.0f, 0.5f),
+        glm::vec3(+2.0f, 0.0f, 0.5f),
     };
 
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
