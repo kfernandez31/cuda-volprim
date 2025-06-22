@@ -16,19 +16,26 @@ namespace thesis::host::params {
 
 class Primitive : public Convertible<device::params::Primitive> {
    private:
-    glm::mat4 M_for_integrating_inv_;
+    glm::mat4 M_for_intersecting_, M_for_integrating_inv_;
     glm::vec3 S_diag_, S_diag_squared_;
     glm::vec3 albedo_;
     float optical_depth_scale_;
 
-    // TODO(kacper): account for this while creating an icosphere
-    // static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
+    static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
 
-    static inline glm::mat4 get_M_for_integrating_inv(const glm::mat4& T,
-                                                      const glm::mat4& R) noexcept {
-        auto R_inv = glm::transpose(R);
-        auto T_inv = glm::translate(glm::vec3(-T[3]));
-        return R_inv * T_inv;
+    static inline glm::mat4 get_M_for_intersecting(const glm::mat4& T, const glm::mat4& R,
+                                                   const glm::mat4& S) noexcept {
+        const auto scale = glm::scale(glm::vec3(INTERSECTION_SCALING_FACTOR));
+        return T * R * (S * scale);
+    }
+
+    static inline glm::mat4 get_M_for_integrating_inv(const glm::mat4& T, const glm::mat4& R,
+                                                      const glm::mat4& S) noexcept {
+        const auto R_inv = glm::transpose(R);
+        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S));
+        const auto S_inv = glm::identity<glm::mat4>();  // TODO(kacper): remove
+        const auto T_inv = glm::translate(-glm::vec3(T[3]));
+        return S_inv * R_inv * T_inv;
     }
 
    public:
@@ -40,12 +47,15 @@ class Primitive : public Convertible<device::params::Primitive> {
     Primitive(const Primitive&) = default;
     Primitive& operator=(const Primitive&) = default;
 
+    const glm::mat4& M() const noexcept { return M_for_intersecting_; }
+
     // clang-format off
     Primitive(
         const glm::mat4& T, const glm::mat4& R, const glm::mat4& S,
         glm::vec3 albedo,
         float optical_depth_scale
-    ) : M_for_integrating_inv_(get_M_for_integrating_inv(T, R)),
+    ) : M_for_intersecting_(get_M_for_intersecting(T, R, S)),
+        M_for_integrating_inv_(get_M_for_integrating_inv(T, R, S)),
         S_diag_(geometry::getDiagonal(S)),
         S_diag_squared_(glm::pow2(S_diag_)),
         albedo_(albedo),

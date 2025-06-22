@@ -22,8 +22,8 @@
 #include <utility>
 #include <vector>
 
-#define ICOSPHERE_N 0
-#define NUM_PRIMITIVES 2
+#define ICOSPHERE_N 2
+#define NUM_PRIMITIVES 3
 #define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
 #define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
@@ -45,58 +45,63 @@ Renderer::Renderer(const app::Config& config)
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
     
-    initGAS();
-    initPrimitives();
+    initPrimsAndGAS();
     createPipeline();
 }
 
-void Renderer::initGAS() {
-    using geometry::Icosphere;
-
-    std::vector<Icosphere<ICOSPHERE_N>> icos;
-    icos.emplace_back(glm::translate(glm::vec3(-2.0f, 0.0f, 0.5f)));
-    // icos.emplace_back(glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)));
-    icos.emplace_back(glm::translate(glm::vec3(2.0f, 0.0f, 0.5f)));
-
-    for (size_t i = 0; i < icos.size(); ++i) {
-        gas_.upload_batch_from(i, icos[i]);
-    }
-
-    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
-    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
-}
-
-void Renderer::initPrimitives() {
-    glm::vec3 colors[NUM_PRIMITIVES] = {
+void Renderer::initPrimsAndGAS() {
+    glm::vec3 albedos[NUM_PRIMITIVES] = {
         glm::vec3(1.0f, 0.0f, 0.0f),
-        // glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f),
         glm::vec3(0.0f, 0.0f, 1.0f),
     };
 
     glm::vec3 translations[NUM_PRIMITIVES] = {
-        glm::vec3(-2.0f, 0.0f, 0.0f),
-        // glm::vec3(0.0f,  0.0f, 0.5f),
-        glm::vec3(+2.0f, 0.0f, 0.5f),
+        glm::vec3(-1.5f, 0.0f, 0.5f),
+        glm::vec3(0.0f, 0.0f, 0.5f),
+        glm::vec3(+1.5f, 0.0f, 0.5f),
+    };
+
+    glm::mat4 rotations[NUM_PRIMITIVES] = {
+        glm::identity<glm::mat4>(),
+        glm::identity<glm::mat4>(),
+        glm::identity<glm::mat4>(),
+    };
+
+    glm::vec3 scales[NUM_PRIMITIVES] = {
+        glm::vec3(0.3f),
+        glm::vec3(0.3f),
+        glm::vec3(0.3f),
+    };
+
+    float od_scales[NUM_PRIMITIVES] = {
+        500.0f,
+        500.0f,
+        500.0f,
     };
 
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        const auto albedo = colors[i]; // glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
-        const auto translation = glm::translate(translations[i]);
-        const auto optical_depth_scale = 500.0f;
-
-        host::params::Primitive p(
-            translation,
-            glm::identity<glm::mat4>(),
-            glm::scale(glm::vec3(0.3f)),
-            albedo,
-            optical_depth_scale
+        host::params::Primitive prim(
+            glm::translate(translations[i]),
+            rotations[i],
+            glm::scale(scales[i]),
+            albedos[i], // glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
+            od_scales[i]
         );
 
-        primitives_.host()[i] = p.toDevice();
+        // create prim
+        primitives_.host()[i] = prim.toDevice();
+
+        // create prim's hitbox
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
     }
 
     primitives_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 }
 
 void Renderer::uploadParams() {

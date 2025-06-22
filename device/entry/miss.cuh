@@ -11,10 +11,6 @@ extern "C" __global__ void __miss__ms() {
     const auto ray_direction = optixGetWorldRayDirection();
     const auto color = launch_params.env_map_.sample(ray_direction);
 
-    payloads::Miss p;
-    p.r = color.x;
-    p.g = color.y;
-    p.b = color.z;
-
+    payloads::Miss p(color);
     p.packToOptix();
 }

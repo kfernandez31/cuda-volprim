@@ -21,7 +21,7 @@ inline void scaleDiagonal(glm::mat4& mat, float s) noexcept {
 inline device::geometry::Matrix3x4 toDevice(const glm::mat4& in) noexcept {
     device::geometry::Matrix3x4 out;
     for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
+        for (int j = 0; j < 4; ++j) {
             out[i][j] = in[j][i];  // transpose, since glm is col-major
         }
     }

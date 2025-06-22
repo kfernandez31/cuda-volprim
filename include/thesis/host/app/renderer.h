@@ -20,8 +20,7 @@ namespace thesis::host::app {
 
 class Renderer {
    private:
-    void initGAS();
-    void initPrimitives();
+    void initPrimsAndGAS();
     void uploadParams();
     void createPrimitives();
     void createPipeline();

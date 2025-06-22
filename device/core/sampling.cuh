@@ -24,7 +24,7 @@ namespace thesis {
 namespace device {
 
 namespace consts {
-    constexpr auto MAX_PRIMS = 2137u;
+    constexpr auto MAX_PRIMS = 2137u; // TODO(kacper): tweak
 } // namespace consts
 
 using PrimsSet = utils::Set<uint, consts::MAX_PRIMS>;
@@ -94,15 +94,21 @@ __device__ float sample_distance_bisection(
     float tau_needed,
     const PrimsSet& prims
 ) {
-    constexpr auto MAX_ITER = 24u;
-    constexpr auto EPS = 1e-4f;
+    constexpr size_t MAX_ITER = 24;
+    constexpr float EPS = 1e-4f;
+    constexpr float TAU_EPS = 1e-6f;
+
+    if (tau_needed <= TAU_EPS) {
+        // Scattering too close to current ray origin, skip bisection
+        return segment.x;
+    }
 
     auto t_lo = segment.x;
     auto t_hi = segment.y;
 
     for (size_t i = 0; i < MAX_ITER && (t_hi - t_lo) > EPS; ++i) {
-        auto t_mid = 0.5f * (t_lo + t_hi);
-        auto tau = optical_depth_accumulated(ray, make_float2(t_lo, t_mid), prims);
+        const auto t_mid = 0.5f * (t_lo + t_hi);
+        const auto tau = optical_depth_accumulated(ray, make_float2(t_lo, t_mid), prims);
 
         if (tau >= tau_needed)
             t_hi = t_mid;
@@ -128,7 +134,6 @@ __device__ __forceinline__ float3 evaluate_albedo(
         const auto pdf = prim.kernel_pdf(pos);           // density at pos
 
         const auto weight = sigma_t * pdf;
-
         accum_albedo += albedo * weight;
         accum_weight += weight;
     }

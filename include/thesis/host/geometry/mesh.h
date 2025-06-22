@@ -54,6 +54,11 @@ struct Icosphere : public Mesh {
     static constexpr size_t NumVertices = 10 * common::math::pow<size_t>(4, N) + 2;
     static constexpr size_t NumIndices = 20 * common::math::pow<size_t>(4, N);
 
+    static const Icosphere<N>& Base() {
+        static const Icosphere<N> instance{0.5f * (1.0f + glm::sqrt(5.0f))};
+        return instance;
+    }
+
     explicit Icosphere(float t)
         : Mesh(
               // clang-format off
@@ -122,7 +127,7 @@ struct Icosphere : public Mesh {
         this->transform(transform);
     }
 
-    Icosphere() : Icosphere(0.5f * (1.0f + glm::sqrt(5.0f))) {}
+    Icosphere() : Icosphere(Base()) {}
 
     Icosphere(Icosphere&&) noexcept = default;
     Icosphere& operator=(Icosphere&&) noexcept = default;
@@ -130,7 +135,5 @@ struct Icosphere : public Mesh {
     Icosphere(const Icosphere&) = default;
     Icosphere& operator=(const Icosphere&) = default;
 };
-
-static const Icosphere<0> BaseIcosphere;
 
 }  // namespace thesis::host::geometry

@@ -71,13 +71,12 @@ class Image : public Convertible<device::params::Image> {
         spdlog::info("Averaging {} samples per pixel ({}x{}) into EXR '{}'", num_samples_per_pixel_,
                      width_, height_, filename.string());
 
-        device::launch_average_samples_kernel(averaged_pixels_.device(), sample_buffer_.device(),
-                                              width_, height_, num_samples_per_pixel_,
-                                              stream->get());
+        device::kernels::launch_average_samples_kernel(averaged_pixels_.device(),
+                                                       sample_buffer_.device(), width_, height_,
+                                                       num_samples_per_pixel_, stream->get());
         spdlog::debug("Launched average_samples_kernel");
 
         averaged_pixels_.download();
-        spdlog::debug("Downloaded averaged pixels to host");
 
         auto view = averaged_pixels_.host_view();
         auto w = width_;

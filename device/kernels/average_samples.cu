@@ -9,9 +9,10 @@
 
 namespace thesis {
 namespace device {
+namespace kernels {
 
-__global__ void average_samples_kernel(float3* out_img, const float3* in_buf, size_t width,
-                                       size_t height, size_t num_samples_per_pixel) {
+static __global__ void average_samples_kernel(float3* out_img, const float3* in_buf, size_t width,
+                                              size_t height, size_t num_samples_per_pixel) {
     const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -42,5 +43,6 @@ void launch_average_samples_kernel(float3* out_img, const float3* in_buf, size_t
                                                        num_samples_per_pixel);
 }
 
+}  // namespace kernels
 }  // namespace device
 }  // namespace thesis

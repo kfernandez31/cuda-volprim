@@ -8,7 +8,6 @@
 namespace thesis {
 namespace device {
 
-// TODO(kacper): think of whether this should return a size_t
 __forceinline__ __device__ uint getPrimitiveIndex() {
     const auto triangle_idx = optixGetPrimitiveIndex();
     const auto prim_idx = triangle_idx / launch_params.num_triangles_per_primitive_;
