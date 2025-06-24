@@ -1,10 +1,53 @@
 # Readme
 
+## Questions to Piotr
+- [ ] which (.ply) asset to get?
+- [ ] quantify with psnr, ... ?
+- [ ] correctness (compare w/ optimized) -> efficiency
+- [X] how to understand the asset structure?
+- [X] S_inv in integration matrix?
+- [?] **isotropic**, centered, unit Gaussian for integration
+- [X] **frequency_w_{0,1,2}** attribute - what is it?
+
+poziomy? orientacje? assety roznia sie rotacja
+zignorowac frequency_w_0, nx?
+jakie to są viewpoints?
+meshlab
+
+<!-- 🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr0/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr1/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr1/data/root.primitives_pyr1.ply""
+❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr1.ply""
+❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr2.ply""
+❗ Non-zero frequency at vertex 0: (19.9803, 19.979, 19.9795)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr1.ply""
+❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr2.ply""
+❗ Non-zero frequency at vertex 0: (19.9803, 19.979, 19.9795)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr3.ply""
+❗ Non-zero frequency at vertex 0: (39.9575, 39.9575, 39.9575) -->
+
+
 ## TODO
-- [ ] test >1 prim
 - [ ] asset from happly
 - [ ] replace stbimage with tinyexr
-- [ ] inplace buffer minibatch
 - [ ] get rid of underscores, they add visual clutter
 - [ ] quaternion for rotation matrix - will already be normalized?
 

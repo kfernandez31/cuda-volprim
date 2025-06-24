@@ -5,7 +5,7 @@
 #include <vector_types.h>
 
 #include <cstddef>
-#include <vec_math.h>
+#include <sutil/vec_math.h>
 
 namespace thesis {
 namespace device {

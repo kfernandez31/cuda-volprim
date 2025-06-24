@@ -1,5 +1,6 @@
 #pragma once
 
+#include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/result.h"
 
 #include <vector_types.h>
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace thesis::host::utils::io {
 
@@ -19,7 +21,10 @@ namespace thesis::host::utils::io {
                                     bool flip_vertical = true) noexcept;
 
 using HDRImagePtr = std::unique_ptr<float, decltype(&stbi_image_free)>;
-[[nodiscard]] Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filepath, size_t& width,
+[[nodiscard]] Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& width,
                                                size_t& height, size_t& channels);
+
+[[nodiscard]] Result<std::vector<params::Primitive>> loadPrimitives(
+    const std::filesystem::path& filename);
 
 }  // namespace thesis::host::utils::io

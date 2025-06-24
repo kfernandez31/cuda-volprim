@@ -5,6 +5,7 @@
 #include <vector_types.h>
 
 #ifdef __CUDACC__
+#include "thesis/common/utils/math.h"
 #include "thesis/device/geometry/matrix.h"
 
 #include <optix.h>
@@ -41,26 +42,19 @@ class THESIS_ALIGNMENT Ray {
     }
 
     static __forceinline__ __device__ Ray getCurrentRay() noexcept {
-        return {optixGetWorldRayOrigin(), optixGetWorldRayDirection()};
+        return spawn_unchecked(optixGetWorldRayOrigin(), optixGetWorldRayDirection());
+    }
+
+    __forceinline__ __device__ bool is_normalized() noexcept {
+        return fabsf(common::math::length2(direction_) - 1.0f) < 1e-4f;
     }
 
     __forceinline__ __device__ float3 at(float t) const noexcept {
         return origin_ + t * direction_;
     }
 
-    __forceinline__ __device__ Ray advanced_by(float t) const noexcept {
-        auto o = origin_ + t * direction_;
-        auto d = normalize(direction_);
-        return {o, d};
-    }
-
-    __forceinline__ __device__ void march_by(float t, float offset = 1e-8) noexcept {
-        origin_ = at(t + offset);
-    }
-
     __forceinline__ __device__ Ray transformed(const Matrix3x4& mat) const noexcept {
-        return {Matrix3x4::transform<true>(mat, origin_),
-                Matrix3x4::transform<false>(mat, direction_)};
+        return spawn(mat.transform<true>(origin_), mat.transform<false>(direction_));
     }
 #endif  // __CUDACC__
 };

@@ -12,7 +12,7 @@ add_library(device STATIC ${DEVICE_CU_SRCS})
 target_include_directories(device PUBLIC
     ${DEVICE_DIR}
     ${INCLUDE_DIR}
-    ${THIRD_PARTY_DIR}/sutil
+    ${THIRD_PARTY_DIR}
 )
 
 # Set device target properties

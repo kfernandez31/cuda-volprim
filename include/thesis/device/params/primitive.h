@@ -100,17 +100,14 @@ class THESIS_ALIGNMENT Primitive {
         // Transform the point into the local space of the primitive
         const auto local = geometry::Matrix3x4::transform<true>(M_for_integrating_inv_, pos);
 
-        // Evaluate the unnormalized density (e.g., Gaussian profile)
-        const auto e2 = -math::pow2(local) / S2_;
-
+        // option 1
+        const auto e2 = -math::pow2(local) / S2_;  // TODO(kacper): remove?
         return expf(math::sum(e2));
-    }
 
-    // __forceinline__ __device__ float kernel_pdf(const float3& pos) const noexcept {
-    //     const auto local = geometry::Matrix3x4::transform<true>(M_for_integrating_inv_, pos);
-    //     const auto r2 = dot(local, local);
-    //     return expf(-r2);
-    // }
+        // option 2
+        // const float r2 = dot(local, local);
+        // return expf(-r2);
+    }
 
     // (-∞, ∞)
     __forceinline__ __device__ float optical_depth(const geometry::Ray& ray_global) const noexcept {

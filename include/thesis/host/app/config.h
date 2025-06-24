@@ -25,11 +25,13 @@ struct Config {
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
     size_t num_samples_per_pixel_ = 16;
-    size_t image_width_ = 1600;
-    size_t image_height_ = 1200;
+    size_t image_width_ = 2000;
+    size_t image_height_ = 1500;
     float aspect_ratio_ = static_cast<float>(image_width_) / image_height_;
 
     uint seed_ = 42;
+    bool debug_ = false;
+    float angle_ = 0.0f;
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept {
         Config config;
@@ -47,6 +49,8 @@ struct Config {
             app.add_option("--closesthit", config.closesthit_function_name_, "Name of closesthit function");
             app.add_option("--launch_params", config.launch_params_variable_name_, "Launch parameters variable name");
             app.add_option("--seed", config.seed_, "Random seed");
+            app.add_option("--debug", config.debug_, "Runtime debug parameter");
+            app.add_option("--angle", config.angle_, "Runtime angle parameter");
         }
 
         std::optional<size_t> height_opt;

@@ -40,17 +40,14 @@ class Matrix3x4 {
         return RowProxy{const_cast<float*>(m[row])};
     }
 
-#ifdef __CUDACC__
     template <bool WithTranslate>
-    THESIS_INLINE THESIS_HOST_DEVICE static float3 transform(const Matrix3x4& mat,
-                                                             float3 v) noexcept {
-        auto result = make_float3(mat[0] * v, mat[1] * v, mat[2] * v);
+    THESIS_INLINE THESIS_HOST_DEVICE float3 transform(float3 v) const noexcept {
+        auto result = make_float3((*this)[0] * v, (*this)[1] * v, (*this)[2] * v);
         if constexpr (WithTranslate) {
-            result += make_float3(mat[0][3], mat[1][3], mat[2][3]);
+            result += make_float3((*this)[0][3], (*this)[1][3], (*this)[2][3]);
         }
         return result;
     }
-#endif  // __CUDACC__
 };
 
 }  // namespace geometry

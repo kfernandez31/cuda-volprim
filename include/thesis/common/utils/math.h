@@ -2,6 +2,8 @@
 
 #include "thesis/common/utils/preprocessor.h"
 
+#include <sutil/vec_math.h>
+
 namespace thesis {
 namespace common {
 namespace math {
@@ -12,6 +14,8 @@ constexpr auto FOUR_PI_F = 4.0f * PI_F;
 constexpr auto ONE_OVER_PI_F = 1.0f / PI_F;
 constexpr auto ONE_OVER_TWO_PI_F = 1.0f / (2.0f * PI_F);
 constexpr auto ONE_OVER_FOUR_PI_F = 1.0f / (4.0f * PI_F);
+constexpr auto ONE_OVER_TWO_PI_POW_3_2_F =
+    0.0634936359f;  // ONE_OVER_SQRT_2 * ONE_OVER_SQRT_PI * ONE_OVER_TWO_PI
 
 constexpr auto ROOT_TWO_F = 1.41421356237309504880f;
 constexpr auto TWO_ROOT_TWO_F = 2.0f * ROOT_TWO_F;
@@ -73,6 +77,10 @@ THESIS_INLINE THESIS_HOST_DEVICE constexpr float sum(float3 v) noexcept {
 
 THESIS_INLINE THESIS_HOST_DEVICE constexpr float prod(float3 v) noexcept {
     return v.x * v.y * v.z;
+}
+
+THESIS_INLINE THESIS_HOST_DEVICE float length2(float3 v) noexcept {
+    return dot(v, v);
 }
 
 template <typename T>

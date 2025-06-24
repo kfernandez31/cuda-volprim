@@ -115,7 +115,7 @@ struct Icosphere : public Mesh {
                 auto f = getMidPoint(tri[2], tri[0]);
 
                 temp_indices.insert(temp_indices.end(),
-                                    {{tri[0], d, f}, {d, tri[1], e}, {f, e, tri[2]}, {d, e, f}});
+                                    {{tri[0], d, f}, {d, tri[1], e}, {e, tri[2], f}, {d, e, f}});
             }
 
             indices_.swap(temp_indices);

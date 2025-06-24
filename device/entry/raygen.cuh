@@ -47,46 +47,56 @@ extern "C" __global__ void __raygen__rg() {
     auto throughput = make_float3(1.0f);
     auto radiance = make_float3(0.0f);
 
-    optix::ScatteringEvent<consts::MAX_PRIMS> event;
-    payloads::Miss miss;
-
-    for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
-        const auto result = sample_scattering_event(ray, rng, event, miss);
-
-        // no scattering - escaped mediums
-        if (!result) {
-            auto tau = compute_optical_depth_along_ray(ray);
-            radiance += (throughput * expf(-tau)) * miss.color();
-            break;
+    if (launch_params.debug_) {
+        const auto hit = trace_ch(ray, 0);
+        if (hit) {
+            auto idx = hit.unwrap().prim_idx;
+            radiance = launch_params.primitives_[idx].albedo_;
+        } else {
+            radiance = hit.unwrap_err().color();
         }
+    } else {
+        optix::ScatteringEvent<consts::MAX_PRIMS> event;
+        payloads::Miss miss;
 
-        // Evaluate albedo and environment lighting
-        auto albedo = evaluate_albedo(event.position_, event.active_prims_);
-        auto env = launch_params.env_map_.sample(event.direction_);
-        radiance += throughput * albedo * env * consts::PHASE_VALUE;
+        for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
+            const auto result = sample_scattering_event(ray, rng, event, miss);
 
-        // Update energy by scattered amount (albedo)
-        throughput *= albedo;
-
-        // Russian Roulette
-        if (bounce >= consts::RUSSIAN_ROULETTE_DEPTH) {
-            float p_survive = fminf(consts::RR_MAX_SURVIVAL, math::max(throughput));
-            if (random::sample_uniform(rng) > p_survive) {
+            // no scattering - escaped mediums
+            if (!result) {
+                auto tau = compute_optical_depth_along_ray(ray);
+                radiance += (throughput * expf(-tau)) * miss.color();
                 break;
             }
-            throughput /= p_survive;
+
+            // Evaluate albedo and environment lighting
+            auto albedo = evaluate_albedo(event.position_, event.active_prims_);
+            auto env = launch_params.env_map_.sample(event.direction_);
+            radiance += throughput * albedo * env * consts::PHASE_VALUE;
+
+            // Update energy by scattered amount (albedo)
+            throughput *= albedo;
+
+            // Russian Roulette
+            if (bounce >= consts::RUSSIAN_ROULETTE_DEPTH) {
+                float p_survive = fminf(consts::RR_MAX_SURVIVAL, math::max(throughput));
+                if (random::sample_uniform(rng) > p_survive) {
+                    break;
+                }
+                throughput /= p_survive;
+            }
+
+            // TODO(kacper): I believe the first condition is unreachable
+            if (!isfinite(math::sum(throughput)) || math::max(throughput) < consts::MIN_THROUGHPUT) {
+                break;
+            }
+
+            // Prepare next ray
+            ray = geometry::Ray::spawn(event.position_, event.direction_);
+
+            // Clear active prims
+            event.active_prims_.clear();
         }
-
-        // TODO(kacper): I believe the first condition is unreachable
-        if (!isfinite(math::sum(throughput)) || math::max(throughput) < consts::MIN_THROUGHPUT) {
-            break;
-        }
-
-        // Prepare next ray
-        ray = geometry::Ray::spawn(event.position_, event.direction_);
-
-        // Clear active prims
-        event.active_prims_.clear();
     }
 
     launch_params.image_[global_sample_idx] = radiance;
