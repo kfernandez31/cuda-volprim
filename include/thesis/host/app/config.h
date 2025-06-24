@@ -25,8 +25,8 @@ struct Config {
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
     size_t num_samples_per_pixel_ = 16;
-    size_t image_width_ = 1600;
-    size_t image_height_ = 1200;
+    size_t image_width_ = 2000;
+    size_t image_height_ = 1500;
     float aspect_ratio_ = static_cast<float>(image_width_) / image_height_;
 
     uint seed_ = 42;

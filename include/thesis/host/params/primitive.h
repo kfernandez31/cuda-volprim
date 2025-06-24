@@ -32,8 +32,8 @@ class Primitive : public Convertible<device::params::Primitive> {
     static inline glm::mat4 get_M_for_integrating_inv(const glm::mat4& T, const glm::mat4& R,
                                                       const glm::mat4& S) noexcept {
         const auto R_inv = glm::transpose(R);
-        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S));
-        const auto S_inv = glm::identity<glm::mat4>();  // TODO(kacper): remove
+        const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S)); // TODO(kacper): remove?
+        // const auto S_inv = glm::identity<glm::mat4>();
         const auto T_inv = glm::translate(-glm::vec3(T[3]));
         return S_inv * R_inv * T_inv;
     }

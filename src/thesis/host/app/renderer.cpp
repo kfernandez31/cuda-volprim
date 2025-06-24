@@ -23,7 +23,7 @@
 #include <vector>
 
 #define ICOSPHERE_N 2
-#define NUM_PRIMITIVES 3
+#define NUM_PRIMITIVES 5
 #define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
 #define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
 
@@ -49,6 +49,258 @@ Renderer::Renderer(const app::Config& config)
     createPipeline();
 }
 
+// 1. Small Gaussian inside Big Gaussian
+/*
+void Renderer::initPrimsAndGAS() {
+    glm::vec3 albedos[NUM_PRIMITIVES] = {
+        glm::vec3(1.0f, 1.0f, 0.0f), // outer yellow
+        glm::vec3(1.0f, 0.0f, 0.0f), // inner red
+    };
+
+    glm::vec3 translations[NUM_PRIMITIVES] = {
+        glm::vec3(0.0f, 0.0f, 0.5f), // both at same position
+        glm::vec3(0.0f, 0.0f, 0.5f),
+    };
+
+    glm::mat4 rotations[NUM_PRIMITIVES] = {
+        glm::identity<glm::mat4>(),
+        glm::identity<glm::mat4>(),
+    };
+
+    glm::vec3 scales[NUM_PRIMITIVES] = {
+        glm::vec3(1.0f), // large
+        glm::vec3(0.1f), // small
+    };
+
+    float od_scales[NUM_PRIMITIVES] = {
+        100.0f, // transparent-ish
+        1000.0f, // dense
+    };
+
+    for (int i = 0; i < NUM_PRIMITIVES; ++i) {
+        host::params::Primitive prim(
+            glm::translate(translations[i]),
+            rotations[i],
+            glm::scale(scales[i]),
+            albedos[i],
+            od_scales[i]
+        );
+        primitives_.host()[i] = prim.toDevice();
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
+    }
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 2. Lined-Up Gaussians (side by side)
+/*
+void Renderer::initPrimsAndGAS() {
+    for (int i = 0; i < NUM_PRIMITIVES; ++i) {
+        float x = -2.0f + i * 1.0f;
+        glm::vec3 color = glm::vec3(
+            static_cast<float>(i) / NUM_PRIMITIVES,
+            1.0f - static_cast<float>(i) / NUM_PRIMITIVES,
+            0.5f
+        );
+
+        host::params::Primitive prim(
+            glm::translate(glm::vec3(x, 0.0f, 0.5f)),
+            glm::identity<glm::mat4>(),
+            glm::scale(glm::vec3(0.4f)),
+            color,
+            300.0f
+        );
+        primitives_.host()[i] = prim.toDevice();
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
+    }
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 2.5. Lined-Up Gaussians (one behind other)
+/*
+void Renderer::initPrimsAndGAS() {
+    const glm::vec3 colors[NUM_PRIMITIVES] = {
+        glm::vec3(1.0f, 0.0f, 0.0f), // red
+        glm::vec3(0.0f, 1.0f, 0.0f), // green
+        glm::vec3(0.0f, 0.0f, 1.0f), // blue
+    };
+
+    for (int i = 0; i < NUM_PRIMITIVES; ++i) {
+        float z = 0.3f + i * 0.3f; // further into screen
+        glm::vec3 position(0.0f, 0.0f, z);
+
+        host::params::Primitive prim(
+            glm::translate(position),
+            glm::identity<glm::mat4>(),
+            glm::scale(glm::vec3(0.4f)),
+            colors[i],
+            500.0f
+        );
+
+        primitives_.host()[i] = prim.toDevice();
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
+    }
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 3. Overlapping Gaussians
+/*
+void Renderer::initPrimsAndGAS() {
+    const glm::vec3 colors[NUM_PRIMITIVES] = {
+        glm::vec3(1.0f, 0.0f, 0.0f), // red
+        glm::vec3(0.0f, 1.0f, 0.0f), // green
+        glm::vec3(0.0f, 0.0f, 1.0f), // blue
+    };
+
+    for (int i = 0; i < NUM_PRIMITIVES; ++i) {
+        float x = -0.3f + i * 0.3f;
+        glm::vec3 position(x, 0.0f, 0.5f); // horizontally aligned, intersecting
+
+        host::params::Primitive prim(
+            glm::translate(position),
+            glm::identity<glm::mat4>(),
+            glm::scale(glm::vec3(0.5f)),
+            colors[i],
+            600.0f
+        );
+
+        primitives_.host()[i] = prim.toDevice();
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
+    }
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 4. Anisotropic Gaussian
+/*
+void Renderer::initPrimsAndGAS() {
+    host::params::Primitive prim(
+        glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)),
+        glm::identity<glm::mat4>(),
+        glm::scale(glm::vec3(0.2f, 1.0f, 0.2f)),  // Tall on Y
+        glm::vec3(0.7f, 0.3f, 0.9f),
+        600.0f
+    );
+
+    primitives_.host()[0] = prim.toDevice();
+    geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+    gas_.upload_batch_from(0, ico);
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 5. Rotated Gaussian // TODO(kacper): fix!!!!
+/*
+void Renderer::initPrimsAndGAS() {
+    // const auto R = glm::rotate(glm::radians(45.0f), glm::vec3(0, 1, 0));  // rotate around Y
+    const auto R = glm::identity<glm::mat4>();
+
+    host::params::Primitive prim(
+        glm::translate(glm::vec3(0.0f, 0.0f, 0.5f)),
+        R,
+        glm::scale(glm::vec3(1.0f, 0.2f, 0.2f)),  // Elongated along X, then rotated
+        glm::vec3(1.0f, 0.5f, 0.0f),
+        600.0f
+    );
+
+    primitives_.host()[0] = prim.toDevice();
+    geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+    gas_.upload_batch_from(0, ico);
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+//  6. RGB Gradient Stack (Z-layered)
+/*
+void Renderer::initPrimsAndGAS() {
+    glm::vec3 colors[3] = {
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f),
+    };
+
+    for (int i = 0; i < NUM_PRIMITIVES  ; ++i) {
+        float z = 0.3f + i * 0.3f;
+
+        host::params::Primitive prim(
+            glm::translate(glm::vec3(0.0f, 0.0f, z)),
+            glm::identity<glm::mat4>(),
+            glm::scale(glm::vec3(0.4f)),
+            colors[i],
+            300.0f
+        );
+
+        primitives_.host()[i] = prim.toDevice();
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
+    }
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 7. Fade-Out Line (Opacity Gradient)
+/*
+void Renderer::initPrimsAndGAS() {
+    for (int i = 0; i < NUM_PRIMITIVES; ++i) {
+        float x = -2.0f + i * 1.0f;
+        float intensity = 1.0f - i * 0.2f; // fades from left to right
+        float od = 100.0f + i * 100.0f;
+
+        host::params::Primitive prim(
+            glm::translate(glm::vec3(x, 0.0f, 0.5f)),
+            glm::identity<glm::mat4>(),
+            glm::scale(glm::vec3(0.4f)),
+            glm::vec3(intensity, intensity, intensity),
+            od
+        );
+
+        primitives_.host()[i] = prim.toDevice();
+        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
+        gas_.upload_batch_from(i, ico);
+    }
+
+    primitives_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+}
+*/
+
+// 8. RGB side by side
 void Renderer::initPrimsAndGAS() {
     glm::vec3 albedos[NUM_PRIMITIVES] = {
         glm::vec3(1.0f, 0.0f, 0.0f),
@@ -68,25 +320,13 @@ void Renderer::initPrimsAndGAS() {
         glm::identity<glm::mat4>(),
     };
 
-    glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(0.3f),
-        glm::vec3(0.3f),
-        glm::vec3(0.3f),
-    };
-
-    float od_scales[NUM_PRIMITIVES] = {
-        500.0f,
-        500.0f,
-        500.0f,
-    };
-
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
         host::params::Primitive prim(
             glm::translate(translations[i]),
             rotations[i],
-            glm::scale(scales[i]),
+            glm::scale(glm::vec3(0.3f)),
             albedos[i], // glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
-            od_scales[i]
+            500.0f
         );
 
         // create prim

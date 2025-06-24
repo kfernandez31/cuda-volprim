@@ -1,10 +1,8 @@
 # Readme
 
 ## TODO
-- [ ] test >1 prim
 - [ ] asset from happly
 - [ ] replace stbimage with tinyexr
-- [ ] inplace buffer minibatch
 - [ ] get rid of underscores, they add visual clutter
 - [ ] quaternion for rotation matrix - will already be normalized?
 
