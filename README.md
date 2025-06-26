@@ -1,5 +1,42 @@
 # Readme
 
+## Questions to Piotr
+- [ ] which (.ply) asset to get?
+- [ ] how to understand the asset structure?
+- [ ] S_inv in integration matrix?
+- [ ] **isotropic**, centered, unit Gaussian for integration
+- [ ] **frequency_w_{0,1,2}** attribute - what is it?
+<!-- 🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr0/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr1/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr1/data/root.primitives_pyr1.ply""
+❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr1.ply""
+❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr2.ply""
+❗ Non-zero frequency at vertex 0: (19.9803, 19.979, 19.9795)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr0.ply""
+✅ All frequency_w_* values are zero.
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr1.ply""
+❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr2.ply""
+❗ Non-zero frequency at vertex 0: (19.9803, 19.979, 19.9795)
+
+🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr3.ply""
+❗ Non-zero frequency at vertex 0: (39.9575, 39.9575, 39.9575) -->
+
+
 ## TODO
 - [ ] asset from happly
 - [ ] replace stbimage with tinyexr

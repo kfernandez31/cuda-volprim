@@ -24,14 +24,14 @@ namespace {
 constexpr auto NUM_CHANNELS = 3u;
 constexpr auto EXR_NAME_MAX_LEN = 255u;
 
-inline void safeStrncpy(char* dest, const char* src, size_t dest_size) noexcept {
+inline void safeStrncp_y(char* dest, const char* src, size_t dest_size) noexcept {
 #ifdef _MSC_VER
-    strncpy_s(dest, dest_size, src, _TRUNCATE);
+    strncp_y_s(dest, dest_size, src, _TRUNCATE);
 #else
     if (dest_size == 0) {
         return;
     }
-    std::strncpy(dest, src, dest_size - 1);
+    std::strncp_y(dest, src, dest_size - 1);
     dest[dest_size - 1] = '\0';
 #endif  // _MSC_VER
 }
@@ -98,7 +98,7 @@ Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t 
 
         std::array<EXRChannelInfo, NUM_CHANNELS> channel_info = {};
         for (size_t i = 0; i < NUM_CHANNELS; ++i) {
-            safeStrncpy(channel_info[i].name, channel_names[i], EXR_NAME_MAX_LEN);
+            safeStrncp_y(channel_info[i].name, channel_names[i], EXR_NAME_MAX_LEN);
         }
 
         header.channels = channel_info.data();
@@ -123,16 +123,16 @@ Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t 
     }
 }
 
-Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filepath, size_t& width,
+Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& width,
                                  size_t& height, size_t& channels) {
-    spdlog::info("Loading environment map from '{}'", filepath.string());
+    spdlog::info("Loading environment map from '{}'", filename.string());
 
     stbi_set_flip_vertically_on_load(true);
 
     int w, h, c;
-    auto* raw = stbi_loadf(filepath.string().c_str(), &w, &h, &c, 0);
+    auto* raw = stbi_loadf(filename.string().c_str(), &w, &h, &c, 0);
     if (!raw) {
-        return make_error("Failed to load HDR image: {}", filepath.string());
+        return make_error("Failed to load HDR image: {}", filename.string());
     }
 
     width = static_cast<size_t>(w);
@@ -141,5 +141,47 @@ Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filepath, size_t& 
 
     return HDRImagePtr(raw, stbi_image_free);
 }
+
+Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::path& plyPath) {
+        happly::PLYData ply(plyPath.string());
+        auto& vtx = ply.getElement("vertex");
+
+        auto p_x = vtx.getProperty<float>("x");
+        auto p_y = vtx.getProperty<float>("y");
+        auto p_z = vtx.getProperty<float>("z");
+
+        auto rot_0 = vtx.getProperty<float>("rot_0");
+        auto rot_1 = vtx.getProperty<float>("rot_1");
+        auto rot_2 = vtx.getProperty<float>("rot_2");
+        auto rot_3 = vtx.getProperty<float>("rot_3");
+
+        auto scale_0 = vtx.getProperty<float>("scale_0");
+        auto scale_1 = vtx.getProperty<float>("scale_1");
+        auto scale_2 = vtx.getProperty<float>("scale_2");
+
+        auto alb_0 = vtx.getProperty<float>("albedo_0");
+        auto alb_1 = vtx.getProperty<float>("albedo_1");
+        auto alb_2 = vtx.getProperty<float>("albedo_2");
+
+        auto sigma_t = vtx.getProperty<float>("sigma_t_0");
+
+        const size_t N = p_x.size();
+        std::vector<thesis::host::params::Primitive> result;
+        result.reserve(N);
+
+        for (size_t i = 0; i < N; ++i) {
+            auto T = glm::translate({p_x[i], p_y[i], p_z[i]});
+
+            auto q = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
+            auto R = glm::toMat4(q);
+
+            auto S = glm::scale({scale_0[i], scale_1[i], scale_2[i]});
+
+            glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
+            result.emplace_back(T, R, S, albedo, sigma_t[i]);
+        }
+
+        return result;
+    }
 
 }  // namespace thesis::host::utils::io
