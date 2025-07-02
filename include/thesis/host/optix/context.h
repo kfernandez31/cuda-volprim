@@ -31,6 +31,9 @@ class Context {
         spdlog::info(
             "OptiX device context created (validation mode: {})",
             opts.validationMode == OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL ? "ALL" : "OFF");
+
+        OPTIX_CHECK(optixDeviceContextSetCacheEnabled(handle_, 1));
+        OPTIX_CHECK(optixDeviceContextSetCacheDatabaseSizes(handle_, 64 * 1024 * 1024, 128 * 1024 * 1024)); // 64MB, 128MB
     }
 
     ~Context() { reset(); }

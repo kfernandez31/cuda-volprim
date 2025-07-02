@@ -2,11 +2,18 @@
 
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/utils/check.h"
+#include "thesis/device/payloads/registry.h"
+#include "thesis/host/utils/io.h"
+#include "thesis/host/utils/result.h"
 
 #include <optix_stubs.h>
+#include <spdlog/spdlog.h>
 
 #include <string_view>
+#include <filesystem>
+#include <vector>
 #include <utility>
+#include <cstddef>
 
 namespace thesis::host::optix {
 
@@ -16,17 +23,32 @@ class Module {
    public:
     Module() = default;
 
-    Module(OptixDeviceContext ctx, const OptixModuleCompileOptions& mco,
-           const OptixPipelineCompileOptions& pco, std::string_view ptx) {
-        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco, ptx.data(), ptx.size(), log.data(),
-                                            &log_size, &handle_));
+    [[nodiscard]] static utils::Result<Module> load(
+           OptixDeviceContext ctx,
+           const std::filesystem::path& filename,
+           const OptixPipelineCompileOptions& pco)
+    {
+        Module module;
+
+        OptixModuleCompileOptions mco = {};
+        #ifdef DEBUG
+            mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
+        #else
+            mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+        #endif
+
+        std::vector<std::byte> blob;
+        TRY_ASSIGN(blob, utils::io::readFileToBytes(filename)); // TODO(kacper): async
+        spdlog::info("OptiX module loaded ({} bytes)", blob.size());
+
+        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco,
+            reinterpret_cast<const char*>(blob.data()), blob.size(), log.data(),
+            &log_size, &module.handle_));
+
+        return module;
     }
 
-    ~Module() {
-        if (handle_) {
-            OPTIX_CHECK(optixModuleDestroy(handle_));
-        }
-    }
+    ~Module() { reset(); }
 
     Module(const Module&) = delete;
     Module& operator=(const Module&) = delete;
@@ -35,15 +57,20 @@ class Module {
 
     Module& operator=(Module&& other) noexcept {
         if (this != &other) {
-            if (handle_) {
-                OPTIX_CHECK(optixModuleDestroy(handle_));
-            }
+            reset();
             handle_ = std::exchange(other.handle_, nullptr);
         }
         return *this;
     }
 
     [[nodiscard]] OptixModule get() const noexcept { return handle_; }
+
+private:
+    void reset() {
+        if (handle_) {
+            OPTIX_CHECK(optixModuleDestroy(handle_));
+        }
+    }
 };
 
 }  // namespace thesis::host::optix

@@ -48,6 +48,7 @@ namespace device {
 constexpr auto INF_F = 1e20f;
 constexpr auto VISIBILITY_ALL = 0xFFu;
 
+// TODO(kacper): consider optixUndefinedValue()
 template <uint FLAGS>
 __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=1e-8f) {
     uint ps[payloads::MAX_PAYLOADS] = {};
@@ -69,7 +70,7 @@ __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min
 
     const auto tag = static_cast<payloads::Tag>(ps[0]);
     utils::Result<payloads::ClosestHit, payloads::Miss> result;
-    
+
     if (tag == payloads::Tag::ClosestHit) {
         payloads::ClosestHit hit;
         hit.unpack(ps);

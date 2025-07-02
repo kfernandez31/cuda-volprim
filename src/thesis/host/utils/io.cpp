@@ -40,20 +40,29 @@ inline void safeStrncp_y(char* dest, const char* src, size_t dest_size) noexcept
 
 namespace thesis::host::utils::io {
 
-Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept {
+Result<std::vector<std::byte>> readFileToBytes(const std::filesystem::path& filename) noexcept {
     try {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
         if (!file) {
             return make_error("Failed to open file: {}", filename.string());
         }
 
-        std::string ptx(file.tellg(), '\0');
-        file.seekg(0);
-        file.read(ptx.data(), static_cast<std::streamsize>(ptx.size()));
+        const auto fileSize = file.tellg();
+        if (fileSize <= 0) {
+            return make_error("File is empty or error reading file size: {}", filename.string());
+        }
 
-        return ptx;
+        std::vector<std::byte> buffer(static_cast<size_t>(fileSize));
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+
+        if (!file) {
+            return make_error("Error while reading file: {}", filename.string());
+        }
+
+        return buffer;
     } catch (const std::exception& e) {
-        return make_error("Exception in readFileToString: {}", e.what());
+        return make_error("Exception in readFileToBytes: {}", e.what());
     }
 }
 
@@ -143,45 +152,45 @@ Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& 
 }
 
 Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::path& plyPath) {
-        happly::PLYData ply(plyPath.string());
-        auto& vtx = ply.getElement("vertex");
+    happly::PLYData ply(plyPath.string());
+    auto& vtx = ply.getElement("vertex");
 
-        auto p_x = vtx.getProperty<float>("x");
-        auto p_y = vtx.getProperty<float>("y");
-        auto p_z = vtx.getProperty<float>("z");
+    auto p_x = vtx.getProperty<float>("x");
+    auto p_y = vtx.getProperty<float>("y");
+    auto p_z = vtx.getProperty<float>("z");
 
-        auto rot_0 = vtx.getProperty<float>("rot_0");
-        auto rot_1 = vtx.getProperty<float>("rot_1");
-        auto rot_2 = vtx.getProperty<float>("rot_2");
-        auto rot_3 = vtx.getProperty<float>("rot_3");
+    auto rot_0 = vtx.getProperty<float>("rot_0");
+    auto rot_1 = vtx.getProperty<float>("rot_1");
+    auto rot_2 = vtx.getProperty<float>("rot_2");
+    auto rot_3 = vtx.getProperty<float>("rot_3");
 
-        auto scale_0 = vtx.getProperty<float>("scale_0");
-        auto scale_1 = vtx.getProperty<float>("scale_1");
-        auto scale_2 = vtx.getProperty<float>("scale_2");
+    auto scale_0 = vtx.getProperty<float>("scale_0");
+    auto scale_1 = vtx.getProperty<float>("scale_1");
+    auto scale_2 = vtx.getProperty<float>("scale_2");
 
-        auto alb_0 = vtx.getProperty<float>("albedo_0");
-        auto alb_1 = vtx.getProperty<float>("albedo_1");
-        auto alb_2 = vtx.getProperty<float>("albedo_2");
+    auto alb_0 = vtx.getProperty<float>("albedo_0");
+    auto alb_1 = vtx.getProperty<float>("albedo_1");
+    auto alb_2 = vtx.getProperty<float>("albedo_2");
 
-        auto sigma_t = vtx.getProperty<float>("sigma_t_0");
+    auto sigma_t = vtx.getProperty<float>("sigma_t_0");
 
-        const size_t N = p_x.size();
-        std::vector<thesis::host::params::Primitive> result;
-        result.reserve(N);
+    const size_t N = p_x.size();
+    std::vector<thesis::host::params::Primitive> result;
+    result.reserve(N);
 
-        for (size_t i = 0; i < N; ++i) {
-            auto T = glm::translate({p_x[i], p_y[i], p_z[i]});
+    for (size_t i = 0; i < N; ++i) {
+        auto T = glm::translate({p_x[i], p_y[i], p_z[i]});
 
-            auto q = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
-            auto R = glm::toMat4(q);
+        auto q = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
+        auto R = glm::toMat4(q);
 
-            auto S = glm::scale({scale_0[i], scale_1[i], scale_2[i]});
+        auto S = glm::scale({scale_0[i], scale_1[i], scale_2[i]});
 
-            glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
-            result.emplace_back(T, R, S, albedo, sigma_t[i]);
-        }
-
-        return result;
+        glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
+        result.emplace_back(T, R, S, albedo, sigma_t[i]);
     }
+
+    return result;
+}
 
 }  // namespace thesis::host::utils::io

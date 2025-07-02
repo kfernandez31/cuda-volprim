@@ -3,11 +3,9 @@
 #include "thesis/pch.h"
 
 #include "thesis/common/utils/types.h"
-#include "thesis/device/payloads/registry.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
-#include "thesis/host/optix/ptx.h"
 #include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/check.h"
 #include "thesis/host/utils/data.h"
@@ -358,17 +356,15 @@ void Renderer::uploadParams() {
 }
 
 void Renderer::createPipeline() {
-    auto ptx =
-        utils::try_unwrap_or_exit<optix::PTX>(optix::PTX::load(config_.ptx_path_));
-    spdlog::info("PTX loaded ({} bytes)", ptx.size()); // TODO(kacper): load async
-
-    OptixModuleCompileOptions mco = {};
-
     OptixPipelineCompileOptions pco = {};
-    pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
+    pco.pipelineLaunchParamsVariableName = launch_params_variable_name.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
+    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 
-    module_ = optix::Module(optix_ctx_.get(), mco, pco, ptx.data());
+    // module
+    module_ = utils::try_unwrap_or_exit<optix::Module>(
+        optix::Module::load(optix_ctx_.get(), config_.module_blob_path_, pco)
+    );
 
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(
@@ -392,6 +388,7 @@ void Renderer::createPipeline() {
         config_.anyhit_function_name.empty() ? nullptr : config_.anyhit_function_name.c_str()
     );
 
+    // sbt
     sbt_.build(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::SBT);
     spdlog::info("SBT created");
