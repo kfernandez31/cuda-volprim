@@ -9,6 +9,8 @@
 #include <optix.h>
 #include <vector_types.h>
 
+// TODO(kacper): think of optixReorder
+
 #define TRACE_PAYLOADS_0(p) p[0]
 #define TRACE_PAYLOADS_1(p) TRACE_PAYLOADS_0(p), p[1]
 #define TRACE_PAYLOADS_2(p) TRACE_PAYLOADS_1(p), p[2]
@@ -48,6 +50,7 @@ namespace device {
 constexpr auto INF_F = 1e20f;
 constexpr auto VISIBILITY_ALL = 0xFFu;
 
+// TODO(kacper): consider optixUndefinedValue()
 template <uint FLAGS>
 __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=1e-8f) {
     uint ps[payloads::MAX_PAYLOADS] = {};
@@ -69,7 +72,7 @@ __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min
 
     const auto tag = static_cast<payloads::Tag>(ps[0]);
     utils::Result<payloads::ClosestHit, payloads::Miss> result;
-    
+
     if (tag == payloads::Tag::ClosestHit) {
         payloads::ClosestHit hit;
         hit.unpack(ps);

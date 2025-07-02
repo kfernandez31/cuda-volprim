@@ -16,7 +16,7 @@ target_sources(thesis PRIVATE
 )
 
 # === Dependencies ===
-add_dependencies(thesis build_ptx)
+add_dependencies(thesis build_optixir)
 
 # === Precompiled Headers ===
 target_precompile_headers(thesis PRIVATE
@@ -38,10 +38,10 @@ target_include_directories(thesis PRIVATE
 )
 
 # === Compile Definitions ===
-file(TO_CMAKE_PATH "${PTX_OUTPUT}" PTX_PATH_CMAKE_STYLE)
+file(TO_CMAKE_PATH "${OPTIXIR_OUTPUT}" OPTIXIR_PATH_CMAKE_STYLE)
 target_compile_definitions(thesis PRIVATE
     GLM_ENABLE_EXPERIMENTAL
-    PTX_PATH="${PTX_PATH_CMAKE_STYLE}"
+    OPTIXIR_PATH="${OPTIXIR_PATH_CMAKE_STYLE}"
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<PLATFORM_ID:Windows>>:_AMD64_>
     $<$<AND:$<C_COMPILER_ID:MSVC>,$<PLATFORM_ID:Windows>>:_AMD64_>
 )

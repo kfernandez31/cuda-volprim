@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <ios>
 #include <span>
@@ -41,20 +43,29 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) noexcept 
 
 namespace thesis::host::utils::io {
 
-Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept {
+Result<std::vector<std::byte>> readFileToBytes(const std::filesystem::path& filename) noexcept {
     try {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
         if (!file) {
             return make_error("Failed to open file: {}", filename.string());
         }
 
-        std::string ptx(file.tellg(), '\0');
-        file.seekg(0);
-        file.read(ptx.data(), static_cast<std::streamsize>(ptx.size()));
+        const auto fileSize = file.tellg();
+        if (fileSize <= 0) {
+            return make_error("File is empty or error reading file size: {}", filename.string());
+        }
 
-        return ptx;
+        std::vector<std::byte> buffer(static_cast<size_t>(fileSize));
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+
+        if (!file) {
+            return make_error("Error while reading file: {}", filename.string());
+        }
+
+        return buffer;
     } catch (const std::exception& e) {
-        return make_error("Exception in readFileToString: {}", e.what());
+        return make_error("Exception in readFileToBytes: {}", e.what());
     }
 }
 
@@ -189,15 +200,14 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         result.reserve(N);
 
         for (size_t i = 0; i < N; ++i) {
-            auto T = glm::translate(glm::vec3(p_x[i], p_y[i], p_z[i]));
+            const auto T = glm::translate(glm::vec3(p_x[i], p_y[i], p_z[i]));
 
-            glm::quat q(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
-            q = glm::normalize(q);
-            auto R = glm::toMat4(q);
+            const auto q = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
+            const auto R = glm::toMat4(q);
 
-            auto S = glm::scale(glm::vec3(scale_0[i], scale_1[i], scale_2[i]));
-            glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
+            const auto S = glm::scale(glm::vec3(scale_0[i], scale_1[i], scale_2[i]));
 
+            const glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
             result.emplace_back(T, R, S, albedo, sigma_t[i]);
         }
 

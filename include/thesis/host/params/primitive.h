@@ -19,6 +19,7 @@ class Primitive : public Convertible<device::params::Primitive> {
     glm::mat4 M_for_intersecting_, M_for_integrating_inv_;
     glm::vec3 S_diag_, S_diag_squared_;
     glm::vec3 albedo_;
+    float S_det_;
     float optical_depth_scale_;
 
     static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
@@ -32,8 +33,13 @@ class Primitive : public Convertible<device::params::Primitive> {
     static inline glm::mat4 get_M_for_integrating_inv(const glm::mat4& T, const glm::mat4& R,
                                                       const glm::mat4& S) noexcept {
         const auto R_inv = glm::transpose(R);
-        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S)); // TODO(kacper): remove?
+
+        // TODO(kacper): decide on one
+        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S));
+        // const auto S_inv = glm::identity<glm::mat4>();
+        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S));
         const auto S_inv = glm::identity<glm::mat4>();
+
         const auto T_inv = glm::translate(-glm::vec3(T[3]));
         return S_inv * R_inv * T_inv;
     }
@@ -58,6 +64,7 @@ class Primitive : public Convertible<device::params::Primitive> {
         M_for_integrating_inv_(get_M_for_integrating_inv(T, R, S)),
         S_diag_(geometry::getDiagonal(S)),
         S_diag_squared_(glm::pow2(S_diag_)),
+        S_det_(glm::compMul(S_diag_)),
         albedo_(albedo),
         optical_depth_scale_(optical_depth_scale) {}
 
@@ -66,9 +73,10 @@ class Primitive : public Convertible<device::params::Primitive> {
         return device::params::Primitive(
             host::geometry::toDevice(M_for_integrating_inv_),
             utils::data::toFloat3(S_diag_squared_),
+            S_det_,
             utils::data::toFloat3(albedo_),
             optical_depth_scale_,
-            common::math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(glm::compMul(S_diag_))
+            common::math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(S_det_)
         );
     }
 };

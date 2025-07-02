@@ -14,7 +14,8 @@
 
 namespace thesis::host::utils::io {
 
-[[nodiscard]] Result<std::string> readFileToString(const std::filesystem::path& filename) noexcept;
+[[nodiscard]] Result<std::vector<std::byte>> readFileToBytes(
+    const std::filesystem::path& filename) noexcept;
 
 [[nodiscard]] Result<> saveExrImage(std::span<const float3> framebuffer, size_t width,
                                     size_t height, const std::filesystem::path& filename,

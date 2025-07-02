@@ -21,7 +21,7 @@ struct Config {
     std::string launch_params_variable_name_ = "launch_params";
 
     fs::path output_path_ = "output.exr";
-    fs::path ptx_path_ = fs::path("build") / "device_program.ptx";
+    fs::path module_blob_path_ = fs::path("build") / "device_program.optixir";
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
     size_t num_samples_per_pixel_ = 16;
@@ -40,7 +40,7 @@ struct Config {
         {
             // clang-format off
             app.add_option("--output", config.output_path_, "Path to save the rendered image");
-            app.add_option("--ptx", config.ptx_path_, "Path to the PTX file");
+            app.add_option("--module_blob", config.module_blob_path_, "Path to the Optix-IR file");
             app.add_option("--env_map", config.env_map_path_, "Path to the environment map");
             app.add_option("--samples_per_pixel", config.num_samples_per_pixel_, "Number of samples per pixel");
             app.add_option("--width", config.image_width_, "Width of the output image");

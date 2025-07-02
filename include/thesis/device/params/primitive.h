@@ -20,6 +20,7 @@ class THESIS_ALIGNMENT Primitive {
    private:
     geometry::Matrix3x4 M_for_integrating_inv_;
     float3 S2_;
+    float S_det_;
     float S2_xy_, S2_xz_, S2_yz_;
     float erf_denominator_base_;
 
@@ -80,12 +81,14 @@ class THESIS_ALIGNMENT Primitive {
     Primitive(
         const geometry::Matrix3x4& M_for_integrating_inv,
         float3 S_diag_squared,
+        float S_det,
         float3 albedo,
         float optical_depth_scale,
         float erf_denominator_base
     )
         : M_for_integrating_inv_(M_for_integrating_inv),
           S2_(S_diag_squared),
+          S_det_(S_det),
           S2_xy_(S2_.x * S2_.y),
           S2_xz_(S2_.x * S2_.z),
           S2_yz_(S2_.y * S2_.z),
@@ -96,17 +99,10 @@ class THESIS_ALIGNMENT Primitive {
 #ifdef __CUDACC__
     __forceinline__ __device__ float kernel_pdf(const float3& pos) const noexcept {
         namespace math = common::math;
+        const auto local = M_for_integrating_inv_.transform<true>(pos);
 
-        // Transform the point into the local space of the primitive
-        const auto local = geometry::Matrix3x4::transform<true>(M_for_integrating_inv_, pos);
-
-        // option 1
-        const auto e2 = -math::pow2(local) / S2_;  // TODO(kacper): remove?
-        return expf(math::sum(e2));
-
-        // option 2
-        // const float r2 = dot(local, local);
-        // return expf(-r2);
+        const auto pow = -0.5f * math::sum(math::pow2(local) / S2_);
+        return expf(pow) * math::ONE_OVER_TWO_PI_POW_3_2_F / S_det_;
     }
 
     // (-∞, ∞)

@@ -13,7 +13,6 @@ poziomy? orientacje? assety roznia sie rotacja
 zignorowac frequency_w_0, nx?
 jakie to są viewpoints?
 meshlab
-
 <!-- 🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr0/data/root.primitives_pyr0.ply""
 ✅ All frequency_w_* values are zero.
 
