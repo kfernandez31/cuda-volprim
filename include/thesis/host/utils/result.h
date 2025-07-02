@@ -55,6 +55,18 @@ std::unexpected<Error> make_error(Args&&... args) {
     return std::unexpected<Error>(Error(std::forward<Args>(args)...));
 }
 
+namespace detail {
+inline std::string last_error_string() {
+#ifdef _MSC_VER
+    std::array<char, 256> buf{};
+    strerror_s(buf.data(), buf.size(), errno);
+    return std::string(buf.data());
+#else
+    return std::string(strerror(errno));
+#endif
+}
+}  // namespace detail
+
 struct Error {
     int code_;
     std::string msg_;
@@ -63,7 +75,7 @@ struct Error {
     Error(int code, std::string&& msg) : code_(code), msg_(std::move(msg)) {}
     explicit Error(std::string_view msg) : Error(errno, msg) {}
 
-    static Error fromErrno() { return Error(errno, std::string_view(std::strerror(errno))); }
+    static Error fromErrno() { return Error(errno, std::string_view(detail::last_error_string())); }
 
     template <typename... Args>
     Error(int code, fmt::format_string<Args...> fmt_str, Args&&... args)

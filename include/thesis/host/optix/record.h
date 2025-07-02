@@ -25,7 +25,7 @@ struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SBTRecord {
 template <typename T = void>
 class Record {
    private:
-    cuda::AsyncBuffer<SBTRecord<T>> buffer_;
+    cuda::AsyncBuffer<SBTRecord<T>> buf_;
 
    public:
     Record() = default;
@@ -37,24 +37,24 @@ class Record {
     Record& operator=(const Record&) = delete;
 
     Record(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : buffer_(1, ctx, std::move(stream), cuda::AllocType::OnBoth) {}
+        : buf_(1, ctx, std::move(stream), cuda::AllocType::OnBoth) {}
 
     void build(OptixProgramGroup pg, const T& data) {
-        auto& record = buffer_[0];
+        auto& record = buf_[0];
 
         OPTIX_CHECK(optixSbtRecordPackHeader(pg, &record.header));
         record.data = data;
 
-        buffer_.upload();
+        buf_.upload();
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept { return buffer_; }
+    [[nodiscard]] CUdeviceptr get() const noexcept { return buf_; }
 };
 
 template <>
 class Record<void> {
    private:
-    cuda::AsyncBuffer<std::byte> buffer_;
+    cuda::AsyncBuffer<std::byte> buf_;
 
    public:
     Record() = default;
@@ -66,14 +66,14 @@ class Record<void> {
     Record& operator=(const Record&) = delete;
 
     Record(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : buffer_(OPTIX_SBT_RECORD_HEADER_SIZE, ctx, std::move(stream), cuda::AllocType::OnBoth) {}
+        : buf_(OPTIX_SBT_RECORD_HEADER_SIZE, ctx, std::move(stream), cuda::AllocType::OnBoth) {}
 
     void build(OptixProgramGroup pg) {
-        OPTIX_CHECK(optixSbtRecordPackHeader(pg, buffer_.host()));
-        buffer_.upload();
+        OPTIX_CHECK(optixSbtRecordPackHeader(pg, buf_.host()));
+        buf_.upload();
     }
 
-    [[nodiscard]] CUdeviceptr get() const noexcept { return buffer_.cu_device_ptr(); }
+    [[nodiscard]] CUdeviceptr get() const noexcept { return buf_.cu_device_ptr(); }
 };
 
 }  // namespace thesis::host::optix

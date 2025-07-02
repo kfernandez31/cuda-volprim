@@ -11,6 +11,7 @@ namespace thesis::host::cuda {
 enum class StreamKind : size_t {
     Main = 0,
     GAS,
+    IAS,
     EnvMap,
     Image,
     Prims,

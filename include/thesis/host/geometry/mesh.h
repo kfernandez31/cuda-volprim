@@ -23,30 +23,14 @@ class Mesh {
     Mesh(const Mesh&) = default;
     Mesh& operator=(const Mesh&) = default;
 
-    Mesh(const std::vector<glm::vec3>& _vertices, const std::vector<glm::uvec3>& _indices)
-        : vertices_(_vertices), indices_(_indices) {}
-
     Mesh(std::span<const glm::vec3> verts, std::span<const glm::uvec3> inds)
         : vertices_(verts.begin(), verts.end()), indices_(inds.begin(), inds.end()) {}
 
     Mesh(std::vector<glm::vec3>&& verts, std::vector<glm::uvec3>&& inds)
         : vertices_(std::move(verts)), indices_(std::move(inds)) {}
 
-    Mesh(std::initializer_list<glm::vec3> verts, std::initializer_list<glm::uvec3> inds)
-        : vertices_(verts), indices_(inds) {}
-
     [[nodiscard]] std::span<const glm::vec3> getVertices() const noexcept { return vertices_; }
     [[nodiscard]] std::span<const glm::uvec3> getIndices() const noexcept { return indices_; }
-
-    void transform(const glm::mat4& transformation_matrix) noexcept {
-        std::transform(vertices_.begin(), vertices_.end(), vertices_.begin(),
-                       [&](auto v) { return transformation_matrix * glm::vec4(v, 1.0f); });
-    }
-
-    void offsetIndices(uint offset) noexcept {
-        std::transform(indices_.begin(), indices_.end(), indices_.begin(),
-                       [&](auto i) { return i + offset; });
-    }
 };
 
 template <size_t N>
@@ -120,11 +104,6 @@ struct Icosphere : public Mesh {
 
             indices_.swap(temp_indices);
         }
-    }
-
-    explicit Icosphere(const glm::mat4& transform)
-        : Icosphere() {
-        this->transform(transform);
     }
 
     Icosphere() : Icosphere(Base()) {}

@@ -6,6 +6,7 @@
 #include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
+#include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/context.h"
 #include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/module.h"
@@ -15,6 +16,9 @@
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
+
+// TODO(kacper): prettify
+#define ICOSPHERE_N 1
 
 namespace thesis::host::app {
 
@@ -31,12 +35,14 @@ class Renderer {
     optix::Context optix_ctx_;
     cuda::StreamDAG streams_;
 
-    optix::TriangleGAS gas_;
+    optix::TriangleGAS<geometry::Icosphere<ICOSPHERE_N>> gas_;
+    optix::InstanceGAS ias_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
     cuda::AsyncBuffer<device::params::Primitive> primitives_;
     cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
+    cuda::AsyncBuffer<OptixInstance> instances_;
 
     optix::Module module_;
     optix::ProgramGroup raygen_pg_;

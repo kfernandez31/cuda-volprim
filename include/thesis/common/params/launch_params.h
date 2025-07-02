@@ -18,7 +18,6 @@ namespace common {
 namespace params {
 
 struct THESIS_ALIGNMENT LaunchParams {
-    size_t num_triangles_per_primitive_;
     uint seed_;
     OptixTraversableHandle gas_handle_;
     device::params::Camera camera_;

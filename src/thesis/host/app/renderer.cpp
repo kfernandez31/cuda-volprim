@@ -13,6 +13,7 @@
 
 #include <filesystem>
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -20,13 +21,11 @@
 #include <utility>
 #include <vector>
 
-#define ICOSPHERE_N 1
 #define NUM_PRIMITIVES 3
 
-#define NUM_TOTAL_INDICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumIndices)
-#define NUM_TOTAL_VERTICES (NUM_PRIMITIVES * geometry::Icosphere<ICOSPHERE_N>::NumVertices)
-
 namespace thesis::host::app {
+
+using Ico = geometry::Icosphere<ICOSPHERE_N>;
 
 Renderer::Renderer(const app::Config& config)
     // clang-format off
@@ -34,8 +33,10 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
-      gas_(NUM_TOTAL_VERTICES, NUM_TOTAL_INDICES, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
-      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
+      ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
+      gas_(Ico::Base(), cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
+      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS], cuda::AllocType::OnBoth),
+      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT], NUM_PRIMITIVES),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
@@ -300,55 +301,83 @@ void Renderer::initPrimsAndGAS() {
 */
 
 // 8. RGB side by side
-void Renderer::initPrimsAndGAS() {
-    glm::vec3 albedos[NUM_PRIMITIVES] = {
-        glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f),
+
+// ────────────────────────────────────────────────────────────────────────
+// Renderer::initPrimsAndGAS()  –– instanced version
+// ────────────────────────────────────────────────────────────────────────
+void Renderer::initPrimsAndGAS()
+{
+    const glm::vec3 albedos[NUM_PRIMITIVES] = {
+        {1,0,0},
+        {0,1,0},
+        {0,0,1},
     };
 
-    glm::vec3 translations[NUM_PRIMITIVES] = {
-        glm::vec3(-1.5f, 0.0f, 0.5f),
-        glm::vec3(0.0f, 0.0f, 0.5f),
-        glm::vec3(+1.5f, 0.0f, 0.5f),
+    const glm::vec3 translations[NUM_PRIMITIVES] = {
+        {-1.5f,0,0.5f},
+        {0,0,0.5f},
+        {+1.5f,0,0.5f},
     };
 
-    glm::mat4 rotations[NUM_PRIMITIVES] = {
+    const glm::mat4 rotations[NUM_PRIMITIVES] = {
         glm::identity<glm::mat4>(),
         glm::identity<glm::mat4>(),
         glm::identity<glm::mat4>(),
     };
+
+    const glm::vec3 scales[NUM_PRIMITIVES] = {
+        glm::vec3(0.3f),
+        glm::vec3(0.3f),
+        glm::vec3(0.3f),
+    };
+
+    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+        // primitive
         host::params::Primitive prim(
             glm::translate(translations[i]),
             rotations[i],
-            glm::scale(glm::vec3(0.3f)),
-            albedos[i], // glm::vec3(static_cast<float>(i) / static_cast<float>(NUM_PRIMITIVES));
-            500.0f
+            glm::scale(scales[i]),
+            albedos[i],
+            500.0f                                // optical_depth_scale
         );
+        primitives_[i] = prim.toDevice();
+    
+        // instance
+        OptixInstance inst = {};
+    
+        glm::mat4 Mt = glm::transpose(prim.M()); // row-major
+        std::memcpy(inst.transform, glm::value_ptr(Mt), 3 * 4 * sizeof(float));
 
-        // create prim
-        primitives_.host()[i] = prim.toDevice();
-
-        // create prim's hitbox
-        geometry::Icosphere<ICOSPHERE_N> ico(prim.M());
-        gas_.upload_batch_from(i, ico);
+        inst.traversableHandle = gas_.get();
+        inst.instanceId      = static_cast<uint>(i);      // index for optixGetInstanceId()
+        inst.sbtOffset       = static_cast<uint>(i);      // one hit-record per instance
+        inst.visibilityMask  = 0xFF;
+        inst.flags           = OPTIX_INSTANCE_FLAG_NONE;
+        instances_[i] = inst;
     }
 
     primitives_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
 
-    gas_.build(cuda_ctx_.get(), optix_ctx_.get());
-    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+    instances_.upload();
+    streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::IAS);
+
+    OptixBuildInput bi = {};
+    bi.type                               = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    bi.instanceArray.instances            = instances_.cu_device_ptr();
+    bi.instanceArray.numInstances         = NUM_PRIMITIVES;
+
+    ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
 }
 
 void Renderer::uploadParams() {
     auto& par = launch_params_[0];
     par.seed_ = config_.seed_;
     par.debug_ = config_.debug_;
-    par.num_triangles_per_primitive_ = geometry::Icosphere<ICOSPHERE_N>::NumIndices;
-    par.gas_handle_ = gas_.get();
+    par.gas_handle_ = ias_.get();
     par.camera_ = camera_.toDevice();
     par.env_map_ = env_map_.toDevice();
     par.image_ = image_.toDevice();
@@ -361,7 +390,7 @@ void Renderer::createPipeline() {
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
-    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
 
     // module
     module_ = utils::try_unwrap_or_exit<optix::Module>(
