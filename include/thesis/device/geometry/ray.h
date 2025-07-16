@@ -45,16 +45,8 @@ class THESIS_ALIGNMENT Ray {
         return spawn_unchecked(optixGetWorldRayOrigin(), optixGetWorldRayDirection());
     }
 
-    __forceinline__ __device__ bool is_normalized() noexcept {
-        return fabsf(common::math::length2(direction_) - 1.0f) < 1e-4f;
-    }
-
     __forceinline__ __device__ float3 at(float t) const noexcept {
         return origin_ + t * direction_;
-    }
-
-    __forceinline__ __device__ Ray transformed(const Matrix3x4& mat) const noexcept {
-        return spawn(mat.transform<true>(origin_), mat.transform<false>(direction_));
     }
 #endif  // __CUDACC__
 };

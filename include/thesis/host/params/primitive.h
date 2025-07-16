@@ -21,27 +21,21 @@ class Primitive : public Convertible<device::params::Primitive> {
     glm::vec3 albedo_;
     float S_det_;
     float optical_depth_scale_;
+    glm::vec3 scale_;
 
     static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
 
     static inline glm::mat4 get_M_for_intersecting(const glm::mat4& T, const glm::mat4& R,
-                                                   const glm::mat4& S) noexcept {
-        const auto scale = glm::scale(glm::vec3(INTERSECTION_SCALING_FACTOR));
-        return T * R * (S * scale);
+                                                   glm::vec3 scale) noexcept {
+        const auto S = glm::scale(scale * INTERSECTION_SCALING_FACTOR);
+        return T * R * S;
     }
 
-    static inline glm::mat4 get_M_for_integrating_inv(const glm::mat4& T, const glm::mat4& R,
-                                                      const glm::mat4& S) noexcept {
+    static inline glm::mat4 get_M_for_integrating_inv(const glm::mat4& T,
+                                                      const glm::mat4& R) noexcept {
         const auto R_inv = glm::transpose(R);
-
-        // TODO(kacper): decide on one
-        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S));
-        // const auto S_inv = glm::identity<glm::mat4>();
-        // const auto S_inv = glm::scale(1.0f / geometry::getDiagonal(S));
-        const auto S_inv = glm::identity<glm::mat4>();
-
         const auto T_inv = glm::translate(-glm::vec3(T[3]));
-        return S_inv * R_inv * T_inv;
+        return R_inv * T_inv;
     }
 
    public:
@@ -57,16 +51,17 @@ class Primitive : public Convertible<device::params::Primitive> {
 
     // clang-format off
     Primitive(
-        const glm::mat4& T, const glm::mat4& R, const glm::mat4& S,
+        const glm::mat4& T, const glm::mat4& R, glm::vec3 scale,
         glm::vec3 albedo,
         float optical_depth_scale
-    ) : M_for_intersecting_(get_M_for_intersecting(T, R, S)),
-        M_for_integrating_inv_(get_M_for_integrating_inv(T, R, S)),
-        S_diag_(geometry::getDiagonal(S)),
+    ) : M_for_intersecting_(get_M_for_intersecting(T, R, scale)),
+        M_for_integrating_inv_(get_M_for_integrating_inv(T, R)),
+        S_diag_(scale),
         S_diag_squared_(glm::pow2(S_diag_)),
         S_det_(glm::compMul(S_diag_)),
         albedo_(albedo),
-        optical_depth_scale_(optical_depth_scale) {}
+        optical_depth_scale_(optical_depth_scale),
+        scale_(scale) {}
 
     [[nodiscard]] device::params::Primitive toDevice() const noexcept override {
         // clang-format off
@@ -76,7 +71,8 @@ class Primitive : public Convertible<device::params::Primitive> {
             S_det_,
             utils::data::toFloat3(albedo_),
             optical_depth_scale_,
-            common::math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(S_det_)
+            common::math::ONE_OVER_TWO_ROOT_TWO_F * glm::inversesqrt(S_det_),
+            utils::data::toFloat3(scale_)
         );
     }
 };

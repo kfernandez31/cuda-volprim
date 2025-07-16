@@ -18,7 +18,6 @@ enum class Tag : uint {
     AnyHit = 3,
 };
 
-// TODO(kacper): underscore member vars
 template <typename Derived, Tag T>
 struct THESIS_ALIGNMENT Base {
     static constexpr Tag tag_v = T;

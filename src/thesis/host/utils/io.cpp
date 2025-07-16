@@ -196,7 +196,7 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         auto alb_1 = getProp("albedo_1");
         auto alb_2 = getProp("albedo_2");
 
-        std::vector<thesis::host::params::Primitive> result;
+        std::vector<params::Primitive> result;
         result.reserve(N);
 
         for (size_t i = 0; i < N; ++i) {
@@ -205,7 +205,7 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
             const auto q = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
             const auto R = glm::toMat4(q);
 
-            const auto S = glm::scale(glm::vec3(scale_0[i], scale_1[i], scale_2[i]));
+            const auto S = glm::vec3(scale_0[i], scale_1[i], scale_2[i]);
 
             const glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
             result.emplace_back(T, R, S, albedo, sigma_t[i]);

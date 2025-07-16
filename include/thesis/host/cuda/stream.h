@@ -14,7 +14,6 @@ class Stream {
    private:
     cudaStream_t stream_ = nullptr;
     cudaEvent_t event_ = nullptr;
-    // TODO(kacper): store last error
 
     using Callback = std::function<utils::Result<>(cudaError_t)>;
 

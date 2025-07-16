@@ -9,6 +9,7 @@
 
 namespace thesis::host::utils::data {
 
+// TODO(kacper): remove?
 template <typename To, typename From>
 inline std::span<const To> reinterpretSpan(std::span<const From> src) {
     static_assert(sizeof(From) == sizeof(To), "Size mismatch in reinterpretSpan");
@@ -17,8 +18,12 @@ inline std::span<const To> reinterpretSpan(std::span<const From> src) {
     return {reinterpret_cast<const To*>(src.data()), src.size()};
 }
 
-inline float3 toFloat3(const glm::vec3& v) noexcept {
+inline float3 toFloat3(glm::vec3 v) noexcept {
     return make_float3(v.x, v.y, v.z);
+}
+
+inline float4 toFloat4(const glm::vec4& v) noexcept {
+    return make_float4(v.x, v.y, v.z, v.w);
 }
 
 }  // namespace thesis::host::utils::data

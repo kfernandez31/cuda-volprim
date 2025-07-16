@@ -18,7 +18,7 @@
 #include "thesis/host/params/image.h"
 
 // TODO(kacper): prettify
-#define ICOSPHERE_N 1
+#define ICOSPHERE_N 2
 
 namespace thesis::host::app {
 

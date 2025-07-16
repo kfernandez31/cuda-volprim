@@ -23,6 +23,7 @@ class THESIS_ALIGNMENT Primitive {
     float S_det_;
     float S2_xy_, S2_xz_, S2_yz_;
     float erf_denominator_base_;
+    float3 scale_;
 
 #ifdef __CUDACC__
     struct OpticalCoefficients {
@@ -31,13 +32,11 @@ class THESIS_ALIGNMENT Primitive {
     };
 
     // ~54 FLOPs, ~60–80 cycles
-    __device__ OpticalCoefficients
-    compute_optical_coeffs(const geometry::Ray& r_global) const noexcept {
+    __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& ray) const noexcept {
         namespace math = common::math;
 
-        const auto r_local = r_global.transformed(M_for_integrating_inv_);
-        const auto& x = r_local.origin_;
-        const auto& w = r_local.direction_;
+        const auto& x = M_for_integrating_inv_.transform<true>(ray.origin_);
+        const auto& w = M_for_integrating_inv_.transform<false>(ray.direction_);
 
         const auto xx = math::pow2(x);
         const auto ww = math::pow2(w);
@@ -84,7 +83,8 @@ class THESIS_ALIGNMENT Primitive {
         float S_det,
         float3 albedo,
         float optical_depth_scale,
-        float erf_denominator_base
+        float erf_denominator_base,
+        float3 scale
     )
         : M_for_integrating_inv_(M_for_integrating_inv),
           S2_(S_diag_squared),
@@ -94,7 +94,8 @@ class THESIS_ALIGNMENT Primitive {
           S2_yz_(S2_.y * S2_.z),
           erf_denominator_base_(erf_denominator_base),
           albedo_(albedo),
-          optical_depth_scale_(optical_depth_scale) {}
+          optical_depth_scale_(optical_depth_scale),
+          scale_(scale) {}
 
 #ifdef __CUDACC__
     __forceinline__ __device__ float kernel_pdf(const float3& pos) const noexcept {
@@ -103,13 +104,6 @@ class THESIS_ALIGNMENT Primitive {
 
         const auto pow = -0.5f * math::sum(math::pow2(local) / S2_);
         return expf(pow) * math::ONE_OVER_TWO_PI_POW_3_2_F / S_det_;
-    }
-
-    // (-∞, ∞)
-    __forceinline__ __device__ float optical_depth(const geometry::Ray& ray_global) const noexcept {
-        const auto coeffs = compute_optical_coeffs(ray_global);
-
-        return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * common::math::ONE_OVER_PI_F;
     }
 
     // [t_min, t_max]
@@ -134,9 +128,6 @@ class THESIS_ALIGNMENT Primitive {
         return optical_depth_internal(coeffs, erf_min, 1.0f);
     }
 
-    __forceinline__ __device__ float3 density_integral(const geometry::Ray& ray) const noexcept {
-        return albedo_ * optical_depth(ray);
-    }
     __forceinline__ __device__ float3 density_integral(const geometry::Ray& ray, float2 t_range) const noexcept {
         return albedo_ * optical_depth(ray, t_range);
     }

@@ -45,10 +45,8 @@ meshlab
 
 
 ## TODO
-- [ ] asset from happly
 - [ ] replace stbimage with tinyexr
 - [ ] get rid of underscores, they add visual clutter
-- [ ] quaternion for rotation matrix - will already be normalized?
 
 Additions
 - [ ] importance sampling / non-isotrophic phase function

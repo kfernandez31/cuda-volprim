@@ -67,7 +67,7 @@ class GAS {
         // compact the GAS
         const auto compacted_size = compacted_size_[0];
         if (compacted_size > 0 && compacted_size < out_.size()) {
-            spdlog::info("GAS compaction issued ({} → {} bytes)", out_.size(), compacted_size);
+            spdlog::info("GAS compaction issued ({} -> {} bytes)", out_.size(), compacted_size);
             out_ = cuda::AsyncBuffer<std::byte>(compacted_size, cuda_ctx, stream,
                                                 cuda::AllocType::OnDeviceOnly);
 
