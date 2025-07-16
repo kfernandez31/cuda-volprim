@@ -202,13 +202,12 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         for (size_t i = 0; i < N; ++i) {
             const auto T = glm::translate(glm::vec3(p_x[i], p_y[i], p_z[i]));
 
-            const auto q = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
-            const auto R = glm::toMat4(q);
+            const auto rot_quat = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
 
             const auto S = glm::vec3(scale_0[i], scale_1[i], scale_2[i]);
 
             const glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
-            result.emplace_back(T, R, S, albedo, sigma_t[i]);
+            result.emplace_back(T, rot_quat, S, albedo, sigma_t[i]);
         }
 
         return result;

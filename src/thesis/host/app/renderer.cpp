@@ -63,10 +63,10 @@ void Renderer::initPrimsAndGAS()
         {+1.5f,0,0.5f},
     };
 
-    const glm::mat4 rotations[NUM_PRIMITIVES] = {
-        glm::identity<glm::mat4>(),
-        glm::identity<glm::mat4>(),
-        glm::identity<glm::mat4>(),
+    const glm::quat rotations[NUM_PRIMITIVES] = {
+        glm::quat(1, 0, 0, 0),
+        glm::quat(1, 0, 0, 0),
+        glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
