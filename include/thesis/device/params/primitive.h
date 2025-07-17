@@ -37,8 +37,8 @@ class THESIS_ALIGNMENT Primitive {
     __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& ray) const noexcept {
         namespace math = common::math;
 
-        const auto& x = rot_quat_.rotate(ray.origin_ - center_);
-        const auto& w = rot_quat_.rotate(ray.direction_);
+        const auto& x = transform_pos_local(ray.origin_);
+        const auto& w = transform_dir_local(ray.direction_);
 
         const auto xx = math::pow2(x);
         const auto ww = math::pow2(w);
@@ -65,6 +65,14 @@ class THESIS_ALIGNMENT Primitive {
                common::math::ONE_OVER_TWO_PI_F;
     }
 #endif  // __CUDACC__
+
+    __forceinline__ __device__ float3 transform_pos_local(float3 pos) const noexcept {
+        return rot_quat_.rotate(pos - center_);
+    }
+
+    __forceinline__ __device__ float3 transform_dir_local(float3 dir) const noexcept {
+        return rot_quat_.rotate(dir);
+    }
 
    public:
     float3 albedo_;
@@ -102,9 +110,9 @@ class THESIS_ALIGNMENT Primitive {
           scale_(scale) {}
 
 #ifdef __CUDACC__
-    __forceinline__ __device__ float kernel_pdf(const float3& pos) const noexcept {
+    __forceinline__ __device__ float kernel_pdf(float3 pos) const noexcept {
         namespace math = common::math;
-        const auto local = rot_quat_.rotate(pos - center_);
+        const auto local = transform_pos_local(pos);
 
         const auto pow = -0.5f * math::sum(math::pow2(local) / S2_);
         return expf(pow) * math::ONE_OVER_TWO_PI_POW_3_2_F / S_det_;

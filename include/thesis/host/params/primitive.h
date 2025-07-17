@@ -20,13 +20,14 @@ class Primitive : public Convertible<device::params::Primitive> {
    private:
     glm::mat4 M_for_intersecting_;
     glm::vec3 S_diag_, S_diag_squared_;
-    glm::vec3 albedo_;
     float S_det_;
-    float optical_depth_scale_;
 
     glm::vec3 center_;
     glm::quat rot_quat_;
     glm::vec3 scale_;
+
+    glm::vec3 albedo_;
+    float optical_depth_scale_;
 
     static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
 
