@@ -22,19 +22,19 @@ template <typename Derived, Tag T>
 struct THESIS_ALIGNMENT Base {
     static constexpr Tag tag_v = T;
 
-#ifdef __CUDACC__
-    __forceinline__ __device__ void pack(uint* out) const noexcept {
+#ifdef DEVICE
+    __device__ void pack(uint* out) const {
         const auto* self = static_cast<const Derived*>(this);
         out[0] = static_cast<uint>(self->tag_v);
         self->pack_impl(out + 1);
     }
 
-    __forceinline__ __device__ void unpack(const uint* in) noexcept {
+    __device__ void unpack(const uint* in) {
         auto* self = static_cast<Derived*>(this);
         self->unpack_impl(in + 1);
     }
 
-    __device__ void packToOptix() const noexcept {
+    __device__ void packToOptix() const {
         uint payloads[Derived::Count] = {};
         static_cast<const Derived*>(this)->pack(payloads);
         static_assert(Derived::Count <= MAX_PAYLOADS, "Max number of payloads exceeded.");
@@ -83,7 +83,7 @@ struct THESIS_ALIGNMENT Base {
 
 #undef CASE
     }
-#endif  // __CUDACC__
+#endif  // DEVICE
 };
 
 }  // namespace payloads

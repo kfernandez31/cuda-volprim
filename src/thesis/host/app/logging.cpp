@@ -6,7 +6,7 @@
 
 namespace thesis::host::app::logging {
 
-void initLogging() {
+void init() {
 #ifdef DEBUG
     spdlog::set_level(spdlog::level::debug);
 #else

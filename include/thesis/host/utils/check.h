@@ -13,7 +13,7 @@ namespace thesis::host::utils {
 constexpr size_t MAX_LOG_SIZE = 2048;
 
 template <bool exit_on_error = true>
-inline void cudaCheck(cudaError_t err, const char* file, int line) noexcept {
+void cudaCheck(cudaError_t err, const char* file, int line) noexcept {
     if (err != cudaSuccess) {
         spdlog::error("CUDA Error at {}:{}: {}", file, line, cudaGetErrorString(err));
         if constexpr (exit_on_error) {
@@ -23,7 +23,7 @@ inline void cudaCheck(cudaError_t err, const char* file, int line) noexcept {
 }
 
 template <bool exit_on_error = true>
-inline void optixCheck(OptixResult res, const char* file, int line) noexcept {
+void optixCheck(OptixResult res, const char* file, int line) noexcept {
     if (res != OPTIX_SUCCESS) {
         spdlog::error("OptiX Error at {}:{}: code {}", file, line, static_cast<int>(res));
         if constexpr (exit_on_error) {
@@ -33,7 +33,7 @@ inline void optixCheck(OptixResult res, const char* file, int line) noexcept {
 }
 
 template <bool exit_on_error = true>
-inline void cuCheck(CUresult err, const char* file, int line) noexcept {
+void cuCheck(CUresult err, const char* file, int line) noexcept {
     if (err != CUDA_SUCCESS) {
         const char* err_str = nullptr;
         cuGetErrorString(err, &err_str);
@@ -45,16 +45,18 @@ inline void cuCheck(CUresult err, const char* file, int line) noexcept {
 }
 
 template <typename T>
-inline void checkNotNull(const T* ptr, const char* expr, const char* file, int line,
-                         const char* msg = nullptr) {
-    if (!ptr) {
-        if (msg) {
-            spdlog::error("Null pointer check failed at {}:{} → '{}': {}", file, line, expr, msg);
-        } else {
-            spdlog::error("Null pointer check failed at {}:{} → '{}'", file, line, expr);
-        }
-        std::exit(1);
+void checkNotNull(const T* ptr, const char* expr, const char* file, int line,
+                  const char* msg = nullptr) noexcept {
+    if (ptr) {
+        return;
     }
+
+    if (msg) {
+        spdlog::error("Null pointer check failed at {}:{} → '{}': {}", file, line, expr, msg);
+    } else {
+        spdlog::error("Null pointer check failed at {}:{} → '{}'", file, line, expr);
+    }
+    std::exit(1);
 }
 
 }  // namespace thesis::host::utils

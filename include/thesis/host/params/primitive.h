@@ -3,7 +3,6 @@
 #include "thesis/common/utils/math.h"
 #include "thesis/device/geometry/quat.h"
 #include "thesis/device/params/primitive.h"
-#include "thesis/host/geometry/matrix.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/data.h"
 
@@ -29,8 +28,6 @@ class Primitive : public Convertible<device::params::Primitive> {
     glm::vec3 albedo_;
     float optical_depth_scale_;
 
-    static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
-
    public:
     Primitive() = delete;
 
@@ -54,7 +51,7 @@ class Primitive : public Convertible<device::params::Primitive> {
         rot_quat_(rot_quat),
         scale_(scale) {}
 
-    glm::mat4 localToWorld() const noexcept {
+    [[nodiscard]] glm::mat4 localToWorld() const noexcept {
         static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
 
         const auto T = glm::translate(center_);

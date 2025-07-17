@@ -17,7 +17,7 @@ struct Config {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
     std::string closesthit_function_name_ = "__closesthit__ch";
-    std::string anyhit_function_name = "__anyhit__ah";
+    std::string anyhit_function_name_ = "__anyhit__ah";
     std::string launch_params_variable_name_ = "launch_params";
 
     fs::path output_path_ = "output.exr";
@@ -27,7 +27,7 @@ struct Config {
     size_t num_samples_per_pixel_ = 16;
     size_t image_width_ = 2000;
     size_t image_height_ = 1500;
-    float aspect_ratio_ = static_cast<float>(image_width_) / image_height_;
+    float aspect_ratio_;
 
     uint seed_ = 42;
     bool debug_ = false;
@@ -38,6 +38,7 @@ struct Config {
 
         CLI::App app{"OptiX-based raytracer of kernel mixture models"};
         {
+            // TODO(kacper): app.add_option_group("Image settings")
             // clang-format off
             app.add_option("--output", config.output_path_, "Path to save the rendered image");
             app.add_option("--module_blob", config.module_blob_path_, "Path to the Optix-IR file");
@@ -52,6 +53,35 @@ struct Config {
             app.add_option("--debug", config.debug_, "Runtime debug parameter");
             app.add_option("--angle", config.angle_, "Runtime angle parameter");
         }
+
+// // Image-related settings
+// auto* image_group = app.add_option_group("Image settings");
+// image_group->add_option("--output", config.output_path_, "Path to save the rendered image");
+// image_group->add_option("--width", config.image_width_, "Width of the output image");
+// image_group->add_option("--samples_per_pixel", config.num_samples_per_pixel_, "Number of samples per pixel");
+
+// std::optional<size_t> height_opt;
+// std::optional<float> aspect_opt;
+// image_group->add_option("--height", height_opt, "Explicit height of the output image");
+// image_group->add_option("--aspect_ratio", aspect_opt, "Aspect ratio = width / height");
+
+// // Shader / program entrypoint names
+// auto* entry_group = app.add_option_group("Entrypoint names");
+// entry_group->add_option("--raygen", config.raygen_function_name_, "Name of raygen function");
+// entry_group->add_option("--miss", config.miss_function_name_, "Name of miss function");
+// entry_group->add_option("--closesthit", config.closesthit_function_name_, "Name of closesthit function");
+// entry_group->add_option("--launch_params", config.launch_params_variable_name_, "Launch parameters variable name");
+
+// // Runtime & debugging options
+// auto* runtime_group = app.add_option_group("Runtime tweaks");
+// runtime_group->add_option("--seed", config.seed_, "Random seed");
+// runtime_group->add_option("--debug", config.debug_, "Runtime debug parameter");
+// runtime_group->add_option("--angle", config.angle_, "Runtime angle parameter");
+
+// // File paths
+// auto* file_group = app.add_option_group("File paths");
+// file_group->add_option("--module_blob", config.module_blob_path_, "Path to the Optix-IR file");
+// file_group->add_option("--env_map", config.env_map_path_, "Path to the environment map");
 
         std::optional<size_t> height_opt;
         std::optional<float> aspect_opt;

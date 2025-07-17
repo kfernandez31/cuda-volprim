@@ -33,11 +33,11 @@ class BufferBase {
     BufferBase(std::span<const T> data, CUcontext ctx, typename Policy::ContextParam context_param,
                AllocType alloc_type = AllocType::OnBoth)
         : BufferBase(data.size(), ctx, context_param, alloc_type) {
-        if (alloc_type == AllocType::OnBoth) {
+        if (alloc_type == AllocType::OnDeviceOnly) {
+            upload(data.data());
+        } else {
             std::memcpy(host(), data.data(), data.size_bytes());
             upload();
-        } else {
-            upload(data.data());
         }
     }
 

@@ -4,28 +4,30 @@
 
 #include <vector_types.h>
 
-#ifdef __CUDACC__
+#ifdef DEVICE
 #include "thesis/common/utils/math.h"
-#include "thesis/device/geometry/matrix.h"
 
 #include <optix.h>
 
 #include <sutil/vec_math.h>
-#endif  // __CUDACC__
+#endif  // DEVICE
 
 namespace thesis {
 namespace device {
 namespace geometry {
 
 class THESIS_ALIGNMENT Ray {
-   private:
-    __device__ Ray(float3 origin, float3 direction) : origin_(origin), direction_(direction) {}
-
+#ifdef DEVICE
+    __host__ __device__ Ray(float3 origin, float3 direction)
+        : origin_(origin), direction_(direction) {}
+#endif  // DEVICE
    public:
     float3 origin_;
     float3 direction_;
 
-#ifdef __CUDACC__
+    Ray(const Ray&) = default;
+    Ray& operator=(const Ray&) = default;
+
     enum Type {
         RADIANCE = 0,
         SHADOW = 1,
@@ -33,22 +35,19 @@ class THESIS_ALIGNMENT Ray {
         COUNT = 3,
     };
 
-    static __forceinline__ __device__ Ray spawn(float3 o, float3 d) noexcept {
-        return {o, normalize(d)};
-    }
+#ifdef DEVICE
+    static __device__ Ray spawn(float3 o, float3 d) { return {o, normalize(d)}; }
 
-    static __forceinline__ __device__ Ray spawn_unchecked(float3 o, float3 d) noexcept {
+    static __device__ Ray spawn_unchecked(float3 o, float3 d) {
         return {o, d};  // assume caller normalized
     }
 
-    static __forceinline__ __device__ Ray getCurrentRay() noexcept {
+    static __device__ Ray getCurrentRay() {
         return spawn_unchecked(optixGetWorldRayOrigin(), optixGetWorldRayDirection());
     }
 
-    __forceinline__ __device__ float3 at(float t) const noexcept {
-        return origin_ + t * direction_;
-    }
-#endif  // __CUDACC__
+    __device__ float3 at(float t) const { return origin_ + t * direction_; }
+#endif  // DEVICE
 };
 
 }  // namespace geometry

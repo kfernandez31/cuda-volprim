@@ -5,12 +5,12 @@
 
 #include <vector_types.h>
 
-#ifdef __CUDACC__
+#ifdef DEVICE
 #include "thesis/common/utils/math.h"
 #include "thesis/device/geometry/ray.h"
 
 #include <math.h>
-#endif  // __CUDACC__
+#endif  // DEVICE
 
 namespace thesis {
 namespace device {
@@ -27,14 +27,14 @@ class THESIS_ALIGNMENT Primitive {
     geometry::UnitQuaternion rot_quat_;
     float3 scale_;
 
-#ifdef __CUDACC__
+#ifdef DEVICE
     struct OpticalCoefficients {
         float C0, C0_rsqrt, C0_sqrt;
         float C1, C2;
     };
 
     // ~54 FLOPs, ~60–80 cycles
-    __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& ray) const noexcept {
+    __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& ray) const {
         namespace math = common::math;
 
         const auto& x = transform_pos_local(ray.origin_);
@@ -58,21 +58,18 @@ class THESIS_ALIGNMENT Primitive {
         return {C0, C0_rsqrt, C0_sqrt, C1, C2};
     }
 
-    __forceinline__ __device__ float optical_depth_internal(const OpticalCoefficients& coeffs,
-                                                            float erf_min,
-                                                            float erf_max) const noexcept {
+    __device__ float optical_depth_internal(const OpticalCoefficients& coeffs, float erf_min,
+                                            float erf_max) const {
         return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * (erf_max - erf_min) *
                common::math::ONE_OVER_TWO_PI_F;
     }
-#endif  // __CUDACC__
 
-    __forceinline__ __device__ float3 transform_pos_local(float3 pos) const noexcept {
+    __device__ float3 transform_pos_local(float3 pos) const {
         return rot_quat_.rotate(pos - center_);
     }
 
-    __forceinline__ __device__ float3 transform_dir_local(float3 dir) const noexcept {
-        return rot_quat_.rotate(dir);
-    }
+    __device__ float3 transform_dir_local(float3 dir) const { return rot_quat_.rotate(dir); }
+#endif  // DEVICE
 
    public:
     float3 albedo_;
@@ -80,8 +77,8 @@ class THESIS_ALIGNMENT Primitive {
 
     Primitive() = default;
 
-    Primitive(Primitive&&) noexcept = default;
-    Primitive& operator=(Primitive&&) noexcept = default;
+    Primitive(Primitive&&) = default;
+    Primitive& operator=(Primitive&&) = default;
 
     Primitive(const Primitive&) = default;
     Primitive& operator=(const Primitive&) = default;
@@ -109,8 +106,8 @@ class THESIS_ALIGNMENT Primitive {
           rot_quat_(rot_quat),
           scale_(scale) {}
 
-#ifdef __CUDACC__
-    __forceinline__ __device__ float kernel_pdf(float3 pos) const noexcept {
+#ifdef DEVICE
+    __device__ float kernel_pdf(float3 pos) const {
         namespace math = common::math;
         const auto local = transform_pos_local(pos);
 
@@ -119,8 +116,8 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     // [t_min, t_max]
-    __forceinline__ __device__ float optical_depth(const geometry::Ray& ray_global,
-                                              float2 t_range) const noexcept {
+    __device__ float optical_depth(const geometry::Ray& ray_global,
+                                              float2 t_range) const {
         const auto coeffs = compute_optical_coeffs(ray_global);
 
         const auto denom = coeffs.C0_rsqrt * erf_denominator_base_;
@@ -131,7 +128,7 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     // [t_min, ∞)
-    __forceinline__ __device__ float optical_depth(const geometry::Ray& ray_global, float t_min) const noexcept {
+    __device__ float optical_depth(const geometry::Ray& ray_global, float t_min) const {
         const auto coeffs = compute_optical_coeffs(ray_global);
 
         const auto denom = coeffs.C0_rsqrt * erf_denominator_base_;
@@ -140,13 +137,13 @@ class THESIS_ALIGNMENT Primitive {
         return optical_depth_internal(coeffs, erf_min, 1.0f);
     }
 
-    __forceinline__ __device__ float3 density_integral(const geometry::Ray& ray, float2 t_range) const noexcept {
+    __device__ float3 density_integral(const geometry::Ray& ray, float2 t_range) const {
         return albedo_ * optical_depth(ray, t_range);
     }
-    __forceinline__ __device__ float3 density_integral(const geometry::Ray& ray, float t_min) const noexcept {
+    __device__ float3 density_integral(const geometry::Ray& ray, float t_min) const {
         return albedo_ * optical_depth(ray, t_min);
     }
-#endif  // __CUDACC__
+#endif  // DEVICE
 };
 
 }  // namespace params

@@ -13,9 +13,9 @@ namespace optix {
 
 template <size_t MaxPrims>
 struct THESIS_ALIGNMENT ScatteringEvent {
-    float t_hit_;
     float3 position_;
     float3 direction_;
+    float t_hit_;
     utils::Set<uint, MaxPrims> active_prims_;
 };
 

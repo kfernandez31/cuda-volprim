@@ -13,11 +13,10 @@ struct THESIS_ALIGNMENT AnyHit : public Base<AnyHit, Tag::AnyHit> {
 
     // empty for now
 
-#ifdef __CUDACC__
-    __forceinline__ __device__ void pack_impl(uint* out) const noexcept {}
-
-    __forceinline__ __device__ void unpack_impl(const uint* in) noexcept {}
-#endif  // __CUDACC__
+#ifdef DEVICE
+    __device__ void pack_impl(uint* out) const {}
+    __device__ void unpack_impl(const uint* in) {}
+#endif  // DEVICE
 };
 
 }  // namespace payloads

@@ -18,8 +18,8 @@ struct THESIS_ALIGNMENT EnvironmentMap {
     size_t height_ = 0;
     size_t num_channels_ = 0;
 
-#ifdef __CUDACC__
-    __forceinline__ __device__ float3 sample(float3 dir) const noexcept {
+#ifdef DEVICE
+    __device__ float3 sample(float3 dir) const {
         namespace math = common::math;
 
         assert(data_ != nullptr);
@@ -36,7 +36,7 @@ struct THESIS_ALIGNMENT EnvironmentMap {
 
         return make_float3(data_[idx + 0], data_[idx + 1], data_[idx + 2]);
     }
-#endif  // __CUDACC__
+#endif  // DEVICE
 };
 
 }  // namespace params

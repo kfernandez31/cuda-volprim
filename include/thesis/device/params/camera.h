@@ -10,26 +10,25 @@ namespace device {
 namespace params {
 
 class THESIS_ALIGNMENT Camera {
-   private:
-#ifdef __CUDACC__
-    __forceinline__ __device__ float3 ray_direction(float2 jittered_pixel) const noexcept {
+#ifdef DEVICE
+    __device__ float3 ray_direction(float2 jittered_pixel) const {
         return pixel00_ + (jittered_pixel.x * pixel_du_) + (jittered_pixel.y * pixel_dv_) - eye_;
     }
-#endif  // __CUDACC__
+#endif  // DEVICE
 
    public:
     float3 eye_;
     float3 pixel00_;
     float3 pixel_du_;
     float3 pixel_dv_;
-#ifdef __CUDACC__
-    __forceinline__ __device__ geometry::Ray jittered_ray(uint2 pixel,
-                                                          float2 jitter) const noexcept {
+
+#ifdef DEVICE
+    __device__ geometry::Ray jittered_ray(uint2 pixel, float2 jitter) const {
         const auto p = make_float2(pixel.x + jitter.x, pixel.y + jitter.y);
         const auto dir = ray_direction(p);
         return geometry::Ray::spawn(eye_, dir);
     }
-#endif  // __CUDACC__
+#endif  // DEVICE
 };
 
 }  // namespace params

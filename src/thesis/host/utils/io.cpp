@@ -24,8 +24,8 @@
 
 namespace {
 
-constexpr auto NUM_CHANNELS = 3u;
-constexpr auto EXR_NAME_MAX_LEN = 255u;
+constexpr size_t NUM_CHANNELS = 3;
+constexpr size_t EXR_NAME_MAX_LEN = 255;
 
 inline void safeStrncpy(char* dest, const char* src, size_t dest_size) noexcept {
 #ifdef _MSC_VER
@@ -164,9 +164,9 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         auto getProp = [&](const std::string& name) -> std::vector<float> {
             try {
                 auto prop = vtx.getProperty<float>(name);
-                if (N == 0) {
+                if (N == 0) [[unlikely]] {
                     N = prop.size();
-                } else if (prop.size() != N) {
+                } else if (prop.size() != N) [[unlikely]] {
                     throw std::runtime_error(
                         fmt::format("Expected size {}, got {}", N, prop.size()));
                 }

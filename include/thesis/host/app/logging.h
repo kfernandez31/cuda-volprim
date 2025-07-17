@@ -2,6 +2,6 @@
 
 namespace thesis::host::app::logging {
 
-void initLogging();
+void init();
 
 }  // namespace thesis::host::app::logging

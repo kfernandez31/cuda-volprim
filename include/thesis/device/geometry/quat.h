@@ -14,9 +14,7 @@ struct UnitQuaternion {
 
     UnitQuaternion() = default;
     UnitQuaternion(const UnitQuaternion&) = default;
-    UnitQuaternion(UnitQuaternion&&) = default;
     UnitQuaternion& operator=(const UnitQuaternion&) = default;
-    UnitQuaternion& operator=(UnitQuaternion&&) = default;
 
     UnitQuaternion(float x, float y, float z, float w, bool conj = false) : s_(w) {
         const auto sign = 1.0f - 2.0f * static_cast<float>(conj);  // +1.0 if false, -1.0 if true
@@ -24,11 +22,13 @@ struct UnitQuaternion {
         s_ = w;
     }
 
-    THESIS_INLINE THESIS_HOST_DEVICE float3 rotate(const float3& v) const {
+#ifdef DEVICE
+    __device__ float3 rotate(float3 v) const {
         const auto uv = cross(u_, v);
         const auto uuv = cross(u_, uv);
         return v + 2.0f * (s_ * uv + uuv);
     }
+#endif  // DEVICE
 };
 
 }  // namespace geometry

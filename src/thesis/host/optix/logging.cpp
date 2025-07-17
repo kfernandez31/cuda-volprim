@@ -20,12 +20,7 @@ void contextLogCb(uint level, const char* /*tag*/, const char* message, void* /*
         [](auto msg) { spdlog::debug("OptiX: {}", msg); },
     };
 
-    if (level >= static_cast<unsigned char>(LogLevel::Fatal) &&
-        level <= static_cast<unsigned char>(LogLevel::Print)) {
-        loggers[level - 1](message);
-    } else {
-        spdlog::warn("OptiX: Unknown log level {} — {}", level, message);
-    }
+    loggers[level - 1](message);
 }
 
 }  // namespace thesis::host::optix

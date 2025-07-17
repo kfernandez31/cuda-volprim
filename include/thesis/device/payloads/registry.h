@@ -23,7 +23,6 @@ struct MaxCount<TypeList<Ts...>> {
 };
 
 constexpr size_t MAX_PAYLOADS_IN_USE = MaxCount<PayloadTypes>::value;
-
 static_assert(MAX_PAYLOADS_IN_USE <= MAX_PAYLOADS, "Exceeds OptiX max payloads.");
 
 }  // namespace payloads

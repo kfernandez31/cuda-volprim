@@ -160,7 +160,7 @@ void Renderer::createPipeline() {
         optix_ctx_.get(),
         module_.get(),
         config_.closesthit_function_name_.c_str(),
-        config_.anyhit_function_name.empty() ? nullptr : config_.anyhit_function_name.c_str()
+        config_.anyhit_function_name_.empty() ? nullptr : config_.anyhit_function_name_.c_str()
     );
 
     // sbt

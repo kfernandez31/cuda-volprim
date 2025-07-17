@@ -24,30 +24,26 @@ class THESIS_ALIGNMENT SetBase {
     size_t size_ = 0;
 
    public:
+#ifdef DEVICE
     // basic query API
-    THESIS_INLINE THESIS_HOST_DEVICE size_t size() const noexcept { return size_; }
-    THESIS_INLINE THESIS_HOST_DEVICE constexpr size_t capacity() const noexcept { return Capacity; }
-    THESIS_INLINE THESIS_HOST_DEVICE bool empty() const noexcept { return size_ == 0; }
-    THESIS_INLINE THESIS_HOST_DEVICE bool full() const noexcept { return size_ == Capacity; }
+    __device__ size_t size() const { return size_; }
+    __device__ constexpr size_t capacity() const { return Capacity; }
+    __device__ bool empty() const { return size_ == 0; }
+    __device__ bool full() const { return size_ == Capacity; }
 
     // modifiers delegated to policies
-    THESIS_INLINE THESIS_HOST_DEVICE void clear() noexcept { size_ = 0; }
+    __device__ void clear() { size_ = 0; }
 
-    THESIS_INLINE THESIS_HOST_DEVICE bool contains(const T& v) const noexcept {
-        return Policy::contains(*this, v);
-    }
-    THESIS_INLINE THESIS_HOST_DEVICE bool insert(const T& v) noexcept {
-        return Policy::insert(*this, v);
-    }
-    THESIS_INLINE THESIS_HOST_DEVICE bool erase(const T& v) noexcept {
-        return Policy::erase(*this, v);
-    }
+    __device__ bool contains(const T& v) const { return Policy::contains(*this, v); }
+    __device__ bool insert(const T& v) { return Policy::insert(*this, v); }
+    __device__ bool erase(const T& v) { return Policy::erase(*this, v); }
 
     // iterators
-    THESIS_INLINE THESIS_HOST_DEVICE T* begin() noexcept { return data_; }
-    THESIS_INLINE THESIS_HOST_DEVICE T* end() noexcept { return data_ + size_; }
-    THESIS_INLINE THESIS_HOST_DEVICE const T* begin() const noexcept { return data_; }
-    THESIS_INLINE THESIS_HOST_DEVICE const T* end() const noexcept { return data_ + size_; }
+    __device__ T* begin() { return data_; }
+    __device__ T* end() { return data_ + size_; }
+    __device__ const T* begin() const { return data_; }
+    __device__ const T* end() const { return data_ + size_; }
+#endif  // DEVICE
 };
 
 // ------------------------------------------------------------------------------
@@ -59,8 +55,9 @@ namespace detail {
 
 template <typename T, size_t Capacity>
 struct LinearSetPolicy {
+#ifdef DEVICE
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool contains(const Base& s, const T& value) noexcept {
+    __device__ static bool contains(const Base& s, const T& value) {
         for (size_t i = 0; i < s.size_; ++i) {
             if (s.data_[i] == value) {
                 return true;
@@ -70,33 +67,35 @@ struct LinearSetPolicy {
     }
 
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool insert(Base& s, const T& value) noexcept {
-        if (contains(s, value) || s.full())
+    __device__ static bool insert(Base& s, const T& value) {
+        if (contains(s, value) || s.full()) {
             return false;
+        }
 
         s.data_[s.size_++] = value;
         return true;
     }
 
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool erase(Base& s, const T& value) noexcept {
+    __device__ static bool erase(Base& s, const T& value) {
         for (size_t i = 0; i < s.size_; ++i) {
             if (s.data_[i] == value) {
-                s.data_[i] = utility::move(s.data_[--s.size_]);
+                s.data_[i] = s.data_[--s.size_];
                 return true;
             }
         }
         return false;
     }
+#endif  // DEVICE
 };
 
 // --- Binary (sorted) policy --------------------------------------------
 
 template <typename T, size_t Capacity>
 class BinarySetPolicy {
+#ifdef DEVICE
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static int lower_bound(const Base& s,
-                                                            const T& value) noexcept {
+    __device__ static int lower_bound(const Base& s, const T& value) {
         int lo = -1;
         int hi = static_cast<int>(s.size_);
 
@@ -112,20 +111,19 @@ class BinarySetPolicy {
     }
 
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool contains_at_idx(const Base& s, int idx,
-                                                                 const T& value) noexcept {
+    __device__ static bool contains_at_idx(const Base& s, int idx, const T& value) {
         return idx < static_cast<int>(s.size_) && s.data_[idx] == value;
     }
 
    public:
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool contains(const Base& s, const T& value) noexcept {
+    __device__ static bool contains(const Base& s, const T& value) {
         int idx = lower_bound(s, value);
         return contains_at_idx(s, idx, value);
     }
 
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool insert(Base& s, const T& value) noexcept {
+    __device__ static bool insert(Base& s, const T& value) {
         if (s.full()) {
             return false;
         }
@@ -146,7 +144,7 @@ class BinarySetPolicy {
     }
 
     template <typename Base>
-    THESIS_INLINE THESIS_HOST_DEVICE static bool erase(Base& s, const T& value) noexcept {
+    __device__ static bool erase(Base& s, const T& value) {
         int idx = lower_bound(s, value);
         if (!contains_at_idx(s, idx, value)) {
             return false;
@@ -160,6 +158,7 @@ class BinarySetPolicy {
 
         return true;
     }
+#endif  // DEVICE
 };
 
 }  // namespace detail
@@ -174,7 +173,6 @@ using LinearSet = SetBase<T, Capacity, detail::LinearSetPolicy<T, Capacity>>;
 template <typename T, size_t Capacity>
 using BinarySet = SetBase<T, Capacity, detail::BinarySetPolicy<T, Capacity>>;
 
-// automatic selection between linear and binary based on capacity
 constexpr size_t SET_THRESHOLD = 32;
 
 template <typename T, size_t Capacity>

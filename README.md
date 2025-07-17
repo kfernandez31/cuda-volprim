@@ -8,6 +8,7 @@
 - [X] S_inv in integration matrix?
 - [?] **isotropic**, centered, unit Gaussian for integration
 - [X] **frequency_w_{0,1,2}** attribute - what is it?
+- [] remove [[nodiscard]], inline, noexcept
 
 poziomy? orientacje? assety roznia sie rotacja
 zignorowac frequency_w_0, nx?
