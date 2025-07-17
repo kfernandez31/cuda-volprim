@@ -31,14 +31,6 @@ class Primitive : public Convertible<device::params::Primitive> {
 
     static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
 
-    static inline glm::mat4 get_M_for_intersecting(glm::vec3 center, const glm::quat& rot_quat,
-                                                   glm::vec3 scale) noexcept {
-        const auto T = glm::translate(center);
-        const auto R = glm::toMat4(rot_quat);
-        const auto S = glm::scale(scale * INTERSECTION_SCALING_FACTOR);
-        return T * R * S;
-    }
-
    public:
     Primitive() = delete;
 
@@ -48,15 +40,12 @@ class Primitive : public Convertible<device::params::Primitive> {
     Primitive(const Primitive&) = default;
     Primitive& operator=(const Primitive&) = default;
 
-    const glm::mat4& M() const noexcept { return M_for_intersecting_; }
-
     // clang-format off
     Primitive(
         glm::vec3 center, const glm::quat& rot_quat, glm::vec3 scale,
         glm::vec3 albedo,
         float optical_depth_scale
-    ) : M_for_intersecting_(get_M_for_intersecting(center, rot_quat, scale)),
-        S_diag_(scale),
+    ) : S_diag_(scale),
         S_diag_squared_(glm::pow2(S_diag_)),
         S_det_(glm::compMul(S_diag_)),
         albedo_(albedo),
@@ -64,6 +53,16 @@ class Primitive : public Convertible<device::params::Primitive> {
         center_(center),
         rot_quat_(rot_quat),
         scale_(scale) {}
+
+    glm::mat4 localToWorld() const noexcept {
+        static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;
+
+        const auto T = glm::translate(center_);
+        const auto R = glm::toMat4(rot_quat_);
+        const auto S = glm::scale(glm::vec3(scale_ * INTERSECTION_SCALING_FACTOR));
+
+        return T * R * S;
+    }
 
     [[nodiscard]] device::params::Primitive toDevice() const noexcept override {
         // clang-format off

@@ -92,7 +92,7 @@ void Renderer::initPrimsAndGAS()
         // instance
         OptixInstance inst = {};
     
-        glm::mat4 Mt = glm::transpose(prim.M()); // row-major
+        glm::mat4 Mt = glm::transpose(prim.localToWorld()); // row-major
         std::memcpy(inst.transform, glm::value_ptr(Mt), 3 * 4 * sizeof(float));
 
         inst.traversableHandle = gas_.get();
