@@ -1,7 +1,6 @@
 #pragma once
 
 #include "thesis/common/utils/preprocessor.h"
-#include "thesis/device/geometry/matrix.h"
 #include "thesis/device/geometry/quat.h"
 
 #include <vector_types.h>
@@ -19,12 +18,12 @@ namespace params {
 
 class THESIS_ALIGNMENT Primitive {
    private:
-    geometry::Matrix3x4 M_for_integrating_inv_;
     float3 S2_;
     float S_det_;
     float S2_xy_, S2_xz_, S2_yz_;
     float erf_denominator_base_;
 
+    float3 center_;
     geometry::UnitQuaternion rot_quat_;
     float3 scale_;
 
@@ -38,8 +37,8 @@ class THESIS_ALIGNMENT Primitive {
     __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& ray) const noexcept {
         namespace math = common::math;
 
-        const auto& x = rot_quat_.rotate(M_for_integrating_inv_.transform<true>(ray.origin_));
-        const auto& w = rot_quat_.rotate(M_for_integrating_inv_.transform<false>(ray.direction_));
+        const auto& x = rot_quat_.rotate(ray.origin_ - center_);
+        const auto& w = rot_quat_.rotate(ray.direction_);
 
         const auto xx = math::pow2(x);
         const auto ww = math::pow2(w);
@@ -81,17 +80,16 @@ class THESIS_ALIGNMENT Primitive {
 
     // clang-format off
     Primitive(
-        const geometry::Matrix3x4& M_for_integrating_inv,
         float3 S_diag_squared,
         float S_det,
         float3 albedo,
         float optical_depth_scale,
         float erf_denominator_base,
+        float3 center,
         const geometry::UnitQuaternion& rot_quat,
         float3 scale
     )
-        : M_for_integrating_inv_(M_for_integrating_inv),
-          S2_(S_diag_squared),
+        : S2_(S_diag_squared),
           S_det_(S_det),
           S2_xy_(S2_.x * S2_.y),
           S2_xz_(S2_.x * S2_.z),
@@ -99,13 +97,14 @@ class THESIS_ALIGNMENT Primitive {
           erf_denominator_base_(erf_denominator_base),
           albedo_(albedo),
           optical_depth_scale_(optical_depth_scale),
+          center_(center),
           rot_quat_(rot_quat),
           scale_(scale) {}
 
 #ifdef __CUDACC__
     __forceinline__ __device__ float kernel_pdf(const float3& pos) const noexcept {
         namespace math = common::math;
-        const auto local = rot_quat_.rotate(M_for_integrating_inv_.transform<true>(pos));
+        const auto local = rot_quat_.rotate(pos - center_);
 
         const auto pow = -0.5f * math::sum(math::pow2(local) / S2_);
         return expf(pow) * math::ONE_OVER_TWO_PI_POW_3_2_F / S_det_;

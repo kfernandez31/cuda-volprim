@@ -81,7 +81,7 @@ void Renderer::initPrimsAndGAS()
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
         // primitive
         host::params::Primitive prim(
-            glm::translate(translations[i]),
+            translations[i],
             rotations[i],
             scales[i],
             albedos[i],

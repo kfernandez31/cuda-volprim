@@ -200,10 +200,9 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         result.reserve(N);
 
         for (size_t i = 0; i < N; ++i) {
-            const auto T = glm::translate(glm::vec3(p_x[i], p_y[i], p_z[i]));
-
-            const auto rot_quat = glm::normalize(glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]));
-
+            const auto T = glm::vec3(p_x[i], p_y[i], p_z[i]);
+            const auto rot_quat = glm::normalize(glm::quat(
+                rot_0[i], rot_1[i], rot_2[i], rot_3[i]));  // TODO(kacper): what order is this in?
             const auto S = glm::vec3(scale_0[i], scale_1[i], scale_2[i]);
 
             const glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
