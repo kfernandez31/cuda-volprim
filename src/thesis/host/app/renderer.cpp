@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 1
+#define NUM_PRIMITIVES 2
 
 namespace thesis::host::app {
 
@@ -60,9 +60,30 @@ void Renderer::initPrimsAndGAS()
     /* ── 1. Per-primitive data ────────────────────────────────────── */
     const glm::vec3 albedo [NUM_PRIMITIVES] = {
         glm::vec3{1.f,0.f,0.f},
+        glm::vec3{1.f,0.f,0.f},
     };
     const glm::vec3 translate[NUM_PRIMITIVES] = {
         glm::vec3{0.0f,0.0f,0.0f},
+        glm::vec3{0.0f,0.0f,0.0f},
+    };
+    const glm::vec3 albedos[NUM_PRIMITIVES] = {
+        {1,0,0},
+        {0,0,1},
+    };
+
+    const glm::vec3 translations[NUM_PRIMITIVES] = {
+        {-0.5f,0,0},
+        {+0.5f,0,0},
+    };
+
+    const glm::quat rotations[NUM_PRIMITIVES] = {
+        glm::quat(1, 0, 0, 0),
+        glm::quat(1, 0, 0, 0),
+    };
+
+    const glm::vec3 scales[NUM_PRIMITIVES] = {
+        glm::vec3(0.5f),
+        glm::vec3(0.5f),
     };
 
     /* ── 2. Build GAS with one unit sphere ───────────────────────── */
@@ -70,36 +91,27 @@ void Renderer::initPrimsAndGAS()
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 
     /* ── 3. Fill primitives_[] and OptixInstance[] ────────────────── */
-    for (uint32_t i = 0; i < NUM_PRIMITIVES; ++i)
-    {
-        params::Primitive prim(
-            translate[i],
-            glm::quat(1, 0, 0, 0),
-            glm::vec3(1.0f),  // Changed from 0.5f to 1.0f to match sphere radius
-            albedo[i],
-            1.f);
+    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+        // primitive
+        host::params::Primitive prim(
+            translations[i],
+            rotations[i],
+            scales[i],
+            albedos[i],
+            1.0f
+        );
         primitives_[i] = prim.toDevice();
 
         OptixInstance inst{};
         const auto Mt = glm::transpose(prim.localToWorld()); // row-major
         std::memcpy(inst.transform, glm::value_ptr(Mt), 12 * sizeof(float));
-        
-        // Debug transform matrix
-        spdlog::info("Transform matrix for instance {}:", i);
-        for (int row = 0; row < 3; ++row) {
-            spdlog::info("  [{:.3f}, {:.3f}, {:.3f}, {:.3f}]", 
-                Mt[0][row], Mt[1][row], Mt[2][row], Mt[3][row]);
-        }
 
         inst.traversableHandle = gas_.get();
         inst.instanceId        = i;
-        inst.sbtOffset         = i;
+        inst.sbtOffset         = 0; // TODO(kacper): validate
         inst.visibilityMask    = 0xFF;
         inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
         instances_[i]          = inst;
-        
-        spdlog::info("Instance {}: traversableHandle = 0x{:x}, sbtOffset = {}", 
-                     i, inst.traversableHandle, inst.sbtOffset);
     }
 
     primitives_.upload();

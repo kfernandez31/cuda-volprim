@@ -39,6 +39,6 @@ extern "C" __global__ void __raygen__rg() {
     } else {
         radiance = hit.unwrap_err().color();
     }
-
+    
     launch_params.image_[global_sample_idx] = radiance;
 }
