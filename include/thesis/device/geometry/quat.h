@@ -9,17 +9,16 @@ namespace device {
 namespace geometry {
 
 struct UnitQuaternion {
-    float3 u_;  // vector part: x, y, z
     float s_;   // scalar part: w
+    float3 u_;  // vector part: x, y, z
 
     UnitQuaternion() = default;
     UnitQuaternion(const UnitQuaternion&) = default;
     UnitQuaternion& operator=(const UnitQuaternion&) = default;
 
-    UnitQuaternion(float x, float y, float z, float w, bool conj = false) : s_(w) {
+    UnitQuaternion(float w, float x, float y, float z, bool conj = false) : s_(w) {
         const auto sign = 1.0f - 2.0f * static_cast<float>(conj);  // +1.0 if false, -1.0 if true
         u_ = sign * make_float3(x, y, z);
-        s_ = w;
     }
 
 #ifdef DEVICE

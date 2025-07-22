@@ -98,6 +98,6 @@ extern "C" __global__ void __raygen__rg() {
             event.active_prims_.clear();
         }
     }
-
+    
     launch_params.image_[global_sample_idx] = radiance;
 }

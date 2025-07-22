@@ -200,13 +200,12 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         result.reserve(N);
 
         for (size_t i = 0; i < N; ++i) {
-            const auto T = glm::vec3(p_x[i], p_y[i], p_z[i]);
-            const auto rot_quat = glm::normalize(glm::quat(
-                rot_0[i], rot_1[i], rot_2[i], rot_3[i]));  // TODO(kacper): what order is this in?
-            const auto S = glm::vec3(scale_0[i], scale_1[i], scale_2[i]);
-
-            const glm::vec3 albedo(alb_0[i], alb_1[i], alb_2[i]);
-            result.emplace_back(T, rot_quat, S, albedo, sigma_t[i]);
+            const auto center = glm::vec3(p_x[i], p_y[i], p_z[i]);
+            const auto rotation = glm::quat(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
+            const auto scale = glm::vec3(scale_0[i], scale_1[i], scale_2[i]);
+            const auto albedo = glm::vec3(alb_0[i], alb_1[i], alb_2[i]);
+            const auto optical_thickness = sigma_t[i];
+            result.emplace_back(center, rotation, scale, albedo, optical_thickness);
         }
 
         return result;

@@ -46,13 +46,15 @@
 
 namespace thesis {
 namespace device {
-
-constexpr auto INF_F = 1e20f;
-constexpr auto VISIBILITY_ALL = 0xFFu;
+namespace consts {
+constexpr float INF_F = 1e20f;
+constexpr unsigned VISIBILITY_ALL = 0xFFu;
+constexpr float INTERSECTION_EPS = 1e-3f;
+} // namespace consts
 
 // TODO(kacper): consider optixUndefinedValue()
 template <uint FLAGS>
-__device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=1e-8f) {
+__device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=consts::INTERSECTION_EPS) {
     uint ps[payloads::MAX_PAYLOADS] = {};
 
     optixTrace(
@@ -60,9 +62,9 @@ __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min
         ray.origin_,
         ray.direction_,
         t_min + eps,       // Min intersection distance
-        INF_F,                 // Max intersection distance
+        consts::INF_F,                 // Max intersection distance
         0.0f,                  // Disable motion blur
-        VISIBILITY_ALL,
+        consts::VISIBILITY_ALL,
         FLAGS,
         geometry::Ray::Type::RADIANCE,   // SBT offset
         geometry::Ray::Type::COUNT,      // SBT stride

@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 3
+#define NUM_PRIMITIVES 2
 
 namespace thesis::host::app {
 
@@ -53,26 +53,28 @@ void Renderer::initPrimsAndGAS()
 {
     const glm::vec3 albedos[NUM_PRIMITIVES] = {
         {1,0,0},
-        {0,1,0},
+        // {0,1,0},
         {0,0,1},
     };
 
     const glm::vec3 translations[NUM_PRIMITIVES] = {
-        {-1.5f,0,0.5f},
-        {0,0,0.5f},
-        {+1.5f,0,0.5f},
+        // {-0.88f,0,0.5f},
+        {-0.25f,0,0},
+        {+0.25f,0,0},
+        // {+0.868284076f,0,0.5f},
+        // {+0.80f,0,0.5f},
     };
 
     const glm::quat rotations[NUM_PRIMITIVES] = {
         glm::quat(1, 0, 0, 0),
-        glm::quat(1, 0, 0, 0),
+        // glm::quat(1, 0, 0, 0),
         glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(0.3f),
-        glm::vec3(0.3f),
-        glm::vec3(0.3f),
+        glm::vec3(0.5f),
+        // glm::vec3(0.3f),
+        glm::vec3(0.5f),
     };
 
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
@@ -85,7 +87,7 @@ void Renderer::initPrimsAndGAS()
             rotations[i],
             scales[i],
             albedos[i],
-            500.0f                                // optical_depth_scale
+            1.0f                                // optical_depth_scale
         );
         primitives_[i] = prim.toDevice();
     
@@ -180,7 +182,7 @@ void Renderer::createPipeline() {
 void Renderer::render() {
     uploadParams();
 
-    spdlog::info("Launching OptiX pipeline...");
+    spdlog::info("Launching OptiX pipeline - will render {} Gaussians...", NUM_PRIMITIVES);
     pipeline_.launch(streams_[cuda::StreamKind::Main]->get(), launch_params_.cu_device_ptr(),
                      sizeof(common::params::LaunchParams), sbt_.get(),
                      image_.width(),

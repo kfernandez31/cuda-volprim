@@ -18,130 +18,137 @@ namespace params {
 
 class THESIS_ALIGNMENT Primitive {
    private:
-    float3 S2_;
-    float S_det_;
-    float S2_xy_, S2_xz_, S2_yz_;
-    float erf_denominator_base_;
-
     float3 center_;
     geometry::UnitQuaternion rot_quat_;
     float3 scale_;
 
-#ifdef DEVICE
-    struct OpticalCoefficients {
-        float C0, C0_rsqrt, C0_sqrt;
-        float C1, C2;
-    };
+    float scale_det_;
+    float one_over_scale_det_;
+    float density_norm_factor_;
+    float inv_cdf_factor_;
 
-    // ~54 FLOPs, ~60–80 cycles
-    __device__ OpticalCoefficients compute_optical_coeffs(const geometry::Ray& ray) const {
+#ifdef DEVICE
+    __device__ float3 transform_pos_local(float3 pos) const {
+        return rot_quat_.rotate(pos - center_) / scale_;
+    }
+
+    __device__ float3 transform_dir_local(float3 dir) const {
+        return rot_quat_.rotate(dir) / scale_;
+    }
+
+    template <bool TO_INFINITY>
+    __device__ float optical_depth_internal(const geometry::Ray& ray, float t0,
+                                            float t1 = 0.0f) const {
         namespace math = common::math;
 
-        const auto& x = transform_pos_local(ray.origin_);
-        const auto& w = transform_dir_local(ray.direction_);
+        // Transform to whitened space
+        const auto w = transform_dir_local(ray.direction_);
+        const auto p = transform_pos_local(ray.origin_);
 
-        const auto xx = math::pow2(x);
-        const auto ww = math::pow2(w);
-        const auto xw = x * w;
+        // Precompute length and inverse
+        const auto w_len2 = math::length2(w);
+        const auto w_inv_len = rsqrtf(w_len2);
 
-        const auto C0 = (S2_xy_ * ww.z) + (S2_xz_ * ww.y) + (S2_yz_ * ww.x);
-        const auto C0_rsqrt = rsqrtf(C0);
-        const auto C0_sqrt = C0 * C0_rsqrt;
+        // Midpoint traversal distance
+        const auto t_scaled = (TO_INFINITY ? t0                  // [t0, ∞)
+                                           : 0.5f * (t1 - t0));  // [t0, t1]
 
-        const auto C2 = (x.z * S2_xy_ * w.z) + (x.y * S2_xz_ * w.y) + (x.x * S2_yz_ * w.x);
-        const auto C3 =
-            (xx.x * S2_.y + xx.y * S2_.x) * ww.z - 2.0f * xw.z * (xw.y * S2_.y + xw.x * S2_.x);
-        const auto C4 = ww.y * (xx.x * S2_.z + xx.z * S2_.x) - 2.0f * (xw.x * xw.y * S2_.z) +
-                        ww.x * (xx.y * S2_.z + xx.z * S2_.y);
-        const auto C1 = 0.5f * (C3 + C4) * math::pow2(C0_rsqrt);
+        // Advance point to midpoint
+        const auto mid_p = p + t_scaled * w;
 
-        return {C0, C0_rsqrt, C0_sqrt, C1, C2};
+        // Dot products
+        const auto wp = dot(w, mid_p) * w_inv_len;
+        const auto pp = dot(mid_p, mid_p);
+        const auto diff = __fmaf_rn(-wp, wp, pp);  // pp - wp²
+
+        // Final expression
+        const auto e_term = __expf(-0.5f * diff);
+        const float erf_term = (TO_INFINITY ? erfcf : erff)(t_scaled * math::ROOT_TWO_F);
+        const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
+
+        return optical_thickness_ * G_term * e_term * erf_term;
     }
-
-    __device__ float optical_depth_internal(const OpticalCoefficients& coeffs, float erf_min,
-                                            float erf_max) const {
-        return optical_depth_scale_ * expf(-coeffs.C1) * coeffs.C0_sqrt * (erf_max - erf_min) *
-               common::math::ONE_OVER_TWO_PI_F;
-    }
-
-    __device__ float3 transform_pos_local(float3 pos) const {
-        return rot_quat_.rotate(pos - center_);
-    }
-
-    __device__ float3 transform_dir_local(float3 dir) const { return rot_quat_.rotate(dir); }
 #endif  // DEVICE
 
    public:
     float3 albedo_;
-    float optical_depth_scale_;
+    float optical_thickness_;
 
     Primitive() = default;
-
-    Primitive(Primitive&&) = default;
-    Primitive& operator=(Primitive&&) = default;
-
     Primitive(const Primitive&) = default;
     Primitive& operator=(const Primitive&) = default;
 
     // clang-format off
     Primitive(
-        float3 S_diag_squared,
-        float S_det,
-        float3 albedo,
-        float optical_depth_scale,
-        float erf_denominator_base,
         float3 center,
         const geometry::UnitQuaternion& rot_quat,
-        float3 scale
+        float3 scale,
+        float3 albedo,
+        float optical_thickness
     )
-        : S2_(S_diag_squared),
-          S_det_(S_det),
-          S2_xy_(S2_.x * S2_.y),
-          S2_xz_(S2_.x * S2_.z),
-          S2_yz_(S2_.y * S2_.z),
-          erf_denominator_base_(erf_denominator_base),
-          albedo_(albedo),
-          optical_depth_scale_(optical_depth_scale),
-          center_(center),
+        : center_(center),
           rot_quat_(rot_quat),
-          scale_(scale) {}
+          scale_(scale),
+          scale_det_(common::math::prod(scale)),
+          one_over_scale_det_(1 / scale_det_),
+          density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * one_over_scale_det_),
+          inv_cdf_factor_(common::math::FOUR_PI_F * scale_det_ / optical_thickness),
+          albedo_(albedo),
+          optical_thickness_(optical_thickness) {}
 
 #ifdef DEVICE
-    __device__ float kernel_pdf(float3 pos) const {
+    __device__ float pdf(float3 pos) const {
         namespace math = common::math;
+
         const auto local = transform_pos_local(pos);
+        const auto len2 = math::length2(local);
+        const auto exponent = -0.5f * len2;
 
-        const auto pow = -0.5f * math::sum(math::pow2(local) / S2_);
-        return expf(pow) * math::ONE_OVER_TWO_PI_POW_3_2_F / S_det_;
+        return __expf(exponent) * density_norm_factor_;
     }
 
-    // [t_min, t_max]
-    __device__ float optical_depth(const geometry::Ray& ray_global,
-                                              float2 t_range) const {
-        const auto coeffs = compute_optical_coeffs(ray_global);
+    __device__ float inv_cdf(const geometry::Ray& ray, float chi) const {
+        namespace math = common::math;
 
-        const auto denom = coeffs.C0_rsqrt * erf_denominator_base_;
-        const auto erf_min = erf((t_range.x * coeffs.C0 + coeffs.C2) * denom);
-        const auto erf_max = erf((t_range.y * coeffs.C0 + coeffs.C2) * denom);
+        // Whitened local space
+        const auto w = transform_dir_local(ray.direction_);
+        const auto p = transform_pos_local(ray.origin_);
 
-        return optical_depth_internal(coeffs, erf_min, erf_max);
+        const auto w_len2 = math::length2(w);
+        const auto w_inv_len = rsqrtf(w_len2);
+        const auto w_len = w_len2 * w_inv_len;
+
+        const auto wp = dot(w, p) * w_inv_len;
+        const auto pp = dot(p, p);
+        const auto diff = __fmaf_rn(-wp, wp, pp); // pp - wp²
+        const auto exponent = 0.5f * diff;
+
+        // Compute normalization factor K
+        const auto K = w_len * __expf(exponent) * inv_cdf_factor_;
+
+        // Clamp to avoid NaNs
+        auto erfinv_arg = erf(wp * math::ROOT_TWO_F) + chi * K;
+        erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);  // clamp to avoid NaN
+
+        return math::ROOT_TWO_F * erfinv(erfinv_arg) - wp;
     }
 
-    // [t_min, ∞)
-    __device__ float optical_depth(const geometry::Ray& ray_global, float t_min) const {
-        const auto coeffs = compute_optical_coeffs(ray_global);
 
-        const auto denom = coeffs.C0_rsqrt * erf_denominator_base_;
-        const auto erf_min = erf((t_min * coeffs.C0 + coeffs.C2) * denom);
-
-        return optical_depth_internal(coeffs, erf_min, 1.0f);
+    __device__ float optical_depth(const geometry::Ray& ray, float t0) const {
+        return optical_depth_internal<true>(ray, t0);
     }
 
-    __device__ float3 density_integral(const geometry::Ray& ray, float2 t_range) const {
-        return albedo_ * optical_depth(ray, t_range);
+    __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
+        assert(t1 > t0 && isfinite(t0) && isfinite(t1));
+        return optical_depth_internal<false>(ray, t0, t1);
     }
-    __device__ float3 density_integral(const geometry::Ray& ray, float t_min) const {
-        return albedo_ * optical_depth(ray, t_min);
+
+    __device__ float3 density_integral(const geometry::Ray& ray, float t0) const {
+        return albedo_ * optical_depth(ray, t0);
+    }
+
+    __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1) const {
+        return albedo_ * optical_depth(ray, t0, t1);
     }
 #endif  // DEVICE
 };

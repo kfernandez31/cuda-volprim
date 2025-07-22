@@ -24,7 +24,7 @@ struct Config {
     fs::path module_blob_path_ = fs::path("build") / "device_program.optixir";
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
-    size_t num_samples_per_pixel_ = 16;
+    size_t num_samples_per_pixel_ = 1;
     size_t image_width_ = 2000;
     size_t image_height_ = 1500;
     float aspect_ratio_;
