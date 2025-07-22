@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 2
+#define NUM_PRIMITIVES 3
 
 namespace thesis::host::app {
 
@@ -33,8 +33,8 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
+      gas_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
-      gas_(Ico::Base(), cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT], NUM_PRIMITIVES),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
@@ -51,58 +51,51 @@ Renderer::Renderer(const app::Config& config)
 
 void Renderer::initPrimsAndGAS()
 {
-    const glm::vec3 albedos[NUM_PRIMITIVES] = {
-        {1,0,0},
-        // {0,1,0},
-        {0,0,1},
+    /* ── 1. Per-primitive data ────────────────────────────────────── */
+    const glm::vec3 albedo [NUM_PRIMITIVES] = {
+        glm::vec3{1.f,0.f,0.f},
+        glm::vec3{0.f,1.f,0.f},
+        glm::vec3{0.f,0.f,1.f}
+    };
+    const glm::vec3 translate[NUM_PRIMITIVES] = {
+        glm::vec3{-1.5f,0.f,0.5f},
+        glm::vec3{ 0.0f,0.f,0.5f},
+        glm::vec3{+1.5f,0.f,0.5f}
+    };
+    const glm::vec3 scale[NUM_PRIMITIVES] = {
+        glm::vec3{0.3f}, glm::vec3{0.3f}, glm::vec3{0.3f}
     };
 
-    const glm::vec3 translations[NUM_PRIMITIVES] = {
-        // {-0.88f,0,0.5f},
-        {-0.25f,0,0},
-        {+0.25f,0,0},
-        // {+0.868284076f,0,0.5f},
-        // {+0.80f,0,0.5f},
-    };
+    spdlog::info("hello 0");
 
-    const glm::quat rotations[NUM_PRIMITIVES] = {
-        glm::quat(1, 0, 0, 0),
-        // glm::quat(1, 0, 0, 0),
-        glm::quat(1, 0, 0, 0),
-    };
-
-    const glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(0.5f),
-        // glm::vec3(0.3f),
-        glm::vec3(0.5f),
-    };
-
+    /* ── 2. Build BLAS with one unit sphere ───────────────────────── */
+    gas_.host()[0] = make_float4(0.f, 0.f, 0.f, 1.f);   // centre, radius
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 
-    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        // primitive
-        host::params::Primitive prim(
-            translations[i],
-            rotations[i],
-            scales[i],
-            albedos[i],
-            1.0f                                // optical_depth_scale
-        );
+    spdlog::info("hello 0");
+
+    /* ── 3. Fill primitives_[] and OptixInstance[] ────────────────── */
+    for (uint32_t i = 0; i < NUM_PRIMITIVES; ++i)
+    {
+        params::Primitive prim(
+            translate[i],
+            glm::quat(1, 0, 0, 0),
+            scale[i],
+            albedo[i],
+            1.f);
         primitives_[i] = prim.toDevice();
-    
-        // instance
-        OptixInstance inst = {};
-    
-        glm::mat4 Mt = glm::transpose(prim.localToWorld()); // row-major
-        std::memcpy(inst.transform, glm::value_ptr(Mt), 3 * 4 * sizeof(float));
+
+        OptixInstance inst{};
+        const auto Mt = glm::transpose(prim.localToWorld()); // row-major
+        std::memcpy(inst.transform, glm::value_ptr(Mt), 12 * sizeof(float));
 
         inst.traversableHandle = gas_.get();
-        inst.instanceId      = static_cast<uint>(i);      // index for optixGetInstanceId()
-        inst.sbtOffset       = static_cast<uint>(i);      // one hit-record per instance
-        inst.visibilityMask  = 0xFF;
-        inst.flags           = OPTIX_INSTANCE_FLAG_NONE;
-        instances_[i] = inst;
+        inst.instanceId        = i;
+        inst.sbtOffset         = i;
+        inst.visibilityMask    = 0xFF;
+        inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
+        instances_[i]          = inst;
     }
 
     primitives_.upload();
@@ -111,10 +104,11 @@ void Renderer::initPrimsAndGAS()
     instances_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::IAS);
 
-    OptixBuildInput bi = {};
-    bi.type                               = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    bi.instanceArray.instances            = instances_.cu_device_ptr();
-    bi.instanceArray.numInstances         = NUM_PRIMITIVES;
+    /* ── 4. Build IAS over instances ──────────────────────────────── */
+    OptixBuildInput bi{};
+    bi.type                       = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    bi.instanceArray.instances    = instances_.cu_device_ptr();
+    bi.instanceArray.numInstances = NUM_PRIMITIVES;
 
     ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
 }

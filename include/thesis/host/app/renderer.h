@@ -35,14 +35,14 @@ class Renderer {
     optix::Context optix_ctx_;
     cuda::StreamDAG streams_;
 
-    optix::TriangleGAS<geometry::Icosphere<ICOSPHERE_N>> gas_;
+    optix::SphereGAS gas_;
     optix::InstanceGAS ias_;
+    cuda::AsyncBuffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
     cuda::AsyncBuffer<device::params::Primitive> primitives_;
     cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
-    cuda::AsyncBuffer<OptixInstance> instances_;
 
     optix::Module module_;
     optix::ProgramGroup raygen_pg_;
