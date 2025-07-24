@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 3
+#define NUM_PRIMITIVES 1
 
 namespace thesis::host::app {
 
@@ -33,7 +33,7 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
-      gas_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
+      gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
       instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT], NUM_PRIMITIVES),
@@ -54,26 +54,16 @@ void Renderer::initPrimsAndGAS()
     /* ── 1. Per-primitive data ────────────────────────────────────── */
     const glm::vec3 albedo [NUM_PRIMITIVES] = {
         glm::vec3{1.f,0.f,0.f},
-        glm::vec3{0.f,1.f,0.f},
-        glm::vec3{0.f,0.f,1.f}
     };
     const glm::vec3 translate[NUM_PRIMITIVES] = {
         glm::vec3{-1.5f,0.f,0.5f},
-        glm::vec3{ 0.0f,0.f,0.5f},
-        glm::vec3{+1.5f,0.f,0.5f}
-    };
-    const glm::vec3 scale[NUM_PRIMITIVES] = {
-        glm::vec3{0.3f}, glm::vec3{0.3f}, glm::vec3{0.3f}
     };
 
     spdlog::info("hello 0");
 
     /* ── 2. Build BLAS with one unit sphere ───────────────────────── */
-    gas_.host()[0] = make_float4(0.f, 0.f, 0.f, 1.f);   // centre, radius
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
-
-    spdlog::info("hello 0");
 
     /* ── 3. Fill primitives_[] and OptixInstance[] ────────────────── */
     for (uint32_t i = 0; i < NUM_PRIMITIVES; ++i)
@@ -81,7 +71,7 @@ void Renderer::initPrimsAndGAS()
         params::Primitive prim(
             translate[i],
             glm::quat(1, 0, 0, 0),
-            scale[i],
+            glm::vec3(0.3f),
             albedo[i],
             1.f);
         primitives_[i] = prim.toDevice();

@@ -21,11 +21,11 @@ class Context {
         OptixDeviceContextOptions opts = {};
         opts.logCallbackFunction = &contextLogCb;
         opts.logCallbackLevel = static_cast<int>(LogLevel::Warning);
-#ifdef DEBUG
+// #ifdef DEBUG
         opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
-#else
-        opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_OFF;
-#endif
+// #else
+        // opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_OFF;
+// #endif
 
         OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &opts, &handle_));
         spdlog::info(

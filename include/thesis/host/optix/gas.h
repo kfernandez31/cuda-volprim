@@ -63,13 +63,14 @@ class GAS {
 
         spdlog::info("hello B");
 
+        CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
         OPTIX_CHECK(optixAccelBuild(optix_ctx, stream->get(), &opts, &input, 1,
                                     temp_.cu_device_ptr(), temp_.size(), out_.cu_device_ptr(),
                                     out_.size(), &handle_, &emit, 1));
         spdlog::info("hello C");
         compacted_size_.download();
         spdlog::info("hello D");
-        stream->synchronize();
         spdlog::info("hello E");
         // compact the GAS
         const auto compacted_size = compacted_size_[0];
@@ -92,46 +93,40 @@ class GAS {
 };
 
 class SphereGAS {
-    cuda::AsyncBuffer<float4> spheres_;  // (cx,cy,cz,r)
+    cuda::AsyncBuffer<float3> centers_;
+    cuda::AsyncBuffer<float> radii_;
     GAS gas_;
 
    public:
-    SphereGAS(size_t count, CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : spheres_(count, ctx, stream, cuda::AllocType::OnBoth), gas_(ctx, std::move(stream)) {}
-
-    [[nodiscard]] float4* host() noexcept { return spheres_.host(); }
+    SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
+        : centers_(1, ctx, stream, cuda::AllocType::OnBoth)
+        , radii_(1, ctx, stream, cuda::AllocType::OnBoth)
+        , gas_(ctx, std::move(stream)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        spheres_.upload();
+        spdlog::info("inside outer build");
+        const auto center = make_float3(0.0f);
+        centers_.host()[0] = center;
+        centers_.upload();
 
-        static constexpr unsigned int geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+        const auto radius = 1.0f;
+        radii_.host()[0] = radius;
+        radii_.upload();
+
+        static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
         OptixBuildInput in{};
         in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
-        /* centres ------------------------------------------------------- */
-        auto dptr = spheres_.cu_device_ptr();
-        in.sphereArray.vertexBuffers = &dptr;
-        in.sphereArray.numVertices = static_cast<unsigned>(spheres_.size());
-        in.sphereArray.vertexStrideInBytes = sizeof(float4);
-
-        spdlog::info("spheres size: {}", spheres_.size());
-        spdlog::info("device ptr: {}", static_cast<void*>(spheres_.device()));
-
-        /* radii – stored in w component, so no separate buffer ---------- */
-        in.sphereArray.radiusBuffers = nullptr;
-        in.sphereArray.singleRadius = 0;         // one radius per sphere
-        in.sphereArray.radiusStrideInBytes = 0;  // ignored
-
-        /* misc ---------------------------------------------------------- */
+        auto vbuf = centers_.cu_device_ptr();
+        in.sphereArray.vertexBuffers = &vbuf;
+        in.sphereArray.numVertices = 1;
+        
+        auto rbuf = radii_.cu_device_ptr();
+        in.sphereArray.radiusBuffers = &rbuf;
+    
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;
-
-        /* disable per-primitive SBT index offsets ----------------------- */
-        in.sphereArray.sbtIndexOffsetBuffer = 0;
-        in.sphereArray.sbtIndexOffsetSizeInBytes = 0;
-        in.sphereArray.sbtIndexOffsetStrideInBytes = 0;
-        in.sphereArray.primitiveIndexOffset = 0;
 
         gas_.build(in, cuda_ctx, optix_ctx);
     }
