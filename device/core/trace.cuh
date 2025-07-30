@@ -56,6 +56,14 @@ constexpr float INTERSECTION_EPS = 1e-3f;
 template <uint FLAGS>
 __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=consts::INTERSECTION_EPS) {
     uint ps[payloads::MAX_PAYLOADS] = {};
+    
+    // Debug for center pixel
+    const auto idx = optixGetLaunchIndex();
+    if (launch_params.debug_ && idx.x == launch_params.image_.width() / 2 && 
+        idx.y == launch_params.image_.height() / 2) {
+        printf("TRACE: handle=0x%llx, t_min=%.3f, t_max=%.3f, FLAGS=0x%x\n", 
+               launch_params.gas_handle_, t_min, consts::INF_F, FLAGS);
+    }
 
     optixTrace(
         launch_params.gas_handle_,
