@@ -77,6 +77,13 @@ void Renderer::initPrimsAndGAS()
         OptixInstance inst{};
         const auto Mt = glm::transpose(prim.localToWorld()); // row-major
         std::memcpy(inst.transform, glm::value_ptr(Mt), 12 * sizeof(float));
+        
+        // Debug transform matrix
+        spdlog::info("Transform matrix for instance {}:", i);
+        for (int row = 0; row < 3; ++row) {
+            spdlog::info("  [{:.3f}, {:.3f}, {:.3f}, {:.3f}]", 
+                Mt[0][row], Mt[1][row], Mt[2][row], Mt[3][row]);
+        }
 
         inst.traversableHandle = gas_.get();
         inst.instanceId        = i;
@@ -84,6 +91,9 @@ void Renderer::initPrimsAndGAS()
         inst.visibilityMask    = 0xFF;
         inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
         instances_[i]          = inst;
+        
+        spdlog::info("Instance {}: traversableHandle = 0x{:x}, sbtOffset = {}", 
+                     i, inst.traversableHandle, inst.sbtOffset);
     }
 
     primitives_.upload();
@@ -100,6 +110,7 @@ void Renderer::initPrimsAndGAS()
     bi.instanceArray.numInstances = NUM_PRIMITIVES;
 
     ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
+    spdlog::info("IAS built, handle = 0x{:x}", ias_.get());
 }
 
 void Renderer::uploadParams() {
