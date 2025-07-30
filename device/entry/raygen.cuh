@@ -50,7 +50,6 @@ extern "C" __global__ void __raygen__rg() {
     if (launch_params.debug_) {
         const auto hit = trace_ch(ray, 0);
         if (hit) {
-            printf("hit!");
             auto idx = hit.unwrap().prim_idx;
             radiance = launch_params.primitives_[idx].albedo_;
         } else {

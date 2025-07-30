@@ -66,7 +66,7 @@ __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min
         0.0f,                  // Disable motion blur
         consts::VISIBILITY_ALL,
         FLAGS,
-        geometry::Ray::Type::RADIANCE,   // SBT offset
+        geometry::Ray::Type::DEFAULT,   // SBT offset
         geometry::Ray::Type::COUNT,      // SBT stride
         0,                     // miss SBT index: first miss program
         TRACE_PAYLOADS_3(ps)

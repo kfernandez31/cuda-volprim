@@ -29,10 +29,8 @@ class THESIS_ALIGNMENT Ray {
     Ray& operator=(const Ray&) = default;
 
     enum Type {
-        RADIANCE = 0,
-        SHADOW = 1,
-        REFLECTION = 2,
-        COUNT = 3,
+        DEFAULT = 0,
+        COUNT = 1,
     };
 
 #ifdef DEVICE
