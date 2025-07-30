@@ -48,6 +48,14 @@ extern "C" __global__ void __raygen__rg() {
     auto radiance = make_float3(0.0f);
 
     if (launch_params.debug_) {
+        // Debug output for center pixel
+        if (pixel_idx.x == launch_params.image_.width() / 2 && 
+            pixel_idx.y == launch_params.image_.height() / 2) {
+            printf("RAYGEN: Ray origin=(%.3f,%.3f,%.3f) dir=(%.3f,%.3f,%.3f)\n",
+                   ray.origin_.x, ray.origin_.y, ray.origin_.z,
+                   ray.direction_.x, ray.direction_.y, ray.direction_.z);
+        }
+        
         const auto hit = trace_ch(ray, 0);
         if (hit) {
             auto idx = hit.unwrap().prim_idx;
