@@ -49,8 +49,8 @@ extern "C" __global__ void __raygen__rg() {
 
     if (launch_params.debug_) {
         // Debug output for center pixel
-        if (pixel_idx.x == launch_params.image_.width() / 2 && 
-            pixel_idx.y == launch_params.image_.height() / 2) {
+        if (pixel_idx.x == launch_params.image_.width_ / 2 && 
+            pixel_idx.y == launch_params.image_.height_ / 2) {
             float dir_len = sqrtf(ray.direction_.x*ray.direction_.x + 
                                  ray.direction_.y*ray.direction_.y + 
                                  ray.direction_.z*ray.direction_.z);
@@ -61,7 +61,7 @@ extern "C" __global__ void __raygen__rg() {
             printf("RAYGEN: Expected sphere hit range: t=[%.3f, %.3f]\n", 0.0f, 2.0f);
         }
         
-        const auto hit = trace_ch(ray, -0.001f);  // Allow small negative t for rays starting on/near sphere surface
+        const auto hit = trace_ch(ray, 0.0f);
         if (hit) {
             auto idx = hit.unwrap().prim_idx;
             radiance = launch_params.primitives_[idx].albedo_;
