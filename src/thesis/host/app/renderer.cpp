@@ -56,7 +56,7 @@ void Renderer::initPrimsAndGAS()
         glm::vec3{1.f,0.f,0.f},
     };
     const glm::vec3 translate[NUM_PRIMITIVES] = {
-        glm::vec3{-1.5f,0.f,0.5f},
+        glm::vec3{0.0f,0.0f,0.0f},
     };
 
     spdlog::info("hello 0");
@@ -71,7 +71,7 @@ void Renderer::initPrimsAndGAS()
         params::Primitive prim(
             translate[i],
             glm::quat(1, 0, 0, 0),
-            glm::vec3(0.3f),
+            glm::vec3(0.2f),
             albedo[i],
             1.f);
         primitives_[i] = prim.toDevice();
@@ -121,6 +121,7 @@ void Renderer::createPipeline() {
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
 
     // module
     module_ = utils::try_unwrap_or_exit<optix::Module>(

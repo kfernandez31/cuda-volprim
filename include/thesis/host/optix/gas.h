@@ -93,7 +93,7 @@ class GAS {
 };
 
 class SphereGAS {
-    cuda::AsyncBuffer<float3> centers_;
+    cuda::AsyncBuffer<float3> centers_; // TODO(kacper): compact into one buffer
     cuda::AsyncBuffer<float> radii_;
     GAS gas_;
 
