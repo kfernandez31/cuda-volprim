@@ -84,7 +84,7 @@ void Renderer::initPrimsAndGAS()
         inst.instanceId        = i;
         inst.sbtOffset         = i;
         inst.visibilityMask    = 0xFF;
-        inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
+        inst.flags             = OPTIX_RAY_FLAG_DISABLE_ANYHIT;
         instances_[i]          = inst;
     }
 

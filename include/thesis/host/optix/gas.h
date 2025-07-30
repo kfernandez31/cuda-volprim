@@ -121,9 +121,12 @@ class SphereGAS {
         auto vbuf = centers_.cu_device_ptr();
         in.sphereArray.vertexBuffers = &vbuf;
         in.sphereArray.numVertices = 1;
+        in.sphereArray.vertexStrideInBytes = sizeof(float3);
         
         auto rbuf = radii_.cu_device_ptr();
         in.sphereArray.radiusBuffers = &rbuf;
+        in.sphereArray.radiusStrideInBytes = sizeof(float);
+        in.sphereArray.singleRadius = 0;
     
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;
