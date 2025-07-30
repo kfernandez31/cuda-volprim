@@ -40,19 +40,19 @@ class StreamDAG {
     StreamDAG& operator=(const StreamDAG&) = delete;
 
     [[nodiscard]] std::shared_ptr<Stream>& operator[](StreamKind kind) noexcept {
-        return streams_[static_cast<size_t>(kind)];
+        return streams_[static_cast<size_t>(StreamKind::Main)];
     }
 
     [[nodiscard]] const std::shared_ptr<Stream>& operator[](StreamKind kind) const noexcept {
-        return streams_[static_cast<size_t>(kind)];
+        return streams_[static_cast<size_t>(StreamKind::Main)];
     }
 
     void addDependency(StreamKind down, StreamKind up) {
-        auto& upstream = streams_[static_cast<size_t>(up)];
-        auto& downstream = streams_[static_cast<size_t>(down)];
+        // auto& upstream = streams_[static_cast<size_t>(up)];
+        // auto& downstream = streams_[static_cast<size_t>(down)];
 
-        upstream->recordEvent();
-        CUDA_CHECK(cudaStreamWaitEvent(downstream->get(), upstream->event(), 0));
+        // upstream->recordEvent();
+        // CUDA_CHECK(cudaStreamWaitEvent(downstream->get(), upstream->event(), 0));
     }
 };
 

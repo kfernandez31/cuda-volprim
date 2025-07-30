@@ -34,9 +34,6 @@ class GAS {
     GAS(GAS&&) noexcept = default;
     GAS& operator=(GAS&&) noexcept = default;
 
-    GAS(const GAS&) = delete;
-    GAS& operator=(const GAS&) = delete;
-
     void build(const OptixBuildInput& input, CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
         const auto& stream = compacted_size_.get_context_param();
 
@@ -46,8 +43,6 @@ class GAS {
 
         OptixAccelBufferSizes sz{};
         OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx, &opts, &input, 1, &sz));
-
-        spdlog::info("hello A");
 
         temp_ = cuda::AsyncBuffer<std::byte>(sz.tempSizeInBytes, cuda_ctx, stream,
                                              cuda::AllocType::OnDeviceOnly);
@@ -61,29 +56,21 @@ class GAS {
         compacted_size_.upload();
         emit.result = compacted_size_.cu_device_ptr();
 
-        spdlog::info("hello B");
-
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         OPTIX_CHECK(optixAccelBuild(optix_ctx, stream->get(), &opts, &input, 1,
                                     temp_.cu_device_ptr(), temp_.size(), out_.cu_device_ptr(),
                                     out_.size(), &handle_, &emit, 1));
-        spdlog::info("hello C");
         compacted_size_.download();
-        spdlog::info("hello D");
-        spdlog::info("hello E");
         // compact the GAS
         const auto compacted_size = compacted_size_[0];
-        spdlog::info("hello F");
         if (compacted_size > 0 && compacted_size < out_.size()) {
-            spdlog::info("GAS compaction issued ({} → {} bytes)", out_.size(), compacted_size);
+            spdlog::info("GAS compaction issued ({} -> {} bytes)", out_.size(), compacted_size);
             out_ = cuda::AsyncBuffer<std::byte>(compacted_size, cuda_ctx, stream,
                                                 cuda::AllocType::OnDeviceOnly);
-            spdlog::info("hello G");
             OPTIX_CHECK(optixAccelCompact(optix_ctx, stream->get(), handle_,
                                           reinterpret_cast<CUdeviceptr>(out_.device()),
                                           compacted_size, &handle_));
-            spdlog::info("hello H");
         } else {
             spdlog::warn("GAS compaction skipped (compacted_size = 0)");
         }
@@ -104,7 +91,6 @@ class SphereGAS {
         , gas_(ctx, std::move(stream)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        spdlog::info("inside outer build");
         const auto center = make_float3(0.0f);
         centers_.host()[0] = center;
         centers_.upload();
@@ -112,6 +98,9 @@ class SphereGAS {
         const auto radius = 1.0f;
         radii_.host()[0] = radius;
         radii_.upload();
+
+        radii_.get_context_param()->synchronize();
+        spdlog::info("sync'd stream to satisfy Claude");
 
         static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
@@ -136,7 +125,5 @@ class SphereGAS {
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }
 };
-
-using InstanceGAS = GAS;
 
 }  // namespace thesis::host::optix

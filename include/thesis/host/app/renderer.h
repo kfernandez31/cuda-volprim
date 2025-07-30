@@ -36,7 +36,7 @@ class Renderer {
     cuda::StreamDAG streams_;
 
     optix::SphereGAS gas_;
-    optix::InstanceGAS ias_;
+    optix::GAS ias_;
     cuda::AsyncBuffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;

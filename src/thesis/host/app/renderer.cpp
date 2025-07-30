@@ -35,7 +35,7 @@ Renderer::Renderer(const app::Config& config)
       streams_(),
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
-      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::GAS], cuda::AllocType::OnBoth),
+      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT], NUM_PRIMITIVES),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
@@ -59,9 +59,7 @@ void Renderer::initPrimsAndGAS()
         glm::vec3{0.0f,0.0f,0.0f},
     };
 
-    spdlog::info("hello 0");
-
-    /* ── 2. Build BLAS with one unit sphere ───────────────────────── */
+    /* ── 2. Build GAS with one unit sphere ───────────────────────── */
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 
@@ -84,7 +82,7 @@ void Renderer::initPrimsAndGAS()
         inst.instanceId        = i;
         inst.sbtOffset         = i;
         inst.visibilityMask    = 0xFF;
-        inst.flags             = OPTIX_RAY_FLAG_NONE;
+        inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
         instances_[i]          = inst;
     }
 
@@ -93,6 +91,7 @@ void Renderer::initPrimsAndGAS()
 
     instances_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::IAS);
+    streams_.addDependency(cuda::StreamKind::IAS, cuda::StreamKind::GAS);
 
     /* ── 4. Build IAS over instances ──────────────────────────────── */
     OptixBuildInput bi{};
@@ -120,7 +119,7 @@ void Renderer::createPipeline() {
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
-    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
     pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
 
     // module
