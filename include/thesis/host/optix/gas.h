@@ -91,13 +91,16 @@ class SphereGAS {
         , gas_(ctx, std::move(stream)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        const auto center = make_float3(0.0f);
+        const auto center = make_float3(0.0f, 0.0f, 0.0f);
         centers_.host()[0] = center;
         centers_.upload();
 
         const auto radius = 1.0f;
         radii_.host()[0] = radius;
         radii_.upload();
+        
+        spdlog::info("Building sphere GAS: center=({},{},{}), radius={}", 
+                     center.x, center.y, center.z, radius);
 
         radii_.get_context_param()->synchronize();
         spdlog::info("sync'd stream to satisfy Claude");
@@ -121,6 +124,7 @@ class SphereGAS {
         in.sphereArray.numSbtRecords = 1;
 
         gas_.build(in, cuda_ctx, optix_ctx);
+        spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

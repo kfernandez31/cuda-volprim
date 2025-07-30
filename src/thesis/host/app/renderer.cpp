@@ -132,6 +132,8 @@ void Renderer::createPipeline() {
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
     pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
+    
+    spdlog::info("Pipeline compile options: primitiveTypeFlags = 0x{:x}", pco.usesPrimitiveTypeFlags);
 
     // module
     module_ = utils::try_unwrap_or_exit<optix::Module>(
