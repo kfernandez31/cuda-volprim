@@ -12,16 +12,15 @@
 extern "C" __global__ void __closesthit__ch() {
     using namespace thesis::device;
 
-    const auto idx = optixGetLaunchIndex();
-
     payloads::ClosestHit p;
     p.t_hit    = optixGetRayTmax();
     p.prim_idx = optixGetInstanceId();
     // p.prim_idx = optixGetPrimitiveIndex(); // TODO(kacper): maybe use this?
-
+    
     const unsigned hitKind = optixGetHitKind();
     p.is_exit = (hitKind == OPTIX_HIT_KIND_SPHERE_BACK_FACE);
     
+    const auto idx = optixGetLaunchIndex();
     printf("ch [%u, %u]: t = %f, idx = %u, kind = %d\n", 
         idx.x, idx.y, p.t_hit, p.prim_idx, hitKind);
 

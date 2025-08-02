@@ -45,13 +45,12 @@ class AccelerationStructure {
         compacted_size_.upload();
         emit.result = compacted_size_.cu_device_ptr();
 
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
         OPTIX_CHECK(optixAccelBuild(optix_ctx, stream->get(), &opts, &input, 1,
                                     temp_.cu_device_ptr(), temp_.size(), out_.cu_device_ptr(),
                                     out_.size(), &handle_, &emit, 1));
         compacted_size_.download();
         
+        // TODO(kacper): sync?
         // compact the acceleration structure
         const auto compacted_size = compacted_size_[0];
         if (compacted_size > 0 && compacted_size < out_.size()) {

@@ -19,7 +19,7 @@ class SBT {
    private:
     Record<> raygen_record_, miss_record_;
     HitgroupArray hitgroups_;
-    OptixShaderBindingTable sbt_ = {};
+    OptixShaderBindingTable sbt_{};
 
    public:
     SBT() = default;

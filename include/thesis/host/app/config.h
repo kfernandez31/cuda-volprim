@@ -30,8 +30,7 @@ struct Config {
     float aspect_ratio_;
 
     uint seed_ = 42;
-    bool debug_ = false;
-    float angle_ = 0.0f;
+    bool debug_ = true;
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept {
         Config config;
@@ -51,7 +50,6 @@ struct Config {
             app.add_option("--launch_params", config.launch_params_variable_name_, "Launch parameters variable name");
             app.add_option("--seed", config.seed_, "Random seed");
             app.add_option("--debug", config.debug_, "Runtime debug parameter");
-            app.add_option("--angle", config.angle_, "Runtime angle parameter");
         }
 
 // // Image-related settings
