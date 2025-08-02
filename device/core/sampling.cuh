@@ -24,7 +24,7 @@ namespace thesis {
 namespace device {
 
 namespace consts {
-    constexpr auto MAX_PRIMS = 2137u; // TODO(kacper): tweak
+    constexpr auto MAX_PRIMS = 10u; // TODO(kacper): tweak
 } // namespace consts
 
 using PrimsSet = utils::Set<uint, consts::MAX_PRIMS>;
