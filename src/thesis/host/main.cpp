@@ -49,7 +49,7 @@ int main() {
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = "launch_params";
     pco.numPayloadValues = thesis::device::payloads::MAX_PAYLOADS_IN_USE;
-    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
     pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
     
     auto module = thesis::host::utils::try_unwrap_or_exit<optix::Module>(
@@ -105,35 +105,35 @@ int main() {
     OptixInstance& inst = instances[0];
     
     // Identity transform
-    std::memset(inst.transform, 0, sizeof(inst.transform));
-    inst.transform[0] = inst.transform[5] = inst.transform[10] = 1.0f;
+    // std::memset(inst.transform, 0, sizeof(inst.transform));
+    // inst.transform[0] = inst.transform[5] = inst.transform[10] = 1.0f;
     
-    inst.traversableHandle = gas_handle;
-    inst.instanceId = 0;
-    inst.sbtOffset = 0;
-    inst.visibilityMask = 0xFF;
-    inst.flags = OPTIX_INSTANCE_FLAG_NONE;
+    // inst.traversableHandle = gas_handle;
+    // inst.instanceId = 0;
+    // inst.sbtOffset = 0;
+    // inst.visibilityMask = 0xFF;
+    // inst.flags = OPTIX_INSTANCE_FLAG_NONE;
     
-    instances.upload();
+    // instances.upload();
 
     // Build IAS
-    OptixBuildInput ias_in{};
-    ias_in.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    ias_in.instanceArray.instances = instances.cu_device_ptr();
-    ias_in.instanceArray.numInstances = 1;
+    // OptixBuildInput ias_in{};
+    // ias_in.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    // ias_in.instanceArray.instances = instances.cu_device_ptr();
+    // ias_in.instanceArray.numInstances = 1;
 
-    OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx.get(), &opts, &ias_in, 1, &sz));
-    spdlog::info("IAS buffer sizes: temp={}, output={}", sz.tempSizeInBytes, sz.outputSizeInBytes);
+    // OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx.get(), &opts, &ias_in, 1, &sz));
+    // spdlog::info("IAS buffer sizes: temp={}, output={}", sz.tempSizeInBytes, sz.outputSizeInBytes);
 
-    cuda::AsyncBuffer<std::byte> ias_temp(sz.tempSizeInBytes, cuda_ctx.get(), stream, cuda::AllocType::OnDeviceOnly);
-    cuda::AsyncBuffer<std::byte> ias_out(sz.outputSizeInBytes, cuda_ctx.get(), stream, cuda::AllocType::OnDeviceOnly);
+    // cuda::AsyncBuffer<std::byte> ias_temp(sz.tempSizeInBytes, cuda_ctx.get(), stream, cuda::AllocType::OnDeviceOnly);
+    // cuda::AsyncBuffer<std::byte> ias_out(sz.outputSizeInBytes, cuda_ctx.get(), stream, cuda::AllocType::OnDeviceOnly);
     
-    OptixTraversableHandle ias_handle = 0;
-    OPTIX_CHECK(optixAccelBuild(optix_ctx.get(), nullptr, &opts, &ias_in, 1,
-                                ias_temp.cu_device_ptr(), ias_temp.size(), ias_out.cu_device_ptr(),
-                                ias_out.size(), &ias_handle, nullptr, 0));
+    // OptixTraversableHandle ias_handle = 0;
+    // OPTIX_CHECK(optixAccelBuild(optix_ctx.get(), nullptr, &opts, &ias_in, 1,
+    //                             ias_temp.cu_device_ptr(), ias_temp.size(), ias_out.cu_device_ptr(),
+    //                             ias_out.size(), &ias_handle, nullptr, 0));
     
-    spdlog::info("IAS built with handle: 0x{:x}", ias_handle);
+    // spdlog::info("IAS built with handle: 0x{:x}", ias_handle);
 
     // Create program groups
     auto raygen_pg = optix::ProgramGroup::createRaygen(
@@ -161,7 +161,7 @@ int main() {
     auto& params = launch_params[0];
     
     // Initialize minimal params
-    params.ias_handle_ = ias_handle;
+    params.ias_handle_ = gas_handle;
     params.debug_ = true;
     params.seed_ = 42;
     
