@@ -46,14 +46,15 @@ class SphereGAS {
 
         in.sphereArray.vertexBuffers = &vertex_buffer_ptr_;
         in.sphereArray.numVertices = 1;
-        in.sphereArray.vertexStrideInBytes = 0;
         
         in.sphereArray.radiusBuffers = &radius_buffer_ptr_;
-        in.sphereArray.radiusStrideInBytes = 0;
     
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;
         in.sphereArray.primitiveIndexOffset = 0;  // Explicitly set primitive index offset
+
+        spdlog::info("Sphere buffer ptrs: vertex=0x{:x}, radius=0x{:x}",
+                    vertex_buffer_ptr_, radius_buffer_ptr_);
 
         gas_.build(in, cuda_ctx, optix_ctx);
         spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());

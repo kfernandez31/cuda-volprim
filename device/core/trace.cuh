@@ -27,7 +27,7 @@ __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min
         launch_params.ias_handle_,
         ray.origin_,
         ray.direction_,
-        t_min + INTERSECTION_EPS,             // Min intersection distance (removed epsilon for debugging)
+        t_min + eps,             // Min intersection distance (removed epsilon for debugging)
         consts::INF_F,                 // Max intersection distance
         0.0f,                  // Disable motion blur
         consts::VISIBILITY_ALL,
