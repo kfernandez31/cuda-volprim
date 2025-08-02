@@ -22,39 +22,34 @@ class GAS : public AccelerationStructure {
 };
 
 class SphereGAS {
-    cuda::AsyncBuffer<float3> centers_; // TODO(kacper): compact into one buffer
-    cuda::AsyncBuffer<float> radii_;
+    cuda::AsyncBuffer<float4> spheres_; // TODO(kacper): compact into one buffer
     GAS gas_;
+    CUdeviceptr vertex_buffer_ptr_;
+    CUdeviceptr radius_buffer_ptr_;
 
    public:
     SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : centers_(1, ctx, stream, cuda::AllocType::OnBoth)
-        , radii_(1, ctx, stream, cuda::AllocType::OnBoth)
-        , gas_(ctx, std::move(stream)) {}
+        : spheres_(1, ctx, stream, cuda::AllocType::OnBoth)
+        , gas_(ctx, std::move(stream))
+        , vertex_buffer_ptr_(spheres_.cu_device_ptr())
+        , radius_buffer_ptr_(vertex_buffer_ptr_ + sizeof(float3)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        const auto center = make_float3(0.0f, 0.0f, 0.0f);
-        centers_.host()[0] = center;
-        centers_.upload();
+        const auto sphere = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+        spheres_.host()[0] = sphere;
+        spheres_.upload();
 
-        const auto radius = 1.0f;
-        radii_.host()[0] = radius;
-        radii_.upload();
-        
         static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
         OptixBuildInput in{};
         in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
-        auto vbuf = centers_.cu_device_ptr();
-        in.sphereArray.vertexBuffers = &vbuf;
+        in.sphereArray.vertexBuffers = &vertex_buffer_ptr_;
         in.sphereArray.numVertices = 1;
-        in.sphereArray.vertexStrideInBytes = sizeof(float3);
+        in.sphereArray.vertexStrideInBytes = sizeof(float4);
         
-        auto rbuf = radii_.cu_device_ptr();
-        in.sphereArray.radiusBuffers = &rbuf;
-        in.sphereArray.radiusStrideInBytes = sizeof(float);
-        in.sphereArray.singleRadius = 0;
+        in.sphereArray.radiusBuffers = &radius_buffer_ptr_;
+        in.sphereArray.radiusStrideInBytes = sizeof(float4);
     
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;

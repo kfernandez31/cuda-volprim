@@ -12,9 +12,6 @@
 extern "C" __global__ void __closesthit__ch() {
     using namespace thesis::device;
 
-    const auto idx = optixGetLaunchIndex();
-    printf("ch [%u, %u]: entering\n", idx.x, idx.y);
-
     payloads::ClosestHit p;
     p.t_hit    = optixGetRayTmax();
     p.prim_idx = optixGetInstanceId();
