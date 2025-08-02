@@ -46,10 +46,10 @@ class SphereGAS {
 
         in.sphereArray.vertexBuffers = &vertex_buffer_ptr_;
         in.sphereArray.numVertices = 1;
-        in.sphereArray.vertexStrideInBytes = sizeof(float4);
+        in.sphereArray.vertexStrideInBytes = 0;
         
         in.sphereArray.radiusBuffers = &radius_buffer_ptr_;
-        in.sphereArray.radiusStrideInBytes = sizeof(float4);
+        in.sphereArray.radiusStrideInBytes = 0;
     
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;
