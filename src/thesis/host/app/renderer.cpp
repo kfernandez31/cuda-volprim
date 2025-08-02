@@ -69,7 +69,7 @@ void Renderer::initPrimsAndGAS()
         params::Primitive prim(
             translate[i],
             glm::quat(1, 0, 0, 0),
-            glm::vec3(1.0f),  // Try larger sphere to rule out size issues
+            glm::vec3(0.5f),
             albedo[i],
             1.f);
         primitives_[i] = prim.toDevice();
