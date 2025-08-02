@@ -9,6 +9,7 @@
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/context.h"
 #include "thesis/host/optix/gas.h"
+#include "thesis/host/optix/ias.h"
 #include "thesis/host/optix/module.h"
 #include "thesis/host/optix/pipeline.h"
 #include "thesis/host/optix/program_group.h"
@@ -36,7 +37,7 @@ class Renderer {
     cuda::StreamDAG streams_;
 
     optix::SphereGAS gas_;
-    optix::GAS ias_;
+    optix::IAS ias_;
     cuda::AsyncBuffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
@@ -52,14 +53,6 @@ class Renderer {
     optix::Pipeline pipeline_;
 
    public:
-    Renderer() = delete;
-
-    Renderer(Renderer&&) noexcept = default;
-    Renderer& operator=(Renderer&&) noexcept = default;
-
-    Renderer(const Renderer&) = delete;
-    Renderer& operator=(const Renderer&) = delete;
-
     explicit Renderer(const app::Config& config);
 
     void render();

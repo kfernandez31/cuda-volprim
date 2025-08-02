@@ -2,6 +2,7 @@
 
 #include "thesis/device/payloads/closesthit.h"
 #include "thesis/device/payloads/miss.h"
+#include "thesis/common/utils/math.h"
 
 #include <cstddef>
 

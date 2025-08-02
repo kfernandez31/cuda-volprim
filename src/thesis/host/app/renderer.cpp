@@ -117,7 +117,7 @@ void Renderer::uploadParams() {
     auto& par = launch_params_[0];
     par.seed_ = config_.seed_;
     par.debug_ = config_.debug_;
-    par.gas_handle_ = ias_.get();
+    par.ias_handle_ = ias_.get();
     par.camera_ = camera_.toDevice();
     par.env_map_ = env_map_.toDevice();
     par.image_ = image_.toDevice();

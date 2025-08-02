@@ -18,7 +18,7 @@ namespace common {
 namespace params {
 
 struct THESIS_ALIGNMENT LaunchParams {
-    OptixTraversableHandle gas_handle_;
+    OptixTraversableHandle ias_handle_;
     device::params::Camera camera_;
     device::params::EnvironmentMap env_map_;
     device::params::Image image_;
