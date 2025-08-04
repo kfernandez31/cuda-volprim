@@ -12,6 +12,7 @@
 #include "thesis/device/geometry/ray.h"
 #include "thesis/device/payloads/closesthit.h"
 #include "thesis/device/payloads/miss.h"
+#include "thesis/device/payloads/registry.h"
 
 #include <optix.h>
 #include <vector_types.h>
@@ -28,13 +29,13 @@ extern "C" __global__ void __raygen__rg() {
     auto ray = launch_params.camera_.jittered_ray(pixel_idx, jitter);
     
     // Simple trace for debug mode
-    unsigned ps[payloads::MAX_PAYLOADS] = {};
+    unsigned ps[payloads::MAX_PAYLOADS_IN_USE] = {};
     
     optixTrace(
         launch_params.ias_handle_,
         ray.origin_,
         ray.direction_,
-        0.0001f,                   // tmin - small epsilon to avoid self-intersection
+        0.0f,                   // tmin - small epsilon to avoid self-intersection
         1e20f,                     // tmax - very large number
         0.0f,                      // rayTime
         0xFF,                      // visibility mask
@@ -97,12 +98,12 @@ extern "C" __global__ void __closesthit__ch() {
     p.is_exit = (hitKind == OPTIX_HIT_KIND_SPHERE_BACK_FACE);
     
     // Debug print
-    const auto idx = optixGetLaunchIndex();
-    if (idx.x == optixGetLaunchDimensions().x / 2 && 
-        idx.y == optixGetLaunchDimensions().y / 2) {
+    // const auto idx = optixGetLaunchIndex();
+    // if (idx.x == optixGetLaunchDimensions().x / 2 && 
+    //     idx.y == optixGetLaunchDimensions().y / 2) {
         printf("CH: t=%f, instance=%u, hitKind=%u\n", 
                p.t_hit, p.prim_idx, hitKind);
-    }
+    // }
     
     p.packToOptix();
 }

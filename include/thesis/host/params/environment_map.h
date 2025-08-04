@@ -11,9 +11,8 @@
 
 #include <cstddef>
 #include <filesystem>
-#include <memory>
+#include <utility>
 #include <spdlog/spdlog.h>
-#include <string_view>
 
 namespace thesis::host::params {
 
@@ -40,9 +39,6 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
 
     EnvironmentMap(EnvironmentMap&&) noexcept = default;
     EnvironmentMap& operator=(EnvironmentMap&&) noexcept = default;
-
-    EnvironmentMap(const EnvironmentMap&) = delete;
-    EnvironmentMap& operator=(const EnvironmentMap&) = delete;
 
     [[nodiscard]] device::params::EnvironmentMap toDevice() const noexcept override {
         device::params::EnvironmentMap result;

@@ -39,9 +39,6 @@ class Stream {
         return *this;
     }
 
-    Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
-
     [[nodiscard]] cudaEvent_t event() const noexcept { return event_; }
     [[nodiscard]] cudaStream_t get() const noexcept { return stream_; }
 
@@ -74,7 +71,9 @@ class Stream {
         if (stream_) {
             CUDA_CHECK_NOEXCEPT(cudaStreamDestroy(stream_));
             stream_ = nullptr;
+        }
 
+        if (event_) {
             CUDA_CHECK_NOEXCEPT(cudaEventDestroy(event_));
             event_ = nullptr;
         }

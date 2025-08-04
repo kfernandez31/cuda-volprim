@@ -61,7 +61,6 @@ class Context {
         CUcontext prev = nullptr;
 
         Guard(CUcontext ctx) { CU_CHECK(cuCtxPushCurrent(ctx)); }
-
         ~Guard() { CU_CHECK_NOEXCEPT(cuCtxPopCurrent(&prev)); }
 
         Guard(Guard&& other) noexcept : prev(std::exchange(other.prev, nullptr)) {}
@@ -70,9 +69,6 @@ class Context {
                 prev = std::exchange(other.prev, nullptr);
             }
         }
-
-        Guard(const Guard&) = delete;
-        Guard& operator=(const Guard&) = delete;
     };
 
     [[nodiscard]] CUcontext get() const noexcept { return context_; }

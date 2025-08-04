@@ -51,7 +51,6 @@ class SphereGAS {
     
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;
-        in.sphereArray.primitiveIndexOffset = 0;  // Explicitly set primitive index offset
 
         spdlog::info("Sphere buffer ptrs: vertex=0x{:x}, radius=0x{:x}",
                     vertex_buffer_ptr_, radius_buffer_ptr_);
