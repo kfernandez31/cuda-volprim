@@ -23,6 +23,7 @@
 #include <spdlog/spdlog.h>
 #include <utility>
 
+using namespace thesis;
 using namespace thesis::host;
 using namespace thesis::common;
 using namespace thesis::device;
@@ -49,21 +50,20 @@ int main() {
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = "launch_params";
     pco.numPayloadValues = thesis::device::payloads::MAX_PAYLOADS_IN_USE;
-    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS; // | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING
     pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
-    
     auto module = thesis::host::utils::try_unwrap_or_exit<optix::Module>(
         optix::Module::load(optix_ctx.get(), "build/device_program.optixir", pco)
     );
 
     // Prepare sphere
     cuda::AsyncBuffer<float3> centers(1, cuda_ctx.get(), stream, cuda::AllocType::OnBoth);
-    centers[0] = make_float3(0.0f, 0.0f, 0.0f);
+    centers[0] = make_float3(0.0f, 0.0f, 0.0f); // origin-centered
     centers.upload();
     CUdeviceptr vertex_ptr = centers.cu_device_ptr();
 
     cuda::AsyncBuffer<float> radii(1, cuda_ctx.get(), stream, cuda::AllocType::OnBoth);
-    radii[0] = 1.0f;
+    radii[0] = 1.0f; // unit radius
     radii.upload();
     CUdeviceptr radius_ptr = radii.cu_device_ptr();
     
@@ -82,7 +82,7 @@ int main() {
 
     // Build GAS
     OptixAccelBuildOptions opts{};
-    opts.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
+    opts.buildFlags = 0;
     opts.operation = OPTIX_BUILD_OPERATION_BUILD;
 
     OptixAccelBufferSizes sz{};
@@ -94,15 +94,15 @@ int main() {
     cuda::AsyncBuffer<std::byte> out(sz.outputSizeInBytes, cuda_ctx.get(), stream, cuda::AllocType::OnDeviceOnly);
     
     OptixTraversableHandle gas_handle = 0;
-    OPTIX_CHECK(optixAccelBuild(optix_ctx.get(), nullptr, &opts, &in, 1,
+    OPTIX_CHECK(optixAccelBuild(optix_ctx.get(), stream->get(), &opts, &in, 1,
                                 temp.cu_device_ptr(), temp.size(), out.cu_device_ptr(),
                                 out.size(), &gas_handle, nullptr, 0));
     
     spdlog::info("GAS built with handle: 0x{:x}", gas_handle);
 
     // Create instance
-    cuda::AsyncBuffer<OptixInstance> instances(1, cuda_ctx.get(), stream, cuda::AllocType::OnBoth);
-    OptixInstance& inst = instances[0];
+    // cuda::AsyncBuffer<OptixInstance> instances(1, cuda_ctx.get(), stream, cuda::AllocType::OnBoth);
+    // OptixInstance& inst = instances[0];
     
     // Identity transform
     // std::memset(inst.transform, 0, sizeof(inst.transform));
@@ -136,21 +136,16 @@ int main() {
     // spdlog::info("IAS built with handle: 0x{:x}", ias_handle);
 
     // Create program groups
-    auto raygen_pg = optix::ProgramGroup::createRaygen(
-        optix_ctx.get(), module.get(), "__raygen__rg");
-    
-    auto miss_pg = optix::ProgramGroup::createMiss(
-        optix_ctx.get(), module.get(), "__miss__ms");
-    
-    auto hitgroup_pg = optix::ProgramGroup::createHitgroup(
-        optix_ctx.get(), module.get(), "__closesthit__ch");
+    auto raygen_pg = optix::ProgramGroup::createRaygen(optix_ctx.get(), module.get(), "__raygen__rg");
+    auto miss_pg = optix::ProgramGroup::createMiss(optix_ctx.get(), module.get(), "__miss__ms");
+    auto hitgroup_pg = optix::ProgramGroup::createHitgroup(optix_ctx.get(), module.get(), "__closesthit__ch");
 
     // Build SBT
-    optix::SBT sbt(cuda_ctx.get(), stream, 1);
+    optix::SBT sbt(cuda_ctx.get(), stream);
     sbt.build(raygen_pg.get(), miss_pg.get(), hitgroup_pg.get());
 
     // Create pipeline
-    OptixPipelineLinkOptions plo = {};
+    OptixPipelineLinkOptions plo{};
     plo.maxTraceDepth = 1;
     
     std::array<OptixProgramGroup, 3> pgs = {raygen_pg.get(), miss_pg.get(), hitgroup_pg.get()};
@@ -166,32 +161,32 @@ int main() {
     params.seed_ = 42;
     
     // Setup image
-    thesis::host::params::Image image(512, 512, 1, cuda_ctx.get(), stream, stream);
+    host::params::Image image(512, 512, 1, cuda_ctx.get(), stream, stream);
     params.image_ = image.toDevice();
     
     // Setup camera
-    auto camera = thesis::host::params::Camera::getDefaultCamera(512, 512);
+    auto camera = host::params::Camera::getDefaultCamera(512, 512);
     params.camera_ = camera.toDevice();
     
     // Setup primitives
-    thesis::host::cuda::AsyncBuffer<thesis::device::params::Primitive> primitives(1, cuda_ctx.get(), stream, cuda::AllocType::OnBoth);
+    host::cuda::AsyncBuffer<device::params::Primitive> primitives(1, cuda_ctx.get(), stream, cuda::AllocType::OnBoth);
     primitives[0].albedo_ = make_float3(1.0f, 0.0f, 0.0f); // Red sphere
     primitives.upload();
-    params.primitives_ = thesis::device::utils::DynamicVector<thesis::device::params::Primitive>(primitives.device(), 1);
+    params.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives.device(), 1);
     
     launch_params.upload();
 
     // Launch!
     spdlog::info("Launching OptiX pipeline...");
     pipeline.launch(stream->get(), launch_params.cu_device_ptr(),
-                    sizeof(thesis::common::params::LaunchParams), sbt.get(),
+                    sizeof(common::params::LaunchParams), sbt.get(),
                     512, 512, 1);
     
     CUDA_CHECK(cudaDeviceSynchronize());
     spdlog::info("Pipeline execution complete");
 
     // Save image
-    thesis::host::utils::try_unwrap_or_exit(image.save("minimal_sphere_output.exr"));
+    host::utils::try_unwrap_or_exit(image.save("minimal_sphere_output.exr"));
     
     spdlog::info("Test complete - check minimal_sphere_output.exr");
 

@@ -2,7 +2,6 @@
 
 #include "thesis/common/utils/types.h"
 #include "thesis/host/cuda/stream.h"
-#include "thesis/host/optix/hitgroup_array.h"
 #include "thesis/host/optix/record.h"
 
 #include <cuda.h>
@@ -11,14 +10,14 @@
 #include <optix_types.h>
 
 #include <memory>
+#include <utility>
 #include <spdlog/spdlog.h>
 
 namespace thesis::host::optix {
 
 class SBT {
    private:
-    Record<> raygen_record_, miss_record_;
-    HitgroupArray hitgroups_;
+    Record raygen_record_, miss_record_, hitgroup_pg_;
     OptixShaderBindingTable sbt_{};
 
    public:
@@ -27,19 +26,16 @@ class SBT {
     SBT(SBT&&) noexcept = default;
     SBT& operator=(SBT&&) noexcept = default;
 
-    SBT(const SBT&) = delete;
-    SBT& operator=(const SBT&) = delete;
-
-    SBT(CUcontext ctx, std::shared_ptr<cuda::Stream> stream, size_t hitgroup_count)
+    SBT(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
         : raygen_record_(ctx, stream),
           miss_record_(ctx, stream),
-          hitgroups_(ctx, std::move(stream), hitgroup_count) {}
+          hitgroup_pg_(ctx, std::move(stream)) {}
 
     void build(OptixProgramGroup raygen_pg, OptixProgramGroup miss_pg,
                OptixProgramGroup hitgroup_pg) {
         raygen_record_.build(raygen_pg);
         miss_record_.build(miss_pg);
-        hitgroups_.build(hitgroup_pg);
+        hitgroup_pg_.build(hitgroup_pg);
 
         sbt_.raygenRecord = raygen_record_.get();
 
@@ -47,11 +43,9 @@ class SBT {
         sbt_.missRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
         sbt_.missRecordCount = 1;
 
-        sbt_.hitgroupRecordBase = hitgroups_.base();
+        sbt_.hitgroupRecordBase = hitgroup_pg_.get();
         sbt_.hitgroupRecordStrideInBytes = OPTIX_SBT_RECORD_HEADER_SIZE;
-        sbt_.hitgroupRecordCount = static_cast<uint>(hitgroups_.count());
-
-        spdlog::info("Shader Binding Table ({} hit records) built", hitgroups_.count());
+        sbt_.hitgroupRecordCount = 1;
     }
 
     const OptixShaderBindingTable& get() const noexcept { return sbt_; }

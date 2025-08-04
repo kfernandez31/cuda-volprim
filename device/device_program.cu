@@ -97,12 +97,12 @@ extern "C" __global__ void __closesthit__ch() {
     p.is_exit = (hitKind == OPTIX_HIT_KIND_SPHERE_BACK_FACE);
     
     // Debug print
-    const auto idx = optixGetLaunchIndex();
-    if (idx.x == optixGetLaunchDimensions().x / 2 && 
-        idx.y == optixGetLaunchDimensions().y / 2) {
+    // const auto idx = optixGetLaunchIndex();
+    // if (idx.x == optixGetLaunchDimensions().x / 2 && 
+    //     idx.y == optixGetLaunchDimensions().y / 2) {
         printf("CH: t=%f, instance=%u, hitKind=%u\n", 
                p.t_hit, p.prim_idx, hitKind);
-    }
+    // }
     
     p.packToOptix();
 }

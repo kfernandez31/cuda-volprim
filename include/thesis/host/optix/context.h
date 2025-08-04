@@ -21,7 +21,7 @@ class Context {
         OptixDeviceContextOptions opts = {};
         opts.logCallbackFunction = &contextLogCb;
         opts.logCallbackLevel = static_cast<int>(LogLevel::Warning);
-// #ifdef DEBUG
+// #ifdef DEBUG // TODO(kacper): restore
         opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 // #else
         // opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_OFF;
@@ -38,9 +38,6 @@ class Context {
     }
 
     ~Context() { reset(); }
-
-    Context(const Context&) = delete;
-    Context& operator=(const Context&) = delete;
 
     Context(Context&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
 

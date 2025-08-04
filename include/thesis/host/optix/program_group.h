@@ -23,9 +23,6 @@ class ProgramGroup {
 
     ~ProgramGroup() { reset(); }
 
-    ProgramGroup(const ProgramGroup&) = delete;
-    ProgramGroup& operator=(const ProgramGroup&) = delete;
-
     ProgramGroup(ProgramGroup&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
 
     ProgramGroup& operator=(ProgramGroup&& other) noexcept {
@@ -42,7 +39,7 @@ class ProgramGroup {
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
         desc.raygen.module = module;
         desc.raygen.entryFunctionName = entry;
-        return ProgramGroup(ctx, desc);
+        return {ctx, desc};
     }
 
     static ProgramGroup createMiss(OptixDeviceContext ctx, OptixModule module, const char* entry) {
@@ -50,21 +47,16 @@ class ProgramGroup {
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
         desc.miss.module = module;
         desc.miss.entryFunctionName = entry;
-        return ProgramGroup(ctx, desc);
+        return {ctx, desc};
     }
 
     static ProgramGroup createHitgroup(OptixDeviceContext ctx, OptixModule module,
-                                       const char* closest_hit_entry,
-                                       const char* any_hit_entry = nullptr) {
+                                       const char* closest_hit_entry) {
         OptixProgramGroupDesc desc = {};
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
         desc.hitgroup.moduleCH = module;
         desc.hitgroup.entryFunctionNameCH = closest_hit_entry;
-        if (any_hit_entry) {
-            desc.hitgroup.moduleAH = module;
-            desc.hitgroup.entryFunctionNameAH = any_hit_entry;
-        }
-        return ProgramGroup(ctx, desc);
+        return {ctx, desc};
     }
 
     [[nodiscard]] OptixProgramGroup get() const noexcept { return handle_; }

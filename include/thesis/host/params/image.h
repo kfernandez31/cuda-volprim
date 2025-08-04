@@ -24,13 +24,8 @@ class Image : public Convertible<device::params::Image> {
     cuda::AsyncBuffer<float3> averaged_pixels_;  // Single-layer output
 
    public:
-    Image() = default;
-
     Image(Image&&) noexcept = default;
     Image& operator=(Image&&) noexcept = default;
-
-    Image(const Image&) = delete;
-    Image& operator=(const Image&) = delete;
 
     Image(size_t width, size_t height, size_t num_samples_per_pixel, CUcontext ctx,
           std::shared_ptr<cuda::Stream> sample_buffer_stream,

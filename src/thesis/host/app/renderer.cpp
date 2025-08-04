@@ -36,7 +36,7 @@ Renderer::Renderer(const app::Config& config)
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
       instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
-      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT], NUM_PRIMITIVES),
+      sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
@@ -158,8 +158,7 @@ void Renderer::createPipeline() {
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(),
         module_.get(),
-        config_.closesthit_function_name_.c_str(),
-        config_.anyhit_function_name_.empty() ? nullptr : config_.anyhit_function_name_.c_str()
+        config_.closesthit_function_name_.c_str()
     );
 
     // sbt
