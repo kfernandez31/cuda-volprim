@@ -3,7 +3,7 @@
 #include "thesis/common/params/launch_params.h"
 #include "thesis/device/params/primitive.h"
 #include "thesis/host/app/config.h"
-#include "thesis/host/cuda/async_buffer.h"
+#include "thesis/host/cuda/buffer.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
 #include "thesis/host/geometry/mesh.h"
@@ -38,14 +38,15 @@ class Renderer {
 
     optix::SphereGAS gas_;
     optix::IAS ias_;
-    cuda::AsyncBuffer<OptixInstance> instances_;
+    cuda::Buffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
-    cuda::AsyncBuffer<device::params::Primitive> primitives_;
-    cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
+    cuda::Buffer<device::params::Primitive> primitives_;
+    cuda::Buffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;
+    OptixModule builtin_is_module_ = nullptr;  // Built-in intersection module for spheres
     optix::ProgramGroup raygen_pg_;
     optix::ProgramGroup miss_pg_;
     optix::ProgramGroup hitgroup_pg_;
@@ -54,6 +55,7 @@ class Renderer {
 
    public:
     explicit Renderer(const app::Config& config);
+    ~Renderer();
 
     void render();
 };

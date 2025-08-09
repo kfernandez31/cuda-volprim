@@ -2,9 +2,10 @@
 
 #include "kernels/average_samples.h"
 #include "thesis/device/params/image.h"
-#include "thesis/host/cuda/async_buffer.h"
+#include "thesis/host/cuda/buffer.h"
 #include "thesis/host/cuda/stream.h"
 #include "thesis/host/params/convertible.h"
+#include "thesis/host/utils/check.h"
 #include "thesis/host/utils/io.h"
 #include "thesis/host/utils/result.h"
 
@@ -20,8 +21,8 @@ class Image : public Convertible<device::params::Image> {
     size_t width_ = 0;
     size_t height_ = 0;
     size_t num_samples_per_pixel_ = 0;
-    cuda::AsyncBuffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
-    cuda::AsyncBuffer<float3> averaged_pixels_;  // Single-layer output
+    cuda::Buffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
+    cuda::Buffer<float3> averaged_pixels_;  // Single-layer output
 
    public:
     Image(Image&&) noexcept = default;
@@ -33,10 +34,8 @@ class Image : public Convertible<device::params::Image> {
         : width_(width),
           height_(height),
           num_samples_per_pixel_(num_samples_per_pixel),
-          sample_buffer_(total_size(), ctx, std::move(sample_buffer_stream),
-                         cuda::AllocType::OnDeviceOnly),
-          averaged_pixels_(pixel_count(), ctx, std::move(averaged_pixels_stream),
-                           cuda::AllocType::OnBoth) {}
+          sample_buffer_(total_size(), ctx, cuda::AllocType::OnDeviceOnly),
+          averaged_pixels_(pixel_count(), ctx, cuda::AllocType::OnBoth) {}
 
     [[nodiscard]] size_t width() const noexcept { return width_; }
     [[nodiscard]] size_t height() const noexcept { return height_; }
@@ -61,14 +60,14 @@ class Image : public Convertible<device::params::Image> {
     }
 
     [[nodiscard]] utils::Result<> save(const std::filesystem::path& filename) {
-        const auto& stream = averaged_pixels_.get_context_param();
+        // const auto& stream = averaged_pixels_.get_context_param();
 
         spdlog::info("Averaging {} samples per pixel ({}x{}) into EXR '{}'", num_samples_per_pixel_,
                      width_, height_, filename.string());
 
         device::kernels::launch_average_samples_kernel(averaged_pixels_.device(),
                                                        sample_buffer_.device(), width_, height_,
-                                                       num_samples_per_pixel_, stream->get());
+                                                       num_samples_per_pixel_, nullptr);
         spdlog::debug("Launched average_samples_kernel");
 
         averaged_pixels_.download();
@@ -77,12 +76,9 @@ class Image : public Convertible<device::params::Image> {
         auto w = width_;
         auto h = height_;
 
-        stream->addCallback([=](cudaError_t) {
-            spdlog::info("Saving EXR to '{}'", filename.string());
-            return utils::io::saveExrImage(view, w, h, filename);
-        });
-
-        stream->synchronize();
+        spdlog::info("Saving EXR to '{}'", filename.string());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        return utils::io::saveExrImage(view, w, h, filename);
         return {};
     }
 };

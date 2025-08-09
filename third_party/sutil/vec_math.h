@@ -88,6 +88,7 @@ SUTIL_INLINE SUTIL_HOSTDEVICE unsigned long long min(unsigned long long a, unsig
 }
 
 /** lerp */
+namespace sutil {
 SUTIL_INLINE SUTIL_HOSTDEVICE float lerp(const float a, const float b, const float t) {
     return a + t * (b - a);
 }
@@ -97,6 +98,11 @@ SUTIL_INLINE SUTIL_HOSTDEVICE float bilerp(const float x00, const float x10, con
                                            const float x11, const float u, const float v) {
     return lerp(lerp(x00, x10, u), lerp(x01, x11, u), v);
 }
+}  // namespace sutil
+
+// Keep global versions for backward compatibility if needed
+using sutil::lerp;
+using sutil::bilerp;
 
 template <typename IntegerType>
 SUTIL_INLINE SUTIL_HOSTDEVICE IntegerType roundUp(IntegerType x, IntegerType y) {
