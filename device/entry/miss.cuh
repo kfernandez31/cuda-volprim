@@ -8,8 +8,9 @@
 
 extern "C" __global__ void __miss__ms() {
     using namespace thesis::device;
-    
-    auto color = make_float3(0.0f, 0.0f, 1.0f);
+    const auto ray_direction = optixGetWorldRayDirection();
+    const auto color = launch_params.env_map_.sample(ray_direction);
+
     payloads::Miss p(color);
     p.packToOptix();
 }
