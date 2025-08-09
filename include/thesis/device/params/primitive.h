@@ -48,25 +48,62 @@ class THESIS_ALIGNMENT Primitive {
         // Precompute length and inverse
         const auto w_len2 = math::length2(w);
         const auto w_inv_len = rsqrtf(w_len2);
+        const auto w_len = sqrtf(w_len2);
 
-        // Midpoint traversal distance
-        const auto t_scaled = (TO_INFINITY ? t0                  // [t0, ∞)
-                                           : 0.5f * (t1 - t0));  // [t0, t1]
+        // Points along the ray in local space
+        const auto p0 = p + t0 * w;
+        const auto p1 = TO_INFINITY ? p0 : p + t1 * w;  // p1 not used for TO_INFINITY case
 
-        // Advance point to midpoint
-        const auto mid_p = p + t_scaled * w;
-
-        // Dot products
-        const auto wp = dot(w, mid_p) * w_inv_len;
-        const auto pp = dot(mid_p, mid_p);
-        const auto diff = __fmaf_rn(-wp, wp, pp);  // pp - wp²
-
-        // Final expression
-        const auto e_term = __expf(-0.5f * diff);
-        const float erf_term = (TO_INFINITY ? erfcf : erff)(t_scaled * math::ROOT_TWO_F);
-        const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
-
-        return optical_thickness_ * G_term * e_term * erf_term;
+        // Project onto ray direction (normalized)
+        const auto w_normalized = w * w_inv_len;
+        
+        if (TO_INFINITY) {
+            // For semi-infinite integral [t0, ∞)
+            const auto wp0 = dot(w_normalized, p0);
+            const auto pp0 = dot(p0, p0);
+            const auto perp_dist2 = pp0 - wp0 * wp0;  // Perpendicular distance squared
+            
+            const auto e_term = __expf(-0.5f * perp_dist2);
+            const auto erf_term = erfcf(wp0 * math::ROOT_TWO_F);  // erfc(x) = 1 - erf(x), integral from x to infinity
+            const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
+            const auto result = optical_thickness_ * G_term * e_term * erf_term;
+            
+            // Debug output for checking values
+            if (result < 0.0f || !isfinite(result)) {
+                printf("WARNING: Invalid optical depth: result=%f, G=%f, e=%f, erf=%f, thickness=%f\n",
+                       result, G_term, e_term, erf_term, optical_thickness_);
+            }
+            
+            return result;
+        } else {
+            // For finite integral [t0, t1]
+            const auto wp0 = dot(w_normalized, p0);
+            const auto wp1 = dot(w_normalized, p1);
+            
+            // Use the midpoint for the exponential term (better numerical stability)
+            const auto mid_p = 0.5f * (p0 + p1);
+            const auto wp_mid = dot(w_normalized, mid_p);
+            const auto pp_mid = dot(mid_p, mid_p);
+            const auto perp_dist2 = pp_mid - wp_mid * wp_mid;
+            
+            const auto e_term = __expf(-0.5f * perp_dist2);
+            
+            // Difference of error functions for the integral bounds
+            const auto erf0 = erff(wp0 * math::ROOT_TWO_F);
+            const auto erf1 = erff(wp1 * math::ROOT_TWO_F);
+            const auto erf_term = erf1 - erf0;
+            
+            const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
+            const auto result = optical_thickness_ * G_term * e_term * erf_term;
+            
+            // Debug output for checking values
+            if (result < 0.0f || !isfinite(result)) {
+                printf("WARNING: Invalid optical depth: result=%f, G=%f, e=%f, erf=%f, thickness=%f\n",
+                       result, G_term, e_term, erf_term, optical_thickness_);
+            }
+            
+            return result;
+        }
     }
 #endif  // DEVICE
 
