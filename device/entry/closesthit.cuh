@@ -20,9 +20,14 @@ extern "C" __global__ void __closesthit__ch() {
     const unsigned hitKind = optixGetHitKind();
     p.is_exit = (hitKind == OPTIX_HIT_KIND_SPHERE_BACK_FACE);
     
+    // More detailed debug output
     const auto idx = optixGetLaunchIndex();
-    printf("ch [%u, %u]: t = %f, idx = %u, kind = %d\n", 
-        idx.x, idx.y, p.t_hit, p.prim_idx, hitKind);
+    if (idx.x == 256 && idx.y == 256) {
+        const float3 hitpoint = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
+        printf("ClosestHit center pixel: t=%.3f, prim_idx=%u, hitKind=%u (0xFE=front, 0xFF=back)\n", 
+               p.t_hit, p.prim_idx, hitKind);
+        printf("  Hit point: (%.3f, %.3f, %.3f)\n", hitpoint.x, hitpoint.y, hitpoint.z);
+    }
 
     p.packToOptix();
 }

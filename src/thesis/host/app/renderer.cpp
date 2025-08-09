@@ -35,13 +35,13 @@ Renderer::Renderer(const app::Config& config)
       streams_(),
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
-      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
+      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
-      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth) {
+      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
+      launch_params_(1, cuda_ctx_.get(), cuda::AllocType::OnBoth) {
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
     
@@ -69,7 +69,7 @@ void Renderer::initPrimsAndGAS()
         params::Primitive prim(
             translate[i],
             glm::quat(1, 0, 0, 0),
-            glm::vec3(0.5f),
+            glm::vec3(1.0f),  // Changed from 0.5f to 1.0f to match sphere radius
             albedo[i],
             1.f);
         primitives_[i] = prim.toDevice();

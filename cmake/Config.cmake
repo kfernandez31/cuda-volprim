@@ -18,7 +18,7 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # === CUDA Architecture & NVCC Standard Mapping ===
-set(CUDA_ARCH "75" CACHE STRING "CUDA architecture to compile for") # Turing
+set(CUDA_ARCH "50" CACHE STRING "CUDA architecture to compile for") # Maxwell
 if (CMAKE_CXX_STANDARD GREATER_EQUAL 23)
     set(NVCC_STD_FLAG "--std=c++20")  # Match CUDA's supported C++ standard
 elseif (CMAKE_CXX_STANDARD STREQUAL "20")
@@ -41,7 +41,7 @@ set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 if (WIN32)
     set(DEFAULT_OPTIX_ROOT "C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0")
 else()
-    set(DEFAULT_OPTIX_ROOT "/opt/optix")
+    set(DEFAULT_OPTIX_ROOT "/home/prybicki/NVIDIA-OptiX-SDK-8.0.0-linux64-x86_64")
 endif()
 set(OPTIX_ROOT "${OPTIX_ROOT}" CACHE PATH "Path to OptiX SDK")
 if(NOT OPTIX_ROOT)

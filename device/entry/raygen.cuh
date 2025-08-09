@@ -32,12 +32,30 @@ extern "C" __global__ void __raygen__rg() {
     auto throughput = make_float3(1.0f);
     auto radiance = make_float3(0.0f);
 
+    // Debug output for center pixel
+    if (launch_idx.x == 256 && launch_idx.y == 256) {
+        printf("Raygen center pixel: origin=(%.3f,%.3f,%.3f) dir=(%.3f,%.3f,%.3f)\n",
+               ray.origin_.x, ray.origin_.y, ray.origin_.z,
+               ray.direction_.x, ray.direction_.y, ray.direction_.z);
+    }
+    
     const auto hit = trace_ch(ray, 0.0f);
     if (hit) {
         auto idx = hit.unwrap().prim_idx;
         radiance = launch_params.primitives_[idx].albedo_;
+        
+        // Debug output for any hit
+        if (launch_idx.x == 256 && launch_idx.y == 256) {
+            printf("Raygen: HIT sphere at t=%.3f, prim_idx=%u\n", 
+                   hit.unwrap().t_hit, idx);
+        }
     } else {
         radiance = hit.unwrap_err().color();
+        
+        // Debug output for miss
+        if (launch_idx.x == 256 && launch_idx.y == 256) {
+            printf("Raygen: MISS - using environment color\n");
+        }
     }
 
     launch_params.image_[global_sample_idx] = radiance;

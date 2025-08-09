@@ -8,7 +8,7 @@ set(OPTIXIR_OUTPUT "${CMAKE_BINARY_DIR}/device_program.optixir")
 
 add_custom_command(
     OUTPUT ${OPTIXIR_OUTPUT}
-    COMMAND ${CMAKE_COMMAND} -E echo "Compiling OptiX-IR: ${DEVICE_ENTRY} -> ${OPTIXIR_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E echo "Compiling OptiX-IR: ${DEVICE_ENTRY} to ${OPTIXIR_OUTPUT}"
     COMMAND "${CMAKE_CUDA_COMPILER}"
         -I "${OPTIX_ROOT}/include"
         -I "${INCLUDE_DIR}"

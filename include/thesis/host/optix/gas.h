@@ -22,38 +22,51 @@ class GAS : public AccelerationStructure {
 };
 
 class SphereGAS {
-    cuda::AsyncBuffer<float4> spheres_; // TODO(kacper): compact into one buffer
+    cuda::Buffer<float3> vertices_;  // Separate buffer for vertices
+    cuda::Buffer<float> radii_;      // Separate buffer for radii
     GAS gas_;
-    CUdeviceptr vertex_buffer_ptr_;
-    CUdeviceptr radius_buffer_ptr_;
 
    public:
     SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : spheres_(1, ctx, stream, cuda::AllocType::OnBoth)
-        , gas_(ctx, std::move(stream))
-        , vertex_buffer_ptr_(spheres_.cu_device_ptr())
-        , radius_buffer_ptr_(vertex_buffer_ptr_ + sizeof(float3)) {}
+        : vertices_(1, ctx, cuda::AllocType::OnBoth)
+        , radii_(1, ctx, cuda::AllocType::OnBoth)
+        , gas_(ctx, std::move(stream)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        const auto sphere = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
-        spheres_.host()[0] = sphere;
-        spheres_.upload();
+        // Set sphere center at origin
+        vertices_.host()[0] = make_float3(0.0f, 0.0f, 0.0f);
+        vertices_.upload();
+        
+        // Set sphere radius to 1.0
+        radii_.host()[0] = 1.0f;
+        radii_.upload();
 
         static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
         OptixBuildInput in{};
         in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
-        in.sphereArray.vertexBuffers = &vertex_buffer_ptr_;
+        CUdeviceptr vertex_buffer_ptr = vertices_.cu_device_ptr();
+        CUdeviceptr radius_buffer_ptr = radii_.cu_device_ptr();
+        
+        in.sphereArray.vertexBuffers = &vertex_buffer_ptr;
+        in.sphereArray.vertexStrideInBytes = sizeof(float3);
         in.sphereArray.numVertices = 1;
         
-        in.sphereArray.radiusBuffers = &radius_buffer_ptr_;
+        in.sphereArray.radiusBuffers = &radius_buffer_ptr;
+        in.sphereArray.radiusStrideInBytes = sizeof(float);
+        in.sphereArray.singleRadius = false;
     
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;
+        in.sphereArray.sbtIndexOffsetBuffer = 0;
+        in.sphereArray.sbtIndexOffsetSizeInBytes = 0;
+        in.sphereArray.sbtIndexOffsetStrideInBytes = 0;
+        in.sphereArray.primitiveIndexOffset = 0;
 
         spdlog::info("Sphere buffer ptrs: vertex=0x{:x}, radius=0x{:x}",
-                    vertex_buffer_ptr_, radius_buffer_ptr_);
+                    vertex_buffer_ptr, radius_buffer_ptr);
+        spdlog::info("Sphere center: (0,0,0), radius: 1.0");
 
         gas_.build(in, cuda_ctx, optix_ctx);
         spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());
