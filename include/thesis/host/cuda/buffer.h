@@ -13,12 +13,16 @@ struct DeviceDeleter {
     inline void operator()(void* ptr) const noexcept { CUDA_CHECK_NOEXCEPT(cudaFree(ptr)); }
 };
 
+struct PinnedHostDeleter {
+    inline void operator()(void* ptr) const noexcept { CUDA_CHECK_NOEXCEPT(cudaFreeHost(ptr)); }
+};
+
 }  // namespace detail
 
 template <typename T>
 struct SyncBufferPolicy {
     using device_ptr_type = std::unique_ptr<T, detail::DeviceDeleter>;
-    using host_ptr_type = std::unique_ptr<T[]>;
+    using host_ptr_type = std::unique_ptr<T, detail::PinnedHostDeleter>;
     using ContextParam = std::monostate;
 
     [[nodiscard]] static device_ptr_type alloc_device(size_t count, CUcontext ctx, ContextParam) {
@@ -29,7 +33,9 @@ struct SyncBufferPolicy {
     }
 
     [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam) {
-        return std::make_unique<T[]>(count);
+        void* raw = nullptr;
+        CUDA_CHECK(cudaHostAlloc(&raw, count * sizeof(T), cudaHostAllocDefault));
+        return host_ptr_type(static_cast<T*>(raw), detail::PinnedHostDeleter{});
     }
 
     static void upload(T* dst_device, const T* src_host, size_t bytes, ContextParam) {

@@ -51,11 +51,17 @@ class ProgramGroup {
     }
 
     static ProgramGroup createHitgroup(OptixDeviceContext ctx, OptixModule module,
-                                       const char* closest_hit_entry) {
+                                       const char* closest_hit_entry, 
+                                       OptixModule builtin_is_module = nullptr) {
         OptixProgramGroupDesc desc = {};
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
         desc.hitgroup.moduleCH = module;
         desc.hitgroup.entryFunctionNameCH = closest_hit_entry;
+        // For sphere primitives, use built-in intersection module
+        if (builtin_is_module) {
+            desc.hitgroup.moduleIS = builtin_is_module;
+            desc.hitgroup.entryFunctionNameIS = nullptr;  // Must be nullptr for built-in IS
+        }
         return {ctx, desc};
     }
 

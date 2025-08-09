@@ -34,27 +34,6 @@ struct Unit {
     constexpr bool operator!=(Unit) const noexcept { return false; }
 };
 
-struct Error;
-
-// TODO(kacper): think of using in places that use the CHECK macros
-template <typename T = Unit>
-using Result = std::expected<T, Error>;
-
-template <typename T = Unit>
-T try_unwrap_or_exit(Result<T>&& res) {
-    if (!res) {
-        const Error& err = res.error();
-        spdlog::error("Fatal: {} (code {})", err.msg_, err.code_);
-        std::exit(err.code_);
-    }
-    return std::move(*res);
-}
-
-template <typename... Args>
-std::unexpected<Error> make_error(Args&&... args) {
-    return std::unexpected<Error>(Error(std::forward<Args>(args)...));
-}
-
 namespace detail {
 inline std::string last_error_string() {
 #ifdef _MSC_VER
@@ -93,6 +72,25 @@ struct Error {
     Error(std::string_view fmt_str, Args&&... args)
         : Error(errno, fmt_str, std::forward<Args>(args)...) {}
 };
+
+// TODO(kacper): think of using in places that use the CHECK macros
+template <typename T = Unit>
+using Result = std::expected<T, Error>;
+
+template <typename T = Unit>
+T try_unwrap_or_exit(Result<T>&& res) {
+    if (!res) {
+        const Error& err = res.error();
+        spdlog::error("Fatal: {} (code {})", err.msg_, err.code_);
+        std::exit(err.code_);
+    }
+    return std::move(*res);
+}
+
+template <typename... Args>
+std::unexpected<Error> make_error(Args&&... args) {
+    return std::unexpected<Error>(Error(std::forward<Args>(args)...));
+}
 
 }  // namespace thesis::host::utils
 
