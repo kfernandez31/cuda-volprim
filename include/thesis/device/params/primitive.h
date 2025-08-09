@@ -62,7 +62,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto mid_p = TO_INFINITY ? p0 : 0.5f * (p0 + p1);
         const auto wp_mid = TO_INFINITY ? wp0 : 0.5f * (wp0 + wp1);
         const auto pp_mid = dot(mid_p, mid_p);
-        const auto perp_dist2 = pp_mid - wp_mid * wp_mid;
+        const auto perp_dist2 = pp_mid - math::pow2(wp_mid);
         
         // Common terms
         const auto e_term = __expf(-0.5f * perp_dist2);
