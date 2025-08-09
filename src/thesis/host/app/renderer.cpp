@@ -49,6 +49,13 @@ Renderer::Renderer(const app::Config& config)
     createPipeline();
 }
 
+Renderer::~Renderer() {
+    // Clean up the built-in intersection module
+    if (builtin_is_module_) {
+        optixModuleDestroy(builtin_is_module_);
+    }
+}
+
 void Renderer::initPrimsAndGAS()
 {
     /* ── 1. Per-primitive data ────────────────────────────────────── */
@@ -140,6 +147,20 @@ void Renderer::createPipeline() {
         optix::Module::load(optix_ctx_.get(), config_.module_blob_path_, pco)
     );
 
+    // Get built-in intersection module for spheres
+    OptixBuiltinISOptions builtin_is_options = {};
+    builtin_is_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
+    builtin_is_options.usesMotionBlur = false;
+    builtin_is_options.buildFlags = optix::GAS_BUILD_FLAGS;  // Must match GAS build flags
+    
+    OptixModuleCompileOptions mco = {};
+    mco.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+    mco.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
+    
+    OPTIX_CHECK(optixBuiltinISModuleGet(optix_ctx_.get(), &mco, &pco, &builtin_is_options, &builtin_is_module_));
+    spdlog::info("Built-in intersection module for spheres obtained");
+
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(
         optix_ctx_.get(),
@@ -154,11 +175,12 @@ void Renderer::createPipeline() {
         config_.miss_function_name_.c_str()
     );
 
-    // hitgroup
+    // hitgroup - now with built-in intersection module for spheres
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(),
         module_.get(),
-        config_.closesthit_function_name_.c_str()
+        config_.closesthit_function_name_.c_str(),
+        builtin_is_module_  // Pass the built-in IS module for spheres
     );
 
     // sbt

@@ -4,6 +4,7 @@
 #include "thesis/host/cuda/buffer.h"
 #include "thesis/host/cuda/stream.h"
 #include "thesis/host/optix/context.h"
+#include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/module.h"
 #include "thesis/host/optix/program_group.h"
 #include "thesis/host/optix/pipeline.h"
@@ -51,97 +52,20 @@ int main() {
     pco.pipelineLaunchParamsVariableName = "launch_params";
     pco.numPayloadValues = thesis::device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;  // Changed to triangles
+    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
     
     // Log OptiX information
-    spdlog::info("OptiX primitive flags: TRIANGLE (testing with box mesh instead of sphere)");
+    spdlog::info("OptiX primitive flags: SPHERE");
     auto module = thesis::host::utils::try_unwrap_or_exit<optix::Module>(
         optix::Module::load(optix_ctx.get(), "build/device_program.optixir", pco)
     );
 
-    // Create a simple box using triangles instead of sphere primitive
-    // Box centered at origin with size 2x2x2 (from -1 to 1 on each axis)
-    float3 vertices[] = {
-        // Front face
-        make_float3(-1.0f, -1.0f,  1.0f),  // 0
-        make_float3( 1.0f, -1.0f,  1.0f),  // 1
-        make_float3( 1.0f,  1.0f,  1.0f),  // 2
-        make_float3(-1.0f,  1.0f,  1.0f),  // 3
-        // Back face
-        make_float3(-1.0f, -1.0f, -1.0f),  // 4
-        make_float3( 1.0f, -1.0f, -1.0f),  // 5
-        make_float3( 1.0f,  1.0f, -1.0f),  // 6
-        make_float3(-1.0f,  1.0f, -1.0f),  // 7
-    };
+    // Create a sphere using the SphereGAS class
+    optix::SphereGAS sphere_gas(cuda_ctx.get(), stream);
+    sphere_gas.build(cuda_ctx.get(), optix_ctx.get());
     
-    // Define triangles (2 per face, 12 total)
-    uint3 indices[] = {
-        // Front face
-        make_uint3(0, 1, 2), make_uint3(0, 2, 3),
-        // Back face
-        make_uint3(5, 4, 7), make_uint3(5, 7, 6),
-        // Left face
-        make_uint3(4, 0, 3), make_uint3(4, 3, 7),
-        // Right face
-        make_uint3(1, 5, 6), make_uint3(1, 6, 2),
-        // Top face
-        make_uint3(3, 2, 6), make_uint3(3, 6, 7),
-        // Bottom face
-        make_uint3(4, 5, 1), make_uint3(4, 1, 0),
-    };
-    
-    cuda::Buffer<float3> vertex_buffer(8, cuda_ctx.get(), cuda::AllocType::OnBoth);
-    cuda::Buffer<uint3> index_buffer(12, cuda_ctx.get(), cuda::AllocType::OnBoth);
-    
-    memcpy(vertex_buffer.host(), vertices, sizeof(vertices));
-    memcpy(index_buffer.host(), indices, sizeof(indices));
-    
-    vertex_buffer.upload();
-    index_buffer.upload();
-    
-    CUdeviceptr vertex_ptr = vertex_buffer.cu_device_ptr();
-    CUdeviceptr index_ptr = index_buffer.cu_device_ptr();
-    
-    spdlog::info("Triangle mesh buffers: vertex=0x{:x}, index=0x{:x}", vertex_ptr, index_ptr);
-    spdlog::info("Box mesh: 8 vertices, 12 triangles (centered at origin, size 2x2x2)");
-
-    // Prepare build input for triangles
-    static constexpr unsigned geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
-
-    OptixBuildInput in{}; // zero-initialized
-    in.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-    in.triangleArray.vertexBuffers = &vertex_ptr;
-    in.triangleArray.numVertices = 8;
-    in.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-    in.triangleArray.vertexStrideInBytes = sizeof(float3);
-    in.triangleArray.indexBuffer = index_ptr;
-    in.triangleArray.numIndexTriplets = 12;
-    in.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-    in.triangleArray.indexStrideInBytes = sizeof(uint3);
-    in.triangleArray.flags = geomFlags;
-    in.triangleArray.numSbtRecords = 1;
-    in.triangleArray.preTransform = 0;
-
-    // Build GAS
-    OptixAccelBuildOptions opts{};
-    opts.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
-    opts.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-    OptixAccelBufferSizes sz{};
-    OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx.get(), &opts, &in, 1, &sz));
-    
-    spdlog::info("GAS buffer sizes: temp={}, output={}", sz.tempSizeInBytes, sz.outputSizeInBytes);
-
-    cuda::Buffer<std::byte> temp(sz.tempSizeInBytes, cuda_ctx.get(), cuda::AllocType::OnDeviceOnly);
-    cuda::Buffer<std::byte> out(sz.outputSizeInBytes, cuda_ctx.get(), cuda::AllocType::OnDeviceOnly);
-    
-    OptixTraversableHandle gas_handle = 0;
-    OPTIX_CHECK(optixAccelBuild(optix_ctx.get(), nullptr, &opts, &in, 1,
-                                temp.cu_device_ptr(), temp.size(), out.cu_device_ptr(),
-                                out.size(), &gas_handle, nullptr, 0));
-    
-    spdlog::info("GAS built with handle: 0x{:x}", gas_handle);
-    spdlog::info("Box GAS created (triangle mesh, centered at origin, size 2x2x2)");
+    OptixTraversableHandle gas_handle = sphere_gas.get();
+    spdlog::info("Sphere GAS created with handle: 0x{:x}", gas_handle);
     
     // Validate the GAS was built correctly
     if (gas_handle == 0) {
@@ -184,6 +108,11 @@ int main() {
     ias_in.instanceArray.instances = instances.cu_device_ptr();
     ias_in.instanceArray.numInstances = 1;
 
+    OptixAccelBuildOptions opts{};
+    opts.buildFlags = optix::GAS_BUILD_FLAGS;
+    opts.operation = OPTIX_BUILD_OPERATION_BUILD;
+    
+    OptixAccelBufferSizes sz{};
     OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx.get(), &opts, &ias_in, 1, &sz));
     spdlog::info("IAS buffer sizes: temp={}, output={}", sz.tempSizeInBytes, sz.outputSizeInBytes);
 
@@ -197,10 +126,25 @@ int main() {
     
     spdlog::info("IAS built with handle: 0x{:x}", ias_handle);
 
+    // Get built-in intersection module for spheres
+    OptixBuiltinISOptions builtin_is_options = {};
+    builtin_is_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
+    builtin_is_options.usesMotionBlur = false;
+    builtin_is_options.buildFlags = optix::GAS_BUILD_FLAGS;  // Must match GAS build flags
+    
+    OptixModuleCompileOptions mco = {};
+    mco.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+    mco.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
+    
+    OptixModule builtin_is_module = nullptr;
+    OPTIX_CHECK(optixBuiltinISModuleGet(optix_ctx.get(), &mco, &pco, &builtin_is_options, &builtin_is_module));
+    spdlog::info("Built-in intersection module for spheres obtained");
+    
     // Create program groups
     auto raygen_pg = optix::ProgramGroup::createRaygen(optix_ctx.get(), module.get(), "__raygen__rg");
     auto miss_pg = optix::ProgramGroup::createMiss(optix_ctx.get(), module.get(), "__miss__ms");
-    auto hitgroup_pg = optix::ProgramGroup::createHitgroup(optix_ctx.get(), module.get(), "__closesthit__ch");
+    auto hitgroup_pg = optix::ProgramGroup::createHitgroup(optix_ctx.get(), module.get(), "__closesthit__ch", builtin_is_module);
 
     // Build SBT
     optix::SBT sbt(cuda_ctx.get(), stream);
@@ -270,6 +214,11 @@ int main() {
     host::utils::try_unwrap_or_exit(image.save("minimal_sphere_output.exr"));
     
     spdlog::info("Test complete - check minimal_sphere_output.exr");
+    
+    // Clean up built-in intersection module
+    if (builtin_is_module) {
+        optixModuleDestroy(builtin_is_module);
+    }
 
     return 0;
 }
