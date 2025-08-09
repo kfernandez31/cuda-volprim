@@ -21,7 +21,7 @@ constexpr float INTERSECTION_EPS = 1e-3f;
 
 template <uint FLAGS>
 __device__ __forceinline__ auto trace_impl(const geometry::Ray& ray, float t_min, float eps=consts::INTERSECTION_EPS) {
-    uint ps[payloads::MAX_PAYLOADS] = {};
+    uint ps[payloads::MAX_PAYLOADS]{};
     
     optixTrace(
         launch_params.ias_handle_,

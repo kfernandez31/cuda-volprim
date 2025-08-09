@@ -39,11 +39,11 @@ class StreamDAG {
     StreamDAG& operator=(StreamDAG&&) = default;
 
     [[nodiscard]] std::shared_ptr<Stream>& operator[](StreamKind kind) noexcept {
-        return streams_[static_cast<size_t>(StreamKind::Main)]; // TODO(kacper): restore
+        return streams_[static_cast<size_t>(StreamKind::Main)];  // TODO(kacper): restore
     }
 
     [[nodiscard]] const std::shared_ptr<Stream>& operator[](StreamKind kind) const noexcept {
-        return streams_[static_cast<size_t>(StreamKind::Main)]; // TODO(kacper): restore
+        return streams_[static_cast<size_t>(StreamKind::Main)];  // TODO(kacper): restore
     }
 
     void addDependency(StreamKind down, StreamKind up) {

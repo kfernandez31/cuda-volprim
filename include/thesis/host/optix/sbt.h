@@ -10,8 +10,8 @@
 #include <optix_types.h>
 
 #include <memory>
-#include <utility>
 #include <spdlog/spdlog.h>
+#include <utility>
 
 namespace thesis::host::optix {
 

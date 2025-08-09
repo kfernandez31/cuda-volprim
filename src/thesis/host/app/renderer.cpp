@@ -50,9 +50,8 @@ Renderer::Renderer(const app::Config& config)
 }
 
 Renderer::~Renderer() {
-    // Clean up the built-in intersection module
     if (builtin_is_module_) {
-        optixModuleDestroy(builtin_is_module_);
+        optixModuleDestroy(builtin_is_module_); // TODO: RAII-ify
     }
 }
 
@@ -140,8 +139,6 @@ void Renderer::createPipeline() {
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
     pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
     
-    spdlog::info("Pipeline compile options: primitiveTypeFlags = 0x{:x}", pco.usesPrimitiveTypeFlags);
-
     // module
     module_ = utils::try_unwrap_or_exit<optix::Module>(
         optix::Module::load(optix_ctx_.get(), config_.module_blob_path_, pco)
@@ -159,7 +156,6 @@ void Renderer::createPipeline() {
     mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
     
     OPTIX_CHECK(optixBuiltinISModuleGet(optix_ctx_.get(), &mco, &pco, &builtin_is_options, &builtin_is_module_));
-    spdlog::info("Built-in intersection module for spheres obtained");
 
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(
@@ -188,7 +184,7 @@ void Renderer::createPipeline() {
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::SBT);
     spdlog::info("SBT created");
 
-    OptixPipelineLinkOptions plo = {};
+    OptixPipelineLinkOptions plo{};
     plo.maxTraceDepth = 1;
 
     std::array<OptixProgramGroup, 3> pgs = {raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get()};

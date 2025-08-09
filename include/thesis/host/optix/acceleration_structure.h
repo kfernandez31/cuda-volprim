@@ -19,11 +19,9 @@ class AccelerationStructure {
     cuda::Buffer<size_t> compacted_size_;
     OptixTraversableHandle handle_ = 0;
 
-    void build_internal(const OptixBuildInput& input, 
-                CUcontext cuda_ctx, 
-                OptixDeviceContext optix_ctx,
-                uint build_flags,
-                const char* structure_type) {
+    void build_internal(const OptixBuildInput& input, CUcontext cuda_ctx,
+                        OptixDeviceContext optix_ctx, uint build_flags,
+                        const char* structure_type) {
         // const auto& stream = compacted_size_.get_context_param();
 
         OptixAccelBuildOptions opts{};
@@ -33,8 +31,10 @@ class AccelerationStructure {
         OptixAccelBufferSizes sz{};
         OPTIX_CHECK(optixAccelComputeMemoryUsage(optix_ctx, &opts, &input, 1, &sz));
 
-        temp_ = cuda::Buffer<std::byte>(sz.tempSizeInBytes, cuda_ctx, cuda::AllocType::OnDeviceOnly);
-        out_ = cuda::Buffer<std::byte>(sz.outputSizeInBytes, cuda_ctx, cuda::AllocType::OnDeviceOnly);
+        temp_ =
+            cuda::Buffer<std::byte>(sz.tempSizeInBytes, cuda_ctx, cuda::AllocType::OnDeviceOnly);
+        out_ =
+            cuda::Buffer<std::byte>(sz.outputSizeInBytes, cuda_ctx, cuda::AllocType::OnDeviceOnly);
 
         OptixAccelEmitDesc* emit_desc_ptr = nullptr;
         OptixAccelEmitDesc emit{};
@@ -46,10 +46,9 @@ class AccelerationStructure {
             emit_desc_ptr = &emit;
         }
 
-        OPTIX_CHECK(optixAccelBuild(optix_ctx, nullptr, &opts, &input, 1,
-                                    temp_.cu_device_ptr(), temp_.size(), out_.cu_device_ptr(),
-                                    out_.size(), &handle_, emit_desc_ptr,
-                                    emit_desc_ptr ? 1 : 0));
+        OPTIX_CHECK(optixAccelBuild(optix_ctx, nullptr, &opts, &input, 1, temp_.cu_device_ptr(),
+                                    temp_.size(), out_.cu_device_ptr(), out_.size(), &handle_,
+                                    emit_desc_ptr, emit_desc_ptr ? 1 : 0));
 
         if (!(build_flags & OPTIX_BUILD_FLAG_ALLOW_COMPACTION)) {
             spdlog::warn("{} compaction skipped (compacted_size = 0)", structure_type);
@@ -59,11 +58,13 @@ class AccelerationStructure {
 
             const auto compacted_size = compacted_size_[0];
             if (compacted_size > 0 && compacted_size < out_.size()) {
-                spdlog::info("{} compaction issued ({} -> {} bytes)", structure_type, out_.size(), compacted_size);
-                out_ = cuda::Buffer<std::byte>(compacted_size, cuda_ctx, cuda::AllocType::OnDeviceOnly);
+                spdlog::info("{} compaction issued ({} -> {} bytes)", structure_type, out_.size(),
+                             compacted_size);
+                out_ = cuda::Buffer<std::byte>(compacted_size, cuda_ctx,
+                                               cuda::AllocType::OnDeviceOnly);
                 OPTIX_CHECK(optixAccelCompact(optix_ctx, nullptr, handle_,
-                                            reinterpret_cast<CUdeviceptr>(out_.device()),
-                                            compacted_size, &handle_));
+                                              reinterpret_cast<CUdeviceptr>(out_.device()),
+                                              compacted_size, &handle_));
             }
         }
     }

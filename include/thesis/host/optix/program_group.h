@@ -51,7 +51,7 @@ class ProgramGroup {
     }
 
     static ProgramGroup createHitgroup(OptixDeviceContext ctx, OptixModule module,
-                                       const char* closest_hit_entry, 
+                                       const char* closest_hit_entry,
                                        OptixModule builtin_is_module = nullptr) {
         OptixProgramGroupDesc desc = {};
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;

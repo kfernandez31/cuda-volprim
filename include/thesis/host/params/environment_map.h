@@ -11,8 +11,8 @@
 
 #include <cstddef>
 #include <filesystem>
-#include <utility>
 #include <spdlog/spdlog.h>
+#include <utility>
 
 namespace thesis::host::params {
 

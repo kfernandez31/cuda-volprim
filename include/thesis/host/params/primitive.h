@@ -37,7 +37,8 @@ class Primitive : public Convertible<device::params::Primitive> {
           optical_thickness_(optical_thickness) {}
 
     [[nodiscard]] glm::mat4 localToWorld() const noexcept {
-        static constexpr auto INTERSECTION_SCALING_FACTOR = 1.0f; // Changed from 3.0f - spheres don't need extra scaling
+        static constexpr auto INTERSECTION_SCALING_FACTOR =
+            1.0f;  // Changed from 3.0f - spheres don't need extra scaling
 
         const auto T = glm::translate(center_);
         const auto R = glm::toMat4(rot_quat_);
