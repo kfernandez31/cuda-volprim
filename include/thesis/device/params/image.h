@@ -26,6 +26,10 @@ struct THESIS_ALIGNMENT Image {
     __device__ const float3& operator[](size_t global_idx) const {
         return sample_buffer_[global_idx];
     }
+
+    __device__ uint2 midPoint() const {
+        return make_uint2(width_ / 2, height_ / 2);
+    }
 #endif  // DEVICE
 };
 

@@ -56,6 +56,25 @@ extern "C" __global__ void __raygen__rg() {
             radiance = hit.unwrap_err().color();
         }
     } else {
+        // const auto result = trace_ch(ray, 0);
+        // if (!result) {
+        //     const auto miss = result.unwrap_err();
+        //     radiance = miss.color();
+        // } else {
+        //     const auto& hit = result.unwrap();        
+        //     const auto t_hit = hit.t_hit;
+        //     const auto prim_idx = hit.prim_idx;
+        //     // const auto is_exit = hit.is_exit;
+
+        //     const auto& prim = launch_params.primitives_[prim_idx];
+
+        //     const float t0 = t_hit;
+        //     // const float t1 = t_hit + 1.0f;
+
+        //     const auto b = pixel_idx == launch_params.image_.midPoint();
+        //     radiance = prim.density_integral(ray, t0, b);
+        // }
+        
         optix::ScatteringEvent<consts::MAX_PRIMS> event;
         payloads::Miss miss;
 

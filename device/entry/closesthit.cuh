@@ -15,9 +15,7 @@ extern "C" __global__ void __closesthit__ch() {
     payloads::ClosestHit p;
     p.t_hit    = optixGetRayTmax();
     p.prim_idx = optixGetInstanceId();
-    // p.prim_idx = optixGetPrimitiveIndex(); // TODO(kacper): maybe use this?
-    
-    const unsigned hitKind = optixGetHitKind();
+    const auto hitKind = optixGetHitKind();
     p.is_exit = (hitKind == OPTIX_HIT_KIND_SPHERE_BACK_FACE);
 
     p.packToOptix();

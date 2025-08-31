@@ -179,14 +179,6 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
 
         const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_total, t_hit);
         
-        if (launch_params.debug_ && launch_params.seed_ == 42) {
-            // Debug output for first pixel only
-            if (optixGetLaunchIndex().x == 1000 && optixGetLaunchIndex().y == 750) {
-                printf("sample_scattering: t_total=%f, t_hit=%f, tau_segment=%f, tau_cumulative=%f, tau_target=%f, active_prims=%d\n", 
-                       t_total, t_hit, tau_segment, tau_cumulative, tau_target, active_prims.size());
-            }
-        }
-        
         // scattering occurred
         // [                                t              ]
         // ^- tau_cumulative & t_total      ^- tau_target & t      ^-tau_target + tau_segment & t_hit

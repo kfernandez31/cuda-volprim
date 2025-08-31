@@ -73,15 +73,7 @@ class THESIS_ALIGNMENT Primitive {
             ? erfcf(wp0 * math::ROOT_TWO_F)  // erfc(x) = integral from x to infinity
             : erff(wp1 * math::ROOT_TWO_F) - erff(wp0 * math::ROOT_TWO_F);  // finite difference
         
-        const auto result = optical_thickness_ * G_term * e_term * erf_term;
-        
-        // Debug output for checking values
-        if (result < 0.0f || !isfinite(result)) {
-            printf("WARNING: Invalid optical depth: result=%f, G=%f, e=%f, erf=%f, thickness=%f\n",
-                   result, G_term, e_term, erf_term, optical_thickness_);
-        }
-        
-        return result;
+        return optical_thickness_ * G_term * e_term * erf_term;    
     }
 #endif  // DEVICE
 
@@ -158,11 +150,11 @@ class THESIS_ALIGNMENT Primitive {
         return optical_depth_internal<false>(ray, t0, t1);
     }
 
-    __device__ float3 density_integral(const geometry::Ray& ray, float t0) const {
+    __device__ float3 density_integral(const geometry::Ray& ray, float t0, bool debug=false) const {
         return albedo_ * optical_depth(ray, t0);
     }
 
-    __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1) const {
+    __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1, bool debug=false) const {
         return albedo_ * optical_depth(ray, t0, t1);
     }
 #endif  // DEVICE

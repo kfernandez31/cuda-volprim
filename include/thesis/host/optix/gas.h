@@ -66,10 +66,6 @@ class SphereGAS {
         in.sphereArray.sbtIndexOffsetStrideInBytes = 0;
         in.sphereArray.primitiveIndexOffset = 0;
 
-        spdlog::info("Sphere buffer ptrs: vertex=0x{:x}, radius=0x{:x}", vertex_buffer_ptr,
-                     radius_buffer_ptr);
-        spdlog::info("Sphere center: (0,0,0), radius: 1.0");
-
         gas_.build(in, cuda_ctx, optix_ctx);
         spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());
     }

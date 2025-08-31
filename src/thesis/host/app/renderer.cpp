@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 1
+#define NUM_PRIMITIVES 1 
 
 namespace thesis::host::app {
 
@@ -51,29 +51,20 @@ Renderer::Renderer(const app::Config& config)
 
 Renderer::~Renderer() {
     if (builtin_is_module_) {
-        optixModuleDestroy(builtin_is_module_); // TODO: RAII-ify
+        optixModuleDestroy(builtin_is_module_); // TODO(kacper): RAII-ify
     }
 }
 
 void Renderer::initPrimsAndGAS()
 {
     /* ── 1. Per-primitive data ────────────────────────────────────── */
-    const glm::vec3 albedo [NUM_PRIMITIVES] = {
-        glm::vec3{1.f,0.f,0.f},
-        // glm::vec3{1.f,0.f,0.f},
-    };
-    const glm::vec3 translate[NUM_PRIMITIVES] = {
-        glm::vec3{0.0f,0.0f,0.0f},
-        // glm::vec3{0.0f,0.0f,0.0f},
-    };
     const glm::vec3 albedos[NUM_PRIMITIVES] = {
         {1,0,0},
         // {0,0,1},
     };
-
     const glm::vec3 translations[NUM_PRIMITIVES] = {
         {0,0,0},
-        // {-0.5f,0,0},
+        // {1.0f,1.0f,0.0f},
         // {+0.5f,0,0},
     };
 
@@ -83,7 +74,7 @@ void Renderer::initPrimsAndGAS()
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(0.5f),
+        glm::vec3(1.0f),
         // glm::vec3(0.5f),
     };
 
