@@ -37,7 +37,7 @@ class Primitive : public Convertible<device::params::Primitive> {
           optical_thickness_(optical_thickness) {}
 
     [[nodiscard]] glm::mat4 localToWorld() const noexcept {
-        static constexpr auto INTERSECTION_SCALING_FACTOR = 1.0f; // TODO(kacper): set to 3.0f
+        static constexpr auto INTERSECTION_SCALING_FACTOR = 1.0f;  // TODO(kacper): set to 3.0f
 
         const auto T = glm::translate(center_);
         const auto R = glm::toMat4(rot_quat_);

@@ -57,23 +57,24 @@ class THESIS_ALIGNMENT Primitive {
         const auto w_normalized = w * w_inv_len;
         const auto wp0 = dot(w_normalized, p0);
         const auto wp1 = TO_INFINITY ? wp0 : dot(w_normalized, p1);
-        
+
         // Use the midpoint for the exponential term (better numerical stability)
         const auto mid_p = TO_INFINITY ? p0 : 0.5f * (p0 + p1);
         const auto wp_mid = TO_INFINITY ? wp0 : 0.5f * (wp0 + wp1);
         const auto pp_mid = dot(mid_p, mid_p);
         const auto perp_dist2 = pp_mid - math::pow2(wp_mid);
-        
+
         // Common terms
         const auto e_term = __expf(-0.5f * perp_dist2);
         const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
-        
+
         // Error function term: erfc for infinite, difference of erf for finite
-        const auto erf_term = TO_INFINITY 
-            ? erfcf(wp0 * math::ROOT_TWO_F)  // erfc(x) = integral from x to infinity
-            : erff(wp1 * math::ROOT_TWO_F) - erff(wp0 * math::ROOT_TWO_F);  // finite difference
-        
-        return optical_thickness_ * G_term * e_term * erf_term;    
+        const auto erf_term =
+            TO_INFINITY
+                ? erfcf(wp0 * math::ROOT_TWO_F)  // erfc(x) = integral from x to infinity
+                : erff(wp1 * math::ROOT_TWO_F) - erff(wp0 * math::ROOT_TWO_F);  // finite difference
+
+        return optical_thickness_ * G_term * e_term * erf_term;
     }
 #endif  // DEVICE
 

@@ -27,9 +27,7 @@ struct THESIS_ALIGNMENT Image {
         return sample_buffer_[global_idx];
     }
 
-    __device__ uint2 midPoint() const {
-        return make_uint2(width_ / 2, height_ / 2);
-    }
+    __device__ uint2 midPoint() const { return make_uint2(width_ / 2, height_ / 2); }
 #endif  // DEVICE
 };
 

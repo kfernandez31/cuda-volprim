@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 1 
+#define NUM_PRIMITIVES 1
 
 namespace thesis::host::app {
 

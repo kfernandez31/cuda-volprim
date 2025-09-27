@@ -17,7 +17,7 @@ struct Config {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
     std::string closesthit_function_name_ = "__closesthit__ch";
-    std::string intersection_function_name_ = "__intersection__sphere"; 
+    std::string intersection_function_name_ = "__intersection__sphere";
     std::string launch_params_variable_name_ = "launch_params";
 
     fs::path output_path_ = "output.exr";

@@ -27,10 +27,9 @@ class SphereGAS {
     cuda::Buffer<float4> aabbs_;
     GAS gas_;
 
-public:
+   public:
     SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : aabbs_(2, ctx, cuda::AllocType::OnBoth),
-          gas_(ctx, std::move(stream)) {}
+        : aabbs_(2, ctx, cuda::AllocType::OnBoth), gas_(ctx, std::move(stream)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
         auto min = make_float3(-1.0f);
@@ -40,23 +39,23 @@ public:
         aabbs_.host()[1] = make_float4(max.x, max.y, max.z, 0.0f);
         aabbs_.upload();
 
-        static constexpr unsigned int geomFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+        static constexpr unsigned int geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
         OptixBuildInput in{};
         in.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
         auto aabb_buffer = aabbs_.cu_device_ptr();
 
-        in.customPrimitiveArray.aabbBuffers   = &aabb_buffer;
+        in.customPrimitiveArray.aabbBuffers = &aabb_buffer;
         in.customPrimitiveArray.numPrimitives = 1;
         in.customPrimitiveArray.strideInBytes = sizeof(float4) * 2;
 
-        in.customPrimitiveArray.flags             = geomFlags;
-        in.customPrimitiveArray.numSbtRecords     = 1;
-        in.customPrimitiveArray.sbtIndexOffsetBuffer        = 0;
-        in.customPrimitiveArray.sbtIndexOffsetSizeInBytes   = 0;
+        in.customPrimitiveArray.flags = geomFlags;
+        in.customPrimitiveArray.numSbtRecords = 1;
+        in.customPrimitiveArray.sbtIndexOffsetBuffer = 0;
+        in.customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
         in.customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
-        in.customPrimitiveArray.primitiveIndexOffset        = 0;
+        in.customPrimitiveArray.primitiveIndexOffset = 0;
 
         gas_.build(in, cuda_ctx, optix_ctx);
         spdlog::info("Custom Sphere GAS built, handle = 0x{:x}", gas_.get());
