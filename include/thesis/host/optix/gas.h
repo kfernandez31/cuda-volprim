@@ -24,50 +24,42 @@ class GAS : public AccelerationStructure {
 };
 
 class SphereGAS {
-    cuda::Buffer<float3> vertices_;  // Separate buffer for vertices
-    cuda::Buffer<float> radii_;      // Separate buffer for radii
+    cuda::Buffer<float4> aabbs_;
     GAS gas_;
 
-   public:
+public:
     SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : vertices_(1, ctx, cuda::AllocType::OnBoth),
-          radii_(1, ctx, cuda::AllocType::OnBoth),
+        : aabbs_(2, ctx, cuda::AllocType::OnBoth),
           gas_(ctx, std::move(stream)) {}
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        // Set sphere center at origin
-        vertices_.host()[0] = make_float3(0.0f, 0.0f, 0.0f);
-        vertices_.upload();
+        auto min = make_float3(-1.0f);
+        auto max = make_float3(1.0f);
 
-        // Set sphere radius to 1.0
-        radii_.host()[0] = 1.0f;
-        radii_.upload();
+        aabbs_.host()[0] = make_float4(min.x, min.y, min.z, 0.0f);
+        aabbs_.host()[1] = make_float4(max.x, max.y, max.z, 0.0f);
+        aabbs_.upload();
 
-        static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+        static constexpr unsigned int geomFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
 
         OptixBuildInput in{};
-        in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
+        in.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
-        CUdeviceptr vertex_buffer_ptr = vertices_.cu_device_ptr();
-        CUdeviceptr radius_buffer_ptr = radii_.cu_device_ptr();
+        auto aabb_buffer = aabbs_.cu_device_ptr();
 
-        in.sphereArray.vertexBuffers = &vertex_buffer_ptr;
-        in.sphereArray.vertexStrideInBytes = sizeof(float3);
-        in.sphereArray.numVertices = 1;
+        in.customPrimitiveArray.aabbBuffers   = &aabb_buffer;
+        in.customPrimitiveArray.numPrimitives = 1;
+        in.customPrimitiveArray.strideInBytes = sizeof(float4) * 2;
 
-        in.sphereArray.radiusBuffers = &radius_buffer_ptr;
-        in.sphereArray.radiusStrideInBytes = sizeof(float);
-        in.sphereArray.singleRadius = false;
-
-        in.sphereArray.flags = geomFlags;
-        in.sphereArray.numSbtRecords = 1;
-        in.sphereArray.sbtIndexOffsetBuffer = 0;
-        in.sphereArray.sbtIndexOffsetSizeInBytes = 0;
-        in.sphereArray.sbtIndexOffsetStrideInBytes = 0;
-        in.sphereArray.primitiveIndexOffset = 0;
+        in.customPrimitiveArray.flags             = geomFlags;
+        in.customPrimitiveArray.numSbtRecords     = 1;
+        in.customPrimitiveArray.sbtIndexOffsetBuffer        = 0;
+        in.customPrimitiveArray.sbtIndexOffsetSizeInBytes   = 0;
+        in.customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
+        in.customPrimitiveArray.primitiveIndexOffset        = 0;
 
         gas_.build(in, cuda_ctx, optix_ctx);
-        spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());
+        spdlog::info("Custom Sphere GAS built, handle = 0x{:x}", gas_.get());
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

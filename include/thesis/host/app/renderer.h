@@ -55,7 +55,6 @@ class Renderer {
 
    public:
     explicit Renderer(const app::Config& config);
-    ~Renderer();
 
     void render();
 };

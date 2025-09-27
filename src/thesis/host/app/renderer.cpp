@@ -42,17 +42,12 @@ Renderer::Renderer(const app::Config& config)
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
       launch_params_(1, cuda_ctx_.get(), cuda::AllocType::OnBoth) {
+    spdlog::info("hello!"); // TODO(kacper): remove
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
     
     initPrimsAndGAS();
     createPipeline();
-}
-
-Renderer::~Renderer() {
-    if (builtin_is_module_) {
-        optixModuleDestroy(builtin_is_module_); // TODO(kacper): RAII-ify
-    }
 }
 
 void Renderer::initPrimsAndGAS()
@@ -63,10 +58,14 @@ void Renderer::initPrimsAndGAS()
         // {0,0,1},
     };
     const glm::vec3 translations[NUM_PRIMITIVES] = {
-        {0,0,0},
+        {0, 0, 2},
         // {1.0f,1.0f,0.0f},
         // {+0.5f,0,0},
     };
+
+    // o<
+    // -1      0      1
+    //  ------- -------
 
     const glm::quat rotations[NUM_PRIMITIVES] = {
         glm::quat(1, 0, 0, 0),
@@ -120,7 +119,6 @@ void Renderer::initPrimsAndGAS()
     bi.instanceArray.numInstances = NUM_PRIMITIVES;
 
     ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
-    spdlog::info("IAS built, handle = 0x{:x}", ias_.get());
 }
 
 void Renderer::uploadParams() {
@@ -141,7 +139,8 @@ void Renderer::createPipeline() {
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
+    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
+    pco.numAttributeValues = 0;
     
     // module
     module_ = utils::try_unwrap_or_exit<optix::Module>(
@@ -159,8 +158,6 @@ void Renderer::createPipeline() {
     mco.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
     mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
     
-    OPTIX_CHECK(optixBuiltinISModuleGet(optix_ctx_.get(), &mco, &pco, &builtin_is_options, &builtin_is_module_));
-
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(
         optix_ctx_.get(),
@@ -175,12 +172,11 @@ void Renderer::createPipeline() {
         config_.miss_function_name_.c_str()
     );
 
-    // hitgroup - now with built-in intersection module for spheres
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(),
         module_.get(),
         config_.closesthit_function_name_.c_str(),
-        builtin_is_module_  // Pass the built-in IS module for spheres
+        config_.intersection_function_name_.c_str()
     );
 
     // sbt

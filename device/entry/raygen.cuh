@@ -18,11 +18,11 @@ namespace device {
 namespace consts {
 
 // TODO(kacper): select experimentally
-constexpr auto MAX_BOUNCES         = 500u;
-constexpr auto RUSSIAN_ROULETTE_DEPTH = 3u;
-constexpr auto MIN_THROUGHPUT      = 1e-3f;
-constexpr auto RR_MAX_SURVIVAL     = 0.99f;
-constexpr auto PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
+constexpr size_t MAX_BOUNCES            = 0u;
+constexpr size_t RUSSIAN_ROULETTE_DEPTH = 3u;
+constexpr float  MIN_THROUGHPUT         = 1e-3f;
+constexpr float  RR_MAX_SURVIVAL        = 0.99f;
+constexpr float  PHASE_VALUE            = common::math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
 
 } // namespace consts
 } // namespace device
@@ -53,7 +53,8 @@ extern "C" __global__ void __raygen__rg() {
             auto idx = hit.unwrap().prim_idx;
             radiance = launch_params.primitives_[idx].albedo_;
         } else {
-            radiance = hit.unwrap_err().color();
+            // radiance = hit.unwrap_err().color(); // TODO(kacper): remove
+            radiance = make_float3(0.0f, 0.0f, 1.0f);
         }
     } else {
         // const auto result = trace_ch(ray, 0);
@@ -73,15 +74,15 @@ extern "C" __global__ void __raygen__rg() {
 
         //     const auto b = pixel_idx == launch_params.image_.midPoint();
         //     radiance = prim.density_integral(ray, t0, b);
-        // }
         
-        optix::ScatteringEvent<consts::MAX_PRIMS> event;
-        payloads::Miss miss;
+        // optix::ScatteringEvent<consts::MAX_PRIMS> event;
+        // payloads::Miss miss;
 
+        /*
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
             const auto result = sample_scattering_event(ray, rng, event, miss);
 
-            // no scattering - escaped mediums
+            // no scattering - escaped medium
             if (!result) {
                 auto tau = compute_optical_depth_along_ray(ray);
                 radiance += (throughput * expf(-tau)) * miss.color();
@@ -116,7 +117,16 @@ extern "C" __global__ void __raygen__rg() {
             // Clear active prims
             event.active_prims_.clear();
         }
+        */
+
+        /*
+        if (math::max(throughput) > 0.0f) {
+            auto tau = compute_optical_depth_along_ray(ray);
+            auto env = launch_params.env_map_.sample(ray.direction_);
+            radiance += throughput * expf(-tau) * env;
+        }
+        */
     }
-    
+
     launch_params.image_[global_sample_idx] = radiance;
 }

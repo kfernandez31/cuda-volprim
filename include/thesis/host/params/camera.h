@@ -18,7 +18,7 @@ class Camera : public Convertible<device::params::Camera> {
     size_t image_height_ = 100;
     float aspect_ratio_ = 1.0f;
     float vertical_fov_ = 90.0f;
-    glm::vec3 lookfrom_ = glm::vec3(0.0f, 0.0f, -5.0f);
+    glm::vec3 lookfrom_ = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 lookat_ = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 vup_ = glm::vec3(0.0f, 1.0f, 0.0f);
 

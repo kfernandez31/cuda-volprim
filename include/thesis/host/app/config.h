@@ -17,6 +17,7 @@ struct Config {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
     std::string closesthit_function_name_ = "__closesthit__ch";
+    std::string intersection_function_name_ = "__intersection__sphere"; 
     std::string launch_params_variable_name_ = "launch_params";
 
     fs::path output_path_ = "output.exr";
@@ -24,8 +25,8 @@ struct Config {
     fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
 
     size_t num_samples_per_pixel_ = 1;
-    size_t image_width_ = 2000;
-    size_t image_height_ = 1500;
+    size_t image_width_ = 1000;
+    size_t image_height_ = 750;
 
     uint seed_ = 42;
     bool debug_ = false;
@@ -51,6 +52,8 @@ struct Config {
         entry_group->add_option("--miss", config.miss_function_name_, "Name of miss function");
         entry_group->add_option("--closesthit", config.closesthit_function_name_,
                                 "Name of closesthit function");
+        entry_group->add_option("--intersection", config.intersection_function_name_,
+                                "Name of intersection function");
         entry_group->add_option("--launch_params", config.launch_params_variable_name_,
                                 "Launch parameters variable name");
 

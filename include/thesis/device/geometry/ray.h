@@ -34,7 +34,9 @@ class THESIS_ALIGNMENT Ray {
     };
 
 #ifdef DEVICE
-    static __device__ Ray spawn(float3 o, float3 d) { return {o, normalize(d)}; }
+    static __device__ Ray spawn(float3 o, float3 d) { 
+        return spawn_unchecked(o, normalize(d));
+    }
 
     static __device__ Ray spawn_unchecked(float3 o, float3 d) {
         return {o, d};  // assume caller normalized

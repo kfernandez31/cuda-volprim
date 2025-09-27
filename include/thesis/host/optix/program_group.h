@@ -50,18 +50,18 @@ class ProgramGroup {
         return {ctx, desc};
     }
 
-    static ProgramGroup createHitgroup(OptixDeviceContext ctx, OptixModule module,
-                                       const char* closest_hit_entry,
-                                       OptixModule builtin_is_module = nullptr) {
+    static ProgramGroup createHitgroup(OptixDeviceContext ctx, 
+                                       OptixModule module, 
+                                       const char* entry_ch,
+                                       const char* entry_is) {
         OptixProgramGroupDesc desc = {};
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+
         desc.hitgroup.moduleCH = module;
-        desc.hitgroup.entryFunctionNameCH = closest_hit_entry;
-        // For sphere primitives, use built-in intersection module
-        if (builtin_is_module) {
-            desc.hitgroup.moduleIS = builtin_is_module;
-            desc.hitgroup.entryFunctionNameIS = nullptr;  // Must be nullptr for built-in IS
-        }
+        desc.hitgroup.entryFunctionNameCH = entry_ch;
+ 
+        desc.hitgroup.moduleIS = module;
+        desc.hitgroup.entryFunctionNameIS = entry_is;
         return {ctx, desc};
     }
 

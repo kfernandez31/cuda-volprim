@@ -58,9 +58,9 @@ __device__ __forceinline__ auto trace_ch(const geometry::Ray& ray, float t_min) 
     return trace_impl<OPTIX_RAY_FLAG_DISABLE_ANYHIT>(ray, t_min);
 }
 
-__device__ __forceinline__ auto trace_ah(const geometry::Ray& ray, float t_min) {
-    return trace_impl<OPTIX_RAY_FLAG_ENFORCE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT>(ray, t_min);
-}
+// __device__ __forceinline__ auto trace_ah(const geometry::Ray& ray, float t_min) {
+//     return trace_impl<OPTIX_RAY_FLAG_ENFORCE_ANYHIT | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT>(ray, t_min);
+// }
 
 } // namespace device
 } // namespace thesis

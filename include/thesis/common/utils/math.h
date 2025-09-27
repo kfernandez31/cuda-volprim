@@ -8,6 +8,8 @@ namespace thesis {
 namespace common {
 namespace math {
 
+// TODO(kacper): expose dot prod
+
 constexpr float PI_F = 3.14159265358979323846f;
 constexpr float TWO_PI_F = 2.0f * PI_F;
 constexpr float FOUR_PI_F = 4.0f * PI_F;

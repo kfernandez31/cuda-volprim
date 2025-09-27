@@ -220,6 +220,11 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
     auto acc_optical_depth = make_float3(0.0f);
     auto t_old = 0.0f;
 
+    // debug
+    const auto launch_idx = optixGetLaunchIndex();
+    const auto pixel_idx = make_uint2(launch_idx.x, launch_idx.y);
+    bool debug = (pixel_idx == launch_params.image_.midPoint());
+
     PrimsSet active_prims;
     while (!active_prims.full()) {
         const auto result = trace_ch(ray, t_old);
@@ -236,9 +241,21 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
         acc_optical_depth += integrate_primitives(ray, active_prims, t_old, t_new);
 
         if (is_exit) {
-            active_prims.erase(prim_idx);
+            if (!active_prims.erase(prim_idx)) {
+                if (launch_params.debug_) {
+                    printf("erase failed for prim %u\n", prim_idx);
+                }
+            } else if (debug) {
+                printf("erased prim %u\n", prim_idx);
+            }
         } else {
-            active_prims.insert(prim_idx);
+            if (!active_prims.insert(prim_idx)) {
+                if (launch_params.debug_) {
+                    printf("erase failed for prim %u\n", prim_idx);
+                }
+            } else if (debug) {
+                printf("inserted prim %u\n", prim_idx);
+            }
         }
 
         t_old = fmaxf(t_old + consts::INTERSECTION_EPS, t_new);

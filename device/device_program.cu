@@ -2,3 +2,4 @@
 #include "entry/closesthit.cuh"
 #include "entry/miss.cuh"
 #include "entry/raygen.cuh"
+#include "entry/intersection.cuh"
