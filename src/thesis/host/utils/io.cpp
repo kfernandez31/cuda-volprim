@@ -5,18 +5,13 @@
 #include <vector_types.h>
 
 #include <array>
-#include <cstddef>
-#include <filesystem>
 #include <fstream>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/glm.hpp>
+#include <glm/glm.hpp>  // TODO(kacper): needed to use glm's vec? I doubt it
 #include <glm/gtx/quaternion.hpp>
 #include <ios>
-#include <span>
 #include <stb/stb_image.h>
 #include <string>
 #include <tinyexr/tinyexr.h>
-#include <vector>
 
 #ifdef _MSC_VER
 #include <cstdlib>
@@ -50,14 +45,14 @@ Result<std::vector<std::byte>> readFileToBytes(const std::filesystem::path& file
             return make_error("Failed to open file: {}", filename.string());
         }
 
-        const auto fileSize = file.tellg();
-        if (fileSize <= 0) {
+        const auto file_size = file.tellg();
+        if (file_size <= 0) {
             return make_error("File is empty or error reading file size: {}", filename.string());
         }
 
-        std::vector<std::byte> buffer(static_cast<size_t>(fileSize));
+        std::vector<std::byte> buffer(static_cast<size_t>(file_size));
         file.seekg(0);
-        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+        file.read(reinterpret_cast<char*>(buffer.data()), file_size);
 
         if (!file) {
             return make_error("Error while reading file: {}", filename.string());
@@ -161,7 +156,7 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         size_t N = 0;
         auto& vtx = ply.getElement("vertex");
 
-        auto getProp = [&](const std::string& name) -> std::vector<float> {
+        auto get_prop = [&](const std::string& name) -> std::vector<float> {
             try {
                 auto prop = vtx.getProperty<float>(name);
                 if (N == 0) [[unlikely]] {
@@ -176,25 +171,25 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
             }
         };
 
-        auto sigma_t = getProp("sigma_t_0");
+        auto sigma_t = get_prop("sigma_t_0");
         N = sigma_t.size();
 
-        auto p_x = getProp("x");
-        auto p_y = getProp("y");
-        auto p_z = getProp("z");
+        auto p_x = get_prop("x");
+        auto p_y = get_prop("y");
+        auto p_z = get_prop("z");
 
-        auto rot_0 = getProp("rot_0");
-        auto rot_1 = getProp("rot_1");
-        auto rot_2 = getProp("rot_2");
-        auto rot_3 = getProp("rot_3");
+        auto rot_0 = get_prop("rot_0");
+        auto rot_1 = get_prop("rot_1");
+        auto rot_2 = get_prop("rot_2");
+        auto rot_3 = get_prop("rot_3");
 
-        auto scale_0 = getProp("scale_0");
-        auto scale_1 = getProp("scale_1");
-        auto scale_2 = getProp("scale_2");
+        auto scale_0 = get_prop("scale_0");
+        auto scale_1 = get_prop("scale_1");
+        auto scale_2 = get_prop("scale_2");
 
-        auto alb_0 = getProp("albedo_0");
-        auto alb_1 = getProp("albedo_1");
-        auto alb_2 = getProp("albedo_2");
+        auto alb_0 = get_prop("albedo_0");
+        auto alb_1 = get_prop("albedo_1");
+        auto alb_2 = get_prop("albedo_2");
 
         std::vector<params::Primitive> result;
         result.reserve(N);

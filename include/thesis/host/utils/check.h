@@ -5,6 +5,7 @@
 #include <optix_types.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdlib>
 #include <spdlog/spdlog.h>
 

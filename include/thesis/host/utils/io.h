@@ -9,7 +9,6 @@
 #include <expected>
 #include <filesystem>
 #include <span>
-#include <string>
 #include <vector>
 
 namespace thesis::host::utils::io {

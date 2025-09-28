@@ -2,7 +2,6 @@
 
 #include <vector_types.h>
 
-#include <cstddef>
 #include <glm/glm.hpp>
 #include <span>
 #include <type_traits>
@@ -19,11 +18,11 @@ template <typename To, typename From>
 }
 
 [[nodiscard]] inline float3 toFloat3(glm::vec3 v) noexcept {
-    return make_float3(v.x, v.y, v.z);
+    return {v.x, v.y, v.z};
 }
 
 [[nodiscard]] inline float4 toFloat4(const glm::vec4& v) noexcept {
-    return make_float4(v.x, v.y, v.z, v.w);
+    return {v.x, v.y, v.z, v.w};
 }
 
 }  // namespace thesis::host::utils::data

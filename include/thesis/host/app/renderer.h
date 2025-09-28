@@ -6,7 +6,6 @@
 #include "thesis/host/cuda/buffer.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
-#include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/context.h"
 #include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/ias.h"
@@ -18,8 +17,7 @@
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
 
-// TODO(kacper): prettify
-#define ICOSPHERE_N 2
+#include <cstddef>
 
 namespace thesis::host::app {
 
@@ -36,7 +34,7 @@ class Renderer {
     optix::Context optix_ctx_;
     cuda::StreamDAG streams_;
 
-    optix::SphereGAS gas_;
+    optix::TriangleGAS<geometry::DefaultIcosphere> gas_;
     optix::IAS ias_;
     cuda::Buffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;

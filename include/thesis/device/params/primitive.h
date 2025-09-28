@@ -1,12 +1,12 @@
 #pragma once
 
+#include "thesis/common/utils/math.h"
 #include "thesis/common/utils/preprocessor.h"
 #include "thesis/device/geometry/quat.h"
 
 #include <vector_types.h>
 
 #ifdef DEVICE
-#include "thesis/common/utils/math.h"
 #include "thesis/device/geometry/ray.h"
 
 #include <math.h>
@@ -44,21 +44,22 @@ class THESIS_ALIGNMENT Primitive {
         // Transform to whitened space
         const auto w = transform_dir_local(ray.direction_);
         const auto p = transform_pos_local(ray.origin_);
+        const auto ray_local = geometry::Ray::spawn_unchecked(p, w);
 
         // Precompute length and inverse
         const auto w_len2 = math::length2(w);
         const auto w_inv_len = rsqrtf(w_len2);
 
         // Points along the ray in local space
-        const auto p0 = p + t0 * w;
-        const auto p1 = TO_INFINITY ? p0 : p + t1 * w;
+        const auto p0 = ray_local.at(t0);
+        const auto p1 = TO_INFINITY ? p0 : ray_local.at(t1);
 
         // Project onto ray direction (normalized)
         const auto w_normalized = w * w_inv_len;
         const auto wp0 = dot(w_normalized, p0);
         const auto wp1 = TO_INFINITY ? wp0 : dot(w_normalized, p1);
 
-        // Use the midpoint for the exponential term (better numerical stability)
+        // Use the midpoint for the exponential term
         const auto mid_p = TO_INFINITY ? p0 : 0.5f * (p0 + p1);
         const auto wp_mid = TO_INFINITY ? wp0 : 0.5f * (wp0 + wp1);
         const auto pp_mid = dot(mid_p, mid_p);
@@ -68,11 +69,9 @@ class THESIS_ALIGNMENT Primitive {
         const auto e_term = __expf(-0.5f * perp_dist2);
         const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
 
-        // Error function term: erfc for infinite, difference of erf for finite
-        const auto erf_term =
-            TO_INFINITY
-                ? erfcf(wp0 * math::ROOT_TWO_F)  // erfc(x) = integral from x to infinity
-                : erff(wp1 * math::ROOT_TWO_F) - erff(wp0 * math::ROOT_TWO_F);  // finite difference
+        const auto erf_term = TO_INFINITY
+                                  ? erfcf(wp0 * math::ROOT_TWO_F)
+                                  : erff(wp1 * math::ROOT_TWO_F) - erff(wp0 * math::ROOT_TWO_F);
 
         return optical_thickness_ * G_term * e_term * erf_term;
     }

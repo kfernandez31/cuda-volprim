@@ -1,5 +1,7 @@
 #pragma once
 
+#include "thesis/common/utils/types.h"
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/acceleration_structure.h"
 #include "thesis/host/utils/data.h"
@@ -23,42 +25,54 @@ class GAS : public AccelerationStructure {
     }
 };
 
-class SphereGAS {
-    cuda::Buffer<float4> aabbs_;
+template <class Shape>
+class TriangleGAS {
+    static_assert(std::is_same_v<decltype(Shape::NumVertices), const size_t>);
+    static_assert(std::is_same_v<decltype(Shape::NumIndices), const size_t>);
+
+    cuda::AsyncBuffer<float3> vertices_;
+    cuda::AsyncBuffer<uint3> indices_;
     GAS gas_;
 
    public:
-    SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : aabbs_(2, ctx, cuda::AllocType::OnBoth), gas_(ctx, std::move(stream)) {}
+    TriangleGAS(const Shape& shape, CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
+        : vertices_(Shape::NumVertices, ctx, stream, cuda::AllocType::OnBoth),
+          indices_(Shape::NumIndices, ctx, stream, cuda::AllocType::OnBoth),
+          gas_(ctx, std::move(stream)) {
+        // Copy vertices
+        const auto v_src = utils::data::reinterpretSpan<const float3>(shape.getVertices());
+        std::memcpy(vertices_.host(), v_src.data(), v_src.size_bytes());
+        vertices_.upload();
+
+        // Copy indices
+        const auto i_src = utils::data::reinterpretSpan<const uint3>(shape.getIndices());
+        std::memcpy(indices_.host(), i_src.data(), i_src.size_bytes());
+        indices_.upload();
+    }
+
+    TriangleGAS(TriangleGAS&&) noexcept = default;
+    TriangleGAS& operator=(TriangleGAS&&) noexcept = default;
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        auto min = make_float3(-1.0f);
-        auto max = make_float3(1.0f);
-
-        aabbs_.host()[0] = make_float4(min.x, min.y, min.z, 0.0f);
-        aabbs_.host()[1] = make_float4(max.x, max.y, max.z, 0.0f);
-        aabbs_.upload();
-
-        static constexpr unsigned int geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
-
         OptixBuildInput in{};
-        in.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+        in.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 
-        auto aabb_buffer = aabbs_.cu_device_ptr();
+        auto vbuf = vertices_.cu_device_ptr();
+        in.triangleArray.vertexBuffers = &vbuf;
+        in.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+        in.triangleArray.numVertices = static_cast<uint>(vertices_.size());
 
-        in.customPrimitiveArray.aabbBuffers = &aabb_buffer;
-        in.customPrimitiveArray.numPrimitives = 1;
-        in.customPrimitiveArray.strideInBytes = sizeof(float4) * 2;
+        auto ibuf = indices_.cu_device_ptr();
+        in.triangleArray.indexBuffer = ibuf;
+        in.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+        in.triangleArray.numIndexTriplets = static_cast<uint>(indices_.size());
 
-        in.customPrimitiveArray.flags = geomFlags;
-        in.customPrimitiveArray.numSbtRecords = 1;
-        in.customPrimitiveArray.sbtIndexOffsetBuffer = 0;
-        in.customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
-        in.customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
-        in.customPrimitiveArray.primitiveIndexOffset = 0;
+        static constexpr uint flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+        in.triangleArray.flags = flags;
+        in.triangleArray.numSbtRecords = 1;
 
         gas_.build(in, cuda_ctx, optix_ctx);
-        spdlog::info("Custom Sphere GAS built, handle = 0x{:x}", gas_.get());
+        spdlog::info("Triangle GAS built, handle = 0x{:x}", gas_.get());
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

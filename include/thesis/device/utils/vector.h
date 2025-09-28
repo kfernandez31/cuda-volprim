@@ -27,6 +27,11 @@ struct DynamicStorage {
     T* data_ = nullptr;
 
     DynamicStorage(T* ptr, size_t cap) : capacity_(cap), data_(ptr) {}
+    DynamicStorage() = default;
+    DynamicStorage(const DynamicStorage&) = default;
+    DynamicStorage& operator=(const DynamicStorage&) = default;
+    DynamicStorage& operator=(DynamicStorage&&) = default;
+    DynamicStorage(DynamicStorage&&) = default;
 
 #ifdef DEVICE
     __device__ T* data() { return data_; }

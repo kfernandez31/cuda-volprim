@@ -26,10 +26,9 @@ class StreamDAG {
    public:
     StreamDAG() {
         streams_[0] = std::make_shared<Stream>(true);
-        // TODO(kacper): restore
-        // for (size_t i = 1; i < streams_.size(); ++i) {
-        //     streams_[i] = std::make_shared<Stream>(false);
-        // }
+        for (size_t i = 1; i < streams_.size(); ++i) {
+            streams_[i] = std::make_shared<Stream>(false);
+        }
 
         spdlog::info("Stream DAG created with {} CUDA streams (Main stream is {} index)",
                      streams_.size(), static_cast<size_t>(StreamKind::Main));
@@ -39,20 +38,19 @@ class StreamDAG {
     StreamDAG& operator=(StreamDAG&&) = default;
 
     [[nodiscard]] std::shared_ptr<Stream>& operator[](StreamKind kind) noexcept {
-        return streams_[static_cast<size_t>(StreamKind::Main)];  // TODO(kacper): restore
+        return streams_[static_cast<size_t>(kind)];
     }
 
     [[nodiscard]] const std::shared_ptr<Stream>& operator[](StreamKind kind) const noexcept {
-        return streams_[static_cast<size_t>(StreamKind::Main)];  // TODO(kacper): restore
+        return streams_[static_cast<size_t>(kind)];
     }
 
     void addDependency(StreamKind down, StreamKind up) {
-        // TODO(kacper): restore
-        // auto& upstream = streams_[static_cast<size_t>(up)];
-        // auto& downstream = streams_[static_cast<size_t>(down)];
+        auto& upstream = streams_[static_cast<size_t>(up)];
+        auto& downstream = streams_[static_cast<size_t>(down)];
 
-        // upstream->recordEvent();
-        // CUDA_CHECK(cudaStreamWaitEvent(downstream->get(), upstream->event(), 0));
+        upstream->recordEvent();
+        CUDA_CHECK(cudaStreamWaitEvent(downstream->get(), upstream->event(), 0));
     }
 };
 

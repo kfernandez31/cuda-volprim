@@ -1,6 +1,5 @@
 #pragma once
 
-#include "thesis/common/utils/math.h"
 #include "thesis/device/geometry/quat.h"
 #include "thesis/device/params/primitive.h"
 #include "thesis/host/params/convertible.h"

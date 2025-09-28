@@ -2,7 +2,6 @@
 
 #include "thesis/pch.h"
 
-#include "thesis/common/utils/types.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
@@ -25,15 +24,13 @@
 
 namespace thesis::host::app {
 
-using Ico = geometry::Icosphere<ICOSPHERE_N>;
-
 Renderer::Renderer(const app::Config& config)
     // clang-format off
     : config_(config),
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
-      gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
+      gas_(geometry::DefaultIcosphere::Base(), cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
       instances_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
@@ -63,10 +60,6 @@ void Renderer::initPrimsAndGAS()
         // {+0.5f,0,0},
     };
 
-    // o<
-    // -1      0      1
-    //  ------- -------
-
     const glm::quat rotations[NUM_PRIMITIVES] = {
         glm::quat(1, 0, 0, 0),
         // glm::quat(1, 0, 0, 0),
@@ -94,11 +87,12 @@ void Renderer::initPrimsAndGAS()
         primitives_[i] = prim.toDevice();
 
         OptixInstance inst{};
+    
         const auto Mt = glm::transpose(prim.localToWorld()); // row-major
         std::memcpy(inst.transform, glm::value_ptr(Mt), 12 * sizeof(float));
 
         inst.traversableHandle = gas_.get();
-        inst.instanceId        = i;
+        inst.instanceId        = static_cast<uint>(i);
         inst.sbtOffset         = 0; // TODO(kacper): validate
         inst.visibilityMask    = 0xFF;
         inst.flags             = OPTIX_INSTANCE_FLAG_NONE;

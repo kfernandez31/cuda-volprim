@@ -54,9 +54,6 @@ class Context {
         return *this;
     }
 
-    Context(const Context&) = delete;
-    Context& operator=(const Context&) = delete;
-
     struct Guard {
         CUcontext prev = nullptr;
 

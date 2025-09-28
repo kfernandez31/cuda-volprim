@@ -1,7 +1,7 @@
 #pragma once
 
 #include "thesis/device/params/environment_map.h"
-#include "thesis/host/cuda/buffer.h"
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/stream.h"
 #include "thesis/host/params/convertible.h"
 #include "thesis/host/utils/check.h"
@@ -21,7 +21,7 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
     size_t width_ = 0;
     size_t height_ = 0;
     size_t num_channels_ = 0;
-    cuda::Buffer<float> data_;
+    cuda::AsyncBuffer<float> data_;
 
    public:
     EnvironmentMap(const std::filesystem::path& filepath, CUcontext ctx,
@@ -33,7 +33,8 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
                      width_, height_, num_channels_);
 
         const auto total_floats = width_ * height_ * num_channels_;
-        data_ = cuda::Buffer<float>({hdr.get(), total_floats}, ctx, cuda::AllocType::OnBoth);
+        data_ = cuda::AsyncBuffer<float>({hdr.get(), total_floats}, ctx, std::move(stream),
+                                         cuda::AllocType::OnBoth);
     }
 
     EnvironmentMap(EnvironmentMap&&) noexcept = default;

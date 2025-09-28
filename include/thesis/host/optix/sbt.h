@@ -1,6 +1,5 @@
 #pragma once
 
-#include "thesis/common/utils/types.h"
 #include "thesis/host/cuda/stream.h"
 #include "thesis/host/optix/record.h"
 
