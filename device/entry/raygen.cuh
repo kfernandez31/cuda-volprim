@@ -53,8 +53,7 @@ extern "C" __global__ void __raygen__rg() {
             auto idx = hit.unwrap().prim_idx;
             radiance = launch_params.primitives_[idx].albedo_;
         } else {
-            // radiance = hit.unwrap_err().color(); // TODO(kacper): remove
-            radiance = make_float3(0.0f, 0.0f, 1.0f);
+            radiance = hit.unwrap_err().color(); // TODO(kacper): remove
         }
     } else {
         // const auto result = trace_ch(ray, 0);

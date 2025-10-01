@@ -104,6 +104,16 @@ struct Icosphere : public Mesh {
 
             indices_.swap(temp_indices);
         }
+
+        for (auto tri : indices_) {
+            auto v0 = vertices_[tri[0]];
+            auto v1 = vertices_[tri[1]];
+            auto v2 = vertices_[tri[2]];
+            auto n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            if (glm::dot(n, v0) < 0.0f) {
+                std::cerr << "Inward normal detected!\n";
+            }
+        }
     }
 
     Icosphere() : Icosphere(Base()) {}

@@ -6,34 +6,50 @@
 
 #include <optix.h>
 
-extern "C" __global__ void __closesthit__ch() {
+extern "C" __global__ void __closesthit__ch()
+{
     using namespace thesis::device;
     payloads::ClosestHit p;
     p.t_hit    = optixGetRayTmax();
     p.prim_idx = optixGetInstanceId();
-    
-    // World-space ray
-    const auto ray = geometry::Ray::getCurrentRay();
 
-    // World-space hit point
-    auto hit_point_world = ray.at(p.t_hit);
+    const auto hk = optixGetHitKind();
+    p.is_exit = (hk == OPTIX_HIT_KIND_TRIANGLE_BACK_FACE);
 
-    // Inverse-transform the hit point from world space to object space
-    auto hit_point_object = optixTransformPointFromWorldToObjectSpace(hit_point_world);
-
-    // Compute normal in object space (sphere is centered at origin)
-    auto normal_object = normalize(hit_point_object);
-
-    // Transform normal to world space
-    auto normal_world = optixTransformNormalFromObjectToWorldSpace(normal_object);
-
-    // Check if ray is exiting
-    p.is_exit = optixGetHitKind() == 1; // TODO(kacper): define the const somewhere shared
-    if (p.is_exit) {
-        printf("exited prim %u\n", p.prim_idx);
-    } else {
-        printf("entered prim %u\n", p.prim_idx);
-    }
+    // printf("%s prim %u (hitKind=%u)\n",
+    //        p.is_exit ? "exited" : "entered",
+    //        p.prim_idx, hk);
 
     p.packToOptix();
 }
+
+
+// TODO(kacper): remove if unused
+/*
+extern "C" __global__ void __closesthit__ch()
+{
+    using namespace thesis::device;
+    payloads::ClosestHit p;
+    p.t_hit    = optixGetRayTmax();
+    p.prim_idx = optixGetInstanceId();
+
+    // World-space ray
+    const auto ray = geometry::Ray::getCurrentRay();
+    auto hit_point_world = ray.at(p.t_hit);
+
+    // Compute normal in object space and transform to world
+    auto hit_point_object = optixTransformPointFromWorldToObjectSpace(hit_point_world);
+    auto normal_object    = normalize(hit_point_object);
+    auto normal_world     = normalize(optixTransformNormalFromObjectToWorldSpace(normal_object));
+
+    // Decide entry/exit from dot(ray.dir, normal)
+    const float d = dot(ray.direction_, normal_world);
+    p.is_exit = (d > 0.0f);
+
+    printf("%s prim %u (dot=%.3f)\n",
+           p.is_exit ? "exited" : "entered",
+           p.prim_idx, d);
+
+    p.packToOptix();
+}
+*/
