@@ -39,7 +39,6 @@ Renderer::Renderer(const app::Config& config)
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
       launch_params_(1, cuda_ctx_.get(), cuda::AllocType::OnBoth) {
-    spdlog::info("hello!"); // TODO(kacper): remove
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
     
@@ -55,18 +54,23 @@ void Renderer::initPrimsAndGAS()
         // {0,0,1},
     };
     const glm::vec3 translations[NUM_PRIMITIVES] = {
-        {1, 0, 0},
+        {0, 0, 1},
         // {1.0f,1.0f,0.0f},
         // {+0.5f,0,0},
     };
 
+    // TODO(kacper): remove
+    const auto angle = config_.angle_;
+    const auto phi_half = glm::radians(angle) * 0.5f;
+    const auto q_phi = glm::quat(cos(phi_half), 0.0f, sin(phi_half), 0.0f);
+
     const glm::quat rotations[NUM_PRIMITIVES] = {
-        glm::quat(1, 0, 0, 0),
+        q_phi,
         // glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(1.0f),
+        glm::vec3(1.25f, 0.9f, 0.9f),
         // glm::vec3(0.5f),
     };
 
@@ -82,7 +86,7 @@ void Renderer::initPrimsAndGAS()
             rotations[i],
             scales[i],
             albedos[i],
-            1.0f
+            0.5f
         );
         primitives_[i] = prim.toDevice();
 

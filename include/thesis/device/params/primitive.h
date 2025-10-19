@@ -150,6 +150,7 @@ class THESIS_ALIGNMENT Primitive {
         return optical_depth_internal<false>(ray, t0, t1);
     }
 
+    // TODO(kacper): remove debug param?
     __device__ float3 density_integral(const geometry::Ray& ray, float t0, bool debug=false) const {
         return albedo_ * optical_depth(ray, t0);
     }

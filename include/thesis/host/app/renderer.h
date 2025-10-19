@@ -44,7 +44,6 @@ class Renderer {
     cuda::Buffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;
-    OptixModule builtin_is_module_ = nullptr;  // Built-in intersection module for spheres
     optix::ProgramGroup raygen_pg_;
     optix::ProgramGroup miss_pg_;
     optix::ProgramGroup hitgroup_pg_;

@@ -16,9 +16,17 @@ extern "C" __global__ void __closesthit__ch()
     const auto hk = optixGetHitKind();
     p.is_exit = (hk == OPTIX_HIT_KIND_TRIANGLE_BACK_FACE);
 
-    // printf("%s prim %u (hitKind=%u)\n",
-    //        p.is_exit ? "exited" : "entered",
-    //        p.prim_idx, hk);
+    { // remove me
+        const uint3 launch_index = optixGetLaunchIndex();
+        const uint3 launch_dim   = optixGetLaunchDimensions();
+
+        const uint32_t mid_x = launch_dim.x / 2;
+        const uint32_t mid_y = launch_dim.y / 2;
+
+        if (launch_index.x == mid_x && launch_index.y == mid_y) {
+            printf("%s prim %u (hitKind=%u)\n", p.is_exit ? "exited" : "entered", p.prim_idx, hk);
+        }
+    } // remove me
 
     p.packToOptix();
 }

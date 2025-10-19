@@ -125,7 +125,7 @@ struct Icosphere : public Mesh {
     Icosphere& operator=(const Icosphere&) = default;
 };
 
-inline constexpr size_t ICOSPHERE_DEFAULT_N = 2;
+inline constexpr size_t ICOSPHERE_DEFAULT_N = 3;
 using DefaultIcosphere = Icosphere<ICOSPHERE_DEFAULT_N>;
 
 }  // namespace thesis::host::geometry
