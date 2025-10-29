@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/constants.cuh"
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
 #include "core/trace.cuh"
@@ -22,10 +23,6 @@
 
 namespace thesis {
 namespace device {
-
-namespace consts {
-    constexpr auto MAX_PRIMS = 10u; // TODO(kacper): tweak
-} // namespace consts
 
 using PrimsSet = utils::Set<uint, consts::MAX_PRIMS>;
 
@@ -159,26 +156,35 @@ __device__ __forceinline__ float3 evaluate_albedo(
 __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
     auto t_total = 0.0f;
     auto tau_cumulative = 0.0f;
-    
+    auto t_current = 0.0f;  // Track when we advance to a new t-value
+
     const auto chi = random::sample_uniform(rng);
     const auto tau_target = sample_target_optical_depth(chi);
-    
+
     auto& active_prims = event.active_prims_;
+    PrimsSet processed_this_t;  // Track which primitives we've processed at current t
 
     while (!active_prims.full()) {
-        const auto result = trace_ch(ray, t_total);
+        // Use filtered trace to skip already-processed hits
+        const auto result = trace_ch_filtered(ray, t_total, &processed_this_t);
         if (!result) {
             miss = result.unwrap_err();
             return false;
         }
 
-        const auto& hit = result.unwrap();        
+        const auto& hit = result.unwrap();
         const auto t_hit = hit.t_hit;
         const auto prim_idx = hit.prim_idx;
         const auto is_exit = hit.is_exit;
 
+        // Advanced to new t-value? Clear processed tracking
+        if (t_hit > t_current) {
+            processed_this_t.clear();
+            t_current = t_hit;
+        }
+
         const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_total, t_hit);
-        
+
         // scattering occurred
         // [                                t              ]
         // ^- tau_cumulative & t_total      ^- tau_target & t      ^-tau_target + tau_segment & t_hit
@@ -202,12 +208,20 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         } else {
             if (!active_prims.insert(prim_idx)) {
                 if (launch_params.debug_) {
-                    printf("erase failed for prim %u\n", prim_idx);
+                    printf("insert failed for prim %u\n", prim_idx);
                 }
             }
         }
-    
-        t_total = fmaxf(t_total + consts::INTERSECTION_EPS, t_hit);
+
+        // Mark this primitive as processed at current t
+        processed_this_t.insert(prim_idx);
+
+        // Use epsilon only when t advances, otherwise stay at same t to collect more hits
+        if (t_hit > t_total) {
+            t_total = fmaxf(t_total + consts::INTERSECTION_EPS, t_hit);
+        } else {
+            t_total = t_hit;  // Stay at same t-value
+        }
         tau_cumulative += tau_segment;
     }
 
@@ -219,6 +233,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
 __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
     auto acc_optical_depth = make_float3(0.0f);
     auto t_old = 0.0f;
+    auto t_current = 0.0f;  // Track when we advance to a new t-value
 
     // debug
     const auto launch_idx = optixGetLaunchIndex();
@@ -226,8 +241,11 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
     bool debug = (pixel_idx == launch_params.image_.midPoint());
 
     PrimsSet active_prims;
+    PrimsSet processed_this_t;  // Track which primitives we've processed at current t
+
     while (!active_prims.full()) {
-        const auto result = trace_ch(ray, t_old);
+        // Use filtered trace to skip already-processed hits
+        const auto result = trace_ch_filtered(ray, t_old, &processed_this_t);
 
         if (!result) {
             break;
@@ -237,6 +255,12 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
         const auto t_new = payload.t_hit;
         const auto prim_idx = payload.prim_idx;
         const auto is_exit = payload.is_exit;
+
+        // Advanced to new t-value? Clear processed tracking
+        if (t_new > t_current) {
+            processed_this_t.clear();
+            t_current = t_new;
+        }
 
         acc_optical_depth += integrate_primitives(ray, active_prims, t_old, t_new);
 
@@ -251,14 +275,22 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
         } else {
             if (!active_prims.insert(prim_idx)) {
                 if (launch_params.debug_) {
-                    printf("erase failed for prim %u\n", prim_idx);
+                    printf("insert failed for prim %u\n", prim_idx);
                 }
             } else if (debug) {
                 printf("inserted prim %u\n", prim_idx);
             }
         }
 
-        t_old = fmaxf(t_old + consts::INTERSECTION_EPS, t_new);
+        // Mark this primitive as processed at current t
+        processed_this_t.insert(prim_idx);
+
+        // Use epsilon only when t advances, otherwise stay at same t to collect more hits
+        if (t_new > t_old) {
+            t_old = fmaxf(t_old + consts::INTERSECTION_EPS, t_new);
+        } else {
+            t_old = t_new;  // Stay at same t-value
+        }
     }
 
     // drain remaining primitives until infinity

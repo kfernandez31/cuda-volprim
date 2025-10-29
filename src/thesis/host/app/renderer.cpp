@@ -137,25 +137,14 @@ void Renderer::createPipeline() {
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
+    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;  // Using triangle meshes (icospheres)
     pco.numAttributeValues = 0;
-    
+
     // module
     module_ = utils::try_unwrap_or_exit<optix::Module>(
         optix::Module::load(optix_ctx_.get(), config_.module_blob_path_, pco)
     );
 
-    // Get built-in intersection module for spheres
-    OptixBuiltinISOptions builtin_is_options = {};
-    builtin_is_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
-    builtin_is_options.usesMotionBlur = false;
-    builtin_is_options.buildFlags = optix::GAS_BUILD_FLAGS;  // Must match GAS build flags
-    
-    OptixModuleCompileOptions mco = {};
-    mco.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-    mco.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-    mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
-    
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(
         optix_ctx_.get(),
@@ -170,11 +159,12 @@ void Renderer::createPipeline() {
         config_.miss_function_name_.c_str()
     );
 
+    // Create hitgroup with closesthit and anyhit (using built-in triangle intersection)
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(),
         module_.get(),
         config_.closesthit_function_name_.c_str(),
-        config_.intersection_function_name_.c_str()
+        "__anyhit__ah"  // anyhit program for filtering already-processed hits
     );
 
     // sbt

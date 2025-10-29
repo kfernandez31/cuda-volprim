@@ -1,50 +1,31 @@
-// TODO(kacper): return to this once closesthit works
 #pragma once
 
-extern "C" __global__ void __anyhit__ah() {}
-
-/*
-
-#include "thesis/device/kernels/core/launch_params.cuh"
-#include "thesis/device/kernels/core/primitive.cuh"
-#include "thesis/common/params/launch_params.h"
+#include "core/constants.cuh"
+#include "core/payload_utils.cuh"
+#include "thesis/device/utils/set.h"
 #include "thesis/common/utils/types.h"
-#include "thesis/device/utils/data.h"
-#include "thesis/device/optix/anyhit_payload.h"
 
 #include <optix.h>
-#include <cstddef>
-
-namespace thesis {
-namespace device {
-
-template <size_t Capacity>
-__forceinline__ __device__ optix::AnyhitPayload<Capacity>* getPayloadPointer() {
-    uint32_t p0 = optixGetPayload_0();
-    uint32_t p1 = optixGetPayload_1();
-    return reinterpret_cast<optix::AnyhitPayload<Capacity>*>(data::unpackPointer(p0, p1));
-}
-
-} // namespace device
-} // namespace thesis
+#include <cstdint>
 
 extern "C" __global__ void __anyhit__ah() {
-    // auto* payload = getPayloadPointer();
-    thesis::device::optix::AnyhitPayload<1>* payload = nullptr; // TODO(kacper): fix
+    using namespace thesis::device;
 
-    const float t = optixGetRayTmax();
-    const uint prim_idx = thesis::device::getPrimitiveIndex();
-    const bool is_exit = optixIsTriangleBackFaceHit();
+    // Unpack processed_this_t set pointer from payload slots 2 and 3
+    uint32_t p0 = optixGetPayload_2();
+    uint32_t p1 = optixGetPayload_3();
+    auto* processed_this_t = unpack_ptr<utils::Set<uint, consts::MAX_PRIMS>>(p0, p1);
 
-    optixSetPayload_0(__float_as_uint(t));
-    optixSetPayload_1(prim_idx);
-    optixSetPayload_2(is_exit);
-
-    if (!payload->events.full()) {
-        payload->events.emplace_back(prim_idx, t, is_exit);
-        optixIgnoreIntersection();  // Continue traversal
+    // If no filter set provided, allow all hits
+    if (!processed_this_t) {
+        return;  // Accept hit, continue to closesthit
     }
-    // else: implicitly accept this hit and stop traversal
-}
 
-*/
+    // Get primitive index
+    uint prim_idx = optixGetInstanceId();
+
+    // If already processed at current t, ignore this hit
+    if (processed_this_t->contains(prim_idx)) {
+        optixIgnoreIntersection();
+    }
+}

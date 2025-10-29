@@ -51,15 +51,18 @@ class ProgramGroup {
     }
 
     static ProgramGroup createHitgroup(OptixDeviceContext ctx, OptixModule module,
-                                       const char* entry_ch, const char* entry_is) {
+                                       const char* entry_ch, const char* entry_ah = nullptr) {
         OptixProgramGroupDesc desc = {};
         desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
         desc.hitgroup.moduleCH = module;
         desc.hitgroup.entryFunctionNameCH = entry_ch;
 
-        desc.hitgroup.moduleIS = module;
-        desc.hitgroup.entryFunctionNameIS = entry_is;
+        if (entry_ah) {
+            desc.hitgroup.moduleAH = module;
+            desc.hitgroup.entryFunctionNameAH = entry_ah;
+        }
+
         return {ctx, desc};
     }
 
