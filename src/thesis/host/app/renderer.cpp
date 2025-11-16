@@ -65,8 +65,8 @@ void Renderer::initPrimsAndGAS()
     const auto q_phi = glm::quat(cos(phi_half), 0.0f, sin(phi_half), 0.0f);
 
     const glm::quat rotations[NUM_PRIMITIVES] = {
-        q_phi,
-        // glm::quat(1, 0, 0, 0),
+        // q_phi,
+        glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
@@ -137,7 +137,7 @@ void Renderer::createPipeline() {
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-    pco.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;  // Using triangle meshes (icospheres)
+    pco.usesPrimitiveTypeFlags = static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);  // Using triangle meshes (icospheres)
     pco.numAttributeValues = 0;
 
     // module

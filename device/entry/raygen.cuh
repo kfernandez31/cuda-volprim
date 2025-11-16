@@ -100,7 +100,7 @@ extern "C" __global__ void __raygen__rg() {
             event.active_prims_.clear();
         }
 
-        if (math::max(throughput) > 0.0f) {
+        if (math::max(throughput) > consts::MIN_THROUGHPUT) {
             auto tau = compute_optical_depth_along_ray(ray);
             auto env = launch_params.env_map_.sample(ray.direction_);
             radiance += throughput * expf(-tau) * env;
