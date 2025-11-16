@@ -28,25 +28,24 @@ extern "C" __global__ void __anyhit__ah() {
     // Unpack processed_this_t set pointer from payload
     const auto* processed_this_t = get_processed_set();
 
-    // Get primitive index and hit distance
-    uint prim_idx = optixGetInstanceId();
-    float t_hit = optixGetRayTmax();
-
-    if (is_debug_thread()) {
-        printf("anyhit: t=%.6f, prim %u, ptr=%p\n", t_hit, prim_idx, processed_this_t);
-    }
-
     // If no filter set provided, allow all hits
     if (!processed_this_t) {
-        if (is_debug_thread()) printf("  no filter set, allowing hit\n");
         return;  // Accept hit, continue to closesthit
     }
 
-    // If already processed at current t, ignore this hit
+    // Get primitive index
+    uint prim_idx = optixGetInstanceId();
+
+    if (is_debug_thread()) {
+        float t_hit = optixGetRayTmax();
+        printf("anyhit: t=%.6f, prim %u, in_set=%d\n",
+               t_hit, prim_idx, processed_this_t->contains(prim_idx));
+    }
+
+    // Filter if we've already processed this primitive at current t-cluster
+    // The bounded t_max in trace_ch_local ensures we only see hits within the cluster
     if (processed_this_t->contains(prim_idx)) {
-        if (is_debug_thread()) printf("  prim %u already in set, IGNORING\n", prim_idx);
+        if (is_debug_thread()) printf("  prim %u already processed, IGNORING\n", prim_idx);
         optixIgnoreIntersection();
-    } else {
-        if (is_debug_thread()) printf("  prim %u not in set, allowing hit\n", prim_idx);
     }
 }

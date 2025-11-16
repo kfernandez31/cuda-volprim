@@ -161,35 +161,30 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
     const auto tau_target = sample_target_optical_depth(chi);
 
     auto& active_prims = event.active_prims_;
-    PrimsSet processed_this_t;  // Track which primitives we've processed at current t
+    PrimsSet processed_this_t;  // Track which primitives we've processed at current t-cluster
 
     if (is_debug_thread()) {
-        printf("\n=== sample_scattering_event ENTRY, tau_target=%.3f, processed_this_t=%p ===\n",
-               tau_target, &processed_this_t);
+        printf("\n=== sample_scattering_event ENTRY, tau_target=%.3f ===\n", tau_target);
         printf("  Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
                ray.origin_.x, ray.origin_.y, ray.origin_.z,
                ray.direction_.x, ray.direction_.y, ray.direction_.z);
     }
 
-    float t_prev = -1.0f;  // Track previous iteration's t_total
-
     while (!active_prims.full()) {
-        // Clear processed set if we've moved forward significantly from previous iteration
-        // Must do this BEFORE tracing so anyhit sees the cleared set
-        if (fabsf(t_total - t_prev) > consts::INTERSECTION_EPS) {
-            if (is_debug_thread()) {
-                printf("  Clearing processed_this_t before trace (moved from %.6f to %.6f)\n",
-                       t_prev, t_total);
-            }
-            processed_this_t.clear();
-        }
+        // Phase 1: Try to find more hits at current t-cluster (bounded search)
+        auto result = trace_ch_local(ray, t_total, t_total + consts::INTERSECTION_EPS, &processed_this_t);
 
-        // Use filtered trace to skip already-processed hits
-        const auto result = trace_ch(ray, t_total, &processed_this_t);
         if (!result) {
-            if (is_debug_thread()) printf("  Trace returned MISS, RETURNING FALSE\n");
-            miss = result.unwrap_err();
-            return false;
+            // Exhausted current cluster, search for next cluster
+            if (is_debug_thread()) printf("  Cluster at t=%.6f exhausted, searching for next\n", t_total);
+            processed_this_t.clear();
+
+            result = trace_ch(ray, t_total + consts::INTERSECTION_EPS, &processed_this_t);
+            if (!result) {
+                if (is_debug_thread()) printf("  No more geometry, RETURNING FALSE\n");
+                miss = result.unwrap_err();
+                return false;
+            }
         }
 
         const auto& hit = result.unwrap();
@@ -198,8 +193,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         const auto is_exit = hit.is_exit;
 
         if (is_debug_thread()) {
-            printf("  Iteration: t_total=%.6f, t_hit=%.6f, prim=%u, is_exit=%d\n",
-                   t_total, t_hit, prim_idx, is_exit);
+            printf("  Hit: t=%.6f, prim=%u, is_exit=%d\n", t_hit, prim_idx, is_exit);
         }
 
         const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_total, t_hit);
@@ -241,14 +235,16 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
             }
         }
 
-        // Mark this primitive as processed at current t
+        // Mark this primitive as processed at current t-cluster
         processed_this_t.insert(prim_idx);
-        if (is_debug_thread()) printf("  Added prim %u to processed_this_t, now size=%u\n",
+        if (is_debug_thread()) printf("  Added prim %u to processed_this_t, size=%u\n",
                                       prim_idx, static_cast<uint>(processed_this_t.size()));
 
-        // Move to the hit position (anyhit filtering handles finding next unique hit)
-        t_prev = t_total;
-        t_total = t_hit;
+        // Update cluster center if we found a hit at a new t-value
+        if (fabsf(t_hit - t_total) > consts::INTERSECTION_EPS) {
+            if (is_debug_thread()) printf("  Updating t_total from %.6f to %.6f\n", t_total, t_hit);
+            t_total = t_hit;
+        }
         tau_cumulative += tau_segment;
     }
 
@@ -264,7 +260,6 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
 __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
     auto acc_optical_depth = make_float3(0.0f);
     auto t_old = 0.0f;
-    float t_prev = -1.0f;  // Track previous iteration's t_old
 
     // debug
     const auto launch_idx = optixGetLaunchIndex();
@@ -272,20 +267,20 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
     bool debug = (pixel_idx == launch_params.image_.midPoint());
 
     PrimsSet active_prims;
-    PrimsSet processed_this_t;  // Track which primitives we've processed at current t
+    PrimsSet processed_this_t;  // Track which primitives we've processed at current t-cluster
 
     while (!active_prims.full()) {
-        // Clear processed set if we've moved forward significantly from previous iteration
-        // Must do this BEFORE tracing so anyhit sees the cleared set
-        if (fabsf(t_old - t_prev) > consts::INTERSECTION_EPS) {
-            processed_this_t.clear();
-        }
-
-        // Use filtered trace to skip already-processed hits
-        const auto result = trace_ch(ray, t_old, &processed_this_t);
+        // Phase 1: Try to find more hits at current t-cluster (bounded search)
+        auto result = trace_ch_local(ray, t_old, t_old + consts::INTERSECTION_EPS, &processed_this_t);
 
         if (!result) {
-            break;
+            // Exhausted current cluster, search for next cluster
+            processed_this_t.clear();
+
+            result = trace_ch(ray, t_old + consts::INTERSECTION_EPS, &processed_this_t);
+            if (!result) {
+                break;  // No more geometry
+            }
         }
 
         const auto& payload = result.unwrap();
@@ -313,12 +308,13 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
             }
         }
 
-        // Mark this primitive as processed at current t
+        // Mark this primitive as processed at current t-cluster
         processed_this_t.insert(prim_idx);
 
-        // Move to the hit position (anyhit filtering handles finding next unique hit)
-        t_prev = t_old;
-        t_old = t_new;
+        // Update cluster center if we found a hit at a new t-value
+        if (fabsf(t_new - t_old) > consts::INTERSECTION_EPS) {
+            t_old = t_new;
+        }
     }
 
     // drain remaining primitives until infinity

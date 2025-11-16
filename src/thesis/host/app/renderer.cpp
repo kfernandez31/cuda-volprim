@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 1
+#define NUM_PRIMITIVES 2
 
 namespace thesis::host::app {
 
@@ -51,12 +51,13 @@ void Renderer::initPrimsAndGAS()
     /* ── 1. Per-primitive data ────────────────────────────────────── */
     const glm::vec3 albedos[NUM_PRIMITIVES] = {
         {1,0,0},
-        // {0,0,1},
+        {0,0,1},
     };
     const glm::vec3 translations[NUM_PRIMITIVES] = {
-        {0, 0, 1},
+        // {0, 0, 1},
         // {1.0f,1.0f,0.0f},
-        // {+0.5f,0,0},
+        {-0.1,0,0},
+        {+0.1,0,0},
     };
 
     // TODO(kacper): remove
@@ -67,11 +68,13 @@ void Renderer::initPrimsAndGAS()
     const glm::quat rotations[NUM_PRIMITIVES] = {
         // q_phi,
         glm::quat(1, 0, 0, 0),
+        glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(1.25f, 0.9f, 0.9f),
-        // glm::vec3(0.5f),
+        // glm::vec3(1.25f, 0.9f, 0.9f),
+        glm::vec3(0.5f),
+        glm::vec3(0.5f),
     };
 
     /* ── 2. Build GAS with one unit sphere ───────────────────────── */

@@ -20,6 +20,7 @@ template <uint FLAGS>
 __device__ __forceinline__ auto trace_impl(
     const geometry::Ray& ray,
     float t_min,
+    float t_max,
     utils::Set<uint, consts::MAX_PRIMS>* processed_this_t
 ) {
     uint ps[payloads::MAX_PAYLOADS]{};
@@ -34,7 +35,7 @@ __device__ __forceinline__ auto trace_impl(
         ray.origin_,
         ray.direction_,
         t_min,                      // Min intersection distance (no epsilon - anyhit handles filtering)
-        consts::INF_F,              // Max intersection distance
+        t_max,                      // Max intersection distance
         0.0f,                       // Disable motion blur
         consts::VISIBILITY_ALL,     // Visibility mask
         FLAGS,                      // Ray flags (enable anyhit for filtering)
@@ -60,15 +61,27 @@ __device__ __forceinline__ auto trace_impl(
     return result;
 }
 
-// Trace with closesthit and anyhit filtering
-// Uses anyhit program to filter already-processed hits at the current t-value
+// Trace with closesthit and anyhit filtering - unbounded search
+// Uses anyhit program to filter already-processed hits
 __device__ __forceinline__ auto trace_ch(
     const geometry::Ray& ray,
     float t_min,
     utils::Set<uint, consts::MAX_PRIMS>* processed_this_t = nullptr
 ) {
-    // Enable anyhit for filtering, keep closesthit
-    return trace_impl<OPTIX_RAY_FLAG_NONE>(ray, t_min, processed_this_t);
+    // Enable anyhit for filtering, keep closesthit, search to infinity
+    return trace_impl<OPTIX_RAY_FLAG_NONE>(ray, t_min, consts::INF_F, processed_this_t);
+}
+
+// Trace with closesthit and anyhit filtering - bounded search within t-cluster
+// Used to collect all hits at nearly the same t-value
+__device__ __forceinline__ auto trace_ch_local(
+    const geometry::Ray& ray,
+    float t_min,
+    float t_max,
+    utils::Set<uint, consts::MAX_PRIMS>* processed_this_t = nullptr
+) {
+    // Enable anyhit for filtering, keep closesthit, bounded search
+    return trace_impl<OPTIX_RAY_FLAG_NONE>(ray, t_min, t_max, processed_this_t);
 }
 
 } // namespace device
