@@ -146,7 +146,7 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
-        assert(t1 > t0 && isfinite(t0) && isfinite(t1));
+        assert(t0 <= t1 && isfinite(t1)); // TODO(kacper): if t1-t0<=eps, then return 0
         return optical_depth_internal<false>(ray, t0, t1);
     }
 

@@ -170,6 +170,8 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
                ray.direction_.x, ray.direction_.y, ray.direction_.z);
     }
 
+    float t_prev_hit = 0.0f;  // Track where we last integrated to
+
     while (!active_prims.full()) {
         // Phase 1: Try to find more hits at current t-cluster (bounded search)
         auto result = trace_ch_local(ray, t_total, t_total + consts::INTERSECTION_EPS, &processed_this_t);
@@ -185,6 +187,11 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
                 miss = result.unwrap_err();
                 return false;
             }
+
+            // Update t_total to new cluster center
+            const auto& new_cluster_hit = result.unwrap();
+            if (is_debug_thread()) printf("  New cluster found at t=%.6f, updating t_total\n", new_cluster_hit.t_hit);
+            t_total = new_cluster_hit.t_hit;
         }
 
         const auto& hit = result.unwrap();
@@ -196,7 +203,9 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
             printf("  Hit: t=%.6f, prim=%u, is_exit=%d\n", t_hit, prim_idx, is_exit);
         }
 
-        const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_total, t_hit);
+        // Integrate from last processed hit to current hit
+        const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_prev_hit, t_hit);
+        t_prev_hit = t_hit;
 
         // scattering occurred
         // [                                t              ]
@@ -210,7 +219,16 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
             auto tau_needed = tau_target - tau_cumulative;
             auto t = sample_distance_bisection(ray, active_prims, tau_needed, t_total, t_hit);
 
-            if (is_debug_thread()) printf("  SCATTERING at t=%.3f, RETURNING TRUE\n", t);
+            if (is_debug_thread()) {
+                printf("  SCATTERING at t=%.3f, active_prims=[", t);
+                bool first = true;
+                for (auto prim : active_prims) {
+                    if (!first) printf(",");
+                    printf("%u", prim);
+                    first = false;
+                }
+                printf("] size=%u\n", static_cast<uint>(active_prims.size()));
+            }
 
             event.t_hit_ = t;
             event.position_ = ray.at(t);
@@ -222,16 +240,20 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         if (is_exit) {
             if (is_debug_thread()) printf("  EXIT: erasing prim %u from active_prims\n", prim_idx);
             if (!active_prims.erase(prim_idx)) {
-                if (launch_params.debug_) {
+                if (is_debug_thread()) {
                     printf("erase failed for prim %u\n", prim_idx);
                 }
+            } else if (is_debug_thread()) {
+                printf("erased prim %u\n", prim_idx);
             }
         } else {
             if (is_debug_thread()) printf("  ENTRY: inserting prim %u into active_prims\n", prim_idx);
             if (!active_prims.insert(prim_idx)) {
-                if (launch_params.debug_) {
+                if (is_debug_thread()) {
                     printf("insert failed for prim %u\n", prim_idx);
                 }
+            }  else if (is_debug_thread()) {
+                printf("inserted prim %u\n", prim_idx);
             }
         }
 
@@ -240,11 +262,8 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         if (is_debug_thread()) printf("  Added prim %u to processed_this_t, size=%u\n",
                                       prim_idx, static_cast<uint>(processed_this_t.size()));
 
-        // Update cluster center if we found a hit at a new t-value
-        if (fabsf(t_hit - t_total) > consts::INTERSECTION_EPS) {
-            if (is_debug_thread()) printf("  Updating t_total from %.6f to %.6f\n", t_total, t_hit);
-            t_total = t_hit;
-        }
+        // Update t_total to current hit for next iteration's integration
+        t_total = t_hit;
         tau_cumulative += tau_segment;
     }
 
@@ -257,17 +276,27 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
     return false;
 }
 
-__device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
+__device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, PrimsSet& active_prims) {
     auto acc_optical_depth = make_float3(0.0f);
     auto t_old = 0.0f;
 
-    // debug
-    const auto launch_idx = optixGetLaunchIndex();
-    const auto pixel_idx = make_uint2(launch_idx.x, launch_idx.y);
-    bool debug = (pixel_idx == launch_params.image_.midPoint());
+    if (is_debug_thread()) {
+        printf("\n=== compute_optical_depth_along_ray ===\n");
+        printf("Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
+               ray.origin_.x, ray.origin_.y, ray.origin_.z,
+               ray.direction_.x, ray.direction_.y, ray.direction_.z);
+        printf("Initial active_prims: [");
+        bool first = true;
+        for (auto prim : active_prims) {
+            if (!first) printf(",");
+            printf("%u", prim);
+            first = false;
+        }
+        printf("] size=%u\n", static_cast<uint>(active_prims.size()));
+    }
 
-    PrimsSet active_prims;
     PrimsSet processed_this_t;  // Track which primitives we've processed at current t-cluster
+    float t_prev_hit = 0.0f;  // Track where we last integrated to
 
     while (!active_prims.full()) {
         // Phase 1: Try to find more hits at current t-cluster (bounded search)
@@ -275,12 +304,19 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
 
         if (!result) {
             // Exhausted current cluster, search for next cluster
+            if (is_debug_thread()) printf("  Cluster exhausted at t=%.6f, searching unbounded\n", t_old);
             processed_this_t.clear();
 
             result = trace_ch(ray, t_old + consts::INTERSECTION_EPS, &processed_this_t);
             if (!result) {
+                if (is_debug_thread()) printf("  No more geometry\n");
                 break;  // No more geometry
             }
+
+            // Update t_old to new cluster center (only here, not after each hit)
+            const auto& new_cluster_hit = result.unwrap();
+            if (is_debug_thread()) printf("  New cluster found at t=%.6f, updating t_old\n", new_cluster_hit.t_hit);
+            t_old = new_cluster_hit.t_hit;
         }
 
         const auto& payload = result.unwrap();
@@ -288,33 +324,35 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray) {
         const auto prim_idx = payload.prim_idx;
         const auto is_exit = payload.is_exit;
 
-        acc_optical_depth += integrate_primitives(ray, active_prims, t_old, t_new);
+        if (is_debug_thread()) {
+            printf("  Hit: t=%.6f, prim=%u, is_exit=%d, active_prims.size=%u\n",
+                   t_new, prim_idx, is_exit, static_cast<uint>(active_prims.size()));
+        }
+
+        // Integrate from last processed hit to current hit
+        acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit, t_new);
+        t_prev_hit = t_new;
 
         if (is_exit) {
             if (!active_prims.erase(prim_idx)) {
-                if (launch_params.debug_) {
+                if (is_debug_thread()) {
                     printf("erase failed for prim %u\n", prim_idx);
                 }
-            } else if (debug) {
+            } else if (is_debug_thread()) {
                 printf("erased prim %u\n", prim_idx);
             }
         } else {
             if (!active_prims.insert(prim_idx)) {
-                if (launch_params.debug_) {
+                if (is_debug_thread()) {
                     printf("insert failed for prim %u\n", prim_idx);
                 }
-            } else if (debug) {
+            } else if (is_debug_thread()) {
                 printf("inserted prim %u\n", prim_idx);
             }
         }
 
         // Mark this primitive as processed at current t-cluster
         processed_this_t.insert(prim_idx);
-
-        // Update cluster center if we found a hit at a new t-value
-        if (fabsf(t_new - t_old) > consts::INTERSECTION_EPS) {
-            t_old = t_new;
-        }
     }
 
     // drain remaining primitives until infinity

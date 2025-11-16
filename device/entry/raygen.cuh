@@ -61,19 +61,36 @@ extern "C" __global__ void __raygen__rg() {
         optix::ScatteringEvent<consts::MAX_PRIMS> event;
         payloads::Miss miss;
 
+        const auto is_debug = is_debug_thread();
+
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
+            if (is_debug) {
+                printf("\n--- RAYGEN bounce %u ---\n", static_cast<uint>(bounce));
+                printf("Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
+                       ray.origin_.x, ray.origin_.y, ray.origin_.z,
+                       ray.direction_.x, ray.direction_.y, ray.direction_.z);
+            }
+
             const auto result = sample_scattering_event(ray, rng, event, miss);
 
             // no scattering - escaped medium
             if (!result) {
-                auto tau = compute_optical_depth_along_ray(ray);
+                if (is_debug) printf("No scattering, computing final transmittance\n");
+                auto tau = compute_optical_depth_along_ray(ray, event.active_prims_);
+                if (is_debug) printf("Final tau=(%.3f,%.3f,%.3f)\n", tau.x, tau.y, tau.z);
                 radiance += (throughput * expf(-tau)) * miss.color();
                 break;
             }
 
+            if (is_debug) printf("Scattering occurred, evaluating albedo\n");
+
             // Evaluate albedo and environment lighting
             auto albedo = evaluate_albedo(event.position_, event.active_prims_);
             auto env = launch_params.env_map_.sample(event.direction_);
+
+            if (is_debug) printf("Albedo=(%.3f,%.3f,%.3f), env=(%.3f,%.3f,%.3f)\n",
+                                 albedo.x, albedo.y, albedo.z, env.x, env.y, env.z);
+
             radiance += throughput * albedo * env * consts::PHASE_VALUE;
 
             // Update energy by scattered amount (albedo)
@@ -83,6 +100,7 @@ extern "C" __global__ void __raygen__rg() {
             if (bounce >= consts::RUSSIAN_ROULETTE_DEPTH) {
                 float p_survive = fminf(consts::RR_MAX_SURVIVAL, math::max(throughput));
                 if (random::sample_uniform(rng) > p_survive) {
+                    if (is_debug) printf("Russian roulette terminated\n");
                     break;
                 }
                 throughput /= p_survive;
@@ -90,19 +108,35 @@ extern "C" __global__ void __raygen__rg() {
 
             // TODO(kacper): I believe the first condition is unreachable
             if (!isfinite(math::sum(throughput)) || math::max(throughput) < consts::MIN_THROUGHPUT) {
+                if (is_debug) printf("Throughput too low, terminating\n");
                 break;
             }
 
             // Prepare next ray
             ray = geometry::Ray::spawn(event.position_, event.direction_);
 
-            // Clear active prims
-            event.active_prims_.clear();
+            if (is_debug) {
+                printf("Spawned new ray at scattering point\n");
+                printf("New ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
+                       ray.origin_.x, ray.origin_.y, ray.origin_.z,
+                       ray.direction_.x, ray.direction_.y, ray.direction_.z);
+                printf("Preserving active_prims for next bounce: [");
+                bool first = true;
+                for (auto prim : event.active_prims_) {
+                    if (!first) printf(",");
+                    printf("%u", prim);
+                    first = false;
+                }
+                printf("] size=%u\n", static_cast<uint>(event.active_prims_.size()));
+            }
         }
 
         if (math::max(throughput) > consts::MIN_THROUGHPUT) {
-            auto tau = compute_optical_depth_along_ray(ray);
+            if (is_debug) printf("\nFinal ray contribution\n");
+            auto tau = compute_optical_depth_along_ray(ray, event.active_prims_);
             auto env = launch_params.env_map_.sample(ray.direction_);
+            if (is_debug) printf("Final tau=(%.3f,%.3f,%.3f), env=(%.3f,%.3f,%.3f)\n",
+                                 tau.x, tau.y, tau.z, env.x, env.y, env.z);
             radiance += throughput * expf(-tau) * env;
         }
     }

@@ -47,5 +47,7 @@ extern "C" __global__ void __anyhit__ah() {
     if (processed_this_t->contains(prim_idx)) {
         if (is_debug_thread()) printf("  prim %u already processed, IGNORING\n", prim_idx);
         optixIgnoreIntersection();
+    } else {
+        if (is_debug_thread()) printf("  prim %u will be processed, ACCEPTING\n", prim_idx);
     }
 }
