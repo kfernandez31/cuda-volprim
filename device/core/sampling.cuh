@@ -154,7 +154,6 @@ __device__ __forceinline__ float3 evaluate_albedo(
 }
 
 __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
-    auto t_total = 0.0f;
     auto tau_cumulative = 0.0f;
 
     const auto chi = random::sample_uniform(rng);
@@ -170,6 +169,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
                ray.direction_.x, ray.direction_.y, ray.direction_.z);
     }
 
+    float t_total = 0.0f;
     float t_prev_hit = 0.0f;  // Track where we last integrated to
 
     while (!active_prims.full()) {
@@ -262,8 +262,6 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         if (is_debug_thread()) printf("  Added prim %u to processed_this_t, size=%u\n",
                                       prim_idx, static_cast<uint>(processed_this_t.size()));
 
-        // Update t_total to current hit for next iteration's integration
-        t_total = t_hit;
         tau_cumulative += tau_segment;
     }
 
@@ -278,7 +276,6 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
 
 __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, PrimsSet& active_prims) {
     auto acc_optical_depth = make_float3(0.0f);
-    auto t_old = 0.0f;
 
     if (is_debug_thread()) {
         printf("\n=== compute_optical_depth_along_ray ===\n");
@@ -296,6 +293,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
     }
 
     PrimsSet processed_this_t;  // Track which primitives we've processed at current t-cluster
+    float t_old = 0.0f;
     float t_prev_hit = 0.0f;  // Track where we last integrated to
 
     while (!active_prims.full()) {
@@ -307,7 +305,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
             if (is_debug_thread()) printf("  Cluster exhausted at t=%.6f, searching unbounded\n", t_old);
             processed_this_t.clear();
 
-            result = trace_ch(ray, t_old + consts::INTERSECTION_EPS, &processed_this_t);
+            result = trace_ch(ray, t_old, &processed_this_t);
             if (!result) {
                 if (is_debug_thread()) printf("  No more geometry\n");
                 break;  // No more geometry

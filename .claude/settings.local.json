@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ninja -C build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
