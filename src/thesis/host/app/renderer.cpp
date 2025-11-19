@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 2
+#define NUM_PRIMITIVES 1
 
 namespace thesis::host::app {
 
@@ -51,13 +51,13 @@ void Renderer::initPrimsAndGAS()
     /* ── 1. Per-primitive data ────────────────────────────────────── */
     const glm::vec3 albedos[NUM_PRIMITIVES] = {
         {1,0,0},
-        {0,0,1},
+        // {0,0,1},
     };
     const glm::vec3 translations[NUM_PRIMITIVES] = {
         // {0, 0, 1},
         // {1.0f,1.0f,0.0f},
         {0,0,0},
-        {0,0,0},
+        // {0,0,0},
     };
 
     // TODO(kacper): remove
@@ -68,13 +68,13 @@ void Renderer::initPrimsAndGAS()
     const glm::quat rotations[NUM_PRIMITIVES] = {
         // q_phi,
         glm::quat(1, 0, 0, 0),
-        glm::quat(1, 0, 0, 0),
+        // glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
         // glm::vec3(1.25f, 0.9f, 0.9f),
         glm::vec3(0.5f),
-        glm::vec3(0.5f),
+        // glm::vec3(0.5f),
     };
 
     /* ── 2. Build GAS with one unit sphere ───────────────────────── */
@@ -162,12 +162,13 @@ void Renderer::createPipeline() {
         config_.miss_function_name_.c_str()
     );
 
-    // Create hitgroup with closesthit and anyhit (using built-in triangle intersection)
+    // Create hitgroup with anyhit only (using built-in triangle intersection)
+    // Closesthit disabled via OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT in trace.cuh
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(),
         module_.get(),
-        config_.closesthit_function_name_.c_str(),
-        "__anyhit__ah"  // anyhit program for filtering already-processed hits
+        config_.anyhit_function_name_.c_str(),
+        nullptr  // No closesthit
     );
 
     // sbt

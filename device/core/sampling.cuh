@@ -4,6 +4,8 @@
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
 #include "core/trace.cuh"
+#include "core/hit_record.cuh"
+#include "core/sorting.cuh"
 
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"
@@ -24,7 +26,8 @@
 namespace thesis {
 namespace device {
 
-using PrimsSet = utils::Set<uint, consts::MAX_PRIMS>;
+using PrimsSet = utils::Set<uint, consts::MAX_CAPACITY>;
+using HitBuffer = utils::StaticVector<HitRecord, consts::MAX_CAPACITY>;
 
 __forceinline__ __device__ float3 sample_phase(curandState& rng) {
     namespace math = thesis::common::math;
@@ -153,14 +156,11 @@ __device__ __forceinline__ float3 evaluate_albedo(
     return (accum_weight > 0.0f) ? accum_albedo / accum_weight : make_float3(0.0f);
 }
 
-__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_PRIMS>& event, payloads::Miss& miss) {
-    auto tau_cumulative = 0.0f;
-
+__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_CAPACITY>& event, payloads::Miss& miss) {
     const auto chi = random::sample_uniform(rng);
     const auto tau_target = sample_target_optical_depth(chi);
 
     auto& active_prims = event.active_prims_;
-    PrimsSet processed_this_t;  // Track which primitives we've processed at current t-cluster
 
     if (is_debug_thread()) {
         printf("\n=== sample_scattering_event ENTRY, tau_target=%.3f ===\n", tau_target);
@@ -169,55 +169,56 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
                ray.direction_.x, ray.direction_.y, ray.direction_.z);
     }
 
-    float t_total = 0.0f;
-    float t_prev_hit = 0.0f;  // Track where we last integrated to
+    // Collect ALL hits along ray in one BVH traversal
+    HitBuffer hit_buffer;
+    trace_ch_collect(ray, 0.0f, consts::INF_F, &hit_buffer);
 
-    while (!active_prims.full()) {
-        // Phase 1: Try to find more hits at current t-cluster (bounded search)
-        auto result = trace_ch_local(ray, t_total, t_total + consts::INTERSECTION_EPS, &processed_this_t);
+    if (is_debug_thread()) {
+        printf("  Collected %u hits\n", static_cast<uint>(hit_buffer.size()));
+    }
 
-        if (!result) {
-            // Exhausted current cluster, search for next cluster
-            if (is_debug_thread()) printf("  Cluster at t=%.6f exhausted, searching for next\n", t_total);
-            processed_this_t.clear();
+    // If no hits, ray escaped to environment
+    if (hit_buffer.size() == 0) {
+        if (is_debug_thread()) printf("  No geometry, RETURNING FALSE\n");
+        auto color = launch_params.env_map_.sample(ray.direction_);
+        miss = payloads::Miss(color);
+        return false;
+    }
 
-            result = trace_ch(ray, t_total + consts::INTERSECTION_EPS, &processed_this_t);
-            if (!result) {
-                if (is_debug_thread()) printf("  No more geometry, RETURNING FALSE\n");
-                miss = result.unwrap_err();
-                return false;
-            }
+    // Sort hits by t-value
+    sort(hit_buffer);
 
-            // Update t_total to new cluster center
-            const auto& new_cluster_hit = result.unwrap();
-            if (is_debug_thread()) printf("  New cluster found at t=%.6f, updating t_total\n", new_cluster_hit.t_hit);
-            t_total = new_cluster_hit.t_hit;
-        }
+    // Process hits incrementally until scattering occurs
+    float tau_cumulative = 0.0f;
+    float t_prev_hit = 0.0f;
+    float t_start = 0.0f;
 
-        const auto& hit = result.unwrap();
+    size_t i = 0;
+    for (const auto& hit : hit_buffer) { // TODO(claude): I'm open to any further optimizations
         const auto t_hit = hit.t_hit;
         const auto prim_idx = hit.prim_idx;
         const auto is_exit = hit.is_exit;
 
         if (is_debug_thread()) {
-            printf("  Hit: t=%.6f, prim=%u, is_exit=%d\n", t_hit, prim_idx, is_exit);
+            printf("  Hit %u: t=%.6f, prim=%u, is_exit=%d\n", static_cast<uint>(i), t_hit, prim_idx, is_exit);
         }
+        i++; // TODO(kacper): remove
 
         // Integrate from last processed hit to current hit
         const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_prev_hit, t_hit);
         t_prev_hit = t_hit;
 
-        // scattering occurred
-        // [                                t              ]
-        // ^- tau_cumulative & t_total      ^- tau_target & t      ^-tau_target + tau_segment & t_hit
         if (is_debug_thread()) {
             printf("  tau_segment=%.3f, tau_cumulative=%.3f, tau_target=%.3f, active_prims.size=%u\n",
                    tau_segment, tau_cumulative, tau_target, static_cast<uint>(active_prims.size()));
         }
 
+        // Check if scattering occurs in this segment
         if (tau_cumulative + tau_segment >= tau_target) {
             auto tau_needed = tau_target - tau_cumulative;
-            auto t = sample_distance_bisection(ray, active_prims, tau_needed, t_total, t_hit);
+
+            auto t = sample_distance_bisection(ray, active_prims, tau_needed, t_start, t_hit);
+            t_start = hit.t_hit; // TODO(claude): I made this branchless, verify if correct
 
             if (is_debug_thread()) {
                 printf("  SCATTERING at t=%.3f, active_prims=[", t);
@@ -237,36 +238,29 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
             return true;
         }
 
+        // Update active primitives set
         if (is_exit) {
             if (is_debug_thread()) printf("  EXIT: erasing prim %u from active_prims\n", prim_idx);
             if (!active_prims.erase(prim_idx)) {
-                if (is_debug_thread()) {
-                    printf("erase failed for prim %u\n", prim_idx);
-                }
+                if (is_debug_thread()) printf("erase failed for prim %u\n", prim_idx);
             } else if (is_debug_thread()) {
                 printf("erased prim %u\n", prim_idx);
             }
         } else {
             if (is_debug_thread()) printf("  ENTRY: inserting prim %u into active_prims\n", prim_idx);
             if (!active_prims.insert(prim_idx)) {
-                if (is_debug_thread()) {
-                    printf("insert failed for prim %u\n", prim_idx);
-                }
-            }  else if (is_debug_thread()) {
+                if (is_debug_thread()) printf("insert failed for prim %u\n", prim_idx);
+            } else if (is_debug_thread()) {
                 printf("inserted prim %u\n", prim_idx);
             }
         }
 
-        // Mark this primitive as processed at current t-cluster
-        processed_this_t.insert(prim_idx);
-        if (is_debug_thread()) printf("  Added prim %u to processed_this_t, size=%u\n",
-                                      prim_idx, static_cast<uint>(processed_this_t.size()));
-
         tau_cumulative += tau_segment;
     }
 
+    // No scattering occurred along entire ray
     if (is_debug_thread()) {
-        printf("  Loop ended: active_prims.full()=%d, RETURNING FALSE\n", active_prims.full());
+        printf("  Processed all %u hits, no scattering, RETURNING FALSE\n", static_cast<uint>(hit_buffer.size()));
     }
 
     auto color = launch_params.env_map_.sample(ray.direction_);
@@ -292,69 +286,65 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         printf("] size=%u\n", static_cast<uint>(active_prims.size()));
     }
 
-    PrimsSet processed_this_t;  // Track which primitives we've processed at current t-cluster
-    float t_old = 0.0f;
-    float t_prev_hit = 0.0f;  // Track where we last integrated to
+    // Collect ALL hits along ray in one BVH traversal
+    HitBuffer hit_buffer;
+    trace_ch_collect(ray, 0.0f, consts::INF_F, &hit_buffer);
 
-    while (!active_prims.full()) {
-        // Phase 1: Try to find more hits at current t-cluster (bounded search)
-        auto result = trace_ch_local(ray, t_old, t_old + consts::INTERSECTION_EPS, &processed_this_t);
+    if (is_debug_thread()) {
+        printf("  Collected %u hits\n", static_cast<uint>(hit_buffer.size()));
+    }
 
-        if (!result) {
-            // Exhausted current cluster, search for next cluster
-            if (is_debug_thread()) printf("  Cluster exhausted at t=%.6f, searching unbounded\n", t_old);
-            processed_this_t.clear();
+    // If no hits, integrate from ray origin to infinity with initial active_prims
+    if (hit_buffer.size() == 0) {
+        if (is_debug_thread()) printf("  No geometry, integrating initial active_prims to infinity\n");
+        return integrate_primitives(ray, active_prims, 0.0f);
+    }
 
-            result = trace_ch(ray, t_old, &processed_this_t);
-            if (!result) {
-                if (is_debug_thread()) printf("  No more geometry\n");
-                break;  // No more geometry
-            }
+    // Sort hits by t-value
+    sort(hit_buffer);
 
-            // Update t_old to new cluster center (only here, not after each hit)
-            const auto& new_cluster_hit = result.unwrap();
-            if (is_debug_thread()) printf("  New cluster found at t=%.6f, updating t_old\n", new_cluster_hit.t_hit);
-            t_old = new_cluster_hit.t_hit;
-        }
+    // Process all hits and integrate segments
+    float t_prev_hit = 0.0f;
+    size_t i = 0;
 
-        const auto& payload = result.unwrap();
-        const auto t_new = payload.t_hit;
-        const auto prim_idx = payload.prim_idx;
-        const auto is_exit = payload.is_exit;
+    for (const auto& hit : hit_buffer) {
+        const auto t_hit = hit.t_hit;
+        const auto prim_idx = hit.prim_idx;
+        const auto is_exit = hit.is_exit;
 
         if (is_debug_thread()) {
-            printf("  Hit: t=%.6f, prim=%u, is_exit=%d, active_prims.size=%u\n",
-                   t_new, prim_idx, is_exit, static_cast<uint>(active_prims.size()));
+            printf("  Hit %u: t=%.6f, prim=%u, is_exit=%d\n", static_cast<uint>(i), t_hit, prim_idx, is_exit);
         }
+        i++;
 
         // Integrate from last processed hit to current hit
-        acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit, t_new);
-        t_prev_hit = t_new;
+        acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit, t_hit);
+        t_prev_hit = t_hit;
 
+        // Update active primitives set
         if (is_exit) {
             if (!active_prims.erase(prim_idx)) {
-                if (is_debug_thread()) {
-                    printf("erase failed for prim %u\n", prim_idx);
-                }
+                if (is_debug_thread()) printf("erase failed for prim %u\n", prim_idx);
             } else if (is_debug_thread()) {
                 printf("erased prim %u\n", prim_idx);
             }
         } else {
             if (!active_prims.insert(prim_idx)) {
-                if (is_debug_thread()) {
-                    printf("insert failed for prim %u\n", prim_idx);
-                }
+                if (is_debug_thread()) printf("insert failed for prim %u\n", prim_idx);
             } else if (is_debug_thread()) {
                 printf("inserted prim %u\n", prim_idx);
             }
         }
-
-        // Mark this primitive as processed at current t-cluster
-        processed_this_t.insert(prim_idx);
     }
 
-    // drain remaining primitives until infinity
-    acc_optical_depth += integrate_primitives(ray, active_prims, t_old);
+    // Drain remaining primitives until infinity
+    acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit);
+
+    if (is_debug_thread()) {
+        printf("  Final optical depth: (%.3f,%.3f,%.3f)\n",
+               acc_optical_depth.x, acc_optical_depth.y, acc_optical_depth.z);
+    }
+
     return acc_optical_depth;
 }
 

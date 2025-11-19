@@ -50,19 +50,15 @@ extern "C" __global__ void __raygen__rg() {
     auto radiance = make_float3(0.0f);
 
     if (launch_params.debug_) {
-        const auto hit = trace_ch(ray, 0.0f);
-        if (!hit) {
-            radiance = hit.unwrap_err().color(); // TODO(kacper): remove
-        } else {
-            auto idx = hit.unwrap().prim_idx;
-            radiance = launch_params.primitives_[idx].albedo_;
-        } 
+        // TODO(claude): Update debug mode to use trace_ch_collect
+        radiance = make_float3(1.0f, 0.0f, 1.0f);  // Magenta for debug mode
     } else {
-        optix::ScatteringEvent<consts::MAX_PRIMS> event;
+        optix::ScatteringEvent<consts::MAX_CAPACITY> event;
         payloads::Miss miss;
 
         const auto is_debug = is_debug_thread();
 
+        // TODO(claude): I'm open to any further optimizations
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
             if (is_debug) {
                 printf("\n--- RAYGEN bounce %u ---\n", static_cast<uint>(bounce));

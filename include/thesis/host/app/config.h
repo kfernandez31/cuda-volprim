@@ -16,8 +16,7 @@ namespace fs = std::filesystem;
 struct Config {
     std::string raygen_function_name_ = "__raygen__rg";
     std::string miss_function_name_ = "__miss__ms";
-    std::string closesthit_function_name_ = "__closesthit__ch";
-    std::string intersection_function_name_ = "__intersection__sphere";
+    std::string anyhit_function_name_ = "__anyhit__ah";
     std::string launch_params_variable_name_ = "launch_params";
 
     fs::path output_path_ = "output.exr";
@@ -29,7 +28,7 @@ struct Config {
     size_t image_height_ = 750;
 
     uint seed_ = 42;
-    bool debug_ = false;
+    bool debug_ = false;  // TODO(kacper): remove
     float angle_ = 0.0f;  // TODO(kacper): remove
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept {
@@ -52,10 +51,8 @@ struct Config {
         entry_group->add_option("--raygen", config.raygen_function_name_,
                                 "Name of raygen function");
         entry_group->add_option("--miss", config.miss_function_name_, "Name of miss function");
-        entry_group->add_option("--closesthit", config.closesthit_function_name_,
-                                "Name of closesthit function");
-        entry_group->add_option("--intersection", config.intersection_function_name_,
-                                "Name of intersection function");
+        entry_group->add_option("--anyhit", config.anyhit_function_name_,
+                                "Name of anyhit function");
         entry_group->add_option("--launch_params", config.launch_params_variable_name_,
                                 "Launch parameters variable name");
 

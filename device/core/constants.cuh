@@ -12,7 +12,8 @@ constexpr uint VISIBILITY_ALL = 0xFFu;
 constexpr float INTERSECTION_EPS = 1e-3f;
 
 // Primitive and scattering constants
-constexpr size_t MAX_PRIMS = 10u;  // Maximum primitives ray can be inside simultaneously
+// Maximum capacity for both hit collection buffer and active primitives set
+constexpr size_t MAX_CAPACITY = 2000u;
 
 } // namespace consts
 } // namespace device

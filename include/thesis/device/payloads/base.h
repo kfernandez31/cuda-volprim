@@ -83,6 +83,59 @@ struct THESIS_ALIGNMENT Base {
 
 #undef CASE
     }
+
+    __device__ static Derived unpackFromOptix() {
+        static_assert(Derived::Count <= MAX_PAYLOADS, "Max number of payloads exceeded.");
+        uint payloads[Derived::Count] = {};
+
+#define CASE(n) \
+    case (n):   \
+        payloads[(n)] = optixGetPayload_##n();
+
+        switch (Derived::Count - 1) {
+            // clang-format off
+            CASE(31);
+            CASE(30);
+            CASE(29);
+            CASE(28);
+            CASE(27);
+            CASE(26);
+            CASE(25);
+            CASE(24);
+            CASE(23);
+            CASE(22);
+            CASE(21);
+            CASE(20);
+            CASE(19);
+            CASE(18);
+            CASE(17);
+            CASE(16);
+            CASE(15);
+            CASE(14);
+            CASE(13);
+            CASE(12);
+            CASE(11);
+            CASE(10);
+            CASE(9);
+            CASE(8);
+            CASE(7);
+            CASE(6);
+            CASE(5);
+            CASE(4);
+            CASE(3);
+            CASE(2);
+            CASE(1);
+            CASE(0);
+            default:
+                break;
+        }
+
+#undef CASE
+
+        Derived result;
+        result.unpack(payloads);
+        return result;
+    }
 #endif  // DEVICE
 };
 

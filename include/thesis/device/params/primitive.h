@@ -146,16 +146,17 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
-        assert(t0 <= t1 && isfinite(t1)); // TODO(kacper): if t1-t0<=eps, then return 0
+        assert(t0 <= t1 && isfinite(t1));
+        // Handle very small intervals (numerical precision)
+        if (t1 - t0 <= 1e-6f) return 0.0f;
         return optical_depth_internal<false>(ray, t0, t1);
     }
 
-    // TODO(kacper): remove debug param?
-    __device__ float3 density_integral(const geometry::Ray& ray, float t0, bool debug=false) const {
+    __device__ float3 density_integral(const geometry::Ray& ray, float t0) const {
         return albedo_ * optical_depth(ray, t0);
     }
 
-    __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1, bool debug=false) const {
+    __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1) const {
         return albedo_ * optical_depth(ray, t0, t1);
     }
 #endif  // DEVICE

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "thesis/common/utils/math.h"
-#include "thesis/device/payloads/closesthit.h"
+#include "thesis/device/payloads/anyhit.h"
 #include "thesis/device/payloads/miss.h"
 
 #include <cstddef>
@@ -13,7 +13,7 @@ namespace payloads {
 template <typename... Ts>
 struct TypeList {};
 
-using PayloadTypes = TypeList<ClosestHit, Miss>;
+using PayloadTypes = TypeList<Miss, AnyHit>;
 
 template <typename... Ts>
 struct MaxCount;
