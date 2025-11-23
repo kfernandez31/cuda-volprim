@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <future>
 #include <span>
 #include <vector>
 
@@ -15,6 +16,9 @@ namespace thesis::host::utils::io {
 
 [[nodiscard]] Result<std::vector<std::byte>> readFileToBytes(
     const std::filesystem::path& filename) noexcept;
+
+[[nodiscard]] std::future<Result<std::vector<std::byte>>> readFileToBytesAsync(
+    const std::filesystem::path& filename);
 
 [[nodiscard]] Result<> saveExrImage(std::span<const float3> framebuffer, size_t width,
                                     size_t height, const std::filesystem::path& filename,

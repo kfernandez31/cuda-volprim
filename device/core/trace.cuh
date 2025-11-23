@@ -10,8 +10,6 @@
 #include <optix.h>
 #include <vector_types.h>
 
-// TODO(kacper): think of optixReorder
-
 namespace thesis {
 namespace device {
 
@@ -47,6 +45,7 @@ __device__ __forceinline__ void trace_ch_collect(
         ps[0], ps[1], ps[2]  // Tag (0) + buffer pointer (1-2)
     );
 
+    // TODO(kacper): maybe the following can be optimized, since we don't read from the payload if we got some prims in the buffer
     // Note: Always returns Miss since anyhit ignores everything
     // Hit data is in the buffer
 }

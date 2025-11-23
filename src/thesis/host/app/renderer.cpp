@@ -39,19 +39,22 @@ Renderer::Renderer(const app::Config& config)
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
       launch_params_(1, cuda_ctx_.get(), cuda::AllocType::OnBoth) {
+    auto module_file_future = utils::io::readFileToBytesAsync(config_.module_blob_path_);
+
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
-    
-    initPrimsAndGAS();
-    createPipeline();
+
+    initPrimsAndGAS();  // GAS building happens here while file I/O proceeds in background
+    createPipeline(std::move(module_file_future));
 }
 
 void Renderer::initPrimsAndGAS()
 {
     /* ── 1. Per-primitive data ────────────────────────────────────── */
     const glm::vec3 albedos[NUM_PRIMITIVES] = {
-        {1,0,0},
+        // {1,0,0},
         // {0,0,1},
+        {0.5,0,0.5}
     };
     const glm::vec3 translations[NUM_PRIMITIVES] = {
         // {0, 0, 1},
@@ -66,14 +69,14 @@ void Renderer::initPrimsAndGAS()
     const auto q_phi = glm::quat(cos(phi_half), 0.0f, sin(phi_half), 0.0f);
 
     const glm::quat rotations[NUM_PRIMITIVES] = {
-        // q_phi,
-        glm::quat(1, 0, 0, 0),
+        q_phi,
+        // glm::quat(1, 0, 0, 0),
         // glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
-        // glm::vec3(1.25f, 0.9f, 0.9f),
-        glm::vec3(0.5f),
+        glm::vec3(0.55f, 0.35f, 0.35f),
+        // glm::vec3(0.5f),
         // glm::vec3(0.5f),
     };
 
@@ -100,7 +103,7 @@ void Renderer::initPrimsAndGAS()
 
         inst.traversableHandle = gas_.get();
         inst.instanceId        = static_cast<uint>(i);
-        inst.sbtOffset         = 0; // TODO(kacper): validate
+        inst.sbtOffset         = 0;
         inst.visibilityMask    = 0xFF;
         inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
         instances_[i]          = inst;
@@ -135,7 +138,7 @@ void Renderer::uploadParams() {
     launch_params_.upload();
 }
 
-void Renderer::createPipeline() {
+void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future) {
     OptixPipelineCompileOptions pco = {};
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
@@ -143,9 +146,9 @@ void Renderer::createPipeline() {
     pco.usesPrimitiveTypeFlags = static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);  // Using triangle meshes (icospheres)
     pco.numAttributeValues = 0;
 
-    // module
+    // Complete async module load
     module_ = utils::try_unwrap_or_exit<optix::Module>(
-        optix::Module::load(optix_ctx_.get(), config_.module_blob_path_, pco)
+        optix::Module::loadAsync(optix_ctx_.get(), module_file_future, pco)
     );
 
     // raygen

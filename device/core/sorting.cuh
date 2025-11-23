@@ -9,7 +9,6 @@ namespace device {
 // Simple bubble sort for small-to-medium sized arrays
 // Sorts HitRecords by t_hit in ascending order
 // O(n²) complexity, but simple and correct for GPU
-// TODO(kacper): Replace with radix sort if profiling shows this is a bottleneck
 template <size_t N>
 __device__ void sort(utils::StaticVector<HitRecord, N>& vec) {
     const size_t n = vec.size();

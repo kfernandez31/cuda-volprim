@@ -8,7 +8,8 @@ namespace thesis {
 namespace common {
 namespace math {
 
-// TODO(kacper): expose dot prod
+// Re-export dot() from sutil for consistency with other math functions
+using ::dot;
 
 constexpr float PI_F = 3.14159265358979323846f;
 constexpr float TWO_PI_F = 2.0f * PI_F;
@@ -83,6 +84,26 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr float prod(float3 v) noexcept {
 
 THESIS_HOST_DEVICE THESIS_INLINE float length2(float3 v) noexcept {
     return dot(v, v);
+}
+
+// Safe reciprocal: returns 0 for zero input (avoids div-by-zero)
+THESIS_HOST_DEVICE THESIS_INLINE float safe_rcp(float x) noexcept {
+    return (x != 0.0f) ? (1.0f / x) : 0.0f;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 safe_rcp(float3 v) noexcept {
+    return make_float3(safe_rcp(v.x), safe_rcp(v.y), safe_rcp(v.z));
+}
+
+// Sanitize scalar: clamp to non-negative and filter NaN/Inf
+THESIS_HOST_DEVICE THESIS_INLINE float sanitize(float x) noexcept {
+    x = fmaxf(x, 0.0f);             // Clamp negative
+    return isfinite(x) ? x : 0.0f;  // Filter NaN/Inf
+}
+
+// Sanitize float3: component-wise sanitization
+THESIS_HOST_DEVICE THESIS_INLINE float3 sanitize(float3 v) noexcept {
+    return make_float3(sanitize(v.x), sanitize(v.y), sanitize(v.z));
 }
 
 template <typename T>

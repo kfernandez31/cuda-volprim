@@ -8,7 +8,6 @@
 
 namespace thesis::host::utils::data {
 
-// TODO(kacper): remove?
 template <typename To, typename From>
 [[nodiscard]] std::span<const To> reinterpretSpan(std::span<const From> src) {
     static_assert(sizeof(From) == sizeof(To), "Size mismatch in reinterpretSpan");

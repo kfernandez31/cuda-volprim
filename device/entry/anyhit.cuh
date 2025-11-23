@@ -36,5 +36,12 @@ extern "C" __global__ void __anyhit__ah() {
 
         hit_buffer->emplace_back(t, prim_idx, is_exit);
         optixIgnoreIntersection();
+    } else {
+        // Buffer full - terminate ray to prevent undefined behavior
+        if (is_debug_thread()) {
+            printf("anyhit: HIT BUFFER FULL (capacity=%u), terminating ray\n",
+                   static_cast<uint>(consts::MAX_CAPACITY));
+        }
+        optixTerminateRay();
     }
 }

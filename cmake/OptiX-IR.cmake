@@ -23,6 +23,12 @@ add_custom_command(
         -DGLM_ENABLE_EXPERIMENTAL
         -O3
         -arch=sm_${CUDA_ARCH}
+        # Fast math flags for FMA and aggressive FP optimizations
+        -use_fast_math
+        --fmad=true
+        --ftz=true
+        --prec-div=false
+        --prec-sqrt=false
         -o "${OPTIXIR_OUTPUT}"
         -diag-suppress=20044
         -m64

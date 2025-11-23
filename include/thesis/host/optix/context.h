@@ -21,11 +21,11 @@ class Context {
         OptixDeviceContextOptions opts = {};
         opts.logCallbackFunction = &contextLogCb;
         opts.logCallbackLevel = static_cast<int>(LogLevel::Warning);
-        // #ifdef DEBUG // TODO(kacper): restore
+#ifdef DEBUG
         opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
-        // #else
-        // opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_OFF;
-        // #endif
+#else
+        opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_OFF;
+#endif
 
         OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &opts, &handle_));
         spdlog::info(
@@ -33,8 +33,9 @@ class Context {
             opts.validationMode == OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL ? "ALL" : "OFF");
 
         OPTIX_CHECK(optixDeviceContextSetCacheEnabled(handle_, 1));
-        OPTIX_CHECK(optixDeviceContextSetCacheDatabaseSizes(handle_, 64 * 1024 * 1024,
-                                                            128 * 1024 * 1024));  // 64MB, 128MB
+        constexpr size_t MEGABYTES = 1024 * 1024;
+        OPTIX_CHECK(
+            optixDeviceContextSetCacheDatabaseSizes(handle_, 64 * MEGABYTES, 128 * MEGABYTES));
     }
 
     ~Context() { reset(); }

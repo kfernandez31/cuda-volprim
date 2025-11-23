@@ -6,7 +6,7 @@
 
 #include <array>
 #include <fstream>
-#include <glm/glm.hpp>  // TODO(kacper): needed to use glm's vec? I doubt it
+#include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <ios>
 #include <stb/stb_image.h>
@@ -62,6 +62,13 @@ Result<std::vector<std::byte>> readFileToBytes(const std::filesystem::path& file
     } catch (const std::exception& e) {
         return make_error("Exception in readFileToBytes: {}", e.what());
     }
+}
+
+std::future<Result<std::vector<std::byte>>> readFileToBytesAsync(
+    const std::filesystem::path& filename) {
+    return std::async(std::launch::async, [filename]() -> Result<std::vector<std::byte>> {
+        return readFileToBytes(filename);
+    });
 }
 
 Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,

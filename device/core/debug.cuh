@@ -15,10 +15,12 @@ __device__ __forceinline__ bool is_debug_thread() {
     const uint3 launch_index = optixGetLaunchIndex();
     const uint3 launch_dim   = optixGetLaunchDimensions();
 
-    const uint32_t mid_x = launch_dim.x / 2;
-    const uint32_t mid_y = launch_dim.y / 2;
+    // Debug a pixel on the right edge where the blue outline appears
+    // About 60% across horizontally, middle vertically
+    const uint32_t target_x = launch_dim.x * 6 / 10;
+    const uint32_t target_y = launch_dim.y / 2;
 
-    return (launch_index.x == mid_x) && (launch_index.y == mid_y);
+    return (launch_index.x == target_x) && (launch_index.y == target_y);
 }
 
 } // namespace device

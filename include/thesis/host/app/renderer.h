@@ -18,6 +18,8 @@
 #include "thesis/host/params/image.h"
 
 #include <cstddef>
+#include <future>
+#include <vector>
 
 namespace thesis::host::app {
 
@@ -26,7 +28,7 @@ class Renderer {
     void initPrimsAndGAS();
     void uploadParams();
     void createPrimitives();
-    void createPipeline();
+    void createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future);
 
     app::Config config_;
 

@@ -7,13 +7,12 @@ namespace device {
 namespace consts {
 
 // Ray tracing constants
-constexpr float INF_F = 1e20f;
-constexpr uint VISIBILITY_ALL = 0xFFu;
-constexpr float INTERSECTION_EPS = 1e-3f;
+constexpr float INF_F = 1e20;
+constexpr uint VISIBILITY_ALL = 0xFF;
 
 // Primitive and scattering constants
 // Maximum capacity for both hit collection buffer and active primitives set
-constexpr size_t MAX_CAPACITY = 2000u;
+constexpr size_t MAX_CAPACITY = 256;
 
 } // namespace consts
 } // namespace device
