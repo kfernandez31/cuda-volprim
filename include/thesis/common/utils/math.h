@@ -86,6 +86,33 @@ THESIS_HOST_DEVICE THESIS_INLINE float length2(float3 v) noexcept {
     return dot(v, v);
 }
 
+// Compute next power of 2 >= n using bit manipulation
+template <typename UInt>
+THESIS_HOST_DEVICE THESIS_INLINE constexpr UInt next_power_of_2(UInt n) noexcept {
+    static_assert(std::is_unsigned<UInt>::value, "next_power_of_2 requires unsigned integer type");
+
+    if (n == 0)
+        return 1;
+    n--;
+
+    // Unroll for all possible bit widths using if constexpr
+    constexpr size_t bits = sizeof(UInt) * 8;
+    if constexpr (bits >= 2)
+        n |= n >> 1;
+    if constexpr (bits >= 4)
+        n |= n >> 2;
+    if constexpr (bits >= 8)
+        n |= n >> 4;
+    if constexpr (bits >= 16)
+        n |= n >> 8;
+    if constexpr (bits >= 32)
+        n |= n >> 16;
+    if constexpr (bits >= 64)
+        n |= n >> 32;
+
+    return n + 1;
+}
+
 // Safe reciprocal: returns 0 for zero input (avoids div-by-zero)
 THESIS_HOST_DEVICE THESIS_INLINE float safe_rcp(float x) noexcept {
     return (x != 0.0f) ? (1.0f / x) : 0.0f;

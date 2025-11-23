@@ -4,19 +4,42 @@ This document outlines potential performance optimizations for the volumetric pa
 
 **Note:** This document now incorporates findings from analyzing the Mitsuba `volumetric_primitives` reference implementation.
 
-## 1. Sorting Optimization
+## 1. Sorting Optimization ✅ IMPLEMENTED
 
-**Current:** O(n²) bubble sort for up to 2000 hits per ray
+**Status:** Adaptive hybrid sort implemented in `device/core/sorting.cuh`
 
-### Option A: Adaptive Hybrid Sort (RECOMMENDED)
+### Current Implementation
 ```cuda
-if (n <= 32) warp_sort();           // Shuffle-based, ~100x faster
-else if (n <= 128) insertion_sort(); // O(n²) but fast for small n
-else if (is_pow2(n)) bitonic_sort(); // O(n log² n)
-else radix_sort_device();            // O(n), needs temp storage
+if (n <= 64) insertion_sort();      // O(n²), excellent cache behavior
+else bitonic_sort();                 // O(n log² n) sorting network
 ```
-**Effort:** Medium
-**Expected gain:** 10-100x for typical hit counts
+
+**Algorithms used:**
+- **Insertion sort (n ≤ 64):** Simple, low overhead, good for small/nearly-sorted arrays
+- **Bitonic sort (n > 64):** Parallel sorting network, O(n log² n), works on single thread
+
+**Expected gain:** 10-50x over original bubble sort
+
+### Why Not Warp Shuffle Sort?
+
+**Issue:** Warp shuffle sorting requires all 32 threads in a warp to cooperate on sorting **one shared vector**. In our execution model:
+- Each thread has its **own independent vector** to sort
+- Threads don't share vectors (one thread = one ray = one hit buffer)
+- Warp shuffles would mix data between different threads' vectors ❌
+
+**When warp shuffle would work:**
+- Execution model: One warp = One ray (all 32 threads process same ray)
+- Requires major raygen refactor
+- Current model: One thread = One ray (independent processing) ✅
+
+### Future: Warp-Cooperative Sorting (Phase 3)
+
+If profiling shows sorting is still a bottleneck, could implement:
+1. Coordinate all 32 threads in warp to sort one thread's vector at a time
+2. Process 32 vectors sequentially (each with warp cooperation)
+3. **Problem:** 32× sequential overhead likely negates warp shuffle benefit
+
+**Verdict:** Current insertion + bitonic approach is optimal for our execution model
 
 ### Option B: CUB DeviceRadixSort
 Use NVIDIA's optimized library for sorting.

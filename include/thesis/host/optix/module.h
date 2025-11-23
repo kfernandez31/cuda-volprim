@@ -30,11 +30,11 @@ class Module {
         Module module;
 
         OptixModuleCompileOptions mco = {};
-// #ifdef DEBUG // TODO(kacper): restore
+        // #ifdef DEBUG // TODO(kacper): restore
         mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
-// #else
+        // #else
         // mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
-// #endif
+        // #endif
 
         std::vector<std::byte> blob;
         TRY_ASSIGN(blob, utils::io::readFileToBytes(filename));
@@ -49,17 +49,16 @@ class Module {
 
     // Async version: takes future from utils::io::readFileToBytesAsync() and creates module
     [[nodiscard]] static utils::Result<Module> loadAsync(
-        OptixDeviceContext ctx,
-        std::future<utils::Result<std::vector<std::byte>>>& file_future,
+        OptixDeviceContext ctx, std::future<utils::Result<std::vector<std::byte>>>& file_future,
         const OptixPipelineCompileOptions& pco) {
         Module module;
 
         OptixModuleCompileOptions mco = {};
-// #ifdef DEBUG // TODO(kacper): restore
+        // #ifdef DEBUG // TODO(kacper): restore
         mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
-// #else
+        // #else
         // mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
-// #endif
+        // #endif
 
         std::vector<std::byte> blob;
         TRY_ASSIGN(blob, file_future.get());
