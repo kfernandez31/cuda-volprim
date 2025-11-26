@@ -77,7 +77,7 @@ extern "C" __global__ void __raygen__rg() {
 
         // Evaluate albedo and environment lighting
         auto albedo = evaluate_albedo(event.position_, event.active_prims_);
-        
+
         auto env = launch_params.env_map_.sample(event.direction_);
 
         if (is_debug) printf("Albedo=(%.3f,%.3f,%.3f), env=(%.3f,%.3f,%.3f)\n",

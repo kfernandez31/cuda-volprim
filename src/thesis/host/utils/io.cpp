@@ -144,14 +144,15 @@ Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& 
     stbi_set_flip_vertically_on_load(true);
 
     int w, h, c;
-    auto* raw = stbi_loadf(filename.string().c_str(), &w, &h, &c, 0);
+    // Force RGBA format (4 channels) for CUDA texture compatibility
+    auto* raw = stbi_loadf(filename.string().c_str(), &w, &h, &c, 4);
     if (!raw) {
         return make_error("Failed to load HDR image: {}", filename.string());
     }
 
     width = static_cast<size_t>(w);
     height = static_cast<size_t>(h);
-    channels = static_cast<size_t>(c);
+    channels = 4;  // Always RGBA now
 
     return HDRImagePtr(raw, stbi_image_free);
 }
