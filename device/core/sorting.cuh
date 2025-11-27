@@ -30,7 +30,7 @@ __device__ void warp_shuffle_sort(utils::StaticVector<HitRecord, N>& vec) {
             const HitRecord other = HitRecord{
                 __shfl_sync(0xFFFFFFFF, my_record.t_hit, ixj),
                 __shfl_sync(0xFFFFFFFF, my_record.prim_idx, ixj),
-                static_cast<bool>(__shfl_sync(0xFFFFFFFF, my_record.is_exit, ixj))
+                __shfl_sync(0xFFFFFFFF, my_record.is_exit, ixj)
             };
 
             const bool ascending = ((lane_id & k) == 0);

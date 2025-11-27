@@ -8,9 +8,6 @@ namespace thesis {
 namespace common {
 namespace math {
 
-// Re-export dot() from sutil for consistency with other math functions
-using ::dot;
-
 constexpr float PI_F = 3.14159265358979323846f;
 constexpr float TWO_PI_F = 2.0f * PI_F;
 constexpr float FOUR_PI_F = 4.0f * PI_F;
@@ -82,8 +79,28 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr float prod(float3 v) noexcept {
     return v.x * v.y * v.z;
 }
 
+THESIS_HOST_DEVICE THESIS_INLINE float dot(float3 a, float3 b) noexcept {
+#ifdef __CUDA_ARCH__
+    return __fmaf_rn(a.x, b.x, __fmaf_rn(a.y, b.y, a.z * b.z));
+#else
+    return ::dot(a, b);  // Fall back to sutil version on host
+#endif
+}
+
 THESIS_HOST_DEVICE THESIS_INLINE float length2(float3 v) noexcept {
-    return dot(v, v);
+#ifdef __CUDA_ARCH__
+    return dot(v, v);  // Use our FMA-optimized dot
+#else
+    return ::dot(v, v);
+#endif
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 fmaf(float a, float3 b, float3 c) noexcept {
+#ifdef __CUDA_ARCH__
+    return make_float3(__fmaf_rn(a, b.x, c.x), __fmaf_rn(a, b.y, c.y), __fmaf_rn(a, b.z, c.z));
+#else
+    return a * b + c;
+#endif
 }
 
 // Compute next power of 2 >= n using bit manipulation
@@ -93,7 +110,7 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr UInt next_power_of_2(UInt n) noexcept
 
     if (n == 0)
         return 1;
-    n--;
+    --n;
 
     // Unroll for all possible bit widths using if constexpr
     constexpr size_t bits = sizeof(UInt) * 8;

@@ -25,7 +25,11 @@ struct UnitQuaternion {
     __device__ float3 rotate(float3 v) const {
         const auto uv = cross(u_, v);
         const auto uuv = cross(u_, uv);
-        return v + 2.0f * (s_ * uv + uuv);
+        // Quaternion rotation: v + 2*s*(u×v) + 2*(u×(u×v))
+        // = v + 2*(s*uv + uuv)
+        return make_float3(__fmaf_rn(2.0f, __fmaf_rn(s_, uv.x, uuv.x), v.x),
+                           __fmaf_rn(2.0f, __fmaf_rn(s_, uv.y, uuv.y), v.y),
+                           __fmaf_rn(2.0f, __fmaf_rn(s_, uv.z, uuv.z), v.z));
     }
 #endif  // DEVICE
 };

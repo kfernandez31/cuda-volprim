@@ -22,7 +22,10 @@ class AccelerationStructure {
     void build_internal(const OptixBuildInput& input, CUcontext cuda_ctx,
                         OptixDeviceContext optix_ctx, uint build_flags,
                         const char* structure_type) {
-        // const auto& stream = compacted_size_.get_context_param();
+        // const auto& stream = compacted_size_.get_context_param(); // TODO: why isn't this used?
+        // We could use async buffers for temp_ and out_. We do have to keep in mind however we need
+        // to synchronize the stream after optixAccelBuild to get the compacted size (can't do it
+        // async)
 
         OptixAccelBuildOptions opts{};
         opts.buildFlags = build_flags;

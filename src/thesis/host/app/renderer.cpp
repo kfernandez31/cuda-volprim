@@ -30,7 +30,7 @@ Renderer::Renderer(const app::Config& config)
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
-      gas_(geometry::DefaultIcosphere::Base(), cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
+      gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
       instances_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
@@ -38,14 +38,21 @@ Renderer::Renderer(const app::Config& config)
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
+      camera_active_prims_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),  // TODO: optimize by first building std::vector<uint>, then allocating exact size and memcpy
       launch_params_(1, cuda_ctx_.get(), cuda::AllocType::OnBoth) {
     auto module_file_future = utils::io::readFileToBytesAsync(config_.module_blob_path_);
 
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
 
-    initPrimsAndGAS();  // GAS building happens here while file I/O proceeds in background
+    initPrimsAndGAS();
     createPipeline(std::move(module_file_future));
+}
+
+Renderer::~Renderer() {
+    if (builtin_is_module_) {
+        optixModuleDestroy(builtin_is_module_);
+    }
 }
 
 void Renderer::initPrimsAndGAS()
@@ -57,26 +64,21 @@ void Renderer::initPrimsAndGAS()
         {0.5,0,0.5}
     };
     const glm::vec3 translations[NUM_PRIMITIVES] = {
+        {0, 0, 0},
         // {0, 0, 1},
         // {1.0f,1.0f,0.0f},
-        {0,0,0},
+        // {0,0,0},
         // {0,0,0},
     };
 
-    // TODO(kacper): remove
-    const auto angle = config_.angle_;
-    const auto phi_half = glm::radians(angle) * 0.5f;
-    const auto q_phi = glm::quat(cos(phi_half), 0.0f, sin(phi_half), 0.0f);
-
     const glm::quat rotations[NUM_PRIMITIVES] = {
-        q_phi,
-        // glm::quat(1, 0, 0, 0),
+        glm::quat(1, 0, 0, 0),
         // glm::quat(1, 0, 0, 0),
     };
 
     const glm::vec3 scales[NUM_PRIMITIVES] = {
-        glm::vec3(0.55f, 0.35f, 0.35f),
-        // glm::vec3(0.5f),
+        // glm::vec3(0.55f, 0.35f, 0.35f),
+        glm::vec3(0.5f),
         // glm::vec3(0.5f),
     };
 
@@ -126,6 +128,43 @@ void Renderer::initPrimsAndGAS()
 }
 
 void Renderer::uploadParams() {
+    // Compute which primitives contain camera (CPU side, done once)
+    std::vector<uint> camera_active;
+    const auto camera_pos = camera_.lookfrom_;  // Camera position
+
+    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+        // Get primitive parameters from host primitives buffer
+        const auto prim_device = primitives_[i];
+
+        // Transform camera position to primitive local space (host-side equivalent of point_inside_ellipsoid)
+        // Local space: rotate(pos - center) / scale
+        const glm::vec3 center = utils::data::toVec3(prim_device.center_);
+        const glm::vec3 scale = utils::data::toVec3(prim_device.scale_);
+
+        // Convert UnitQuaternion to glm::quat for rotation
+        const auto& rot_device = prim_device.rot_quat_;
+        const glm::quat rot_glm(rot_device.w, rot_device.x, rot_device.y, rot_device.z);
+
+        // Apply transform: rotate(pos - center) / scale
+        const auto diff = camera_pos - center;
+        const auto rotated = rot_glm * diff;
+        const auto local = rotated / scale;
+        const float len2 = glm::dot(local, local);
+
+        if (len2 <= 1.0f) {
+            camera_active.push_back(static_cast<uint>(i));
+        }
+    }
+
+    // Allocate and upload camera active prims (only if non-empty)
+    if (!camera_active.empty()) {
+        camera_active_prims_ = cuda::Buffer<uint>(camera_active.size(), cuda_ctx_.get(), cuda::AllocType::OnBoth);
+        std::memcpy(camera_active_prims_.host(), camera_active.data(), camera_active.size() * sizeof(uint));
+        camera_active_prims_.upload();
+    } else {
+        camera_active_prims_ = cuda::Buffer<uint>(0, cuda_ctx_.get(), cuda::AllocType::OnBoth);
+    }
+
     auto& par = launch_params_[0];
     par.seed_ = config_.seed_;
     par.debug_ = config_.debug_;
@@ -134,22 +173,46 @@ void Renderer::uploadParams() {
     par.env_map_ = env_map_.toDevice();
     par.image_ = image_.toDevice();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
+    par.camera_active_prims_ = device::utils::DynamicVector<uint>(
+        camera_active_prims_.device(),
+        camera_active.size()
+    );
 
     launch_params_.upload();
 }
 
 void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future) {
-    OptixPipelineCompileOptions pco = {};
+    OptixPipelineCompileOptions pco{};
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-    pco.usesPrimitiveTypeFlags = static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);  // Using triangle meshes (icospheres)
+    pco.usesPrimitiveTypeFlags = static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE);  // Using built-in spheres
     pco.numAttributeValues = 0;
 
     // Complete async module load
     module_ = utils::try_unwrap_or_exit<optix::Module>(
         optix::Module::loadAsync(optix_ctx_.get(), module_file_future, pco)
     );
+
+    // Get built-in sphere intersection module
+    OptixBuiltinISOptions builtin_is_options{};
+    builtin_is_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
+    builtin_is_options.usesMotionBlur = false;
+    builtin_is_options.buildFlags = optix::GAS_BUILD_FLAGS;
+
+    OptixModuleCompileOptions builtin_mco{};
+    builtin_mco.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+
+#ifdef DEBUG
+    builtin_mco.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    builtin_mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
+#else
+    builtin_mco.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;
+    builtin_mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+#endif
+
+    OPTIX_CHECK(optixBuiltinISModuleGet(
+        optix_ctx_.get(), &builtin_mco, &pco, &builtin_is_options, &builtin_is_module_));
 
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(
@@ -165,13 +228,13 @@ void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>>
         config_.miss_function_name_.c_str()
     );
 
-    // Create hitgroup with anyhit only (using built-in triangle intersection)
+    // Create hitgroup with anyhit + built-in sphere intersection
     // Closesthit disabled via OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT in trace.cuh
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(),
         module_.get(),
         config_.anyhit_function_name_.c_str(),
-        nullptr  // No closesthit
+        builtin_is_module_  // Built-in sphere intersection module
     );
 
     // sbt

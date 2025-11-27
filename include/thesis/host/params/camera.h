@@ -64,9 +64,10 @@ class Camera : public Convertible<device::params::Camera> {
         const auto pixel_dv = viewport_v / static_cast<float>(image_height_);
         const auto viewport_ul = lookfrom_ - focal_len * w - 0.5f * (viewport_u + viewport_v);
         const auto pixel00 = viewport_ul + 0.5f * (pixel_du + pixel_dv);
+        const auto pixel00_relative = pixel00 - lookfrom_;  // Precompute for device
 
         device_struct_.eye_ = utils::data::toFloat3(lookfrom_);
-        device_struct_.pixel00_ = utils::data::toFloat3(pixel00);
+        device_struct_.pixel00_relative_ = utils::data::toFloat3(pixel00_relative);
         device_struct_.pixel_du_ = utils::data::toFloat3(pixel_du);
         device_struct_.pixel_dv_ = utils::data::toFloat3(pixel_dv);
     }

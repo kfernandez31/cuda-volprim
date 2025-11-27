@@ -43,6 +43,10 @@ class THESIS_ALIGNMENT SetBase {
     __device__ T* end() { return data_ + size_; }
     __device__ const T* begin() const { return data_; }
     __device__ const T* end() const { return data_ + size_; }
+
+    // indexed access (no bounds checking)
+    __device__ T& operator[](size_t i) { return data_[i]; }
+    __device__ const T& operator[](size_t i) const { return data_[i]; }
 #endif  // DEVICE
 };
 

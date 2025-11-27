@@ -11,36 +11,48 @@ namespace thesis {
 namespace device {
 namespace kernels {
 
-static __global__ void average_samples_kernel(float3* out_img, const float3* in_buf, size_t width,
+static __global__ void average_samples_kernel(float3* out_img, const float4* in_buf, size_t width,
                                               size_t height, size_t num_samples_per_pixel) {
-    const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
-    const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x >= width || y >= height)
-        return;
-
-    const size_t pixel_index = y * width + x;
     const size_t image_size = width * height;
+    const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+    const size_t stride = blockDim.x * gridDim.x;
 
-    auto acc = make_float3(0.0f);
+    // Grid-stride loop: each thread processes multiple pixels
+    // This improves occupancy and allows more threads to be active
+    for (size_t pixel_index = tid; pixel_index < image_size; pixel_index += stride) {
+        auto acc = make_float4(0.0f);
 
-    for (size_t s = 0; s < num_samples_per_pixel; ++s) {
-        acc += in_buf[s * image_size + pixel_index];
+// Unroll accumulation loop for better ILP
+#pragma unroll 4
+        for (size_t s = 0; s < num_samples_per_pixel; ++s) {
+            // Vectorized 128-bit load (guaranteed with float4)
+            acc += in_buf[s * image_size + pixel_index];
+        }
+
+        const auto avg = acc / static_cast<float>(num_samples_per_pixel);
+        out_img[pixel_index] = make_float3(avg.x, avg.y, avg.z);
     }
-
-    out_img[pixel_index] = acc / static_cast<float>(num_samples_per_pixel);
 }
 
-void launch_average_samples_kernel(float3* out_img, const float3* in_buf, size_t width,
+void launch_average_samples_kernel(float3* out_img, const float4* in_buf, size_t width,
                                    size_t height, size_t num_samples_per_pixel,
                                    cudaStream_t stream) {
-    // TODO(kacper): select experimentally
-    const dim3 block(16, 16);
-    const dim3 grid(common::math::ceil_div(static_cast<uint>(width), block.x),
-                    common::math::ceil_div(static_cast<uint>(width), block.y));
+    const size_t image_size = width * height;
 
-    average_samples_kernel<<<grid, block, 0, stream>>>(out_img, in_buf, width, height,
-                                                       num_samples_per_pixel);
+    // Use 1D grid-stride configuration for better efficiency
+    // 256 threads per block is a good balance for most GPUs
+    const size_t block_size = 256;
+
+    // Launch enough blocks to saturate GPU, but not too many
+    // Heuristic: 4-8 blocks per SM is typical, modern GPUs have 80-144 SMs
+    // For image_size < block_size, we only need 1 block
+    const size_t num_blocks = common::math::min(
+        common::math::ceil_div(image_size, block_size),
+        static_cast<size_t>(1024)  // Cap at 1024 blocks (enough for 128 SMs × 8 blocks/SM)
+    );
+
+    average_samples_kernel<<<num_blocks, block_size, 0, stream>>>(out_img, in_buf, width, height,
+                                                                  num_samples_per_pixel);
 }
 
 }  // namespace kernels

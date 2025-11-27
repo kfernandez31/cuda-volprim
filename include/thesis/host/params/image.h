@@ -21,7 +21,8 @@ class Image : public Convertible<device::params::Image> {
     size_t width_ = 0;
     size_t height_ = 0;
     size_t num_samples_per_pixel_ = 0;
-    cuda::AsyncBuffer<float3> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
+    cuda::AsyncBuffer<float4> sample_buffer_;    // Sample-major buffer: [s * H * W + y * W + x]
+                                                 // (float4 for vectorized access, w unused)
     cuda::AsyncBuffer<float3> averaged_pixels_;  // Single-layer output
 
    public:
@@ -54,9 +55,10 @@ class Image : public Convertible<device::params::Image> {
 
     [[nodiscard]] device::params::Image toDevice() const noexcept override {
         device::params::Image img;
-        img.sample_buffer_ = const_cast<float3*>(sample_buffer_.device());
+        img.sample_buffer_ = const_cast<float4*>(sample_buffer_.device());
         img.width_ = width_;
         img.height_ = height_;
+        img.image_size_ = width_ * height_;
         img.num_samples_per_pixel_ = num_samples_per_pixel_;
         return img;
     }
@@ -79,7 +81,10 @@ class Image : public Convertible<device::params::Image> {
         auto h = height_;
 
         spdlog::info("Saving EXR to '{}'", filename.string());
-        CUDA_CHECK(cudaDeviceSynchronize());
+        CUDA_CHECK(
+            cudaDeviceSynchronize());  // TODO: necessary? or just synchronizing the stream param
+                                       // would be enough? Also, manual cudaDeviceSynchronize is
+                                       // ugly, we have Stream::synchronizeDevice() for a reason
         return utils::io::saveExrImage(view, w, h, filename);
         return {};
     }

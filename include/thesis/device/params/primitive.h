@@ -27,6 +27,7 @@ class THESIS_ALIGNMENT Primitive {
     float density_norm_factor_;
     float inv_cdf_factor_;
 
+   public:
 #ifdef DEVICE
     __device__ float3 transform_pos_local(float3 pos) const {
         return rot_quat_.rotate(pos - center_) / scale_;
@@ -37,8 +38,6 @@ class THESIS_ALIGNMENT Primitive {
     }
 
 #endif  // DEVICE
-
-   public:
     float3 albedo_;
     float optical_thickness_;
 
@@ -87,7 +86,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto w_len = w_len2 * w_inv_len;
 
         const auto wp = math::dot(w, p) * w_inv_len;
-        const auto pp = math::dot(p, p);
+        const auto pp = math::lengtht2(p);
         const auto diff = __fmaf_rn(-wp, wp, pp); // pp - wp²
         const auto exponent = 0.5f * diff;
 
@@ -100,7 +99,6 @@ class THESIS_ALIGNMENT Primitive {
 
         return math::ROOT_TWO_F * erfinv(erfinv_arg) - wp;
     }
-
 
     __device__ float optical_depth(const geometry::Ray& ray, float t0) const {
         namespace math = common::math;
@@ -122,7 +120,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto wp0 = math::dot(w_normalized, p0);
 
         // Use starting point for the exponential term (integrating to infinity)
-        const auto pp0 = math::dot(p0, p0);
+        const auto pp0 = math::length2(p0);
         const auto perp_dist2 = __fmaf_rn(-wp0, wp0, pp0);  // FMA: pp0 + (-wp0)*wp0
 
         // Common terms
@@ -164,7 +162,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto mid_p = 0.5f * (p0 + p1);
         const auto wp_mid = 0.5f * (wp0 + wp1);
         const auto pp_mid = math::dot(mid_p, mid_p);
-        const auto perp_dist2 = __fmaf_rn(-wp_mid, wp_mid, pp_mid);  // FMA: pp_mid + (-wp_mid)*wp_mid
+        const auto perp_dist2 = __fmaf_rn(-wp_mid, wp_mid, pp_mid);
 
         // Common terms
         const auto e_term = __expf(-0.5f * perp_dist2);

@@ -36,16 +36,19 @@ class Renderer {
     optix::Context optix_ctx_;
     cuda::StreamDAG streams_;
 
-    optix::TriangleGAS<geometry::DefaultIcosphere> gas_;
+    optix::SphereGAS gas_;
     optix::IAS ias_;
     cuda::Buffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
     cuda::Buffer<device::params::Primitive> primitives_;
+    cuda::Buffer<uint> camera_active_prims_;
     cuda::Buffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;
+    OptixModule builtin_is_module_ =
+        nullptr;  // TODO: could this be RAII-ified? We have a optix::Module class already
     optix::ProgramGroup raygen_pg_;
     optix::ProgramGroup miss_pg_;
     optix::ProgramGroup hitgroup_pg_;
@@ -54,6 +57,7 @@ class Renderer {
 
    public:
     explicit Renderer(const app::Config& config);
+    ~Renderer();
 
     void render();
 };

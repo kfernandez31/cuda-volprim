@@ -28,14 +28,15 @@ class EnvironmentMap : public Convertible<device::params::EnvironmentMap> {
         auto hdr = utils::try_unwrap_or_exit(
             utils::io::loadHDRImage(filepath, width, height, num_channels_));
 
-        spdlog::info("Successfully loaded environment map '{}': {}x{}x{}", filepath.string(),
-                     width, height, num_channels_);
+        spdlog::info("Successfully loaded environment map '{}': {}x{}x{}", filepath.string(), width,
+                     height, num_channels_);
 
         const auto total_floats = width * height * num_channels_;
-        texture_ = cuda::CudaTexture::createRGBA(
-            {hdr.get(), total_floats}, width, height, num_channels_, ctx, stream);
+        texture_ = cuda::CudaTexture::createRGBA({hdr.get(), total_floats}, width, height,
+                                                 num_channels_, ctx, stream);
 
-        spdlog::info("Created CUDA texture object for environment map (bilinear filtering enabled)");
+        spdlog::info(
+            "Created CUDA texture object for environment map (bilinear filtering enabled)");
     }
 
     EnvironmentMap(EnvironmentMap&&) noexcept = default;

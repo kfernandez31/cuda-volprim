@@ -21,11 +21,11 @@ __device__ __forceinline__ void trace_ch_collect(
     const geometry::Ray& ray,
     float t_min,
     float t_max,
-    utils::StaticVector<HitRecord, N>* hit_buffer
+    utils::StaticVector<HitRecord, N>& hit_buffer
 ) {
     // Pack buffer pointer into AnyHit payload
     payloads::AnyHit payload;
-    pack_ptr(hit_buffer, payload.buffer_ptr_low, payload.buffer_ptr_high);
+    pack_ptr(&hit_buffer, payload.buffer_ptr_low, payload.buffer_ptr_high);
 
     uint ps[payloads::MAX_PAYLOADS]{};
     payload.pack(ps);
@@ -38,16 +38,12 @@ __device__ __forceinline__ void trace_ch_collect(
         t_max,
         0.0f,                       // Disable motion blur
         consts::VISIBILITY_ALL,     // Visibility mask
-        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,  // Disable closesthit (anyhit handles everything)
+        OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT | OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES,  // Disable closesthit, cull backfaces
         0,                          // SBT offset (single ray type)
         1,                          // SBT stride (single hit record per geometry)
         0,                          // miss SBT index: first miss program
-        ps[0], ps[1], ps[2]  // Tag (0) + buffer pointer (1-2)
+        ps[0], ps[1], ps[2]         // Tag (0) + buffer pointer (1-2)
     );
-
-    // TODO(kacper): maybe the following can be optimized, since we don't read from the payload if we got some prims in the buffer
-    // Note: Always returns Miss since anyhit ignores everything
-    // Hit data is in the buffer
 }
 
 } // namespace device

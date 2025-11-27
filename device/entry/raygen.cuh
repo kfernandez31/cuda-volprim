@@ -52,7 +52,22 @@ extern "C" __global__ void __raygen__rg() {
     optix::ScatteringEvent<consts::MAX_CAPACITY> event;
     payloads::Miss miss;
 
+    // Initialize active_prims from pre-computed camera containment (CPU-side)
+    for (uint i = 0; i < launch_params.camera_active_prims_.size(); ++i) {
+        event.active_prims_.insert(launch_params.camera_active_prims_[i]);
+    }
+
     const auto is_debug = is_debug_thread();
+
+    if (is_debug && !event.active_prims_.empty()) {
+        printf("\nCamera inside prims: [");
+        const auto size = event.active_prims_.size();
+        for (size_t i = 0; i < size; i++) {
+            if (i > 0) printf(",");
+            printf("%u", event.active_prims_[i]);
+        }
+        printf("] size=%u\n", static_cast<uint>(size));
+    }
 
     for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
         if (is_debug) {
@@ -113,13 +128,12 @@ extern "C" __global__ void __raygen__rg() {
                     ray.origin_.x, ray.origin_.y, ray.origin_.z,
                     ray.direction_.x, ray.direction_.y, ray.direction_.z);
             printf("Preserving active_prims for next bounce: [");
-            bool first = true;
-            for (auto prim : event.active_prims_) {
-                if (!first) printf(",");
-                printf("%u", prim);
-                first = false;
+            const auto size = event.active_prims_.size();
+            for (size_t i = 0; i < size; i++) {
+                if (i > 0) printf(",");
+                printf("%u", event.active_prims_[i]);
             }
-            printf("] size=%u\n", static_cast<uint>(event.active_prims_.size()));
+            printf("] size=%u\n", static_cast<uint>(size));
         }
     }
 
@@ -132,5 +146,5 @@ extern "C" __global__ void __raygen__rg() {
         radiance += throughput * expf(-tau) * env;
     }
 
-    launch_params.image_[global_sample_idx] = radiance;
+    launch_params.image_[global_sample_idx] = make_float4(radiance);
 }

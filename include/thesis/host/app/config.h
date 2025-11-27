@@ -29,7 +29,6 @@ struct Config {
 
     uint seed_ = 42;
     bool debug_ = false;  // TODO(kacper): remove
-    float angle_ = 0.0f;  // TODO(kacper): remove
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept {
         Config config;
@@ -41,7 +40,6 @@ struct Config {
         image_group->add_option("--output", config.output_path_, "Path to save the rendered image");
         image_group->add_option("--height", config.image_height_,
                                 "Explicit height of the output image");
-        image_group->add_option("--angle", config.angle_, "Rotation angle of the output Gaussian");
         image_group->add_option("--width", config.image_width_, "Width of the output image");
         image_group->add_option("--samples_per_pixel", config.num_samples_per_pixel_,
                                 "Number of samples per pixel");

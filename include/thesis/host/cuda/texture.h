@@ -39,14 +39,9 @@ class CudaTexture {
    public:
     CudaTexture() = default;
 
-    [[nodiscard]] static CudaTexture createRGBA(
-        std::span<const float> data,
-        size_t width,
-        size_t height,
-        size_t num_channels,
-        CUcontext ctx,
-        std::shared_ptr<Stream> stream
-    ) {
+    [[nodiscard]] static CudaTexture createRGBA(std::span<const float> data, size_t width,
+                                                size_t height, size_t num_channels, CUcontext ctx,
+                                                std::shared_ptr<Stream> stream) {
         Context::Guard g(ctx);
 
         if (num_channels != 4) {
@@ -54,10 +49,9 @@ class CudaTexture {
         }
 
         // Create channel descriptor for 32-bit float RGBA
-        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc(
-            32, 32, 32, 32,  // 32-bit R, G, B, A
-            cudaChannelFormatKindFloat
-        );
+        cudaChannelFormatDesc channel_desc =
+            cudaCreateChannelDesc(32, 32, 32, 32,  // 32-bit R, G, B, A
+                                  cudaChannelFormatKindFloat);
 
         // Allocate CUDA array (required for texture objects)
         cudaArray_t cu_array = nullptr;
@@ -65,15 +59,11 @@ class CudaTexture {
 
         // Copy RGBA data to CUDA array
         const size_t pitch = width * num_channels * sizeof(float);
-        CUDA_CHECK(cudaMemcpy2DToArray(
-            cu_array,
-            0, 0,  // Offset
-            data.data(),  // Source (already RGBA)
-            pitch,  // Source pitch
-            pitch,  // Width in bytes
-            height,
-            cudaMemcpyHostToDevice
-        ));
+        CUDA_CHECK(cudaMemcpy2DToArray(cu_array, 0, 0,  // Offset
+                                       data.data(),     // Source (already RGBA)
+                                       pitch,           // Source pitch
+                                       pitch,           // Width in bytes
+                                       height, cudaMemcpyHostToDevice));
 
         // Create resource descriptor
         cudaResourceDesc res_desc = {};
@@ -95,14 +85,12 @@ class CudaTexture {
         return CudaTexture(cu_array, tex_obj, width, height);
     }
 
-    /// Move constructor
     CudaTexture(CudaTexture&& other) noexcept
         : array_(std::move(other.array_)),
           texture_(std::move(other.texture_)),
           width_(std::exchange(other.width_, 0)),
           height_(std::exchange(other.height_, 0)) {}
 
-    /// Move assignment
     CudaTexture& operator=(CudaTexture&& other) noexcept {
         if (this != &other) {
             array_ = std::move(other.array_);
@@ -113,25 +101,27 @@ class CudaTexture {
         return *this;
     }
 
-    /// Get texture object handle for device access
+    // Get texture object handle for device access // TODO: I don't understand why we'd need this,
+    // i.e. why texture_ would be null. Don't I ensure it isn't?
     [[nodiscard]] cudaTextureObject_t get() const noexcept {
         return texture_ ? texture_.get_deleter().handle_ : 0;
     }
 
-    /// Get texture dimensions
     [[nodiscard]] size_t width() const noexcept { return width_; }
     [[nodiscard]] size_t height() const noexcept { return height_; }
 
    private:
-    /// Private constructor - use createRGB factory method
     CudaTexture(cudaArray_t array, cudaTextureObject_t tex_obj, size_t width, size_t height)
         : array_(array, detail::CudaArrayDeleter{}),
-          texture_(reinterpret_cast<void*>(static_cast<uintptr_t>(1)), detail::TextureObjectDeleter{tex_obj}),
+          texture_(reinterpret_cast<void*>(static_cast<uintptr_t>(1)),
+                   detail::TextureObjectDeleter{tex_obj}),
           width_(width),
           height_(height) {}
 
     std::unique_ptr<cudaArray, detail::CudaArrayDeleter> array_;
-    std::unique_ptr<void, detail::TextureObjectDeleter> texture_;  // Non-null dummy pointer (0x1), deleter holds actual handle
+    std::unique_ptr<void, detail::TextureObjectDeleter>
+        texture_;  // Non-null dummy pointer (0x1), deleter holds actual handle // TODO: I don't
+                   // understand this
     size_t width_;
     size_t height_;
 };

@@ -12,9 +12,8 @@
 
 namespace thesis::host::optix {
 
-inline constexpr uint GAS_BUILD_FLAGS = OPTIX_BUILD_FLAG_ALLOW_COMPACTION |
-                                        OPTIX_BUILD_FLAG_PREFER_FAST_TRACE |
-                                        OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
+inline constexpr uint GAS_BUILD_FLAGS =
+    OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
 
 class GAS : public AccelerationStructure {
    public:
@@ -25,54 +24,55 @@ class GAS : public AccelerationStructure {
     }
 };
 
-template <class Shape>
-class TriangleGAS {
-    static_assert(std::is_same_v<decltype(Shape::NumVertices), const size_t>);
-    static_assert(std::is_same_v<decltype(Shape::NumIndices), const size_t>);
-
-    cuda::AsyncBuffer<float3> vertices_;
-    cuda::AsyncBuffer<uint3> indices_;
+// TODO: there was a time when I tried storing the single vertex and radius together in one float4
+// buffer of size 1 but I couldn't get that to work. Perhaps it can be done though
+class SphereGAS {
+    cuda::AsyncBuffer<float3> vertices_;  // Sphere centers
+    cuda::AsyncBuffer<float> radii_;      // Sphere radii
     GAS gas_;
 
    public:
-    TriangleGAS(const Shape& shape, CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : vertices_(Shape::NumVertices, ctx, stream, cuda::AllocType::OnBoth),
-          indices_(Shape::NumIndices, ctx, stream, cuda::AllocType::OnBoth),
-          gas_(ctx, std::move(stream)) {
-        // Copy vertices
-        const auto v_src = utils::data::reinterpretSpan<const float3>(shape.getVertices());
-        std::memcpy(vertices_.host(), v_src.data(), v_src.size_bytes());
-        vertices_.upload();
+    SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
+        : vertices_(1, ctx, stream, cuda::AllocType::OnBoth),
+          radii_(1, ctx, stream, cuda::AllocType::OnBoth),
+          gas_(ctx, std::move(stream)) {}
 
-        // Copy indices
-        const auto i_src = utils::data::reinterpretSpan<const uint3>(shape.getIndices());
-        std::memcpy(indices_.host(), i_src.data(), i_src.size_bytes());
-        indices_.upload();
-    }
-
-    TriangleGAS(TriangleGAS&&) noexcept = default;
-    TriangleGAS& operator=(TriangleGAS&&) noexcept = default;
+    SphereGAS(SphereGAS&&) noexcept = default;
+    SphereGAS& operator=(SphereGAS&&) noexcept = default;
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
+        // Unit sphere at origin
+        vertices_.host()[0] = make_float3(0.0f);
+        vertices_.upload();
+
+        radii_.host()[0] = 1.0f;
+        radii_.upload();
+
+        static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+
         OptixBuildInput in{};
-        in.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+        in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
-        auto vbuf = vertices_.cu_device_ptr();
-        in.triangleArray.vertexBuffers = &vbuf;
-        in.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-        in.triangleArray.numVertices = static_cast<uint>(vertices_.size());
+        CUdeviceptr vertex_buffer_ptr = vertices_.cu_device_ptr();
+        CUdeviceptr radius_buffer_ptr = radii_.cu_device_ptr();
 
-        auto ibuf = indices_.cu_device_ptr();
-        in.triangleArray.indexBuffer = ibuf;
-        in.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-        in.triangleArray.numIndexTriplets = static_cast<uint>(indices_.size());
+        in.sphereArray.vertexBuffers = &vertex_buffer_ptr;
+        in.sphereArray.vertexStrideInBytes = sizeof(float3);
+        in.sphereArray.numVertices = 1;
 
-        static constexpr uint flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
-        in.triangleArray.flags = flags;
-        in.triangleArray.numSbtRecords = 1;
+        in.sphereArray.radiusBuffers = &radius_buffer_ptr;
+        in.sphereArray.radiusStrideInBytes = sizeof(float);
+        in.sphereArray.singleRadius = false;
+
+        in.sphereArray.flags = geomFlags;
+        in.sphereArray.numSbtRecords = 1;
+        in.sphereArray.sbtIndexOffsetBuffer = 0;
+        in.sphereArray.sbtIndexOffsetSizeInBytes = 0;
+        in.sphereArray.sbtIndexOffsetStrideInBytes = 0;
+        in.sphereArray.primitiveIndexOffset = 0;
 
         gas_.build(in, cuda_ctx, optix_ctx);
-        spdlog::info("Triangle GAS built, handle = 0x{:x}", gas_.get());
+        spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

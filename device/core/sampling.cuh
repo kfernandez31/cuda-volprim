@@ -6,6 +6,7 @@
 #include "core/trace.cuh"
 #include "core/hit_record.cuh"
 #include "core/sorting.cuh"
+#include "core/intersection.cuh"
 
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"
@@ -38,8 +39,8 @@ __forceinline__ __device__ float3 sample_phase(curandState& rng) {
     // Mechanism:
     // Draws a new direction from a phase function, which is a PDF over the unit sphere. Controls anisotropy of scattering.
     auto sample = random::sample_uniform_2d(rng);
-    auto z = fmaf(-2.0f, sample.x, 1.0f);  // FMA: 1.0 + (-2.0)*x
-    auto r = sqrtf(fmaxf(0.0f, fmaf(-z, z, 1.0f)));  // FMA: 1.0 + (-z)*z = 1.0 - z²
+    auto z = __fmaf_rn(-2.0f, sample.x, 1.0f);  // FMA: 1.0 + (-2.0)*x
+    auto r = sqrtf(fmaxf(0.0f, __fmaf_rn(-z, z, 1.0f)));  // FMA: 1.0 + (-z)*z = 1.0 - z²
     auto phi = math::TWO_PI_F * sample.y;
     return make_float3(r * cosf(phi), r * sinf(phi), z); // direction, already unit
 }
@@ -174,20 +175,61 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         printf("  Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
                ray.origin_.x, ray.origin_.y, ray.origin_.z,
                ray.direction_.x, ray.direction_.y, ray.direction_.z);
+        printf("  active_prims.size=%u\n", static_cast<uint>(active_prims.size()));
     }
 
-    // Collect ALL hits along ray in one BVH traversal
     HitBuffer hit_buffer;
-    trace_ch_collect(ray, 0.0f, consts::INF_F, &hit_buffer);
+
+    // STEP 1: For primitives we're inside, compute exits analytically
+    const auto active_size = active_prims.size();
+    for (size_t idx = 0; idx < active_size; idx++) {
+        const auto prim_idx = active_prims[idx];
+        const auto& prim = launch_params.primitives_[prim_idx];
+        auto isect = intersect_ellipsoid(ray, prim);
+
+        if (isect.starts_inside() && isect.t_exit > 0.0f) {
+            hit_buffer.emplace_back(isect.t_exit, prim_idx, true);  // is_exit=true
+
+            if (is_debug_thread()) {
+                printf("  Ray starts inside prim %u, exit at t=%.6f\n",
+                       prim_idx, isect.t_exit);
+            }
+        }
+    }
+
+    // STEP 2: Trace with backface culling to get NEW entries
+    const size_t num_computed_exits = hit_buffer.size();
+    trace_ch_collect(ray, 0.0f, consts::INF_F, hit_buffer);
 
     if (is_debug_thread()) {
-        printf("  Collected %u hits\n", static_cast<uint>(hit_buffer.size()));
+        printf("  Traced %u entries (total buffer=%u)\n",
+               static_cast<uint>(hit_buffer.size() - num_computed_exits),
+               static_cast<uint>(hit_buffer.size()));
     }
 
-    // If no hits, ray escaped to environment
+    // STEP 3: For each traced entry, compute exit analytically
+    const size_t total_after_trace = hit_buffer.size();
+    for (size_t i = num_computed_exits; i < total_after_trace; i++) {
+        // All traced hits are entries (backface culling)
+        const auto& entry = hit_buffer[i];
+        const auto& prim = launch_params.primitives_[entry.prim_idx];
+        auto isect = intersect_ellipsoid(ray, prim);
+
+        // Add computed exit
+        if (isect.hit() && isect.t_exit > entry.t_hit) {
+            hit_buffer.emplace_back(isect.t_exit, entry.prim_idx, true);  // is_exit=true
+
+            if (is_debug_thread()) {
+                printf("  Prim %u: entry=%.6f, exit=%.6f (computed)\n",
+                       entry.prim_idx, entry.t_hit, isect.t_exit);
+            }
+        }
+    }
+
+    // If no hits (no entries traced, no active_prims), ray escaped
     if (hit_buffer.size() == 0) {
         if (is_debug_thread()) printf("  No geometry, RETURNING FALSE\n");
-        active_prims.clear();  // Ray is not inside any volume
+        active_prims.clear();
         auto color = launch_params.env_map_.sample(ray.direction_);
         miss = payloads::Miss(color);
         return false;
@@ -234,13 +276,12 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
 
             if (is_debug_thread()) {
                 printf("  SCATTERING at t=%.3f, active_prims=[", t_scatter);
-                bool first = true;
-                for (auto prim : active_prims) {
-                    if (!first) printf(",");
-                    printf("%u", prim);
-                    first = false;
+                const auto size = active_prims.size();
+                for (size_t i = 0; i < size; i++) {
+                    if (i > 0) printf(",");
+                    printf("%u", active_prims[i]);
                 }
-                printf("] size=%u\n", static_cast<uint>(active_prims.size()));
+                printf("] size=%u\n", static_cast<uint>(size));
             }
 
             event.t_hit_ = t_scatter;
@@ -321,35 +362,58 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
                ray.origin_.x, ray.origin_.y, ray.origin_.z,
                ray.direction_.x, ray.direction_.y, ray.direction_.z);
         printf("Initial active_prims: [");
-        bool first = true;
-        for (auto prim : active_prims) {
-            if (!first) printf(",");
-            printf("%u", prim);
-            first = false;
+        const auto size = active_prims.size();
+        for (size_t i = 0; i < size; i++) {
+            if (i > 0) printf(",");
+            printf("%u", active_prims[i]);
         }
-        printf("] size=%u\n", static_cast<uint>(active_prims.size()));
+        printf("] size=%u\n", static_cast<uint>(size));
     }
 
-    // Collect ALL hits along ray in one BVH traversal
     HitBuffer hit_buffer;
-    trace_ch_collect(ray, 0.0f, consts::INF_F, &hit_buffer);
+
+    // STEP 1: For primitives we're inside, compute exits analytically
+    const auto active_size_initial = active_prims.size();
+    for (size_t idx = 0; idx < active_size_initial; idx++) {
+        const auto prim_idx = active_prims[idx];
+        const auto& prim = launch_params.primitives_[prim_idx];
+        auto isect = intersect_ellipsoid(ray, prim);
+
+        if (isect.starts_inside() && isect.t_exit > 0.0f) {
+            hit_buffer.emplace_back(isect.t_exit, prim_idx, true);  // is_exit=true
+        }
+    }
+
+    // STEP 2: Trace with backface culling to get NEW entries
+    const size_t num_computed_exits = hit_buffer.size();
+    trace_ch_collect(ray, 0.0f, consts::INF_F, hit_buffer);
 
     if (is_debug_thread()) {
-        printf("  Collected %u hits\n", static_cast<uint>(hit_buffer.size()));
+        printf("  Traced %u entries (total buffer=%u)\n",
+               static_cast<uint>(hit_buffer.size() - num_computed_exits),
+               static_cast<uint>(hit_buffer.size()));
     }
 
-    // If no hits, no more geometry to process - return zero
+    // STEP 3: For each traced entry, compute exit analytically
+    const size_t total_after_trace = hit_buffer.size();
+    for (size_t i = num_computed_exits; i < total_after_trace; i++) {
+        // All traced hits are entries (backface culling)
+        const auto& entry = hit_buffer[i];
+        const auto& prim = launch_params.primitives_[entry.prim_idx];
+        auto isect = intersect_ellipsoid(ray, prim);
+
+        // Add computed exit
+        if (isect.hit() && isect.t_exit > entry.t_hit) {
+            hit_buffer.emplace_back(isect.t_exit, entry.prim_idx, true);  // is_exit=true
+        }
+    }
+
+    // If no hits, no more geometry to process
     if (hit_buffer.size() == 0) {
         if (is_debug_thread()) {
             printf("  No geometry, returning zero optical depth\n");
-            printf("  active_prims.size=%u\n", static_cast<uint>(active_prims.size()));
         }
-        // Debug: verify we're actually returning zero
-        auto result = make_float3(0.0f);
-        if (result.x != 0.0f || result.y != 0.0f || result.z != 0.0f) {
-            printf("ERROR: Returning non-zero when no hits! tau=(%.6f,%.6f,%.6f)\n", result.x, result.y, result.z);
-        }
-        return result;
+        return make_float3(0.0f);
     }
 
     // Sort hits by t-value
@@ -423,7 +487,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         printf("] size=%u\n", static_cast<uint>(active_size));
     }
 
-    if (!active_prims.empty()) {
+    /*if (!active_prims.empty()) {
         printf("WARNING: active_prims not empty after processing all hits! size=%u, ray origin=(%.3f,%.3f,%.3f) dir=(%.3f,%.3f,%.3f)\n",
                static_cast<uint>(active_prims.size()),
                ray.origin_.x, ray.origin_.y, ray.origin_.z,
@@ -431,7 +495,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         for (auto prim : active_prims) {
             printf("  - prim %u still active\n", prim);
         }
-    }
+    }*/
 
     // TODO(kacper): this will never happen? remove this?
     acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit);

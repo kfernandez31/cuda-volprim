@@ -31,9 +31,6 @@ class Pipeline {
         }
     }
 
-    Pipeline(const Pipeline&) = delete;
-    Pipeline& operator=(const Pipeline&) = delete;
-
     Pipeline(Pipeline&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
 
     Pipeline& operator=(Pipeline&& other) noexcept {

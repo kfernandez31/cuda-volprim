@@ -24,41 +24,17 @@ class Module {
    public:
     Module() = default;
 
-    [[nodiscard]] static utils::Result<Module> load(OptixDeviceContext ctx,
-                                                    const std::filesystem::path& filename,
-                                                    const OptixPipelineCompileOptions& pco) {
-        Module module;
-
-        OptixModuleCompileOptions mco = {};
-        // #ifdef DEBUG // TODO(kacper): restore
-        mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
-        // #else
-        // mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
-        // #endif
-
-        std::vector<std::byte> blob;
-        TRY_ASSIGN(blob, utils::io::readFileToBytes(filename));
-        spdlog::info("OptiX module loaded ({} bytes)", blob.size());
-
-        OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco,
-                                            reinterpret_cast<const char*>(blob.data()), blob.size(),
-                                            log.data(), &log_size, &module.handle_));
-
-        return module;
-    }
-
-    // Async version: takes future from utils::io::readFileToBytesAsync() and creates module
     [[nodiscard]] static utils::Result<Module> loadAsync(
         OptixDeviceContext ctx, std::future<utils::Result<std::vector<std::byte>>>& file_future,
         const OptixPipelineCompileOptions& pco) {
         Module module;
 
-        OptixModuleCompileOptions mco = {};
-        // #ifdef DEBUG // TODO(kacper): restore
+        OptixModuleCompileOptions mco{};
+#ifdef DEBUG
         mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
-        // #else
-        // mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
-        // #endif
+#else
+        mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+#endif
 
         std::vector<std::byte> blob;
         TRY_ASSIGN(blob, file_future.get());
@@ -72,9 +48,6 @@ class Module {
     }
 
     ~Module() { reset(); }
-
-    Module(const Module&) = delete;
-    Module& operator=(const Module&) = delete;
 
     Module(Module&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
 

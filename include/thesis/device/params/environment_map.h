@@ -2,13 +2,13 @@
 
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/preprocessor.h"
-#include <sutil/vec_math.h>
 
 #include <cuda_runtime.h>
 #include <vector_types.h>
 
 #include <cstddef>
 #include <math.h>
+#include <sutil/vec_math.h>
 
 namespace thesis {
 namespace device {
@@ -18,11 +18,28 @@ struct THESIS_ALIGNMENT EnvironmentMap {
     cudaTextureObject_t tex_obj_ = 0;
 
 #ifdef DEVICE
-    /// Sample environment map using hardware-accelerated texture (bilinear interpolation)
+    // Sample environment map using hardware-accelerated texture (bilinear interpolation)
     __device__ float3 sample(float3 dir) const {
         namespace math = common::math;
 
         assert(tex_obj_ != 0);
+
+        // TODO(optimization): This function is called ~2x per bounce, resulting in ~530M
+        // calls/frame Current cost: ~55-60 cycles per call (atan2f ~20 cycles, acosf ~30 cycles)
+        //
+        // Potential optimizations (profile first to confirm this is a bottleneck):
+        // 1. Replace acosf with atan2f formulation (33% faster):
+        //    const float r_xz = sqrtf(fmaf(dir.x, dir.x, dir.z * dir.z));
+        //    const float phi = atan2f(r_xz, dir.y);
+        //
+        // 2. Use explicit FMA for UV calculation:
+        //    const float u = fmaf(theta, math::ONE_OVER_TWO_PI_F, 0.5f);
+        //
+        // 3. Use fast atan2 approximation for 5x speedup (~12 cycles total):
+        //    Fast polynomial approximation with error < 0.005 radians
+        //    Usually imperceptible for environment lighting
+        //
+        // Expected impact: 60 cycles → 20 cycles (conservative) or 12 cycles (aggressive)
 
         // Convert direction to spherical coordinates
         const auto theta = atan2f(dir.z, dir.x);

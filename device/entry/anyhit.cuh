@@ -28,13 +28,13 @@ extern "C" __global__ void __anyhit__ah() {
     if (!hit_buffer->full()) {
         const float t = optixGetRayTmax();
         const uint prim_idx = optixGetInstanceId();
-        const bool is_exit = (optixGetHitKind() == OPTIX_HIT_KIND_TRIANGLE_BACK_FACE);
 
+        // With backface culling, all traced hits are entries (is_exit=false)
         if (is_debug_thread()) {
-            printf("anyhit: t=%.6f, prim %u, exit=%d\n", t, prim_idx, is_exit);
+            printf("anyhit: entry t=%.6f, prim %u\n", t, prim_idx);
         }
 
-        hit_buffer->emplace_back(t, prim_idx, is_exit);
+        hit_buffer->emplace_back(t, prim_idx, false);
         optixIgnoreIntersection();
     } else {
         // Buffer full - terminate ray to prevent undefined behavior
