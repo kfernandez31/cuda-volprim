@@ -2,7 +2,6 @@
 
 #include "thesis/common/utils/types.h"
 #include "thesis/host/cuda/async_buffer.h"
-#include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/acceleration_structure.h"
 #include "thesis/host/utils/data.h"
 

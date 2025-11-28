@@ -88,11 +88,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float dot(float3 a, float3 b) noexcept {
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float length2(float3 v) noexcept {
-#ifdef __CUDA_ARCH__
-    return dot(v, v);  // Use our FMA-optimized dot
-#else
-    return ::dot(v, v);
-#endif
+    return math::dot(v, v);
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float3 fmaf(float a, float3 b, float3 c) noexcept {

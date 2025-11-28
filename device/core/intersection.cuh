@@ -11,8 +11,8 @@ struct EllipsoidIntersection {
     float t_entry;
     float t_exit;
 
-    EllipsoidIntersection(float t_1, float t_2) t_entry(t_1), t_exit(t_2) {}
-    EllipsoidIntersection() t_entry(-1.0f), t_exit(-1.0f) {}
+    __device__ EllipsoidIntersection(float t_1, float t_2) : t_entry(t_1), t_exit(t_2) {}
+    __device__ EllipsoidIntersection() : t_entry(-1.0f), t_exit(-1.0f) {}
 
     __device__ bool hit() const { return t_exit > 0.0f; }
     __device__ bool starts_inside() const { return t_entry < 0.0f && t_exit > 0.0f; }
@@ -48,7 +48,7 @@ __device__ __forceinline__ EllipsoidIntersection intersect_ellipsoid(
     }
 
     const auto c = math::length2(p) - 1.0f;
-    const auto q = b + math::copysignf(math::sqrtf(a * delta), b);
+    const auto q = b + copysignf(sqrtf(a * delta), b);
 
     const auto t_1 = c / q;           // Entry
     const auto t_2 = q * a_inv;       // Exit

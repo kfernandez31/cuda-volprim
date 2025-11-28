@@ -3,7 +3,6 @@
 #include "thesis/pch.h"
 
 #include "thesis/device/utils/vector.h"
-#include "thesis/host/geometry/mesh.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/check.h"
@@ -138,12 +137,14 @@ void Renderer::uploadParams() {
 
         // Transform camera position to primitive local space (host-side equivalent of point_inside_ellipsoid)
         // Local space: rotate(pos - center) / scale
-        const glm::vec3 center = utils::data::toVec3(prim_device.center_);
-        const glm::vec3 scale = utils::data::toVec3(prim_device.scale_);
+        const auto center_f3 = prim_device.center();
+        const glm::vec3 center(center_f3.x, center_f3.y, center_f3.z);
+        const auto scale_f3 = prim_device.scale();
+        const glm::vec3 scale(scale_f3.x, scale_f3.y, scale_f3.z);
 
         // Convert UnitQuaternion to glm::quat for rotation
-        const auto& rot_device = prim_device.rot_quat_;
-        const glm::quat rot_glm(rot_device.w, rot_device.x, rot_device.y, rot_device.z);
+        const auto& rot_device = prim_device.rot_quat();
+        const glm::quat rot_glm(rot_device.s_, rot_device.u_.x, rot_device.u_.y, rot_device.u_.z);
 
         // Apply transform: rotate(pos - center) / scale
         const auto diff = camera_pos - center;

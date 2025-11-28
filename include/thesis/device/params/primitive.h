@@ -28,6 +28,11 @@ class THESIS_ALIGNMENT Primitive {
     float inv_cdf_factor_;
 
    public:
+    // Public getters for host-side access
+    const float3& center() const { return center_; }
+    const geometry::UnitQuaternion& rot_quat() const { return rot_quat_; }
+    const float3& scale() const { return scale_; }
+
 #ifdef DEVICE
     __device__ float3 transform_pos_local(float3 pos) const {
         return rot_quat_.rotate(pos - center_) / scale_;
@@ -86,7 +91,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto w_len = w_len2 * w_inv_len;
 
         const auto wp = math::dot(w, p) * w_inv_len;
-        const auto pp = math::lengtht2(p);
+        const auto pp = math::length2(p);
         const auto diff = __fmaf_rn(-wp, wp, pp); // pp - wp²
         const auto exponent = 0.5f * diff;
 

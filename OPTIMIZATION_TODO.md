@@ -11,7 +11,7 @@ This document outlines potential performance optimizations for the volumetric pa
 ### Current Implementation
 ```cuda
 if (n <= 64) insertion_sort();      // O(n²), excellent cache behavior
-else bitonic_sort();                 // O(n log² n) sorting network
+else bitonic_sort();                // O(n log² n) sorting network
 ```
 
 **Algorithms used:**
