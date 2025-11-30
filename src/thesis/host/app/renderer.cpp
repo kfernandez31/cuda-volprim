@@ -51,6 +51,7 @@ Renderer::Renderer(const app::Config& config)
 
     initPrimsAndGAS();
     createPipeline(std::move(module_file_future));
+    initStaticParams();  // Initialize static parameters once (camera-inside, etc.)
 }
 
 Renderer::~Renderer() {
@@ -132,8 +133,8 @@ void Renderer::initPrimsAndGAS()
     ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
 }
 
-void Renderer::uploadParams() {
-    // Compute which primitives contain camera (CPU side, done once)
+void Renderer::initStaticParams() {
+    // Compute which primitives contain camera (CPU side, done once at init)
     std::vector<uint> camera_active;
     const auto camera_pos = camera_.lookfrom();  // Camera position
 
@@ -156,19 +157,29 @@ void Renderer::uploadParams() {
         camera_active_prims_ = cuda::AsyncBuffer<uint>(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
     }
 
+    // Initialize static launch parameters (never change during rendering)
     auto& par = launch_params_[0];
     par.seed_ = config_.seed_;
     par.debug_ = config_.debug_;
     par.ias_handle_ = ias_.get();
     par.camera_ = camera_.device_camera();
     par.env_map_ = env_map_.device_env_map();
-    par.image_ = image_.device_image();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
     par.camera_active_prims_ = device::utils::DynamicVector<uint>(
         camera_active_prims_.device(),
         camera_active.size()
     );
 
+    // Image will be set by updateDynamicParams() before each batch
+    par.image_ = image_.device_image();
+
+    launch_params_.upload();
+}
+
+void Renderer::updateDynamicParams() {
+    // Update only dynamic parameters that change between batches
+    // Currently only image_ changes (batch_offset, batch_size)
+    launch_params_[0].image_ = image_.device_image();
     launch_params_.upload();
 }
 
@@ -243,9 +254,6 @@ void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>>
 }
 
 void Renderer::render() {
-    // Upload static params (primitives, camera, env map, etc.) once
-    uploadParams();
-
     const size_t total_spp = image_.num_samples_per_pixel();
     const size_t batch_size = image_.batch_size();
     const size_t num_batches = common::math::ceil_div(total_spp, batch_size);
@@ -261,9 +269,8 @@ void Renderer::render() {
         // Update batch parameters
         image_.set_batch_params(batch_offset, samples_in_batch);
 
-        // Update launch params with new image device struct (contains updated batch params)
-        launch_params_[0].image_ = image_.device_image();
-        launch_params_.upload();
+        // Update dynamic launch params (image with new batch_offset/batch_size)
+        updateDynamicParams();
 
         spdlog::info("Rendering batch {}/{}: samples [{}, {})",
                      batch + 1, num_batches, batch_offset, batch_offset + samples_in_batch);

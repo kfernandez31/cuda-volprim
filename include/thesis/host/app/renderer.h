@@ -26,7 +26,8 @@ namespace thesis::host::app {
 class Renderer {
    private:
     void initPrimsAndGAS();
-    void uploadParams();
+    void initStaticParams();
+    void updateDynamicParams();
     void createPrimitives();
     void createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future);
 
