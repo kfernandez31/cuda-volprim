@@ -153,6 +153,12 @@ std::future<Result<>> saveExrImageAsync(cuda::AsyncBuffer<float3>&& buffer, size
                       });
 }
 
+void CudaPinnedDeleter::operator()(float* ptr) const noexcept {
+    if (ptr) {
+        cudaFreeHost(ptr);
+    }
+}
+
 Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& width,
                                  size_t& height, size_t& channels) {
     spdlog::info("Loading environment map from '{}'", filename.string());
@@ -170,7 +176,26 @@ Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& 
     height = static_cast<size_t>(h);
     channels = 4;  // Always RGBA now
 
-    return HDRImagePtr(raw, stbi_image_free);
+    // Allocate pinned memory for async CUDA transfers
+    const size_t total_floats = width * height * channels;
+    const size_t total_bytes = total_floats * sizeof(float);
+
+    float* pinned_mem = nullptr;
+    cudaError_t err = cudaHostAlloc(&pinned_mem, total_bytes, cudaHostAllocDefault);
+
+    if (err != cudaSuccess || !pinned_mem) {
+        stbi_image_free(raw);
+        return make_error("Failed to allocate pinned memory for HDR image: {}",
+                          cudaGetErrorString(err));
+    }
+
+    // Copy from pageable to pinned memory
+    std::memcpy(pinned_mem, raw, total_bytes);
+
+    // Free stb_image memory
+    stbi_image_free(raw);
+
+    return HDRImagePtr(pinned_mem, CudaPinnedDeleter{});
 }
 
 Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::path& filename) {

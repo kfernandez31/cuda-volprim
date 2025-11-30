@@ -57,13 +57,13 @@ class CudaTexture {
         cudaArray_t cu_array = nullptr;
         CUDA_CHECK(cudaMallocArray(&cu_array, &channel_desc, width, height));
 
-        // Copy RGBA data to CUDA array
+        // Copy RGBA data to CUDA array (async)
         const size_t pitch = width * num_channels * sizeof(float);
-        CUDA_CHECK(cudaMemcpy2DToArray(cu_array, 0, 0,  // Offset
-                                       data.data(),     // Source (already RGBA)
-                                       pitch,           // Source pitch
-                                       pitch,           // Width in bytes
-                                       height, cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy2DToArrayAsync(cu_array, 0, 0,  // Offset
+                                            data.data(),     // Source (already RGBA)
+                                            pitch,           // Source pitch
+                                            pitch,           // Width in bytes
+                                            height, cudaMemcpyHostToDevice, stream->get()));
 
         // Create resource descriptor
         cudaResourceDesc res_desc = {};

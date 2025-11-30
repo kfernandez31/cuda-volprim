@@ -41,7 +41,12 @@ namespace thesis::host::utils::io {
                                                       const std::filesystem::path& filename,
                                                       bool flip_vertical = true) noexcept;
 
-using HDRImagePtr = std::unique_ptr<float, decltype(&stbi_image_free)>;
+// Custom deleter for CUDA pinned memory
+struct CudaPinnedDeleter {
+    void operator()(float* ptr) const noexcept;
+};
+
+using HDRImagePtr = std::unique_ptr<float, CudaPinnedDeleter>;
 [[nodiscard]] Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& width,
                                                size_t& height, size_t& channels);
 
