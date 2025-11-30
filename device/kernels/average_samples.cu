@@ -5,7 +5,6 @@
 #include <vector_types.h>
 
 #include <cstddef>
-#include <sutil/vec_math.h>
 
 namespace thesis {
 namespace device {
@@ -29,8 +28,9 @@ static __global__ void average_samples_kernel(float3* out_img, const float4* in_
             acc += in_buf[s * image_size + pixel_index];
         }
 
-        const auto avg = acc / static_cast<float>(num_samples_per_pixel);
-        out_img[pixel_index] = make_float3(avg.x, avg.y, avg.z);
+        const auto scale = common::math::rcp(static_cast<float>(num_samples_per_pixel));
+        const auto avg = acc * scale;
+        out_img[pixel_index] = make_float3(avg);
     }
 }
 
@@ -41,7 +41,7 @@ void launch_average_samples_kernel(float3* out_img, const float4* in_buf, size_t
 
     // Use 1D grid-stride configuration for better efficiency
     // 256 threads per block is a good balance for most GPUs
-    const size_t block_size = 256;
+    constexpr size_t block_size = 256;
 
     // Launch enough blocks to saturate GPU, but not too many
     // Heuristic: 4-8 blocks per SM is typical, modern GPUs have 80-144 SMs

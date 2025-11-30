@@ -1,9 +1,8 @@
 #pragma once
 
 #include "thesis/common/params/launch_params.h"
-#include "thesis/device/params/primitive.h"
 #include "thesis/host/app/config.h"
-#include "thesis/host/cuda/buffer.h"
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
 #include "thesis/host/optix/context.h"
@@ -16,6 +15,7 @@
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
+#include "thesis/host/params/primitive.h"
 
 #include <cstddef>
 #include <future>
@@ -38,13 +38,13 @@ class Renderer {
 
     optix::SphereGAS gas_;
     optix::IAS ias_;
-    cuda::Buffer<OptixInstance> instances_;
+    cuda::AsyncBuffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
-    cuda::Buffer<device::params::Primitive> primitives_;
-    cuda::Buffer<uint> camera_active_prims_;
-    cuda::Buffer<common::params::LaunchParams> launch_params_;
+    cuda::AsyncBuffer<device::params::Primitive> primitives_;
+    cuda::AsyncBuffer<uint> camera_active_prims_;
+    cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;
     OptixModule builtin_is_module_ =

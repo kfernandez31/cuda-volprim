@@ -1,60 +1,57 @@
 #pragma once
 
-#include "thesis/device/geometry/quat.h"
+#include "thesis/common/geometry/quat.h"
 #include "thesis/device/params/primitive.h"
-#include "thesis/host/params/convertible.h"
-#include "thesis/host/utils/data.h"
+#include "thesis/host/utils/math.h"
 
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtx/component_wise.hpp>
-#include <glm/gtx/optimum_pow.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtx/transform.hpp>
+#include <vector_types.h>
 
-namespace thesis::host::params {
+namespace thesis {
+namespace host {
+namespace params {
 
-class Primitive : public Convertible<device::params::Primitive> {
+// Host-side wrapper for primitive
+class Primitive {
    private:
-    glm::vec3 center_;
-    glm::quat rot_quat_;
-    glm::vec3 scale_;
-    glm::vec3 albedo_;
-    float optical_thickness_;
+    device::params::Primitive device_primitive_;
 
    public:
-    Primitive() = delete;
-    Primitive(const Primitive&) = default;
-    Primitive& operator=(const Primitive&) = default;
+    // Default constructor
+    Primitive() = default;
 
-    Primitive(glm::vec3 center, const glm::quat& rot_quat, glm::vec3 scale, glm::vec3 albedo,
-              float optical_thickness)
-        : scale_(scale),
-          rot_quat_(glm::normalize(rot_quat)),
-          center_(center),
-          albedo_(albedo),
-          optical_thickness_(optical_thickness) {}
+    // Constructor with UnitQuaternion
+    Primitive(float3 center, const common::geometry::UnitQuaternion& rot_quat, float3 scale,
+              float3 albedo, float optical_thickness)
+        : device_primitive_(center, rot_quat, scale, albedo, optical_thickness) {}
 
-    [[nodiscard]] glm::mat4 localToWorld() const noexcept {
-        static constexpr auto INTERSECTION_SCALING_FACTOR = 1.0f;  // TODO(kacper): set to 3.0f
-
-        const auto T = glm::translate(center_);
-        const auto R = glm::toMat4(rot_quat_);
-        const auto S = glm::scale(glm::vec3(scale_ * INTERSECTION_SCALING_FACTOR));
-
-        return T * R * S;
+    // Get device-compatible struct for launch params
+    [[nodiscard]] const device::params::Primitive& device_primitive() const noexcept {
+        return device_primitive_;
     }
 
-    [[nodiscard]] device::params::Primitive toDevice() const noexcept override {
-        // clang-format off
-        return device::params::Primitive(
-            utils::data::toFloat3(center_),
-            device::geometry::UnitQuaternion(rot_quat_.w, rot_quat_.x, rot_quat_.y, rot_quat_.z, true),
-            utils::data::toFloat3(scale_),
-            utils::data::toFloat3(albedo_),
-            optical_thickness_
-        );
+    // Allow non-const access for modification
+    [[nodiscard]] device::params::Primitive& device_primitive() noexcept {
+        return device_primitive_;
+    }
+
+    // Getters for introspection
+    [[nodiscard]] float3 center() const { return device_primitive_.center(); }
+    [[nodiscard]] const common::geometry::UnitQuaternion& rot_quat() const {
+        return device_primitive_.rot_quat();
+    }
+    [[nodiscard]] float3 scale() const { return device_primitive_.scale(); }
+    [[nodiscard]] float3 albedo() const { return device_primitive_.albedo_; }
+    [[nodiscard]] float optical_thickness() const { return device_primitive_.optical_thickness_; }
+
+    // Generate OptiX transformation matrix
+    [[nodiscard]] utils::math::Mat3x4 localToWorld() const noexcept {
+        static constexpr auto INTERSECTION_SCALING_FACTOR = 1.0f;  // TODO(kacper): set to 3.0f
+        const auto scaled = device_primitive_.scale() * INTERSECTION_SCALING_FACTOR;
+        return utils::math::Mat3x4::from_trs(device_primitive_.center(),
+                                             device_primitive_.rot_quat(), scaled);
     }
 };
 
-}  // namespace thesis::host::params
+}  // namespace params
+}  // namespace host
+}  // namespace thesis

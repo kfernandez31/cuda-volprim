@@ -8,8 +8,6 @@
 #include "thesis/common/utils/math.h"
 
 #include <optix.h>
-
-#include <sutil/vec_math.h>
 #endif  // DEVICE
 
 namespace thesis {
@@ -18,7 +16,7 @@ namespace geometry {
 
 class THESIS_ALIGNMENT Ray {
 #ifdef DEVICE
-    __host__ __device__ Ray(float3 origin, float3 direction)
+    THESIS_HOST_DEVICE THESIS_INLINE Ray(float3 origin, float3 direction)
         : origin_(origin), direction_(direction) {}
 #endif  // DEVICE
    public:
@@ -34,17 +32,19 @@ class THESIS_ALIGNMENT Ray {
     };
 
 #ifdef DEVICE
-    static __device__ Ray spawn(float3 o, float3 d) { return spawn_unchecked(o, normalize(d)); }
+    static __device__ __forceinline__ Ray spawn(float3 o, float3 d) {
+        return spawn_unchecked(o, common::math::normalize(d));
+    }
 
-    static __device__ Ray spawn_unchecked(float3 o, float3 d) {
+    static __device__ __forceinline__ Ray spawn_unchecked(float3 o, float3 d) {
         return {o, d};  // assume caller normalized
     }
 
-    static __device__ Ray getCurrentRay() {
+    static __device__ __forceinline__ Ray getCurrentRay() {
         return spawn_unchecked(optixGetWorldRayOrigin(), optixGetWorldRayDirection());
     }
 
-    __device__ float3 at(float t) const { return origin_ + t * direction_; }
+    __device__ __forceinline__ float3 at(float t) const { return origin_ + t * direction_; }
 #endif  // DEVICE
 };
 

@@ -6,14 +6,13 @@
 #include "core/trace.cuh"
 #include "core/hit_record.cuh"
 #include "core/sorting.cuh"
-#include "core/intersection.cuh"
+
+#include "thesis/common/geometry/intersection.h"
 
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/utils/set.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/device/optix/scattering_event.h"
-#include "thesis/device/utils/optional.h"
-#include "thesis/device/utils/result.h"
 #include "thesis/device/payloads/miss.h"
 
 #include "thesis/common/utils/preprocessor.h"
@@ -21,17 +20,17 @@
 
 #include <optix.h>
 #include <math.h>
-#include <sutil/vec_math.h>
 #include <curand_kernel.h>
 
 namespace thesis {
 namespace device {
 
+namespace math = ::thesis::common::math;
+
 using PrimsSet = utils::Set<uint, consts::MAX_CAPACITY>;
 using HitBuffer = utils::StaticVector<HitRecord, consts::MAX_CAPACITY>;
 
 __forceinline__ __device__ float3 sample_phase(curandState& rng) {
-    namespace math = thesis::common::math;
     // Isotropic phase function: uniform over sphere
     // Role:
     // Determines in which direction light scatters after the event.
@@ -39,10 +38,10 @@ __forceinline__ __device__ float3 sample_phase(curandState& rng) {
     // Mechanism:
     // Draws a new direction from a phase function, which is a PDF over the unit sphere. Controls anisotropy of scattering.
     auto sample = random::sample_uniform_2d(rng);
-    auto z = __fmaf_rn(-2.0f, sample.x, 1.0f);  // FMA: 1.0 + (-2.0)*x
-    auto r = sqrtf(fmaxf(0.0f, __fmaf_rn(-z, z, 1.0f)));  // FMA: 1.0 + (-z)*z = 1.0 - z²
+    auto z = math::fma(-2.0f, sample.x, 1.0f);  // 1.0 - 2.0*x
+    auto r = math::sqrt(math::max(0.0f, math::fma(-z, z, 1.0f)));  // 1.0 - z²
     auto phi = math::TWO_PI_F * sample.y;
-    return make_float3(r * cosf(phi), r * sinf(phi), z); // direction, already unit
+    return make_float3(r * math::cos(phi), r * math::sin(phi), z);
 }
 
 //  inverse CDF for τ
@@ -53,7 +52,7 @@ __forceinline__ __device__ float sample_target_optical_depth(float uniform_sampl
     // Inverse CDF: τ = -ln(1 - ξ), ξ ∈ [0,1)
 
     // Clamp to avoid log(0), which would be infinite
-    return -logf(fmaxf(1.0f - uniform_sample, 1e-6f));
+    return -math::log(math::max(1.0f - uniform_sample, consts::MIN_RANDOM_SAMPLE));
 }
 
 __forceinline__ __device__ float optical_depth_accumulated(
@@ -112,10 +111,8 @@ __device__ float sample_distance_bisection(
     float t0, float t1
 ) {
     static constexpr size_t MAX_ITER = 4;
-    static constexpr float EPS = 1e-4f;
-    static constexpr float TAU_EPS = 1e-6f;
 
-    if (tau_needed <= TAU_EPS) {
+    if (tau_needed <= consts::BISECTION_TAU_EPS) {
         // Scattering too close to current ray origin, skip bisection
         return t0;
     }
@@ -123,8 +120,8 @@ __device__ float sample_distance_bisection(
     auto t_lo = t0;
     auto t_hi = t1;
 
-    for (size_t i = 0; i < MAX_ITER && (t_hi - t_lo) > EPS; ++i) {
-        const auto t_mid = 0.5f * (t_lo + t_hi);
+    for (size_t i = 0; i < MAX_ITER && (t_hi - t_lo) > consts::BISECTION_DISTANCE_EPS; ++i) {
+        const auto t_mid = math::midpoint(t_lo, t_hi);
         const auto tau = optical_depth_accumulated(ray, prims, t_lo, t_mid);
 
         if (tau >= tau_needed)
@@ -133,7 +130,7 @@ __device__ float sample_distance_bisection(
             t_lo = t_mid;
     }
 
-    return (t_hi - t_lo <= EPS) ? t_hi : 0.5f * (t_lo + t_hi);
+    return (t_hi - t_lo <= consts::BISECTION_DISTANCE_EPS) ? t_hi : math::midpoint(t_lo, t_hi);
 }
 
 __device__ __forceinline__ float3 evaluate_albedo(
@@ -157,11 +154,7 @@ __device__ __forceinline__ float3 evaluate_albedo(
     }
 
     // Invariant: This function is only called after scattering occurs, which requires non-empty active_prims
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-    return accum_albedo * math::safe_rcp(accum_weight);
-#else
-    return accum_albedo / accum_weight;
-#endif
+    return accum_albedo * math::rcp(accum_weight);
 }
 
 __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_CAPACITY>& event, payloads::Miss& miss) {
@@ -185,9 +178,9 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
     for (size_t idx = 0; idx < active_size; idx++) {
         const auto prim_idx = active_prims[idx];
         const auto& prim = launch_params.primitives_[prim_idx];
-        auto isect = intersect_ellipsoid(ray, prim);
+        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 
-        if (isect.starts_inside() && isect.t_exit > 0.0f) {
+        if (isect.starts_inside()) {
             hit_buffer.emplace_back(isect.t_exit, prim_idx, true);  // is_exit=true
 
             if (is_debug_thread()) {
@@ -213,7 +206,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         // All traced hits are entries (backface culling)
         const auto& entry = hit_buffer[i];
         const auto& prim = launch_params.primitives_[entry.prim_idx];
-        auto isect = intersect_ellipsoid(ray, prim);
+        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 
         // Add computed exit
         if (isect.hit() && isect.t_exit > entry.t_hit) {
@@ -244,8 +237,8 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
             printf("    [%u] t=%.6f, prim=%u, exit=%d\n",
                    static_cast<uint>(j), hit_buffer[j].t_hit, hit_buffer[j].prim_idx, hit_buffer[j].is_exit);
 
-            // Check for coincident hits (within 1e-6)
-            if (j > 0 && fabsf(hit_buffer[j].t_hit - hit_buffer[j-1].t_hit) < 1e-6f) {
+            // Check for coincident hits (surfaces at same t-value)
+            if (j > 0 && math::abs(hit_buffer[j].t_hit - hit_buffer[j-1].t_hit) < consts::HIT_COINCIDENCE_EPS) {
                 printf("      WARNING: Coincident with previous hit (dt=%.9f)\n",
                        hit_buffer[j].t_hit - hit_buffer[j-1].t_hit);
             }
@@ -295,7 +288,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
 
         // Process ALL hits at this t-value before moving to next segment
         size_t j = i;
-        while (j < hit_buffer.size() && fabsf(hit_buffer[j].t_hit - t_current) < 1e-6f) {
+        while (j < hit_buffer.size() && math::abs(hit_buffer[j].t_hit - t_current) < consts::HIT_COINCIDENCE_EPS) {
             const auto& hit = hit_buffer[j];
             const auto prim_idx = hit.prim_idx;
             const auto is_exit = hit.is_exit;
@@ -377,9 +370,9 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
     for (size_t idx = 0; idx < active_size_initial; idx++) {
         const auto prim_idx = active_prims[idx];
         const auto& prim = launch_params.primitives_[prim_idx];
-        auto isect = intersect_ellipsoid(ray, prim);
+        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 
-        if (isect.starts_inside() && isect.t_exit > 0.0f) {
+        if (isect.starts_inside()) {
             hit_buffer.emplace_back(isect.t_exit, prim_idx, true);  // is_exit=true
         }
     }
@@ -400,7 +393,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         // All traced hits are entries (backface culling)
         const auto& entry = hit_buffer[i];
         const auto& prim = launch_params.primitives_[entry.prim_idx];
-        auto isect = intersect_ellipsoid(ray, prim);
+        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 
         // Add computed exit
         if (isect.hit() && isect.t_exit > entry.t_hit) {
@@ -431,7 +424,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
 
         // Process ALL hits at this t-value
         size_t j = i;
-        while (j < hit_buffer.size() && fabsf(hit_buffer[j].t_hit - t_current) < 1e-6f) {
+        while (j < hit_buffer.size() && math::abs(hit_buffer[j].t_hit - t_current) < consts::HIT_COINCIDENCE_EPS) {
             const auto& hit = hit_buffer[j];
             const auto prim_idx = hit.prim_idx;
             const auto is_exit = hit.is_exit;
@@ -476,7 +469,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         i = j;  // Move to next cluster
     }
 
-    // Drain remaining primitives until infinity
+    // Integrate remaining active primitives to infinity
     if (is_debug_thread()) {
         printf("  After processing all hits, active_prims: [");
         const auto active_size = active_prims.size();
@@ -487,17 +480,6 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         printf("] size=%u\n", static_cast<uint>(active_size));
     }
 
-    /*if (!active_prims.empty()) {
-        printf("WARNING: active_prims not empty after processing all hits! size=%u, ray origin=(%.3f,%.3f,%.3f) dir=(%.3f,%.3f,%.3f)\n",
-               static_cast<uint>(active_prims.size()),
-               ray.origin_.x, ray.origin_.y, ray.origin_.z,
-               ray.direction_.x, ray.direction_.y, ray.direction_.z);
-        for (auto prim : active_prims) {
-            printf("  - prim %u still active\n", prim);
-        }
-    }*/
-
-    // TODO(kacper): this will never happen? remove this?
     acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit);
 
     if (is_debug_thread()) {

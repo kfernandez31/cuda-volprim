@@ -2,20 +2,19 @@
 
 #include "thesis/pch.h"
 
+#include "thesis/common/geometry/intersection.h"
+#include "thesis/common/utils/math.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/host/optix/logging.h"
 #include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/check.h"
-#include "thesis/host/utils/data.h"
+#include "thesis/host/utils/math.h"
 #include "thesis/host/utils/result.h"
 
+#include <cstring>
 #include <filesystem>
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/transform.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
-#include <sutil/vec_math.h>
 #include <utility>
 #include <vector>
 
@@ -31,14 +30,14 @@ Renderer::Renderer(const app::Config& config)
       streams_(),
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
-      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
+      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
       env_map_(config_.env_map_path_, cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),
-      camera_active_prims_(NUM_PRIMITIVES, cuda_ctx_.get(), cuda::AllocType::OnBoth),  // TODO: optimize by first building std::vector<uint>, then allocating exact size and memcpy
-      launch_params_(1, cuda_ctx_.get(), cuda::AllocType::OnBoth) {
+      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
+      camera_active_prims_(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
+      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth) {
     auto module_file_future = utils::io::readFileToBytesAsync(config_.module_blob_path_);
 
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
@@ -57,28 +56,22 @@ Renderer::~Renderer() {
 void Renderer::initPrimsAndGAS()
 {
     /* ── 1. Per-primitive data ────────────────────────────────────── */
-    const glm::vec3 albedos[NUM_PRIMITIVES] = {
-        // {1,0,0},
-        // {0,0,1},
-        {0.5,0,0.5}
+    // Albedos: RGB color
+    const float3 albedos[NUM_PRIMITIVES] = {
+        make_float3(0.5f, 0.0f, 0.5f)
     };
-    const glm::vec3 translations[NUM_PRIMITIVES] = {
-        {0, 0, 0},
-        // {0, 0, 1},
-        // {1.0f,1.0f,0.0f},
-        // {0,0,0},
-        // {0,0,0},
+    // Translations: position in world space
+    const float3 translations[NUM_PRIMITIVES] = {
+        make_float3(0, 0, 0),
     };
-
-    const glm::quat rotations[NUM_PRIMITIVES] = {
-        glm::quat(1, 0, 0, 0),
-        // glm::quat(1, 0, 0, 0),
+    // Rotations: quaternion (w, x, y, z)
+    struct Quat4 { float w, x, y, z; };
+    const Quat4 rotations[NUM_PRIMITIVES] = {
+        {1, 0, 0, 0},
     };
-
-    const glm::vec3 scales[NUM_PRIMITIVES] = {
-        // glm::vec3(0.55f, 0.35f, 0.35f),
-        glm::vec3(0.5f),
-        // glm::vec3(0.5f),
+    // Scales: per-axis scale
+    const float3 scales[NUM_PRIMITIVES] = {
+        make_float3(0.5f, 0.5f, 0.5f),
     };
 
     /* ── 2. Build GAS with one unit sphere ───────────────────────── */
@@ -88,19 +81,21 @@ void Renderer::initPrimsAndGAS()
     /* ── 3. Fill primitives_[] and OptixInstance[] ────────────────── */
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
         // primitive
+        const auto& rot = rotations[i];
+        const auto quat = common::geometry::UnitQuaternion::from_unnormalized(rot.w, rot.x, rot.y, rot.z);
         host::params::Primitive prim(
             translations[i],
-            rotations[i],
+            quat,
             scales[i],
             albedos[i],
             0.5f
         );
-        primitives_[i] = prim.toDevice();
+        primitives_[i] = prim.device_primitive();
 
         OptixInstance inst{};
-    
-        const auto Mt = glm::transpose(prim.localToWorld()); // row-major
-        std::memcpy(inst.transform, glm::value_ptr(Mt), 12 * sizeof(float));
+
+        const auto transform = prim.localToWorld();
+        std::memcpy(inst.transform, transform.ptr(), 12 * sizeof(float));
 
         inst.traversableHandle = gas_.get();
         inst.instanceId        = static_cast<uint>(i);
@@ -129,50 +124,34 @@ void Renderer::initPrimsAndGAS()
 void Renderer::uploadParams() {
     // Compute which primitives contain camera (CPU side, done once)
     std::vector<uint> camera_active;
-    const auto camera_pos = camera_.lookfrom_;  // Camera position
+    const auto camera_pos = camera_.lookfrom();  // Camera position
 
     for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        // Get primitive parameters from host primitives buffer
+        // Get device primitive struct from buffer
         const auto prim_device = primitives_[i];
 
-        // Transform camera position to primitive local space (host-side equivalent of point_inside_ellipsoid)
-        // Local space: rotate(pos - center) / scale
-        const auto center_f3 = prim_device.center();
-        const glm::vec3 center(center_f3.x, center_f3.y, center_f3.z);
-        const auto scale_f3 = prim_device.scale();
-        const glm::vec3 scale(scale_f3.x, scale_f3.y, scale_f3.z);
-
-        // Convert UnitQuaternion to glm::quat for rotation
-        const auto& rot_device = prim_device.rot_quat();
-        const glm::quat rot_glm(rot_device.s_, rot_device.u_.x, rot_device.u_.y, rot_device.u_.z);
-
-        // Apply transform: rotate(pos - center) / scale
-        const auto diff = camera_pos - center;
-        const auto rotated = rot_glm * diff;
-        const auto local = rotated / scale;
-        const float len2 = glm::dot(local, local);
-
-        if (len2 <= 1.0f) {
+        // Check if camera is inside this primitive using shared intersection code
+        if (common::geometry::point_inside_ellipsoid(camera_pos, prim_device)) {
             camera_active.push_back(static_cast<uint>(i));
         }
     }
 
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
-        camera_active_prims_ = cuda::Buffer<uint>(camera_active.size(), cuda_ctx_.get(), cuda::AllocType::OnBoth);
+        camera_active_prims_ = cuda::AsyncBuffer<uint>(camera_active.size(), cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
         std::memcpy(camera_active_prims_.host(), camera_active.data(), camera_active.size() * sizeof(uint));
         camera_active_prims_.upload();
     } else {
-        camera_active_prims_ = cuda::Buffer<uint>(0, cuda_ctx_.get(), cuda::AllocType::OnBoth);
+        camera_active_prims_ = cuda::AsyncBuffer<uint>(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
     }
 
     auto& par = launch_params_[0];
     par.seed_ = config_.seed_;
     par.debug_ = config_.debug_;
     par.ias_handle_ = ias_.get();
-    par.camera_ = camera_.toDevice();
-    par.env_map_ = env_map_.toDevice();
-    par.image_ = image_.toDevice();
+    par.camera_ = camera_.device_camera();
+    par.env_map_ = env_map_.device_env_map();
+    par.image_ = image_.device_image();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
     par.camera_active_prims_ = device::utils::DynamicVector<uint>(
         camera_active_prims_.device(),
@@ -241,7 +220,7 @@ void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>>
     // sbt
     sbt_.build(raygen_pg_.get(), miss_pg_.get(), hitgroup_pg_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::SBT);
-    spdlog::info("SBT created");
+    spdlog::debug("SBT created");
 
     OptixPipelineLinkOptions plo{};
     plo.maxTraceDepth = 1;
@@ -261,9 +240,11 @@ void Renderer::render() {
                      image_.width(),
                      image_.height(),
                      image_.num_samples_per_pixel());
-    spdlog::info("Pipeline execution complete");
 
-    utils::try_unwrap_or_exit(image_.save(config_.output_path_));
+    // Save asynchronously and wait for completion
+    auto save_future = image_.save(config_.output_path_);
+    utils::try_unwrap_or_exit(save_future.get());
+    spdlog::info("Rendering complete");
 }
 
 }  // namespace thesis::host::app

@@ -3,7 +3,6 @@
 #include "thesis/common/utils/types.h"
 #include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/optix/acceleration_structure.h"
-#include "thesis/host/utils/data.h"
 
 #include <vector_types.h>
 
@@ -71,7 +70,7 @@ class SphereGAS {
         in.sphereArray.primitiveIndexOffset = 0;
 
         gas_.build(in, cuda_ctx, optix_ctx);
-        spdlog::info("Sphere GAS built, handle = 0x{:x}", gas_.get());
+        spdlog::debug("Sphere GAS built");
     }
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }

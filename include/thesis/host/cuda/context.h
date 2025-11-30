@@ -33,8 +33,10 @@ class Context {
         CU_CHECK(cuDeviceGetName(name, sizeof(name), device_));
 
         int major = 0, minor = 0;
-        CU_CHECK(cuDeviceComputeCapability(
-            &major, &minor, device_));  // TODO: apparently this is deprecated. What else to use?
+        CU_CHECK(
+            cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, device_));
+        CU_CHECK(
+            cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device_));
 
         spdlog::info("Created CUDA context for device {} ({}), compute capability {}.{}",
                      device_ordinal, name, major, minor);

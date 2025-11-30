@@ -18,14 +18,12 @@ class AccelerationStructure {
     cuda::Buffer<std::byte> temp_, out_;
     cuda::Buffer<size_t> compacted_size_;
     OptixTraversableHandle handle_ = 0;
+    std::shared_ptr<cuda::Stream> stream_;
 
     void build_internal(const OptixBuildInput& input, CUcontext cuda_ctx,
                         OptixDeviceContext optix_ctx, uint build_flags,
                         const char* structure_type) {
-        // const auto& stream = compacted_size_.get_context_param(); // TODO: why isn't this used?
-        // We could use async buffers for temp_ and out_. We do have to keep in mind however we need
-        // to synchronize the stream after optixAccelBuild to get the compacted size (can't do it
-        // async)
+        const auto stream = stream_->get();
 
         OptixAccelBuildOptions opts{};
         opts.buildFlags = build_flags;
@@ -49,14 +47,14 @@ class AccelerationStructure {
             emit_desc_ptr = &emit;
         }
 
-        OPTIX_CHECK(optixAccelBuild(optix_ctx, nullptr, &opts, &input, 1, temp_.cu_device_ptr(),
+        OPTIX_CHECK(optixAccelBuild(optix_ctx, stream, &opts, &input, 1, temp_.cu_device_ptr(),
                                     temp_.size(), out_.cu_device_ptr(), out_.size(), &handle_,
                                     emit_desc_ptr, emit_desc_ptr ? 1 : 0));
 
         if (!(build_flags & OPTIX_BUILD_FLAG_ALLOW_COMPACTION)) {
-            spdlog::warn("{} compaction skipped (compacted_size = 0)", structure_type);
+            spdlog::debug("{} compaction not requested", structure_type);
         } else {
-            CUDA_CHECK(cudaDeviceSynchronize());
+            stream_->synchronize();
             compacted_size_.download();
 
             const auto compacted_size = compacted_size_[0];
@@ -65,7 +63,7 @@ class AccelerationStructure {
                              compacted_size);
                 out_ = cuda::Buffer<std::byte>(compacted_size, cuda_ctx,
                                                cuda::AllocType::OnDeviceOnly);
-                OPTIX_CHECK(optixAccelCompact(optix_ctx, nullptr, handle_,
+                OPTIX_CHECK(optixAccelCompact(optix_ctx, stream, handle_,
                                               reinterpret_cast<CUdeviceptr>(out_.device()),
                                               compacted_size, &handle_));
             }
@@ -74,7 +72,7 @@ class AccelerationStructure {
 
    public:
     AccelerationStructure(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : compacted_size_(1, ctx, cuda::AllocType::OnBoth) {}
+        : compacted_size_(1, ctx, cuda::AllocType::OnBoth), stream_(std::move(stream)) {}
 
     AccelerationStructure(AccelerationStructure&&) noexcept = default;
     AccelerationStructure& operator=(AccelerationStructure&&) noexcept = default;

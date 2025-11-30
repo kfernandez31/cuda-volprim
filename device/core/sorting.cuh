@@ -2,7 +2,6 @@
 
 #include "hit_record.cuh"
 #include "thesis/device/utils/vector.h"
-#include "core/hit_record.cuh"
 
 namespace thesis {
 namespace device {
@@ -54,7 +53,7 @@ __device__ void warp_shuffle_sort(utils::StaticVector<HitRecord, N>& vec) {
 // ============================================================================
 // O(n²) but with better constants than bubble sort, good cache behavior
 template <size_t N>
-__device__ void insertion_sort(utils::StaticVector<HitRecord, N>& vec) {
+__device__ __forceinline__ void insertion_sort(utils::StaticVector<HitRecord, N>& vec) {
     const auto n = vec.size();
 
     for (size_t i = 1; i < n; ++i) {
@@ -114,7 +113,7 @@ __device__ void bitonic_sort(utils::StaticVector<HitRecord, N>& vec) {
 // ============================================================================
 // Automatically selects the best sorting algorithm based on array size
 template <size_t N>
-__device__ void sort(utils::StaticVector<HitRecord, N>& vec) {
+__device__ __forceinline__ void sort(utils::StaticVector<HitRecord, N>& vec) {
     const size_t n = vec.size();
 
     if (n <= 1) {

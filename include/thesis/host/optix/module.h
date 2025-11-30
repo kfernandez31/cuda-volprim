@@ -38,7 +38,7 @@ class Module {
 
         std::vector<std::byte> blob;
         TRY_ASSIGN(blob, file_future.get());
-        spdlog::info("OptiX module loaded ({} bytes)", blob.size());
+        spdlog::debug("OptiX module loaded ({} bytes)", blob.size());
 
         OPTIX_CALL_LOGGED(optixModuleCreate(ctx, &mco, &pco,
                                             reinterpret_cast<const char*>(blob.data()), blob.size(),

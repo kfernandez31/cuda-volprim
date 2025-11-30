@@ -30,8 +30,8 @@ class StreamDAG {
             streams_[i] = std::make_shared<Stream>(false);
         }
 
-        spdlog::info("Stream DAG created with {} CUDA streams (Main stream is {} index)",
-                     streams_.size(), static_cast<size_t>(StreamKind::Main));
+        spdlog::debug("Stream DAG created with {} CUDA streams (Main stream is {} index)",
+                      streams_.size(), static_cast<size_t>(StreamKind::Main));
     }
 
     StreamDAG(StreamDAG&&) = default;

@@ -2,11 +2,153 @@
 
 #include "thesis/common/utils/preprocessor.h"
 
-#include <sutil/vec_math.h>
+#include <vector_functions.h>
+#include <vector_types.h>
+
+#include <cmath>
+
+// Vector convenience overloads in global namespace (where float3/float4 live)
+THESIS_HOST_DEVICE THESIS_INLINE float3 make_float3(float s) noexcept {
+    return make_float3(s, s, s);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 make_float3(float4 v) noexcept {
+    return make_float3(v.x, v.y, v.z);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float4 make_float4(float s) noexcept {
+    return make_float4(s, s, s, s);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float4 make_float4(float3 xyz) noexcept {
+    return make_float4(xyz.x, xyz.y, xyz.z, 0.0f);
+}
+
+// Forward declaration for operators (defined in thesis::common::math below)
+namespace thesis {
+namespace common {
+namespace math {
+THESIS_HOST_DEVICE THESIS_INLINE float rcp(float x) noexcept;
+THESIS_HOST_DEVICE THESIS_INLINE float3 rcp(float3 v) noexcept;
+}  // namespace math
+}  // namespace common
+}  // namespace thesis
+
+// Vector operators in global namespace
+// float2 operators
+THESIS_HOST_DEVICE THESIS_INLINE float2 operator-(float2 a, float s) noexcept {
+    return make_float2(a.x - s, a.y - s);
+}
+
+// float3 compound assignment operators (primitives)
+THESIS_HOST_DEVICE THESIS_INLINE void operator+=(float3& a, float3 b) noexcept {
+    a.x += b.x;
+    a.y += b.y;
+    a.z += b.z;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE void operator-=(float3& a, float3 b) noexcept {
+    a.x -= b.x;
+    a.y -= b.y;
+    a.z -= b.z;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE void operator*=(float3& a, float s) noexcept {
+    a.x *= s;
+    a.y *= s;
+    a.z *= s;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE void operator*=(float3& a, float3 b) noexcept {
+    a.x *= b.x;
+    a.y *= b.y;
+    a.z *= b.z;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE void operator/=(float3& a, float s) noexcept {
+    const float inv = thesis::common::math::rcp(s);
+    a.x *= inv;
+    a.y *= inv;
+    a.z *= inv;
+}
+
+// float3 binary operators (implemented in terms of compound assignment)
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator+(float3 a, float3 b) noexcept {
+    a += b;
+    return a;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator-(float3 a, float3 b) noexcept {
+    a -= b;
+    return a;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator*(float3 a, float s) noexcept {
+    a *= s;
+    return a;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator*(float s, float3 a) noexcept {
+    return a * s;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator*(float3 a, float3 b) noexcept {
+    a *= b;
+    return a;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator/(float3 a, float s) noexcept {
+    a /= s;
+    return a;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator/(float3 a, float3 b) noexcept {
+    const float3 b_inv = thesis::common::math::rcp(b);
+    return make_float3(a.x * b_inv.x, a.y * b_inv.y, a.z * b_inv.z);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator-(float3 a) noexcept {
+    return make_float3(-a.x, -a.y, -a.z);
+}
+
+// float4 operators
+THESIS_HOST_DEVICE THESIS_INLINE void operator+=(float4& a, float4 b) noexcept {
+    a.x += b.x;
+    a.y += b.y;
+    a.z += b.z;
+    a.w += b.w;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float4 operator+(float4 a, float4 b) noexcept {
+    a += b;
+    return a;
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float4 operator*(float4 a, float s) noexcept {
+    return make_float4(a.x * s, a.y * s, a.z * s, a.w * s);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float4 operator/(float4 a, float s) noexcept {
+    const float inv = thesis::common::math::rcp(s);
+    return make_float4(a.x * inv, a.y * inv, a.z * inv, a.w * inv);
+}
 
 namespace thesis {
 namespace common {
 namespace math {
+
+// Reciprocal with optional numerical guards
+THESIS_HOST_DEVICE THESIS_INLINE float rcp(float x) noexcept {
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    return (x != 0.0f) ? (1.0f / x) : 0.0f;
+#else
+    return 1.0f / x;
+#endif
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 rcp(float3 v) noexcept {
+    return make_float3(rcp(v.x), rcp(v.y), rcp(v.z));
+}
 
 constexpr float PI_F = 3.14159265358979323846f;
 constexpr float TWO_PI_F = 2.0f * PI_F;
@@ -16,6 +158,8 @@ constexpr float ONE_OVER_TWO_PI_F = 1.0f / (2.0f * PI_F);
 constexpr float ONE_OVER_FOUR_PI_F = 1.0f / (4.0f * PI_F);
 constexpr float ONE_OVER_TWO_PI_POW_3_2_F = 0.0634936359f;
 constexpr float ROOT_TWO_PI_F = 2.5066282746f;
+constexpr float DEG_TO_RAD_F = PI_F / 180.0f;
+constexpr float RAD_TO_DEG_F = 180.0f / PI_F;
 
 constexpr float ROOT_TWO_F = 1.41421356237309504880f;
 constexpr float TWO_ROOT_TWO_F = 2.0f * ROOT_TWO_F;
@@ -79,24 +223,112 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr float prod(float3 v) noexcept {
     return v.x * v.y * v.z;
 }
 
-THESIS_HOST_DEVICE THESIS_INLINE float dot(float3 a, float3 b) noexcept {
-#ifdef __CUDA_ARCH__
-    return __fmaf_rn(a.x, b.x, __fmaf_rn(a.y, b.y, a.z * b.z));
+// Scalar FMA (fmaf is standard C, compiles to hardware FMA on device)
+THESIS_HOST_DEVICE THESIS_INLINE float fma(float a, float b, float c) noexcept {
+    return fmaf(a, b, c);
+}
+
+// Standard C math wrappers (work on host and device)
+THESIS_HOST_DEVICE THESIS_INLINE float sqrt(float x) noexcept {
+    return sqrtf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float exp(float x) noexcept {
+    return expf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float3 exp(float3 v) noexcept {
+    return make_float3(exp(v.x), exp(v.y), exp(v.z));
+}
+THESIS_HOST_DEVICE THESIS_INLINE float log(float x) noexcept {
+    return logf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float sin(float x) noexcept {
+    return sinf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float cos(float x) noexcept {
+    return cosf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float abs(float x) noexcept {
+    return fabsf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float copysign(float x, float y) noexcept {
+    return copysignf(x, y);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float erf(float x) noexcept {
+    return erff(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float erfc(float x) noexcept {
+    return erfcf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float acos(float x) noexcept {
+    return acosf(x);
+}
+THESIS_HOST_DEVICE THESIS_INLINE float atan2(float y, float x) noexcept {
+    return atan2f(y, x);
+}
+
+// Reciprocal square root
+THESIS_HOST_DEVICE THESIS_INLINE float rsqrt(float x) noexcept {
+#ifdef DEVICE
+    return rsqrtf(x);
 #else
-    return ::dot(a, b);  // Fall back to sutil version on host
+    // Quake III fast inverse square root with Newton-Raphson refinement
+    const auto neg_xhalf = -0.5f * x;
+    auto i = *reinterpret_cast<const int*>(&x);
+    i = 0x5f3759df - (i >> 1);
+    auto y = *reinterpret_cast<const float*>(&i);
+    y *= fma(pow2(y), neg_xhalf, 1.5f);  // Newton-Raphson iteration
+    return y;
 #endif
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float dot(float3 a, float3 b) noexcept {
+    return fma(a.x, b.x, fma(a.y, b.y, a.z * b.z));
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float length2(float3 v) noexcept {
     return math::dot(v, v);
 }
 
-THESIS_HOST_DEVICE THESIS_INLINE float3 fmaf(float a, float3 b, float3 c) noexcept {
-#ifdef __CUDA_ARCH__
-    return make_float3(__fmaf_rn(a, b.x, c.x), __fmaf_rn(a, b.y, c.y), __fmaf_rn(a, b.z, c.z));
-#else
-    return a * b + c;
-#endif
+THESIS_HOST_DEVICE THESIS_INLINE float length(float3 v) noexcept {
+    return sqrt(length2(v));
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float rlength(float3 v) noexcept {
+    return rsqrt(length2(v));
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 normalize(float3 v) noexcept {
+    return v * rlength(v);
+}
+
+// FMA-optimized cross product
+// cross(a, b) = (a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x)
+// Each component uses: fma(a, b, -(c*d)) = a*b - c*d
+THESIS_HOST_DEVICE THESIS_INLINE float3 cross(float3 a, float3 b) noexcept {
+    return make_float3(fma(a.y, b.z, -(a.z * b.y)), fma(a.z, b.x, -(a.x * b.z)),
+                       fma(a.x, b.y, -(a.y * b.x)));
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 fma(float a, float3 b, float3 c) noexcept {
+    return make_float3(fma(a, b.x, c.x), fma(a, b.y, c.y), fma(a, b.z, c.z));
+}
+
+// Linear interpolation: lerp(a, b, t) = a + t * (b - a) = (1-t)*a + t*b
+THESIS_HOST_DEVICE THESIS_INLINE float lerp(float a, float b, float t) noexcept {
+    return fma(t, b - a, a);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 lerp(float3 a, float3 b, float t) noexcept {
+    return fma(t, b - a, a);
+}
+
+// Midpoint: midpoint(a, b) = lerp(a, b, 0.5)
+THESIS_HOST_DEVICE THESIS_INLINE float midpoint(float a, float b) noexcept {
+    return lerp(a, b, 0.5f);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float3 midpoint(float3 a, float3 b) noexcept {
+    return lerp(a, b, 0.5f);
 }
 
 // Compute next power of 2 >= n using bit manipulation
@@ -110,12 +342,9 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr UInt next_power_of_2(UInt n) noexcept
 
     // Unroll for all possible bit widths using if constexpr
     constexpr size_t bits = sizeof(UInt) * 8;
-    if constexpr (bits >= 2)
-        n |= n >> 1;
-    if constexpr (bits >= 4)
-        n |= n >> 2;
-    if constexpr (bits >= 8)
-        n |= n >> 4;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
     if constexpr (bits >= 16)
         n |= n >> 8;
     if constexpr (bits >= 32)
@@ -126,24 +355,23 @@ THESIS_HOST_DEVICE THESIS_INLINE constexpr UInt next_power_of_2(UInt n) noexcept
     return n + 1;
 }
 
-// Safe reciprocal: returns 0 for zero input (avoids div-by-zero)
-THESIS_HOST_DEVICE THESIS_INLINE float safe_rcp(float x) noexcept {
-    return (x != 0.0f) ? (1.0f / x) : 0.0f;
-}
-
-THESIS_HOST_DEVICE THESIS_INLINE float3 safe_rcp(float3 v) noexcept {
-    return make_float3(safe_rcp(v.x), safe_rcp(v.y), safe_rcp(v.z));
-}
-
-// Sanitize scalar: clamp to non-negative and filter NaN/Inf
+// Sanitize: clamp to non-negative and filter NaN/Inf
+// When THESIS_ENABLE_NUMERICAL_GUARDS is disabled, acts as identity
 THESIS_HOST_DEVICE THESIS_INLINE float sanitize(float x) noexcept {
-    x = fmaxf(x, 0.0f);             // Clamp negative
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    x = max(x, 0.0f);               // Clamp negative
     return isfinite(x) ? x : 0.0f;  // Filter NaN/Inf
+#else
+    return x;  // Identity
+#endif
 }
 
-// Sanitize float3: component-wise sanitization
 THESIS_HOST_DEVICE THESIS_INLINE float3 sanitize(float3 v) noexcept {
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
     return make_float3(sanitize(v.x), sanitize(v.y), sanitize(v.z));
+#else
+    return v;  // Identity
+#endif
 }
 
 template <typename T>

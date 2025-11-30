@@ -1,5 +1,10 @@
 #pragma once
 
+// Prevent Windows.h from defining min/max macros
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 // C / C++ Standard Library
 #include <array>
 #include <cerrno>
@@ -39,15 +44,8 @@
 
 // 3rd Party
 #include <CLI11/CLI11.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/component_wise.hpp>
-#include <glm/gtx/optimum_pow.hpp>
-#include <glm/gtx/transform.hpp>
 #include <happly/happly.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 #include <stb/stb_image.h>
-#include <sutil/vec_math.h>
 #include <tinyexr/tinyexr.h>

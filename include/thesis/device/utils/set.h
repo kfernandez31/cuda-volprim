@@ -26,27 +26,29 @@ class THESIS_ALIGNMENT SetBase {
    public:
 #ifdef DEVICE
     // basic query API
-    __device__ size_t size() const { return size_; }
-    __device__ constexpr size_t capacity() const { return Capacity; }
-    __device__ bool empty() const { return size_ == 0; }
-    __device__ bool full() const { return size_ == Capacity; }
+    __device__ __forceinline__ size_t size() const { return size_; }
+    __device__ __forceinline__ constexpr size_t capacity() const { return Capacity; }
+    __device__ __forceinline__ bool empty() const { return size_ == 0; }
+    __device__ __forceinline__ bool full() const { return size_ == Capacity; }
 
     // modifiers delegated to policies
-    __device__ void clear() { size_ = 0; }
+    __device__ __forceinline__ void clear() { size_ = 0; }
 
-    __device__ bool contains(const T& v) const { return Policy::contains(*this, v); }
-    __device__ bool insert(const T& v) { return Policy::insert(*this, v); }
-    __device__ bool erase(const T& v) { return Policy::erase(*this, v); }
+    __device__ __forceinline__ bool contains(const T& v) const {
+        return Policy::contains(*this, v);
+    }
+    __device__ __forceinline__ bool insert(const T& v) { return Policy::insert(*this, v); }
+    __device__ __forceinline__ bool erase(const T& v) { return Policy::erase(*this, v); }
 
     // iterators
-    __device__ T* begin() { return data_; }
-    __device__ T* end() { return data_ + size_; }
-    __device__ const T* begin() const { return data_; }
-    __device__ const T* end() const { return data_ + size_; }
+    __device__ __forceinline__ T* begin() { return data_; }
+    __device__ __forceinline__ T* end() { return data_ + size_; }
+    __device__ __forceinline__ const T* begin() const { return data_; }
+    __device__ __forceinline__ const T* end() const { return data_ + size_; }
 
     // indexed access (no bounds checking)
-    __device__ T& operator[](size_t i) { return data_[i]; }
-    __device__ const T& operator[](size_t i) const { return data_[i]; }
+    __device__ __forceinline__ T& operator[](size_t i) { return data_[i]; }
+    __device__ __forceinline__ const T& operator[](size_t i) const { return data_[i]; }
 #endif  // DEVICE
 };
 

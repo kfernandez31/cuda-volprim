@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/launch_params.cuh"
+
 #include <optix.h>
 #include <vector_types.h>
 
@@ -7,8 +9,7 @@ namespace thesis {
 namespace device {
 
 __device__ __forceinline__ bool is_debug_thread() {
-    static constexpr bool debug_on = true;
-    if constexpr (!debug_on) {
+    if (!launch_params.debug_) {
         return false;
     }
 

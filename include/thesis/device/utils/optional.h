@@ -37,25 +37,25 @@ struct Optional {
     }
 
     template <typename... Args>
-    __device__ void emplace(Args&&... args) {
+    __device__ __forceinline__ void emplace(Args&&... args) {
         has_value_ = true;
         value_ = T(utility::forward<Args>(args)...);
     }
 
-    __device__ void reset() { has_value_ = false; }
+    __device__ __forceinline__ void reset() { has_value_ = false; }
 
-    __device__ bool has() const { return has_value_; }
-    __device__ operator bool() const { return has_value_; }
+    __device__ __forceinline__ bool has() const { return has_value_; }
+    __device__ __forceinline__ operator bool() const { return has_value_; }
 
-    __device__ T& unwrap() { return value_; }
-    __device__ const T& unwrap() const { return value_; }
+    __device__ __forceinline__ T& unwrap() { return value_; }
+    __device__ __forceinline__ const T& unwrap() const { return value_; }
 
-    __device__ const T& operator*() const { return value_; }
-    __device__ T& operator*() { return value_; }
+    __device__ __forceinline__ const T& operator*() const { return value_; }
+    __device__ __forceinline__ T& operator*() { return value_; }
 };
 
 template <typename T, typename... Args>
-__device__ Optional<T> make_optional(Args&&... args) {
+__device__ __forceinline__ Optional<T> make_optional(Args&&... args) {
     return Optional<T>(utility::forward<Args>(args)...);
 }
 

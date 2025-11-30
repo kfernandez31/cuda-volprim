@@ -1,8 +1,9 @@
 #pragma once
 
+#include "thesis/common/utils/math.h"
+
 #include <vector_types.h>
 #include <curand_kernel.h>
-#include <sutil/vec_math.h>
 
 namespace thesis {
 namespace device {

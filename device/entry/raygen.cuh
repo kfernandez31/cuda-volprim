@@ -11,24 +11,11 @@
 
 #include <optix.h>
 #include <vector_types.h>
-#include <sutil/vec_math.h>
 
 #include <assert.h>
 
 namespace thesis {
 namespace device {
-namespace consts {
-
-// TODO(kacper): select experimentally
-constexpr size_t MAX_BOUNCES     = 128;  // Match Mitsuba production examples (64-128)
-constexpr float  MIN_THROUGHPUT  = 1e-4;
-constexpr size_t RR_DEPTH        = 3;
-constexpr float  RR_MAX_SURVIVAL = 0.99; // Mitsuba uses 0.99 for bounce-level RR
-constexpr float  PHASE_VALUE     = common::math::ONE_OVER_FOUR_PI_F; // 1 over unit sphere surface
-
-} // namespace consts
-} // namespace device
-} // namespace thesis
 
 extern "C" __global__ void __raygen__rg() {
     using namespace thesis::device;
@@ -84,7 +71,7 @@ extern "C" __global__ void __raygen__rg() {
             if (is_debug) printf("No scattering, computing final transmittance\n");
             auto tau = compute_optical_depth_along_ray(ray, event.active_prims_);
             if (is_debug) printf("Final tau=(%.3f,%.3f,%.3f)\n", tau.x, tau.y, tau.z);
-            radiance += (throughput * expf(-tau)) * miss.color();
+            radiance += (throughput * math::exp(-tau)) * miss.color();
             break;
         }
 
@@ -105,7 +92,7 @@ extern "C" __global__ void __raygen__rg() {
 
         // Russian Roulette
         if (bounce >= consts::RR_DEPTH) {
-            auto p_survive = fminf(consts::RR_MAX_SURVIVAL, math::max(throughput));
+            auto p_survive = math::min(consts::RR_MAX_SURVIVAL, math::max(throughput));
             if (random::sample_uniform(rng) > p_survive) {
                 if (is_debug) printf("Russian roulette terminated\n");
                 break;
@@ -143,8 +130,11 @@ extern "C" __global__ void __raygen__rg() {
         auto env = launch_params.env_map_.sample(ray.direction_);
         if (is_debug) printf("Final tau=(%.3f,%.3f,%.3f), env=(%.3f,%.3f,%.3f)\n",
                                 tau.x, tau.y, tau.z, env.x, env.y, env.z);
-        radiance += throughput * expf(-tau) * env;
+        radiance += throughput * math::exp(-tau) * env;
     }
 
     launch_params.image_[global_sample_idx] = make_float4(radiance);
 }
+
+}  // namespace device
+}  // namespace thesis

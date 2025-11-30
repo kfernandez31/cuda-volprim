@@ -15,9 +15,9 @@ struct StaticStorage {
     T data_[Capacity];
 
 #ifdef DEVICE
-    __device__ T* data() { return data_; }
-    __device__ const T* data() const { return data_; }
-    __device__ size_t capacity() const { return Capacity; }
+    __device__ __forceinline__ T* data() { return data_; }
+    __device__ __forceinline__ const T* data() const { return data_; }
+    __device__ __forceinline__ size_t capacity() const { return Capacity; }
 #endif  // DEVICE
 };
 
@@ -34,9 +34,9 @@ struct DynamicStorage {
     DynamicStorage(DynamicStorage&&) = default;
 
 #ifdef DEVICE
-    __device__ T* data() { return data_; }
-    __device__ const T* data() const { return data_; }
-    __device__ size_t capacity() const { return capacity_; }
+    __device__ __forceinline__ T* data() { return data_; }
+    __device__ __forceinline__ const T* data() const { return data_; }
+    __device__ __forceinline__ size_t capacity() const { return capacity_; }
 #endif  // DEVICE
 };
 
@@ -57,16 +57,16 @@ class VectorBase : private Storage {
     VectorBase(T* ptr, size_t size) : Storage(ptr, size), size_(size) {}
 
 #ifdef DEVICE
-    __device__ size_t size() const { return size_; }
-    __device__ bool empty() const { return size_ == 0; }
-    __device__ bool full() const { return size_ == capacity(); }
+    __device__ __forceinline__ size_t size() const { return size_; }
+    __device__ __forceinline__ bool empty() const { return size_ == 0; }
+    __device__ __forceinline__ bool full() const { return size_ == capacity(); }
 
-    __device__ T& operator[](size_t i) { return data()[i]; }
-    __device__ const T& operator[](size_t i) const { return data()[i]; }
+    __device__ __forceinline__ T& operator[](size_t i) { return data()[i]; }
+    __device__ __forceinline__ const T& operator[](size_t i) const { return data()[i]; }
 
-    __device__ void clear() { size_ = 0; }
+    __device__ __forceinline__ void clear() { size_ = 0; }
 
-    __device__ bool push_back(const T& value) {
+    __device__ __forceinline__ bool push_back(const T& value) {
         if (full()) {
             return false;
         }
@@ -75,7 +75,7 @@ class VectorBase : private Storage {
     }
 
     template <typename... Args>
-    __device__ bool emplace_back(Args&&... args) {
+    __device__ __forceinline__ bool emplace_back(Args&&... args) {
         if (full()) {
             return false;
         }
@@ -83,13 +83,15 @@ class VectorBase : private Storage {
         return true;
     }
 
-    __device__ Optional<T> pop_back() { return empty() ? utils::nullopt : data()[--size_]; }
+    __device__ __forceinline__ Optional<T> pop_back() {
+        return empty() ? utils::nullopt : data()[--size_];
+    }
 
-    __device__ T* begin() { return data(); }
-    __device__ T* end() { return data() + size_; }
+    __device__ __forceinline__ T* begin() { return data(); }
+    __device__ __forceinline__ T* end() { return data() + size_; }
 
-    __device__ const T* begin() const { return data(); }
-    __device__ const T* end() const { return data() + size_; }
+    __device__ __forceinline__ const T* begin() const { return data(); }
+    __device__ __forceinline__ const T* end() const { return data() + size_; }
 #endif  // DEVICE
 };
 

@@ -1,7 +1,13 @@
 #pragma once
 
-#if defined(__CUDACC__) || defined(__CUDABE__)
+// DEVICE macro: only defined during device code compilation
+// This is the idiomatic approach for guarding device-only code sections
+#ifdef __CUDA_ARCH__
 #define DEVICE
+#endif
+
+// Function qualifiers and inlining hints
+#if defined(__CUDACC__) || defined(__CUDABE__)
 #define THESIS_HOST __host__
 #define THESIS_DEVICE __device__
 #define THESIS_HOST_DEVICE THESIS_HOST THESIS_DEVICE

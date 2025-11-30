@@ -20,17 +20,21 @@ class Context {
 
         OptixDeviceContextOptions opts = {};
         opts.logCallbackFunction = &contextLogCb;
-        opts.logCallbackLevel = static_cast<int>(LogLevel::Warning);
 #ifdef DEBUG
+        opts.logCallbackLevel = static_cast<int>(LogLevel::Info);
         opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 #else
+        opts.logCallbackLevel = static_cast<int>(LogLevel::Warning);
         opts.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_OFF;
 #endif
 
         OPTIX_CHECK(optixDeviceContextCreate(cu_ctx, &opts, &handle_));
-        spdlog::info(
-            "OptiX device context created (validation mode: {})",
-            opts.validationMode == OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL ? "ALL" : "OFF");
+        const char* log_level =
+            opts.logCallbackLevel == static_cast<int>(LogLevel::Info) ? "Info" : "Warning";
+        const char* validation =
+            opts.validationMode == OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL ? "ALL" : "OFF";
+        spdlog::debug("OptiX device context created (log level: {}, validation: {})", log_level,
+                      validation);
 
         OPTIX_CHECK(optixDeviceContextSetCacheEnabled(handle_, 1));
         constexpr size_t MEGABYTES = 1024 * 1024;
