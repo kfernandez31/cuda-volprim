@@ -22,44 +22,39 @@ class GAS : public AccelerationStructure {
     }
 };
 
-// TODO: there was a time when I tried storing the single vertex and radius together in one float4
-// buffer of size 1 but I couldn't get that to work. Perhaps it can be done though
+// Interleaved float4 buffer: {x, y, z, radius} for compact storage
 class SphereGAS {
-    cuda::AsyncBuffer<float3> vertices_;  // Sphere centers
-    cuda::AsyncBuffer<float> radii_;      // Sphere radii
+    cuda::AsyncBuffer<float4> sphere_data_;  // Interleaved center (xyz) + radius (w)
     GAS gas_;
 
    public:
     SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : vertices_(1, ctx, stream, cuda::AllocType::OnBoth),
-          radii_(1, ctx, stream, cuda::AllocType::OnBoth),
-          gas_(ctx, std::move(stream)) {}
+        : sphere_data_(1, ctx, stream, cuda::AllocType::OnBoth), gas_(ctx, std::move(stream)) {}
 
     SphereGAS(SphereGAS&&) noexcept = default;
     SphereGAS& operator=(SphereGAS&&) noexcept = default;
 
     void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
-        // Unit sphere at origin
-        vertices_.host()[0] = make_float3(0.0f);
-        vertices_.upload();
-
-        radii_.host()[0] = 1.0f;
-        radii_.upload();
+        // Unit sphere at origin: center=(0,0,0), radius=1
+        sphere_data_.host()[0] = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+        sphere_data_.upload();
 
         static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
         OptixBuildInput in{};
         in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
-        CUdeviceptr vertex_buffer_ptr = vertices_.cu_device_ptr();
-        CUdeviceptr radius_buffer_ptr = radii_.cu_device_ptr();
+        // Setup interleaved buffer: vertex at offset 0, radius at offset 12 bytes
+        CUdeviceptr base_ptr = sphere_data_.cu_device_ptr();
+        CUdeviceptr vertex_buffer_ptr = base_ptr;
+        CUdeviceptr radius_buffer_ptr = base_ptr + 3 * sizeof(float);
 
         in.sphereArray.vertexBuffers = &vertex_buffer_ptr;
-        in.sphereArray.vertexStrideInBytes = sizeof(float3);
+        in.sphereArray.vertexStrideInBytes = sizeof(float4);
         in.sphereArray.numVertices = 1;
 
         in.sphereArray.radiusBuffers = &radius_buffer_ptr;
-        in.sphereArray.radiusStrideInBytes = sizeof(float);
+        in.sphereArray.radiusStrideInBytes = sizeof(float4);
         in.sphereArray.singleRadius = false;
 
         in.sphereArray.flags = geomFlags;

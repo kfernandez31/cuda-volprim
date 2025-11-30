@@ -58,20 +58,25 @@ void Renderer::initPrimsAndGAS()
     /* ── 1. Per-primitive data ────────────────────────────────────── */
     // Albedos: RGB color
     const float3 albedos[NUM_PRIMITIVES] = {
-        make_float3(0.5f, 0.0f, 0.5f)
+        make_float3(0.5f, 0.0f, 0.5f),
+        // make_float3(1.0f, 0.0f, 0.0f),
+        // make_float3(0.0f, 0.0f, 1.0f),
     };
     // Translations: position in world space
     const float3 translations[NUM_PRIMITIVES] = {
         make_float3(0, 0, 0),
+        // make_float3(0, 0, 0),
     };
     // Rotations: quaternion (w, x, y, z)
     struct Quat4 { float w, x, y, z; };
     const Quat4 rotations[NUM_PRIMITIVES] = {
         {1, 0, 0, 0},
+        // {1, 0, 0, 0},
     };
     // Scales: per-axis scale
     const float3 scales[NUM_PRIMITIVES] = {
         make_float3(0.5f, 0.5f, 0.5f),
+        // make_float3(0.5f, 0.5f, 0.5f),
     };
 
     /* ── 2. Build GAS with one unit sphere ───────────────────────── */

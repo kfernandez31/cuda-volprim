@@ -101,8 +101,6 @@ class CudaTexture {
         return *this;
     }
 
-    // Get texture object handle for device access // TODO: I don't understand why we'd need this,
-    // i.e. why texture_ would be null. Don't I ensure it isn't?
     [[nodiscard]] cudaTextureObject_t get() const noexcept {
         return texture_ ? texture_.get_deleter().handle_ : 0;
     }
@@ -120,8 +118,7 @@ class CudaTexture {
 
     std::unique_ptr<cudaArray, detail::CudaArrayDeleter> array_;
     std::unique_ptr<void, detail::TextureObjectDeleter>
-        texture_;  // Non-null dummy pointer (0x1), deleter holds actual handle // TODO: I don't
-                   // understand this
+        texture_;  // Non-null dummy pointer (0x1), deleter holds actual handle
     size_t width_;
     size_t height_;
 };

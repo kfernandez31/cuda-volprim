@@ -5,9 +5,7 @@
 namespace thesis::host::optix {
 
 inline constexpr uint IAS_BUILD_FLAGS =
-    OPTIX_BUILD_FLAG_ALLOW_COMPACTION |
-    OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;  // TODO: I see these are the same as the GAS build flags we
-                                         // use. Is this ok?
+    OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
 
 class IAS : public AccelerationStructure {
    public:
