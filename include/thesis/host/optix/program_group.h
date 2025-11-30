@@ -23,7 +23,8 @@ class ProgramGroup {
 
     ~ProgramGroup() { reset(); }
 
-    ProgramGroup(ProgramGroup&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+    ProgramGroup(ProgramGroup&& other) noexcept
+        : handle_(std::exchange(other.handle_, nullptr)) {}
 
     ProgramGroup& operator=(ProgramGroup&& other) noexcept {
         if (this != &other) {

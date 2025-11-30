@@ -72,7 +72,8 @@ class AccelerationStructure {
 
    public:
     AccelerationStructure(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : compacted_size_(1, ctx, stream, cuda::AllocType::OnBoth), stream_(std::move(stream)) {}
+        : compacted_size_(1, ctx, stream, cuda::AllocType::OnBoth),
+          stream_(std::move(stream)) {}
 
     AccelerationStructure(AccelerationStructure&&) noexcept = default;
     AccelerationStructure& operator=(AccelerationStructure&&) noexcept = default;

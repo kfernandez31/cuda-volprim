@@ -19,12 +19,13 @@ struct UnitQuaternion {
 
     // Construct from normalized quaternion components
     THESIS_HOST_DEVICE THESIS_INLINE UnitQuaternion(float w, float x, float y, float z)
-        : s_(w), u_(make_float3(x, y, z)) {}
+        : s_(w),
+          u_(make_float3(x, y, z)) {}
 
     // Construct conjugate from normalized quaternion components (negates vector part)
     static THESIS_HOST_DEVICE THESIS_INLINE UnitQuaternion conjugate(float w, float x, float y,
                                                                      float z) {
-        return UnitQuaternion(w, -x, -y, -z);
+        return {w, -x, -y, -z};
     }
 
     // Normalize quaternion components and construct

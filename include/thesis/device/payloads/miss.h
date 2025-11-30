@@ -18,8 +18,14 @@ struct THESIS_ALIGNMENT Miss : public Base<Miss, Tag::Miss> {
     Miss(const Miss&) = default;
     Miss& operator=(const Miss&) = default;
 #ifdef DEVICE
-    __device__ __forceinline__ Miss(float _r, float _g, float _b) : r(_r), g(_g), b(_b) {}
-    __device__ __forceinline__ Miss(float3 color) : r(color.x), g(color.y), b(color.z) {}
+    __device__ __forceinline__ Miss(float _r, float _g, float _b)
+        : r(_r),
+          g(_g),
+          b(_b) {}
+    __device__ __forceinline__ Miss(float3 color)
+        : r(color.x),
+          g(color.y),
+          b(color.z) {}
 
     __device__ __forceinline__ float3 color() const { return make_float3(r, g, b); }
 

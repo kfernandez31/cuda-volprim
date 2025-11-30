@@ -15,9 +15,15 @@ struct Result {
         E err_value_;
     };
 
-    __device__ Result() : is_ok_(false), err_value_() {}
-    __device__ Result(const T& ok) : is_ok_(true), ok_value_(ok) {}
-    __device__ Result(const E& err) : is_ok_(false), err_value_(err) {}
+    __device__ Result()
+        : is_ok_(false),
+          err_value_() {}
+    __device__ Result(const T& ok)
+        : is_ok_(true),
+          ok_value_(ok) {}
+    __device__ Result(const E& err)
+        : is_ok_(false),
+          err_value_(err) {}
 
     Result(const Result&) = default;
     Result& operator=(const Result&) = default;

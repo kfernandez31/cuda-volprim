@@ -18,9 +18,13 @@ struct Optional {
     bool has_value_;
     T value_;
 
-    Optional() : has_value_(false) {}
-    Optional(NullOptTag) : has_value_(false) {}
-    Optional(const T& v) : has_value_(true), value_(v) {}
+    Optional()
+        : has_value_(false) {}
+    Optional(NullOptTag)
+        : has_value_(false) {}
+    Optional(const T& v)
+        : has_value_(true),
+          value_(v) {}
 
     Optional(const Optional&) = default;
     Optional& operator=(const Optional&) = default;

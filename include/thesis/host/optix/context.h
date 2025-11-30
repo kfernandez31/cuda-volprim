@@ -44,7 +44,8 @@ class Context {
 
     ~Context() { reset(); }
 
-    Context(Context&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+    Context(Context&& other) noexcept
+        : handle_(std::exchange(other.handle_, nullptr)) {}
 
     Context& operator=(Context&& other) noexcept {
         if (this != &other) {

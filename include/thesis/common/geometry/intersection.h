@@ -28,8 +28,11 @@ struct EllipsoidIntersection {
     float t_exit;
 
     THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection(float t_1, float t_2)
-        : t_entry(t_1), t_exit(t_2) {}
-    THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection() : t_entry(-1.0f), t_exit(-1.0f) {}
+        : t_entry(t_1),
+          t_exit(t_2) {}
+    THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection()
+        : t_entry(-1.0f),
+          t_exit(-1.0f) {}
 
     THESIS_HOST_DEVICE THESIS_INLINE bool hit() const { return t_exit > 0.0f; }
     THESIS_HOST_DEVICE THESIS_INLINE bool starts_inside() const {

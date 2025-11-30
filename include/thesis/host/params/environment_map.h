@@ -25,18 +25,21 @@ class EnvironmentMap {
     size_t num_channels_ = 0;
 
    public:
-    // Constructor for loading HDR environment map
-    EnvironmentMap(const std::filesystem::path& filepath, CUcontext ctx,
+    // Constructor for loading HDR environment map from async future
+    EnvironmentMap(std::future<utils::Result<utils::io::HDRImageData>>&& hdr_future, CUcontext ctx,
                    std::shared_ptr<cuda::Stream> stream) {
-        size_t width, height;
-        auto hdr = utils::try_unwrap_or_exit(
-            utils::io::loadHDRImage(filepath, width, height, num_channels_));
+        // Complete the async loading (file I/O + memcpy to pinned happened on background thread)
+        auto hdr_data = utils::try_unwrap_or_exit(hdr_future.get());
 
-        spdlog::info("Successfully loaded environment map '{}': {}x{}x{}", filepath.string(), width,
-                     height, num_channels_);
+        const size_t width = hdr_data.width;
+        const size_t height = hdr_data.height;
+        num_channels_ = hdr_data.channels;
+
+        spdlog::info("Successfully loaded environment map: {}x{}x{}", width, height, num_channels_);
 
         const auto total_floats = width * height * num_channels_;
-        texture_ = cuda::CudaTexture::createRGBA({hdr.get(), total_floats}, width, height,
+        // Data is already in pinned memory, so cudaMemcpy2DToArrayAsync will be truly async
+        texture_ = cuda::CudaTexture::createRGBA({hdr_data.data.get(), total_floats}, width, height,
                                                  num_channels_, ctx, stream);
 
         // Store the texture handle for device use

@@ -51,19 +51,26 @@ struct Error {
     int code_;
     std::string msg_;
 
-    Error(int code, std::string_view msg) : code_(code), msg_(msg) {}
-    Error(int code, std::string&& msg) : code_(code), msg_(std::move(msg)) {}
-    explicit Error(std::string_view msg) : Error(errno, msg) {}
+    Error(int code, std::string_view msg)
+        : code_(code),
+          msg_(msg) {}
+    Error(int code, std::string&& msg)
+        : code_(code),
+          msg_(std::move(msg)) {}
+    explicit Error(std::string_view msg)
+        : Error(errno, msg) {}
 
     static Error fromErrno() { return Error(errno, std::string_view(detail::last_error_string())); }
 
     template <typename... Args>
     Error(int code, fmt::format_string<Args...> fmt_str, Args&&... args)
-        : code_(code), msg_(fmt::format(fmt_str, std::forward<Args>(args)...)) {}
+        : code_(code),
+          msg_(fmt::format(fmt_str, std::forward<Args>(args)...)) {}
 
     template <typename... Args>
     Error(int code, std::string_view fmt_str, Args&&... args)
-        : code_(code), msg_(fmt::format(fmt::runtime(fmt_str), std::forward<Args>(args)...)) {}
+        : code_(code),
+          msg_(fmt::format(fmt::runtime(fmt_str), std::forward<Args>(args)...)) {}
 
     template <typename... Args>
     Error(fmt::format_string<Args...> fmt_str, Args&&... args)

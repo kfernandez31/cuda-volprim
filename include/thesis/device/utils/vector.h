@@ -26,7 +26,9 @@ struct DynamicStorage {
     size_t capacity_ = 0;
     T* data_ = nullptr;
 
-    DynamicStorage(T* ptr, size_t cap) : capacity_(cap), data_(ptr) {}
+    DynamicStorage(T* ptr, size_t cap)
+        : capacity_(cap),
+          data_(ptr) {}
     DynamicStorage() = default;
     DynamicStorage(const DynamicStorage&) = default;
     DynamicStorage& operator=(const DynamicStorage&) = default;
@@ -54,7 +56,9 @@ class VectorBase : private Storage {
     VectorBase() = default;
     VectorBase(const VectorBase&) = default;
     VectorBase& operator=(const VectorBase&) = default;
-    VectorBase(T* ptr, size_t size) : Storage(ptr, size), size_(size) {}
+    VectorBase(T* ptr, size_t size)
+        : Storage(ptr, size),
+          size_(size) {}
 
 #ifdef DEVICE
     __device__ __forceinline__ size_t size() const { return size_; }

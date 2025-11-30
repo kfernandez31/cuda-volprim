@@ -31,7 +31,8 @@ class Pipeline {
         }
     }
 
-    Pipeline(Pipeline&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+    Pipeline(Pipeline&& other) noexcept
+        : handle_(std::exchange(other.handle_, nullptr)) {}
 
     Pipeline& operator=(Pipeline&& other) noexcept {
         if (this != &other) {

@@ -19,6 +19,8 @@
 
 namespace {
 
+using namespace thesis::host::utils;
+
 constexpr size_t NUM_CHANNELS = 3;
 constexpr size_t EXR_NAME_MAX_LEN = 255;
 
@@ -34,40 +36,34 @@ inline void safeStrncpy(char* dest, const char* src, size_t dest_size) noexcept 
 #endif  // _MSC_VER
 }
 
-}  // namespace
-
-namespace thesis::host::utils::io {
-
-std::future<Result<std::vector<std::byte>>> readFileToBytesAsync(
-    const std::filesystem::path& filename) {
-    return std::async(std::launch::async, [filename]() -> Result<std::vector<std::byte>> {
-        try {
-            std::ifstream file(filename, std::ios::ate | std::ios::binary);
-            if (!file) {
-                return make_error("Failed to open file: {}", filename.string());
-            }
-
-            const auto file_size = file.tellg();
-            if (file_size <= 0) {
-                return make_error("File is empty or error reading file size: {}",
-                                  filename.string());
-            }
-
-            std::vector<std::byte> buffer(static_cast<size_t>(file_size));
-            file.seekg(0);
-            file.read(reinterpret_cast<char*>(buffer.data()), file_size);
-
-            if (!file) {
-                return make_error("Error while reading file: {}", filename.string());
-            }
-
-            return buffer;
-        } catch (const std::exception& e) {
-            return make_error("Exception in readFileToBytesAsync: {}", e.what());
+// Internal helper for reading files
+Result<std::vector<std::byte>> readFile(const std::filesystem::path& filename) {
+    try {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+        if (!file) {
+            return make_error("Failed to open file: {}", filename.string());
         }
-    });
+
+        const auto file_size = file.tellg();
+        if (file_size <= 0) {
+            return make_error("File is empty or error reading file size: {}", filename.string());
+        }
+
+        std::vector<std::byte> buffer(static_cast<size_t>(file_size));
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(buffer.data()), file_size);
+
+        if (!file) {
+            return make_error("Error while reading file: {}", filename.string());
+        }
+
+        return buffer;
+    } catch (const std::exception& e) {
+        return make_error("Exception in readFile: {}", e.what());
+    }
 }
 
+// Internal helper for saving EXR
 Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
                       const std::filesystem::path& filename, bool flip_vertical) noexcept {
     try {
@@ -134,33 +130,8 @@ Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t 
     }
 }
 
-std::future<Result<>> saveExrImageAsync(std::vector<float3> framebuffer_owned, size_t width,
-                                        size_t height, const std::filesystem::path& filename,
-                                        bool flip_vertical) noexcept {
-    return std::async(std::launch::async, [fb = std::move(framebuffer_owned), width, height,
-                                           filename, flip_vertical]() {
-        return saveExrImage(fb, width, height, filename, flip_vertical);
-    });
-}
-
-std::future<Result<>> saveExrImageAsync(cuda::AsyncBuffer<float3>&& buffer, size_t width,
-                                        size_t height, const std::filesystem::path& filename,
-                                        bool flip_vertical) noexcept {
-    return std::async(std::launch::async,
-                      [buf = std::move(buffer), width, height, filename, flip_vertical]() mutable {
-                          auto view = buf.host_view();
-                          return saveExrImage(view, width, height, filename, flip_vertical);
-                      });
-}
-
-void CudaPinnedDeleter::operator()(float* ptr) const noexcept {
-    if (ptr) {
-        cudaFreeHost(ptr);
-    }
-}
-
-Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& width,
-                                 size_t& height, size_t& channels) {
+// Internal helper for loading HDR
+Result<thesis::host::utils::io::HDRImageData> loadHDRImage(const std::filesystem::path& filename) {
     spdlog::info("Loading environment map from '{}'", filename.string());
 
     stbi_set_flip_vertically_on_load(true);
@@ -172,11 +143,11 @@ Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& 
         return make_error("Failed to load HDR image: {}", filename.string());
     }
 
-    width = static_cast<size_t>(w);
-    height = static_cast<size_t>(h);
-    channels = 4;  // Always RGBA now
+    const size_t width = static_cast<size_t>(w);
+    const size_t height = static_cast<size_t>(h);
+    const size_t channels = 4;  // Always RGBA now
 
-    // Allocate pinned memory for async CUDA transfers
+    // Allocate pinned memory for true async CUDA transfers
     const size_t total_floats = width * height * channels;
     const size_t total_bytes = total_floats * sizeof(float);
 
@@ -189,16 +160,22 @@ Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& 
                           cudaGetErrorString(err));
     }
 
-    // Copy from pageable to pinned memory
+    // Copy from pageable to pinned memory (happens on background thread)
     std::memcpy(pinned_mem, raw, total_bytes);
 
     // Free stb_image memory
     stbi_image_free(raw);
 
-    return HDRImagePtr(pinned_mem, CudaPinnedDeleter{});
+    using namespace thesis::host::utils::io;
+    return HDRImageData{.data = HDRImagePtr(pinned_mem, CudaPinnedDeleter{}),
+                        .width = width,
+                        .height = height,
+                        .channels = channels};
 }
 
-Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::path& filename) {
+// Internal helper for loading primitives
+Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
+    const std::filesystem::path& filename) {
     try {
         happly::PLYData ply(filename.string());
 
@@ -209,12 +186,12 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
             try {
                 auto prop = vtx.getProperty<float>(name);
                 if (N != 0 && prop.size() != N) [[unlikely]] {
-                    throw std::runtime_error(
-                        fmt::format("Expected size {}, got {}", N, prop.size()));
+                    throw std::runtime_error(std::string("Expected size ") + std::to_string(N) +
+                                             ", got " + std::to_string(prop.size()));
                 }
                 return prop;
             } catch (const std::exception& e) {
-                throw std::runtime_error(fmt::format("Property \"{}\": {}", name, e.what()));
+                throw std::runtime_error(std::string("Property \"") + name + "\": " + e.what());
             }
         };
 
@@ -238,13 +215,15 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         auto alb_1 = get_prop("albedo_1");
         auto alb_2 = get_prop("albedo_2");
 
+        using namespace thesis::host;
+        using namespace thesis::common::geometry;
         std::vector<params::Primitive> result;
         result.reserve(N);
 
         for (size_t i = 0; i < N; ++i) {
             const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
-            const auto quat = common::geometry::UnitQuaternion::from_unnormalized(
-                rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
+            const auto quat =
+                UnitQuaternion::from_unnormalized(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
             const auto scale = make_float3(scale_0[i], scale_1[i], scale_2[i]);
             const auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
             const auto optical_thickness = sigma_t[i];
@@ -257,5 +236,47 @@ Result<std::vector<params::Primitive>> loadPrimitives(const std::filesystem::pat
         return make_error("Failed to load primitives from {}: {}", filename.string(), e.what());
     }
 }
+
+}  // anonymous namespace
+
+namespace thesis::host::utils::io {
+
+void CudaPinnedDeleter::operator()(float* ptr) const noexcept {
+    if (ptr) {
+        CUDA_CHECK_NOEXCEPT(cudaFreeHost(ptr));
+    }
+}
+
+namespace async {
+
+std::future<Result<std::vector<std::byte>>> readFileToBytes(const std::filesystem::path& filename) {
+    return std::async(std::launch::async, [filename]() -> Result<std::vector<std::byte>> {
+        return readFile(filename);
+    });
+}
+
+std::future<Result<HDRImageData>> loadHDR(const std::filesystem::path& filename) {
+    return std::async(std::launch::async,
+                      [filename]() -> Result<HDRImageData> { return loadHDRImage(filename); });
+}
+
+std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
+    const std::filesystem::path& filename) {
+    return std::async(std::launch::async, [filename]() -> Result<std::vector<params::Primitive>> {
+        return loadPrimitivesFromPLY(filename);
+    });
+}
+
+std::future<Result<>> saveExr(cuda::AsyncBuffer<float3>&& buffer, size_t width, size_t height,
+                              const std::filesystem::path& filename, bool flip_vertical) noexcept {
+    return std::async(
+        std::launch::async,
+        [buf = std::move(buffer), width, height, filename, flip_vertical]() mutable -> Result<> {
+            auto view = buf.host_view();
+            return saveExrImage(view, width, height, filename, flip_vertical);
+        });
+}
+
+}  // namespace async
 
 }  // namespace thesis::host::utils::io

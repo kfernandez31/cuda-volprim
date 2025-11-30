@@ -29,7 +29,8 @@ class SphereGAS {
 
    public:
     SphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : sphere_data_(1, ctx, stream, cuda::AllocType::OnBoth), gas_(ctx, std::move(stream)) {}
+        : sphere_data_(1, ctx, stream, cuda::AllocType::OnBoth),
+          gas_(ctx, std::move(stream)) {}
 
     SphereGAS(SphereGAS&&) noexcept = default;
     SphereGAS& operator=(SphereGAS&&) noexcept = default;

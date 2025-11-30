@@ -16,12 +16,15 @@ AllowShortFunctionsOnASingleLine: InlineOnly
 
 # --- Pointers, references ---
 PointerAlignment: Left
+ReferenceAlignment: Left
 SpaceBeforeParens: ControlStatements
 SpaceAfterCStyleCast: true
 DerivePointerAlignment: false
 
 # --- Templates and lambdas ---
 AlwaysBreakTemplateDeclarations: Yes
+AllowShortLambdasOnASingleLine: All
+LambdaBodyIndentation: Signature
 
 # --- Includes ---
 SortIncludes: true
@@ -40,7 +43,7 @@ IncludeCategories:
     Priority: 5
   - Regex: '^"thesis/.*"' # Project headers
     Priority: 6
-  - Regex: '^"(CLI11|glm|happly|spdlog|stb|sutil|tinyexr)/.*"' # Third-party headers
+  - Regex: '^"(CLI11|happly|spdlog|stb|tinyexr)/.*"' # Third-party headers
     Priority: 7
   - Regex: '^<((optix|cuda|vector_types|driver_types|vector_functions|math_constants|curand_kernel)[^>]*)>' # Cuda & OptiX SDKs
     Priority: 8
@@ -50,5 +53,26 @@ IncludeCategories:
 # --- Comments ---
 ReflowComments: true
 
+# --- Alignment (for readability with AAA style) ---
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignOperands: Align
+
+# --- Constructor initializers ---
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 4
+PackConstructorInitializers: Never
+
+# --- Namespaces ---
+CompactNamespaces: false
+FixNamespaceComments: true
+
 # --- Trailing commas ---
 Cpp11BracedListStyle: true
+
+# --- Spacing ---
+SpacesBeforeTrailingComments: 2
+SpaceBeforeRangeBasedForLoopColon: true
+
+# --- Binary operators ---
+BreakBeforeBinaryOperators: None

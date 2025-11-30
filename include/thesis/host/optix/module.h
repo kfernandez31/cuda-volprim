@@ -49,7 +49,8 @@ class Module {
 
     ~Module() { reset(); }
 
-    Module(Module&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+    Module(Module&& other) noexcept
+        : handle_(std::exchange(other.handle_, nullptr)) {}
 
     Module& operator=(Module&& other) noexcept {
         if (this != &other) {

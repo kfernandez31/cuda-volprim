@@ -89,8 +89,8 @@ class Image {
 
         spdlog::info("Saving to '{}'", filename.string());
         // Move buffer ownership to async task (zero-copy)
-        return utils::io::saveExrImageAsync(std::move(averaged_pixels_managed_),
-                                            device_image_.width_, device_image_.height_, filename);
+        return utils::io::async::saveExr(std::move(averaged_pixels_managed_), device_image_.width_,
+                                         device_image_.height_, filename);
     }
 };
 

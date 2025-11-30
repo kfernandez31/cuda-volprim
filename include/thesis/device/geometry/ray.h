@@ -17,7 +17,8 @@ namespace geometry {
 class THESIS_ALIGNMENT Ray {
 #ifdef DEVICE
     THESIS_HOST_DEVICE THESIS_INLINE Ray(float3 origin, float3 direction)
-        : origin_(origin), direction_(direction) {}
+        : origin_(origin),
+          direction_(direction) {}
 #endif  // DEVICE
    public:
     float3 origin_;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/params/primitive.h"
 #include "thesis/host/utils/result.h"
 
@@ -14,43 +15,38 @@
 
 namespace thesis::host::utils::io {
 
-[[nodiscard]] std::future<Result<std::vector<std::byte>>> readFileToBytesAsync(
-    const std::filesystem::path& filename);
-
-[[nodiscard]] Result<> saveExrImage(std::span<const float3> framebuffer, size_t width,
-                                    size_t height, const std::filesystem::path& filename,
-                                    bool flip_vertical = true) noexcept;
-
-[[nodiscard]] std::future<Result<>> saveExrImageAsync(std::vector<float3> framebuffer_owned,
-                                                      size_t width, size_t height,
-                                                      const std::filesystem::path& filename,
-                                                      bool flip_vertical = true) noexcept;
-
-}  // namespace thesis::host::utils::io
-
-// Forward declaration for AsyncBuffer overload
-namespace thesis::host::cuda {
-template <typename T>
-class AsyncBuffer;
-}
-
-namespace thesis::host::utils::io {
-
-[[nodiscard]] std::future<Result<>> saveExrImageAsync(cuda::AsyncBuffer<float3>&& buffer,
-                                                      size_t width, size_t height,
-                                                      const std::filesystem::path& filename,
-                                                      bool flip_vertical = true) noexcept;
-
 // Custom deleter for CUDA pinned memory
 struct CudaPinnedDeleter {
     void operator()(float* ptr) const noexcept;
 };
 
 using HDRImagePtr = std::unique_ptr<float, CudaPinnedDeleter>;
-[[nodiscard]] Result<HDRImagePtr> loadHDRImage(const std::filesystem::path& filename, size_t& width,
-                                               size_t& height, size_t& channels);
 
-[[nodiscard]] Result<std::vector<params::Primitive>> loadPrimitives(
+struct HDRImageData {
+    HDRImagePtr data;
+    size_t width;
+    size_t height;
+    size_t channels;
+};
+
+// Async I/O operations (all file operations happen on background threads)
+namespace async {
+
+[[nodiscard]] std::future<Result<std::vector<std::byte>>> readFileToBytes(
     const std::filesystem::path& filename);
+
+// Loads HDR image, allocates pinned memory for async CUDA transfers
+[[nodiscard]] std::future<Result<HDRImageData>> loadHDR(const std::filesystem::path& filename);
+
+// Loads primitives from PLY file
+[[nodiscard]] std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
+    const std::filesystem::path& filename);
+
+// Saves image to EXR file
+[[nodiscard]] std::future<Result<>> saveExr(cuda::AsyncBuffer<float3>&& buffer, size_t width,
+                                            size_t height, const std::filesystem::path& filename,
+                                            bool flip_vertical = true) noexcept;
+
+}  // namespace async
 
 }  // namespace thesis::host::utils::io
