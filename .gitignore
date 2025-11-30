@@ -4,5 +4,6 @@ build/
 ignore/
 .vscode/
 .vscodium/
+.claude/
 *.exr
 *.out

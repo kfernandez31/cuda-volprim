@@ -71,6 +71,13 @@ class BufferBase {
         Policy::upload(device() + offset, host() + offset, count * sizeof(T), context_param_);
     }
 
+    // Fill device buffer with specified byte value
+    void memset_device(int value = 0) {
+        if (device()) {
+            Policy::memset_device(device(), value, size_bytes(), context_param_);
+        }
+    }
+
     [[nodiscard]] T& operator[](size_t i) noexcept { return host()[i]; }
     [[nodiscard]] const T& operator[](size_t i) const noexcept { return host()[i]; }
 

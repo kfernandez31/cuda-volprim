@@ -54,6 +54,10 @@ struct AsyncBufferPolicy {
             cudaMemcpyAsync(dst_host, src_device, bytes, cudaMemcpyDeviceToHost, stream->get()));
     }
 
+    static void memset_device(T* device_ptr, int value, size_t bytes, const ContextParam& stream) {
+        CUDA_CHECK(cudaMemsetAsync(device_ptr, value, bytes, stream->get()));
+    }
+
     [[nodiscard]] static const ContextParam& get_context_param(const host_ptr_type&,
                                                                const device_ptr_type& device_ptr) {
         return device_ptr.get_deleter().stream_;
