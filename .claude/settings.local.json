@@ -1,9 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ninja -C build:*)"
+      "Bash(ninja -C build:*)",
+      "Bash(git fetch:*)",
+      "WebFetch(domain:raytracing-docs.nvidia.com)",
+      "WebSearch",
+      "Bash(git add:*)"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git branch -D:*)"
+    ],
     "ask": []
   }
 }

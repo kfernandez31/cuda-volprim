@@ -22,6 +22,12 @@
 
 namespace thesis::host::app {
 
+// Batch size for progressive rendering (tuned for RTX 2080 with 8GB VRAM)
+// For 1080p: 6.5GB / (1920×1080×16) ≈ 200 samples/batch
+// For 4K: 6.5GB / (3840×2160×16) ≈ 50 samples/batch
+// Using conservative value that works well for both
+constexpr size_t BATCH_SIZE = 64;
+
 Renderer::Renderer(const app::Config& config)
     // clang-format off
     : config_(config),
@@ -33,7 +39,7 @@ Renderer::Renderer(const app::Config& config)
       instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
       env_map_(utils::io::async::loadHDR(config_.env_map_path_), cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
       camera_active_prims_(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
@@ -237,14 +243,43 @@ void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>>
 }
 
 void Renderer::render() {
+    // Upload static params (primitives, camera, env map, etc.) once
     uploadParams();
 
-    spdlog::info("Launching OptiX pipeline - will render {} Gaussians...", NUM_PRIMITIVES);
-    pipeline_.launch(streams_[cuda::StreamKind::Main]->get(), launch_params_.cu_device_ptr(),
-                     sizeof(common::params::LaunchParams), sbt_.get(),
-                     image_.width(),
-                     image_.height(),
-                     image_.num_samples_per_pixel());
+    const size_t total_spp = image_.num_samples_per_pixel();
+    const size_t batch_size = image_.batch_size();
+    const size_t num_batches = common::math::ceil_div(total_spp, batch_size);
+
+    spdlog::info("Launching OptiX pipeline - will render {} Gaussians in {} batches ({} spp total)...",
+                 NUM_PRIMITIVES, num_batches, total_spp);
+
+    // Render in batches
+    for (size_t batch = 0; batch < num_batches; ++batch) {
+        const size_t batch_offset = batch * batch_size;
+        const size_t samples_in_batch = common::math::min(batch_size, total_spp - batch_offset);
+
+        // Update batch parameters
+        image_.set_batch_params(batch_offset, samples_in_batch);
+
+        // Update launch params with new image device struct (contains updated batch params)
+        launch_params_[0].image_ = image_.device_image();
+        launch_params_.upload();
+
+        spdlog::info("Rendering batch {}/{}: samples [{}, {})",
+                     batch + 1, num_batches, batch_offset, batch_offset + samples_in_batch);
+
+        // Launch with 2D grid (width, height) - batch handled internally by raygen
+        pipeline_.launch(streams_[cuda::StreamKind::Main]->get(), launch_params_.cu_device_ptr(),
+                         sizeof(common::params::LaunchParams), sbt_.get(),
+                         image_.width(),
+                         image_.height(),
+                         1);  // Z=1, batching handled in raygen kernel
+
+        // Synchronize to ensure this batch completes before next batch reads accumulator
+        streams_[cuda::StreamKind::Main]->synchronize();
+    }
+
+    spdlog::info("All batches complete, saving image...");
 
     // Save asynchronously and wait for completion
     auto save_future = image_.save(config_.output_path_);

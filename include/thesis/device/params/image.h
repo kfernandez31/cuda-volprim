@@ -13,10 +13,13 @@ namespace params {
 // Device-side POD struct for image buffer (no RAII, same size on host and device)
 struct THESIS_ALIGNMENT Image {
     float4* sample_buffer_ = nullptr;  // Using float4 for vectorized access (w component unused)
+    float3* accumulator_ = nullptr;    // Running sum for batched rendering
     size_t width_ = 0;
     size_t height_ = 0;
-    size_t image_size_ = 0;  // Precomputed: width * height (saves 1 multiply per ray)
-    size_t num_samples_per_pixel_ = 0;
+    size_t image_size_ = 0;             // Precomputed: width * height (saves 1 multiply per ray)
+    size_t num_samples_per_pixel_ = 0;  // Total samples (for final normalization)
+    size_t batch_offset_ = 0;           // Starting sample index for current batch
+    size_t batch_size_ = 0;             // Number of samples in current batch
 
     Image() = default;
     Image(const Image&) = default;
