@@ -222,8 +222,7 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
 
         for (size_t i = 0; i < N; ++i) {
             const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
-            const auto quat =
-                UnitQuaternion::from_unnormalized(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
+            const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
             const auto scale = make_float3(scale_0[i], scale_1[i], scale_2[i]);
             const auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
             const auto optical_thickness = sigma_t[i];

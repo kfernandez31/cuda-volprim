@@ -36,8 +36,17 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 rcp(float3 v) noexcept;
 
 // Vector operators in global namespace
 // float2 operators
+THESIS_HOST_DEVICE THESIS_INLINE float2 operator+(float2 a, float s) noexcept {
+    return make_float2(a.x + s, a.y + s);
+}
+
 THESIS_HOST_DEVICE THESIS_INLINE float2 operator-(float2 a, float s) noexcept {
-    return make_float2(a.x - s, a.y - s);
+    return a + (-s);
+}
+
+// float3 unary negation (must be defined before compound operators use it)
+THESIS_HOST_DEVICE THESIS_INLINE float3 operator-(float3 a) noexcept {
+    return make_float3(-a.x, -a.y, -a.z);
 }
 
 // float3 compound assignment operators (primitives)
@@ -48,9 +57,7 @@ THESIS_HOST_DEVICE THESIS_INLINE void operator+=(float3& a, float3 b) noexcept {
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE void operator-=(float3& a, float3 b) noexcept {
-    a.x -= b.x;
-    a.y -= b.y;
-    a.z -= b.z;
+    a += (-b);  // Defined in terms of addition
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE void operator*=(float3& a, float s) noexcept {
@@ -66,10 +73,7 @@ THESIS_HOST_DEVICE THESIS_INLINE void operator*=(float3& a, float3 b) noexcept {
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE void operator/=(float3& a, float s) noexcept {
-    const float inv = thesis::common::math::rcp(s);
-    a.x *= inv;
-    a.y *= inv;
-    a.z *= inv;
+    a *= thesis::common::math::rcp(s);  // Defined in terms of multiplication
 }
 
 // float3 binary operators (implemented in terms of compound assignment)
@@ -79,7 +83,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 operator+(float3 a, float3 b) noexcept {
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float3 operator-(float3 a, float3 b) noexcept {
-    a -= b;
+    a += (-b);  // Defined in terms of addition
     return a;
 }
 
@@ -98,17 +102,13 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 operator*(float3 a, float3 b) noexcept {
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float3 operator/(float3 a, float s) noexcept {
-    a /= s;
+    a *= thesis::common::math::rcp(s);  // Defined in terms of multiplication
     return a;
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float3 operator/(float3 a, float3 b) noexcept {
-    const float3 b_inv = thesis::common::math::rcp(b);
-    return make_float3(a.x * b_inv.x, a.y * b_inv.y, a.z * b_inv.z);
-}
-
-THESIS_HOST_DEVICE THESIS_INLINE float3 operator-(float3 a) noexcept {
-    return make_float3(-a.x, -a.y, -a.z);
+    a *= thesis::common::math::rcp(b);  // Defined in terms of multiplication
+    return a;
 }
 
 // float4 operators
@@ -129,8 +129,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float4 operator*(float4 a, float s) noexcept {
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE float4 operator/(float4 a, float s) noexcept {
-    const float inv = thesis::common::math::rcp(s);
-    return make_float4(a.x * inv, a.y * inv, a.z * inv, a.w * inv);
+    return a * thesis::common::math::rcp(s);
 }
 
 namespace thesis {
@@ -299,6 +298,22 @@ THESIS_HOST_DEVICE THESIS_INLINE float rlength(float3 v) noexcept {
 
 THESIS_HOST_DEVICE THESIS_INLINE float3 normalize(float3 v) noexcept {
     return v * rlength(v);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float dot(float4 a, float4 b) noexcept {
+    return fma(a.x, b.x, fma(a.y, b.y, fma(a.z, b.z, a.w * b.w)));
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float length2(float4 v) noexcept {
+    return math::dot(v, v);
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float length(float4 v) noexcept {
+    return sqrt(length2(v));
+}
+
+THESIS_HOST_DEVICE THESIS_INLINE float rlength(float4 v) noexcept {
+    return rsqrt(length2(v));
 }
 
 // FMA-optimized cross product

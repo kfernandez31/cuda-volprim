@@ -738,16 +738,16 @@ float phase_hg(float cos_theta, float g) {
 - [x] Test: 1080p × 1024 spp within memory limits
 - [x] Validate: Near-perfect linear scaling confirmed
 
-**Day 3: Host Optimizations** 🔄 IN PROGRESS
-- [ ] Move camera-inside detection to constructor
-- [ ] Implement `initStaticParams()` / `updateDynamicParams()`
+**Day 3: Host Optimizations** ✅ COMPLETE
+- [x] Move camera-inside detection to constructor
+- [x] Implement `initStaticParams()` / `updateDynamicParams()`
 - [x] Change `cudaDeviceSynchronize` to stream-specific sync
 
-**Days 4-5: Renderer Refactoring for Testing**
-- [ ] Modify Renderer constructor to accept primitives
-- [ ] Extract `createDefaultScene()` method
-- [ ] Remove `#define NUM_PRIMITIVES`
-- [ ] Verify backward compatibility with `thesis.exe`
+**Days 4-5: Renderer Refactoring for Testing** ✅ COMPLETE
+- [x] Modify Renderer constructor to accept primitives
+- [x] Extract `createDefaultScene()` method
+- [x] Remove `#define NUM_PRIMITIVES`
+- [x] Verify backward compatibility with `thesis.exe`
 
 ### Week 2: Testing & Validation
 

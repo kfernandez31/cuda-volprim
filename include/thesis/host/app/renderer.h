@@ -25,13 +25,14 @@ namespace thesis::host::app {
 
 class Renderer {
    private:
-    void initPrimsAndGAS();
+    void initPrimsAndGAS(std::vector<params::Primitive>&& primitives);
     void initStaticParams();
     void updateDynamicParams();
     void createPrimitives();
     void createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future);
 
     app::Config config_;
+    size_t num_primitives_;
 
     cuda::Context cuda_ctx_;
     optix::Context optix_ctx_;
@@ -57,7 +58,7 @@ class Renderer {
     optix::Pipeline pipeline_;
 
    public:
-    explicit Renderer(const app::Config& config);
+    explicit Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives);
     ~Renderer();
 
     void render();

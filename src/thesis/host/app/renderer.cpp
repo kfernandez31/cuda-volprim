@@ -18,8 +18,6 @@
 #include <utility>
 #include <vector>
 
-#define NUM_PRIMITIVES 1
-
 namespace thesis::host::app {
 
 // Batch size for progressive rendering (tuned for RTX 2080 with 8GB VRAM)
@@ -28,28 +26,31 @@ namespace thesis::host::app {
 // Using conservative value that works well for both
 constexpr size_t BATCH_SIZE = 64;
 
-Renderer::Renderer(const app::Config& config)
+Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives)
     // clang-format off
     : config_(config),
+      num_primitives_(primitives.size()),
       cuda_ctx_(),
       optix_ctx_(cuda_ctx_.get()),
       streams_(),
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
-      instances_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
+      instances_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]),
       env_map_(utils::io::async::loadHDR(config_.env_map_path_), cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
-      primitives_(NUM_PRIMITIVES, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
+      primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
       camera_active_prims_(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth) {
+    // clang-format on
+
     auto module_file_future = utils::io::async::readFileToBytes(config_.module_blob_path_);
 
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Image);
 
-    initPrimsAndGAS();
+    initPrimsAndGAS(std::move(primitives));
     createPipeline(std::move(module_file_future));
     initStaticParams();  // Initialize static parameters once (camera-inside, etc.)
 }
@@ -60,48 +61,15 @@ Renderer::~Renderer() {
     }
 }
 
-void Renderer::initPrimsAndGAS()
-{
-    /* ── 1. Per-primitive data ────────────────────────────────────── */
-    // Albedos: RGB color
-    const float3 albedos[NUM_PRIMITIVES] = {
-        make_float3(0.5f, 0.0f, 0.5f),
-        // make_float3(1.0f, 0.0f, 0.0f),
-        // make_float3(0.0f, 0.0f, 1.0f),
-    };
-    // Translations: position in world space
-    const float3 translations[NUM_PRIMITIVES] = {
-        make_float3(0, 0, 0),
-        // make_float3(0, 0, 0),
-    };
-    // Rotations: quaternion (w, x, y, z)
-    struct Quat4 { float w, x, y, z; };
-    const Quat4 rotations[NUM_PRIMITIVES] = {
-        {1, 0, 0, 0},
-        // {1, 0, 0, 0},
-    };
-    // Scales: per-axis scale
-    const float3 scales[NUM_PRIMITIVES] = {
-        make_float3(0.5f, 0.5f, 0.5f),
-        // make_float3(0.5f, 0.5f, 0.5f),
-    };
-
-    /* ── 2. Build GAS with one unit sphere ───────────────────────── */
+void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
+    /* ── 1. Build GAS with one unit sphere ───────────────────────── */
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 
-    /* ── 3. Fill primitives_[] and OptixInstance[] ────────────────── */
-    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
-        // primitive
-        const auto& rot = rotations[i];
-        const auto quat = common::geometry::UnitQuaternion::from_unnormalized(rot.w, rot.x, rot.y, rot.z);
-        host::params::Primitive prim(
-            translations[i],
-            quat,
-            scales[i],
-            albedos[i],
-            0.5f
-        );
+    /* ── 2. Fill primitives_[] and OptixInstance[] ────────────────── */
+    for (size_t i = 0; i < num_primitives_; ++i) {
+        // Convert host primitive to device primitive
+        const auto& prim = primitives[i];
         primitives_[i] = prim.device_primitive();
 
         OptixInstance inst{};
@@ -110,11 +78,11 @@ void Renderer::initPrimsAndGAS()
         std::memcpy(inst.transform, transform.ptr(), 12 * sizeof(float));
 
         inst.traversableHandle = gas_.get();
-        inst.instanceId        = static_cast<uint>(i);
-        inst.sbtOffset         = 0;
-        inst.visibilityMask    = 0xFF;
-        inst.flags             = OPTIX_INSTANCE_FLAG_NONE;
-        instances_[i]          = inst;
+        inst.instanceId = static_cast<uint>(i);
+        inst.sbtOffset = 0;
+        inst.visibilityMask = 0xFF;
+        inst.flags = OPTIX_INSTANCE_FLAG_NONE;
+        instances_[i] = inst;
     }
 
     primitives_.upload();
@@ -124,11 +92,11 @@ void Renderer::initPrimsAndGAS()
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::IAS);
     streams_.addDependency(cuda::StreamKind::IAS, cuda::StreamKind::GAS);
 
-    /* ── 4. Build IAS over instances ──────────────────────────────── */
+    /* ── 3. Build IAS over instances ──────────────────────────────── */
     OptixBuildInput bi{};
-    bi.type                       = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    bi.instanceArray.instances    = instances_.cu_device_ptr();
-    bi.instanceArray.numInstances = NUM_PRIMITIVES;
+    bi.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    bi.instanceArray.instances = instances_.cu_device_ptr();
+    bi.instanceArray.numInstances = static_cast<unsigned int>(num_primitives_);
 
     ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
 }
@@ -138,7 +106,7 @@ void Renderer::initStaticParams() {
     std::vector<uint> camera_active;
     const auto camera_pos = camera_.lookfrom();  // Camera position
 
-    for (size_t i = 0; i < NUM_PRIMITIVES; ++i) {
+    for (size_t i = 0; i < num_primitives_; ++i) {
         // Get device primitive struct from buffer
         const auto prim_device = primitives_[i];
 
@@ -150,11 +118,15 @@ void Renderer::initStaticParams() {
 
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
-        camera_active_prims_ = cuda::AsyncBuffer<uint>(camera_active.size(), cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
-        std::memcpy(camera_active_prims_.host(), camera_active.data(), camera_active.size() * sizeof(uint));
+        camera_active_prims_ =
+            cuda::AsyncBuffer<uint>(camera_active.size(), cuda_ctx_.get(),
+                                    streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
+        std::memcpy(camera_active_prims_.host(), camera_active.data(),
+                    camera_active.size() * sizeof(uint));
         camera_active_prims_.upload();
     } else {
-        camera_active_prims_ = cuda::AsyncBuffer<uint>(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
+        camera_active_prims_ = cuda::AsyncBuffer<uint>(
+            0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
     }
 
     // Initialize static launch parameters (never change during rendering)
@@ -164,11 +136,10 @@ void Renderer::initStaticParams() {
     par.ias_handle_ = ias_.get();
     par.camera_ = camera_.device_camera();
     par.env_map_ = env_map_.device_env_map();
-    par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(), primitives_.size());
-    par.camera_active_prims_ = device::utils::DynamicVector<uint>(
-        camera_active_prims_.device(),
-        camera_active.size()
-    );
+    par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(),
+                                                                              primitives_.size());
+    par.camera_active_prims_ =
+        device::utils::DynamicVector<uint>(camera_active_prims_.device(), camera_active.size());
 
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();
@@ -183,18 +154,20 @@ void Renderer::updateDynamicParams() {
     launch_params_.upload();
 }
 
-void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future) {
+void Renderer::createPipeline(
+    std::future<utils::Result<std::vector<std::byte>>> module_file_future) {
     OptixPipelineCompileOptions pco{};
     pco.pipelineLaunchParamsVariableName = config_.launch_params_variable_name_.c_str();
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
-    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-    pco.usesPrimitiveTypeFlags = static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE);  // Using built-in spheres
+    pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING |
+                                OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+    pco.usesPrimitiveTypeFlags =
+        static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE);  // Using built-in spheres
     pco.numAttributeValues = 0;
 
     // Complete async module load
     module_ = utils::try_unwrap_or_exit<optix::Module>(
-        optix::Module::loadAsync(optix_ctx_.get(), module_file_future, pco)
-    );
+        optix::Module::loadAsync(optix_ctx_.get(), module_file_future, pco));
 
     // Get built-in sphere intersection module
     OptixBuiltinISOptions builtin_is_options{};
@@ -213,29 +186,21 @@ void Renderer::createPipeline(std::future<utils::Result<std::vector<std::byte>>>
     builtin_mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 #endif
 
-    OPTIX_CHECK(optixBuiltinISModuleGet(
-        optix_ctx_.get(), &builtin_mco, &pco, &builtin_is_options, &builtin_is_module_));
+    OPTIX_CHECK(optixBuiltinISModuleGet(optix_ctx_.get(), &builtin_mco, &pco, &builtin_is_options,
+                                        &builtin_is_module_));
 
     // raygen
-    raygen_pg_ = optix::ProgramGroup::createRaygen(
-        optix_ctx_.get(),
-        module_.get(),
-        config_.raygen_function_name_.c_str()
-    );
+    raygen_pg_ = optix::ProgramGroup::createRaygen(optix_ctx_.get(), module_.get(),
+                                                   config_.raygen_function_name_.c_str());
 
     // miss
-    miss_pg_ = optix::ProgramGroup::createMiss(
-        optix_ctx_.get(),
-        module_.get(),
-        config_.miss_function_name_.c_str()
-    );
+    miss_pg_ = optix::ProgramGroup::createMiss(optix_ctx_.get(), module_.get(),
+                                               config_.miss_function_name_.c_str());
 
     // Create hitgroup with anyhit + built-in sphere intersection
     // Closesthit disabled via OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT in trace.cuh
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
-        optix_ctx_.get(),
-        module_.get(),
-        config_.anyhit_function_name_.c_str(),
+        optix_ctx_.get(), module_.get(), config_.anyhit_function_name_.c_str(),
         builtin_is_module_  // Built-in sphere intersection module
     );
 
@@ -258,8 +223,9 @@ void Renderer::render() {
     const size_t batch_size = image_.batch_size();
     const size_t num_batches = common::math::ceil_div(total_spp, batch_size);
 
-    spdlog::info("Launching OptiX pipeline - will render {} Gaussians in {} batches ({} spp total)...",
-                 NUM_PRIMITIVES, num_batches, total_spp);
+    spdlog::info(
+        "Launching OptiX pipeline - will render {} Gaussians in {} batches ({} spp total)...",
+        num_primitives_, num_batches, total_spp);
 
     // Render in batches
     for (size_t batch = 0; batch < num_batches; ++batch) {
@@ -272,13 +238,12 @@ void Renderer::render() {
         // Update dynamic launch params (image with new batch_offset/batch_size)
         updateDynamicParams();
 
-        spdlog::info("Rendering batch {}/{}: samples [{}, {})",
-                     batch + 1, num_batches, batch_offset, batch_offset + samples_in_batch);
+        spdlog::info("Rendering batch {}/{}: samples [{}, {})", batch + 1, num_batches,
+                     batch_offset, batch_offset + samples_in_batch);
 
         // Launch with 2D grid (width, height) - batch handled internally by raygen
         pipeline_.launch(streams_[cuda::StreamKind::Main]->get(), launch_params_.cu_device_ptr(),
-                         sizeof(common::params::LaunchParams), sbt_.get(),
-                         image_.width(),
+                         sizeof(common::params::LaunchParams), sbt_.get(), image_.width(),
                          image_.height(),
                          1);  // Z=1, batching handled in raygen kernel
 
