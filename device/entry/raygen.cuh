@@ -27,18 +27,39 @@ extern "C" __global__ void __raygen__rg() {
 
     const auto is_debug = is_debug_thread();
 
+    // TODO: remove - diagnostic print to trace execution
+    if (is_debug) {
+        printf("RAYGEN: Starting pixel (%u,%u), batch_size=%u\n",
+               pixel_idx.x, pixel_idx.y,
+               static_cast<uint>(launch_params.image_.batch_size_));
+    }
+
     // Accumulate radiance from batch_size samples in registers
     auto batch_radiance = make_float3(0.0f);
 
     // Process batch_size samples per pixel
     for (size_t sample_in_batch = 0; sample_in_batch < launch_params.image_.batch_size_; ++sample_in_batch) {
+        // TODO: remove - diagnostic for batch processing
+        if (is_debug) {
+            printf("\n=== STARTING SAMPLE %u/%u ===\n",
+                   static_cast<uint>(sample_in_batch),
+                   static_cast<uint>(launch_params.image_.batch_size_));
+        }
+
         // Compute global sample index for this sample
         const size_t global_sample_idx = launch_params.image_.batch_offset_ + sample_in_batch;
         const size_t rng_seed = math::fma(pixel_linear_idx, launch_params.image_.num_samples_per_pixel_, global_sample_idx);
 
         // RNG setup (unique per sample)
+        if (is_debug) {
+            printf("Initializing RNG with seed=%u, rng_seed=%lu\n",
+                   launch_params.seed_, rng_seed);
+        }
         curandState rng;
         curand_init(launch_params.seed_, rng_seed, 0, &rng);
+        if (is_debug) {
+            printf("RNG initialized successfully\n");
+        }
 
         // Ray setup with jittering
         const auto jitter = random::sample_uniform_2d(rng, 0.5f);
@@ -67,7 +88,7 @@ extern "C" __global__ void __raygen__rg() {
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
             if (is_debug) {
-                printf("\n--- RAYGEN bounce %u ---\n", static_cast<uint>(bounce));
+                printf("\n--- RAYGEN bounce %u/%u ---\n", static_cast<uint>(bounce), consts::MAX_BOUNCES);
                 printf("Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
                         ray.origin_.x, ray.origin_.y, ray.origin_.z,
                         ray.direction_.x, ray.direction_.y, ray.direction_.z);
@@ -133,6 +154,11 @@ extern "C" __global__ void __raygen__rg() {
             }
         }
 
+        // TODO: remove - diagnostic to check if we hit max bounces
+        if (is_debug) {
+            printf("Exited bounce loop after processing samples\n");
+        }
+
         if (math::max(throughput) > consts::MIN_THROUGHPUT) {
             if (is_debug) printf("\nFinal ray contribution\n");
             auto tau = compute_optical_depth_along_ray(ray, event.active_prims_);
@@ -144,10 +170,25 @@ extern "C" __global__ void __raygen__rg() {
 
         // Accumulate this sample's radiance into batch total
         batch_radiance += radiance;
+
+        // TODO: remove - diagnostic for batch processing
+        if (is_debug) {
+            printf("=== FINISHED SAMPLE %u ===\n\n",
+                   static_cast<uint>(sample_in_batch));
+        }
     }  // End of batch loop
+
+    // TODO: remove - diagnostic to check if we exit batch loop
+    if (is_debug) {
+        printf("Exited batch loop, writing to accumulator at pixel_linear_idx=%lu\n", pixel_linear_idx);
+    }
 
     // Write accumulated radiance to accumulator buffer (no atomics needed, one thread per pixel)
     launch_params.image_.accumulator_[pixel_linear_idx] += batch_radiance;
+
+    if (is_debug) {
+        printf("Successfully wrote to accumulator\n");
+    }
 }
 
 }  // namespace device

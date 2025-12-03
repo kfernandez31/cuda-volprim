@@ -19,10 +19,11 @@ namespace device {
 namespace params {
 
 // Device-side POD struct for primitive (no RAII, same size on host and device)
+// Note: rot_quat_ stores the CONJUGATE of the rotation for efficient world-to-local transforms
 class THESIS_ALIGNMENT Primitive {
    private:
     float3 center_;
-    common::geometry::UnitQuaternion rot_quat_;
+    common::geometry::UnitQuaternion rot_quat_;  // Conjugate for world-to-local
     float3 scale_;
 
     // Precomputed values for performance
@@ -62,6 +63,7 @@ class THESIS_ALIGNMENT Primitive {
 
     // Getters for introspection
     [[nodiscard]] THESIS_HOST_DEVICE float3 center() const { return center_; }
+    // Returns the conjugate quaternion (used for world-to-local transforms)
     [[nodiscard]] THESIS_HOST_DEVICE const common::geometry::UnitQuaternion& rot_quat() const {
         return rot_quat_;
     }
@@ -110,6 +112,14 @@ class THESIS_ALIGNMENT Primitive {
 
         // Clamp to avoid NaNs
         auto erfinv_arg = math::erf(wp * math::ROOT_TWO_F) + chi * K;
+
+        // TODO: remove this debug print after confirming the issue
+        if (!isfinite(erfinv_arg) || erfinv_arg < -1.0f || erfinv_arg > 1.0f) {
+            printf("ERROR: inv_cdf erfinv_arg out of range! arg=%.6f, wp=%.6f, K=%.6f, chi=%.6f\n",
+                   erfinv_arg, wp, K, chi);
+            return -420.0f;  // Sentinel value indicating error (negative = invalid)
+        }
+
         erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);  // clamp to avoid NaN
 
         return math::ROOT_TWO_F * erfinv(erfinv_arg) - wp;
@@ -117,18 +127,40 @@ class THESIS_ALIGNMENT Primitive {
 
     // Device-only: optical depth from t0 to infinity
     __device__ float optical_depth(const geometry::Ray& ray, float t0) const {
+        // TODO: remove this debug print after confirming the issue
+        if (t0 < 0.0f) {
+            printf("ERROR: optical_depth(t0=%.6f to inf) called with negative t0!\n", t0);
+            return -420.0f;  // Sentinel value indicating error (negative = invalid)
+        }
+
         namespace math = common::math;
 
         // Transform to whitened space
         const auto w = transform_dir_local(ray.direction_);
         const auto p = transform_pos_local(ray.origin_);
+
+        // Check for NaN/Inf in transformed values
+        if (!isfinite(math::length2(w)) || !isfinite(math::length2(p))) {
+            printf("ERROR: NaN/Inf in transformed ray! w_len2=%f, p_len2=%f\n",
+                   math::length2(w), math::length2(p));
+            return -420.0f;
+        }
+
         const auto ray_local = geometry::Ray::spawn_unchecked(p, w);
 
         // Precompute inverse length
         const auto w_inv_len = math::rlength(w);
 
+        // Check for degenerate direction
+        if (!isfinite(w_inv_len) || w_inv_len > 1e10f) {
+            printf("ERROR: Degenerate ray direction! w_inv_len=%f\n", w_inv_len);
+            return -420.0f;
+        }
+
         // Point along the ray in local space
-        const auto p0 = ray_local.at(t0);
+        // Clamp t0 to avoid issues with negative values
+        const auto t0_safe = math::max(0.0f, t0);
+        const auto p0 = ray_local.at(t0_safe);
 
         // Project onto ray direction (normalized)
         const auto w_normalized = w * w_inv_len;
@@ -150,7 +182,12 @@ class THESIS_ALIGNMENT Primitive {
 
     // Device-only: optical depth from t0 to t1
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
-        assert(t0 <= t1 && isfinite(t1) && t1 > 0.0f);
+        // TODO: remove this debug print after confirming the issue
+        if (!(t0 <= t1 && isfinite(t1) && t1 > 0.0f)) {
+            printf("ERROR: optical_depth assertion would fail! t0=%.6f, t1=%.6f, isfinite(t1)=%d\n",
+                   t0, t1, isfinite(t1));
+            return -420.0f;  // Sentinel value indicating error (negative = invalid)
+        }
         // Handle very small intervals (numerical precision)
         if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH)
             return 0.0f;
@@ -160,14 +197,31 @@ class THESIS_ALIGNMENT Primitive {
         // Transform to whitened space
         const auto w = transform_dir_local(ray.direction_);
         const auto p = transform_pos_local(ray.origin_);
+
+        // Check for NaN/Inf in transformed values
+        if (!isfinite(math::length2(w)) || !isfinite(math::length2(p))) {
+            printf("ERROR: optical_depth(t0,t1) NaN/Inf! w_len2=%f, p_len2=%f\n",
+                   math::length2(w), math::length2(p));
+            return -420.0f;
+        }
+
         const auto ray_local = geometry::Ray::spawn_unchecked(p, w);
 
         // Precompute inverse length
         const auto w_inv_len = math::rlength(w);
 
+        // Check for degenerate direction
+        if (!isfinite(w_inv_len) || w_inv_len > 1e10f) {
+            printf("ERROR: optical_depth(t0,t1) degenerate! w_inv_len=%f\n", w_inv_len);
+            return -420.0f;
+        }
+
         // Points along the ray in local space
-        const auto p0 = ray_local.at(t0);
-        const auto p1 = ray_local.at(t1);
+        // Clamp t-values to avoid issues with negative values
+        const auto t0_safe = math::max(0.0f, t0);
+        const auto t1_safe = math::max(t0_safe + consts::RAY_SEGMENT_MIN_LENGTH, t1);
+        const auto p0 = ray_local.at(t0_safe);
+        const auto p1 = ray_local.at(t1_safe);
 
         // Project onto ray direction (normalized)
         const auto w_normalized = w * w_inv_len;

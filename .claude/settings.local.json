@@ -5,7 +5,8 @@
       "Bash(git fetch:*)",
       "WebFetch(domain:raytracing-docs.nvidia.com)",
       "WebSearch",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [
       "Bash(git push:*)",

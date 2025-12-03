@@ -65,7 +65,14 @@ __forceinline__ __device__ float optical_depth_accumulated(
     #pragma unroll 4
     for (auto idx : prims) {
         const auto& prim = launch_params.primitives_[idx];
-        tau += prim.optical_depth(ray, t0, t1);
+        const auto prim_tau = prim.optical_depth(ray, t0, t1);
+
+        // Check for sentinel value and propagate it
+        if (prim_tau < 0.0f) {
+            return -420.0f;  // Propagate error sentinel
+        }
+
+        tau += prim_tau;
     }
 
     return tau;
@@ -256,6 +263,15 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         // Integrate from previous t to current t
         const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_prev_hit, t_current);
 
+        // Check for sentinel error value (negative optical depth is invalid)
+        if (tau_segment < 0.0f) {
+            printf("ERROR: Hit sentinel value (%.3f) in tau_segment! Terminating ray.\n", tau_segment);
+            // Force ray to escape to avoid infinite loop
+            auto color = launch_params.env_map_.sample(ray.direction_);
+            miss = payloads::Miss(color);
+            return false;
+        }
+
         if (is_debug_thread()) {
             printf("  Processing cluster at t=%.6f, tau_segment=%.3f, tau_cumulative=%.3f, tau_target=%.3f, active_prims.size=%u\n",
                    t_current, tau_segment, tau_cumulative, tau_target, static_cast<uint>(active_prims.size()));
@@ -304,6 +320,16 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
                     // Manually integrate from ray origin to this exit
                     const auto& prim = launch_params.primitives_[prim_idx];
                     const auto tau_from_origin = prim.optical_depth(ray, 0.0f, t_current);
+
+                    // Check for sentinel error value (negative optical depth is invalid)
+                    if (tau_from_origin < 0.0f) {
+                        printf("ERROR: Hit sentinel value (%.3f) in tau_from_origin! Terminating ray.\n", tau_from_origin);
+                        // Force ray to escape to avoid infinite loop
+                        auto color = launch_params.env_map_.sample(ray.direction_);
+                        miss = payloads::Miss(color);
+                        return false;
+                    }
+
                     tau_cumulative += tau_from_origin;
 
                     if (is_debug_thread()) {

@@ -219,6 +219,8 @@ void Renderer::createPipeline(
 }
 
 void Renderer::render() {
+    const auto start_time = std::chrono::high_resolution_clock::now();
+
     const size_t total_spp = image_.num_samples_per_pixel();
     const size_t batch_size = image_.batch_size();
     const size_t num_batches = common::math::ceil_div(total_spp, batch_size);
@@ -256,7 +258,12 @@ void Renderer::render() {
     // Save asynchronously and wait for completion
     auto save_future = image_.save(config_.output_path_);
     utils::try_unwrap_or_exit(save_future.get());
-    spdlog::info("Rendering complete");
+
+    const auto end_time = std::chrono::high_resolution_clock::now();
+    const auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    const double duration_sec = duration_ms / 1000.0;
+
+    spdlog::info("Rendering complete - Total time: {:.3f}s ({} ms)", duration_sec, duration_ms);
 }
 
 }  // namespace thesis::host::app

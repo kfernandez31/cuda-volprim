@@ -42,6 +42,11 @@ struct UnitQuaternion {
         return {w, -x, -y, -z};
     }
 
+    // Get conjugate of this quaternion (inverse rotation)
+    [[nodiscard]] THESIS_HOST_DEVICE THESIS_INLINE UnitQuaternion conjugate() const {
+        return conjugate(s_, u_.x, u_.y, u_.z);
+    }
+
     // Normalize quaternion components and construct
     static UnitQuaternion from(float w, float x, float y, float z) {
         const auto r = math::rlength(make_float4(w, x, y, z));
