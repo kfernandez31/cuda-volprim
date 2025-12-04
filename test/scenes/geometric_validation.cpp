@@ -463,15 +463,105 @@ TestScene tangent_rays() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Debug Tests (Minimal Reproducible Failures)
+// ─────────────────────────────────────────────────────────────────────
+
+TestScene debug_single_at_origin() {
+    TestScene scene;
+    scene.name = "debug_single_at_origin";
+    scene.description = "Single Gaussian at (0,0,0) - minimal test for hang";
+
+    // Single Gaussian at origin (same position as center Gaussian in transform_translation)
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),        // at origin
+        UnitQuaternion::identity(),
+        make_float3(0.4f, 0.4f, 0.4f),        // same scale as transform_translation
+        make_float3(0.0f, 1.0f, 1.0f),        // cyan
+        0.5f                                  // same sigma_t
+    ));
+
+    return scene;
+}
+
+TestScene debug_single_offset() {
+    TestScene scene;
+    scene.name = "debug_single_offset";
+    scene.description = "Single Gaussian at (1,0,0) - test if offset prevents hang";
+
+    // Single Gaussian offset from origin
+    scene.primitives.push_back(Primitive(
+        make_float3(1.0f, 0.0f, 0.0f),        // offset right
+        UnitQuaternion::identity(),
+        make_float3(0.4f, 0.4f, 0.4f),
+        make_float3(0.0f, 1.0f, 1.0f),        // cyan
+        0.5f
+    ));
+
+    return scene;
+}
+
+TestScene debug_two_at_origin() {
+    TestScene scene;
+    scene.name = "debug_two_at_origin";
+    scene.description = "Two Gaussians at (0,0,0) - test if coincident surfaces cause hang";
+
+    // Two coincident Gaussians (like coincident_surfaces test, but with transform_translation params)
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.4f, 0.4f, 0.4f),
+        make_float3(1.0f, 0.0f, 0.0f),        // red
+        0.5f
+    ));
+
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.4f, 0.4f, 0.4f),
+        make_float3(0.0f, 0.0f, 1.0f),        // blue
+        0.5f
+    ));
+
+    return scene;
+}
+
+TestScene debug_grid_2x2() {
+    TestScene scene;
+    scene.name = "debug_grid_2x2";
+    scene.description = "2×2 grid - test if grid size matters";
+
+    const auto rotation = UnitQuaternion::identity();
+    const auto scale = make_float3(0.4f, 0.4f, 0.4f);
+    const auto albedo = make_float3(0.0f, 1.0f, 1.0f);  // cyan
+    constexpr float sigma_t = 0.5f;
+
+    // 2x2 grid (4 Gaussians)
+    for (int y = 0; y <= 1; ++y) {
+        for (int x = 0; x <= 1; ++x) {
+            scene.primitives.push_back(Primitive(
+                make_float3(static_cast<float>(x), static_cast<float>(y), 0.0f),
+                rotation,
+                scale,
+                albedo,
+                sigma_t
+            ));
+        }
+    }
+
+    return scene;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Get All Test Scenes
 // ─────────────────────────────────────────────────────────────────────
 
 std::vector<TestScene> get_all_test_scenes() {
     return {
         // Debug tests (minimal cases)
-        minimal_in_front(),       // Should work
-        minimal_behind_camera(),   // Actually in front (Z=0 > -1)
-        multiple_same_z(),        // Test multiple overlapping
+        debug_single_at_origin(),
+        debug_single_offset(),
+        debug_two_at_origin(),
+        debug_grid_2x2(),
         // Correctness tests
         coincident_surfaces(),
         partial_overlap(),

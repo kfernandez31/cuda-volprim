@@ -32,6 +32,12 @@ TestScene many_gaussians();
 TestScene nested_structure();
 TestScene tangent_rays();
 
+// Debug tests (minimal reproducible failures)
+TestScene debug_single_at_origin();
+TestScene debug_single_offset();
+TestScene debug_two_at_origin();
+TestScene debug_grid_2x2();
+
 // Get all test scenes
 std::vector<TestScene> get_all_test_scenes();
 
