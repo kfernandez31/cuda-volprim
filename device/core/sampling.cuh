@@ -208,21 +208,32 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
     }
 
     // STEP 3: For each traced entry, compute exit analytically
+    // Key insight: Compute exit from the ENTRY POINT (not ray origin) to avoid accumulated numerical error
     const size_t total_after_trace = hit_buffer.size();
     for (size_t i = num_computed_exits; i < total_after_trace; i++) {
         // All traced hits are entries (backface culling)
         const auto& entry = hit_buffer[i];
         const auto& prim = launch_params.primitives_[entry.prim_idx];
-        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 
-        // Add computed exit
-        if (isect.hit() && isect.t_exit > entry.t_hit) {
-            hit_buffer.emplace_back(isect.t_exit, entry.prim_idx, true);  // is_exit=true
+        const auto entry_point = ray.at(entry.t_hit);
+        const auto ray_from_entry = geometry::Ray::spawn_unchecked(entry_point, ray.direction_);
+
+        // Intersect from inside the primitive - much more numerically stable!
+        auto isect_from_entry = common::geometry::intersect_ellipsoid(ray_from_entry, prim);
+
+        if (isect_from_entry.is_hit()) {
+            const float exit_t = entry.t_hit + isect_from_entry.t_exit;
+            hit_buffer.emplace_back(exit_t, entry.prim_idx, true);  // is_exit=true
 
             if (is_debug_thread()) {
-                printf("  Prim %u: entry=%.6f, exit=%.6f (computed)\n",
-                       entry.prim_idx, entry.t_hit, isect.t_exit);
+                printf("  Prim %u: entry=%.6f, exit=%.6f (segment=%.6f)\n",
+                       entry.prim_idx, entry.t_hit, exit_t, isect_from_entry.t_exit);
             }
+        } else {
+            // This should never happen - OptiX gave us an entry, so intersection must succeed
+            printf("ERROR: Prim %u intersection failed from entry point %.6f! This is a bug.\n",
+                   entry.prim_idx, entry.t_hit);
+            // Don't add exit - let debugging reveal the issue
         }
     }
 
@@ -414,16 +425,27 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
     }
 
     // STEP 3: For each traced entry, compute exit analytically
+    // Key insight: Compute exit from the ENTRY POINT (not ray origin) to avoid accumulated numerical error
     const size_t total_after_trace = hit_buffer.size();
     for (size_t i = num_computed_exits; i < total_after_trace; i++) {
         // All traced hits are entries (backface culling)
         const auto& entry = hit_buffer[i];
         const auto& prim = launch_params.primitives_[entry.prim_idx];
-        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 
-        // Add computed exit
-        if (isect.hit() && isect.t_exit > entry.t_hit) {
-            hit_buffer.emplace_back(isect.t_exit, entry.prim_idx, true);  // is_exit=true
+        const auto entry_point = ray.at(entry.t_hit);
+        const auto ray_from_entry = geometry::Ray::spawn_unchecked(entry_point, ray.direction_);
+
+        // Intersect from inside the primitive - much more numerically stable!
+        auto isect_from_entry = common::geometry::intersect_ellipsoid(ray_from_entry, prim);
+
+        if (isect_from_entry.is_hit()) {
+            const float exit_t = entry.t_hit + isect_from_entry.t_exit;
+            hit_buffer.emplace_back(exit_t, entry.prim_idx, true);  // is_exit=true
+        } else {
+            // This should never happen - OptiX gave us an entry, so intersection must succeed
+            printf("ERROR: Prim %u intersection failed from entry point %.6f! This is a bug.\n",
+                   entry.prim_idx, entry.t_hit);
+            // Don't add exit - let debugging reveal the issue
         }
     }
 

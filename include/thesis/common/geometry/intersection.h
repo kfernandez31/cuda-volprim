@@ -34,7 +34,7 @@ struct EllipsoidIntersection {
         : t_entry(-1.0f),
           t_exit(-1.0f) {}
 
-    THESIS_HOST_DEVICE THESIS_INLINE bool hit() const { return t_exit > 0.0f; }
+    THESIS_HOST_DEVICE THESIS_INLINE bool is_hit() const { return t_exit > 0.0f; }
     THESIS_HOST_DEVICE THESIS_INLINE bool starts_inside() const {
         return t_entry < 0.0f && t_exit > 0.0f;
     }

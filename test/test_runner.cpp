@@ -69,6 +69,14 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     } catch (const CLI::ParseError& e) {
         std::ostringstream oss;
         auto code = app.exit(e, oss);
+
+        // Code 0 means help/version (not an error) - print and exit
+        if (code == 0) {
+            std::cout << oss.str();
+            std::exit(0);
+        }
+
+        // Actual error
         return utils::make_error("Argument parse error (code {}): {}", code, oss.str());
     }
 

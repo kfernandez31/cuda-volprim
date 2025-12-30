@@ -463,6 +463,401 @@ TestScene tangent_rays() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Edge Case Tests: Priority 0 (Critical - Could Crash/Hang)
+// ─────────────────────────────────────────────────────────────────────
+
+TestScene empty_scene() {
+    TestScene scene;
+    scene.name = "empty_scene";
+    scene.description = "No primitives at all → should show only environment map";
+
+    // Intentionally empty - no primitives added
+    // Tests null pointer/empty buffer handling
+
+    return scene;
+}
+
+TestScene hit_buffer_at_capacity() {
+    TestScene scene;
+    scene.name = "hit_buffer_at_capacity";
+    scene.description = "Exactly 256 Gaussians in line → tests MAX_CAPACITY boundary";
+
+    // Create tunnel of overlapping Gaussians along Z-axis
+    // Each has radius ~0.3, spaced 0.5 apart for guaranteed hits
+    // Low density to prevent early path termination
+    for (int i = 0; i < 256; ++i) {
+        scene.primitives.push_back(Primitive(
+            make_float3(0.0f, 0.0f, static_cast<float>(i) * 0.5f + 1.0f),
+            UnitQuaternion::identity(),
+            make_float3(0.3f, 0.3f, 0.3f),
+            make_float3(1.0f, 0.0f, 0.0f),  // red
+            0.05f  // very low density
+        ));
+    }
+
+    return scene;
+}
+
+TestScene hit_buffer_overflow() {
+    TestScene scene;
+    scene.name = "hit_buffer_overflow";
+    scene.description = "300 Gaussians in line → tests overflow handling (>MAX_CAPACITY)";
+
+    // Similar to above but with 300 primitives (exceeds MAX_CAPACITY of 256)
+    // Tests that overflow is handled gracefully (truncation, no crash)
+    for (int i = 0; i < 300; ++i) {
+        scene.primitives.push_back(Primitive(
+            make_float3(0.0f, 0.0f, static_cast<float>(i) * 0.5f + 1.0f),
+            UnitQuaternion::identity(),
+            make_float3(0.3f, 0.3f, 0.3f),
+            make_float3(0.0f, 1.0f, 0.0f),  // green
+            0.05f
+        ));
+    }
+
+    return scene;
+}
+
+TestScene ray_at_exact_boundary() {
+    TestScene scene;
+    scene.name = "ray_at_exact_boundary";
+    scene.description = "Camera positioned exactly at Gaussian surface → tests t≈0 entry detection";
+
+    // Camera is at (0, 0, -1) by default
+    // Place Gaussian such that camera is exactly at surface
+    // Gaussian at (0, 0, 0) with scale 1.0 means surface at distance 1.0 from center
+    // So camera at Z=-1 is exactly at the back surface
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(1.0f, 1.0f, 1.0f),
+        make_float3(1.0f, 1.0f, 0.0f),  // yellow
+        0.3f
+    ));
+
+    return scene;
+}
+
+TestScene all_behind_camera() {
+    TestScene scene;
+    scene.name = "all_behind_camera";
+    scene.description = "All primitives behind camera → should show only environment map";
+
+    // Camera at (0, 0, -1) looking forward (+Z direction)
+    // Place all Gaussians at negative Z (behind camera)
+    for (int i = 0; i < 5; ++i) {
+        scene.primitives.push_back(Primitive(
+            make_float3(
+                static_cast<float>(i - 2),
+                0.0f,
+                -5.0f - static_cast<float>(i)  // All at Z < -1 (behind camera)
+            ),
+            UnitQuaternion::identity(),
+            make_float3(0.5f, 0.5f, 0.5f),
+            make_float3(1.0f, 0.0f, 1.0f),  // magenta
+            0.5f
+        ));
+    }
+
+    return scene;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Edge Case Tests: Priority 1 (Numerical Stability)
+// ─────────────────────────────────────────────────────────────────────
+
+TestScene extreme_anisotropic_scale() {
+    TestScene scene;
+    scene.name = "extreme_anisotropic_scale";
+    scene.description = "Extreme 100:1 scale ratios → tests numerical stability with needle/pancake shapes";
+
+    // Needle shape (stretched along X)
+    scene.primitives.push_back(Primitive(
+        make_float3(-1.0f, 0.5f, 3.0f),
+        UnitQuaternion::identity(),
+        make_float3(5.0f, 0.05f, 0.05f),  // 100:1 ratio
+        make_float3(1.0f, 0.0f, 0.0f),  // red
+        0.3f
+    ));
+
+    // Pancake shape (flattened along Y)
+    scene.primitives.push_back(Primitive(
+        make_float3(1.0f, 0.5f, 3.0f),
+        UnitQuaternion::identity(),
+        make_float3(1.0f, 0.01f, 1.0f),  // 100:1 ratio
+        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        0.3f
+    ));
+
+    // Needle along Z
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, -0.5f, 3.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.05f, 0.05f, 5.0f),  // 100:1 ratio
+        make_float3(0.0f, 1.0f, 0.0f),  // green
+        0.3f
+    ));
+
+    return scene;
+}
+
+TestScene extreme_small_scale() {
+    TestScene scene;
+    scene.name = "extreme_small_scale";
+    scene.description = "Very tiny Gaussians (0.01 units) → tests precision limits";
+
+    // Create grid of tiny Gaussians
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            scene.primitives.push_back(Primitive(
+                make_float3(
+                    static_cast<float>(x) * 0.1f,
+                    static_cast<float>(y) * 0.1f,
+                    2.0f
+                ),
+                UnitQuaternion::identity(),
+                make_float3(0.01f, 0.01f, 0.01f),  // extremely small
+                make_float3(1.0f, 1.0f, 0.0f),  // yellow
+                1.0f  // high density so they're visible
+            ));
+        }
+    }
+
+    return scene;
+}
+
+TestScene extreme_large_scale() {
+    TestScene scene;
+    scene.name = "extreme_large_scale";
+    scene.description = "Very large Gaussians (100 units) → tests far-field behavior";
+
+    // Single massive Gaussian encompassing entire scene
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 50.0f),
+        UnitQuaternion::identity(),
+        make_float3(100.0f, 100.0f, 100.0f),  // extremely large
+        make_float3(0.0f, 1.0f, 1.0f),  // cyan
+        0.01f  // very low density so we can see through it
+    ));
+
+    // Smaller Gaussian inside for reference
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 3.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.5f, 0.5f, 0.5f),
+        make_float3(1.0f, 0.0f, 0.0f),  // red
+        0.5f
+    ));
+
+    return scene;
+}
+
+TestScene near_coincident_surfaces() {
+    TestScene scene;
+    scene.name = "near_coincident_surfaces";
+    scene.description = "Two Gaussians separated by ~1e-5 → tests HIT_COINCIDENCE_EPS boundary";
+
+    // Two Gaussians very close but not exactly coincident
+    // Tests the HIT_COINCIDENCE_EPS threshold (1e-6)
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.5f, 0.5f, 0.5f),
+        make_float3(1.0f, 0.0f, 0.0f),  // red
+        0.5f
+    ));
+
+    // Second Gaussian offset by 1e-5 units (just above epsilon threshold)
+    scene.primitives.push_back(Primitive(
+        make_float3(0.00001f, 0.0f, 0.0f),  // 1e-5 offset
+        UnitQuaternion::identity(),
+        make_float3(0.5f, 0.5f, 0.5f),
+        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        0.5f
+    ));
+
+    return scene;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Edge Case Tests: Priority 2 (Correctness)
+// ─────────────────────────────────────────────────────────────────────
+
+TestScene collinear_with_gaps() {
+    TestScene scene;
+    scene.name = "collinear_with_gaps";
+    scene.description = "Non-overlapping Gaussians along Z-axis → tests sequential entry/exit handling";
+
+    // Five Gaussians in a line with clear gaps between them
+    // Scale 0.4 with spacing 1.5 ensures no overlap
+    const float spacing = 1.5f;
+    const auto scale = make_float3(0.4f, 0.4f, 0.4f);
+
+    for (int i = 0; i < 5; ++i) {
+        // Rainbow colors
+        float r = (i == 0 || i == 4) ? 1.0f : 0.0f;
+        float g = (i == 1 || i == 2) ? 1.0f : 0.0f;
+        float b = (i == 2 || i == 3 || i == 4) ? 1.0f : 0.0f;
+
+        scene.primitives.push_back(Primitive(
+            make_float3(0.0f, 0.0f, static_cast<float>(i) * spacing + 1.0f),
+            UnitQuaternion::identity(),
+            scale,
+            make_float3(r, g, b),
+            0.5f
+        ));
+    }
+
+    return scene;
+}
+
+TestScene nested_off_center() {
+    TestScene scene;
+    scene.name = "nested_off_center";
+    scene.description = "Small Gaussian near edge of large one → tests eccentric nesting";
+
+    // Large outer Gaussian
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(1.5f, 1.5f, 1.5f),
+        make_float3(1.0f, 0.0f, 0.0f),  // red
+        0.2f
+    ));
+
+    // Small Gaussian near the edge (not centered)
+    // At position (1.0, 0, 0), it's near the boundary of the outer Gaussian
+    scene.primitives.push_back(Primitive(
+        make_float3(1.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.3f, 0.3f, 0.3f),
+        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        0.8f
+    ));
+
+    return scene;
+}
+
+TestScene chain_overlaps() {
+    TestScene scene;
+    scene.name = "chain_overlaps";
+    scene.description = "A overlaps B, B overlaps C, but A and C don't overlap → tests local overlap handling";
+
+    // Gaussian A (left)
+    scene.primitives.push_back(Primitive(
+        make_float3(-0.8f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.5f, 0.5f, 0.5f),
+        make_float3(1.0f, 0.0f, 0.0f),  // red
+        0.5f
+    ));
+
+    // Gaussian B (center) - overlaps both A and C
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.5f, 0.5f, 0.5f),
+        make_float3(0.0f, 1.0f, 0.0f),  // green
+        0.5f
+    ));
+
+    // Gaussian C (right)
+    scene.primitives.push_back(Primitive(
+        make_float3(0.8f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(0.5f, 0.5f, 0.5f),
+        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        0.5f
+    ));
+
+    return scene;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Edge Case Tests: Priority 3 (Completeness)
+// ─────────────────────────────────────────────────────────────────────
+
+TestScene rotation_180_degrees() {
+    TestScene scene;
+    scene.name = "rotation_180_degrees";
+    scene.description = "180-degree rotation → tests quaternion edge case (w≈0)";
+
+    const auto scale = make_float3(1.0f, 0.3f, 0.3f);  // elongated
+
+    // No rotation (reference)
+    scene.primitives.push_back(Primitive(
+        make_float3(-1.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        scale,
+        make_float3(1.0f, 0.0f, 0.0f),  // red
+        0.5f
+    ));
+
+    // 180-degree rotation around Z axis
+    // Quaternion: (w, x, y, z) = (0, 0, 0, 1) for 180° around Z
+    scene.primitives.push_back(Primitive(
+        make_float3(1.0f, 0.0f, 0.0f),
+        UnitQuaternion::from_unchecked(0.0f, 0.0f, 0.0f, 1.0f),
+        scale,
+        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        0.5f
+    ));
+
+    return scene;
+}
+
+TestScene high_optical_thickness() {
+    TestScene scene;
+    scene.name = "high_optical_thickness";
+    scene.description = "Very high sigma_t (10.0) → tests MAX_OPTICAL_DEPTH clamping";
+
+    // Dense fog with very high extinction coefficient
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(1.0f, 1.0f, 1.0f),
+        make_float3(0.8f, 0.8f, 0.8f),  // light gray
+        10.0f  // very high density
+    ));
+
+    return scene;
+}
+
+TestScene low_optical_thickness() {
+    TestScene scene;
+    scene.name = "low_optical_thickness";
+    scene.description = "Very low sigma_t (0.001) → tests nearly transparent medium";
+
+    // Nearly transparent volume
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(1.0f, 1.0f, 1.0f),
+        make_float3(0.0f, 1.0f, 1.0f),  // cyan
+        0.001f  // very low density
+    ));
+
+    return scene;
+}
+
+TestScene zero_albedo() {
+    TestScene scene;
+    scene.name = "zero_albedo";
+    scene.description = "Pure absorption (albedo = 0) → path terminates immediately on scattering";
+
+    // Black absorbing medium (no scattering, only absorption)
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),
+        UnitQuaternion::identity(),
+        make_float3(1.0f, 1.0f, 1.0f),
+        make_float3(0.0f, 0.0f, 0.0f),  // black (pure absorption)
+        0.5f
+    ));
+
+    return scene;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Debug Tests (Minimal Reproducible Failures)
 // ─────────────────────────────────────────────────────────────────────
 
@@ -557,26 +952,56 @@ TestScene debug_grid_2x2() {
 
 std::vector<TestScene> get_all_test_scenes() {
     return {
-        // Debug tests (minimal cases)
-        debug_single_at_origin(),
-        debug_single_offset(),
-        debug_two_at_origin(),
-        debug_grid_2x2(),
-        // Correctness tests
+        // ===== Core Correctness Tests =====
         coincident_surfaces(),
         partial_overlap(),
         total_overlap(),
         depth_ordering(),
         camera_inside(),
         non_overlapping(),
-        // Transform tests
+
+        // ===== Transform Tests =====
         transform_scale(),
         transform_rotation(),
         transform_translation(),
-        // Stress tests
+
+        // ===== Stress Tests =====
         many_gaussians(),
         nested_structure(),
-        tangent_rays()
+        tangent_rays(),
+
+        // ===== Edge Case Tests: Priority 0 (Critical) =====
+        empty_scene(),
+        hit_buffer_at_capacity(),
+        hit_buffer_overflow(),
+        ray_at_exact_boundary(),
+        all_behind_camera(),
+
+        // ===== Edge Case Tests: Priority 1 (Numerical Stability) =====
+        extreme_anisotropic_scale(),
+        extreme_small_scale(),
+        extreme_large_scale(),
+        near_coincident_surfaces(),
+
+        // ===== Edge Case Tests: Priority 2 (Correctness) =====
+        collinear_with_gaps(),
+        nested_off_center(),
+        chain_overlaps(),
+
+        // ===== Edge Case Tests: Priority 3 (Completeness) =====
+        rotation_180_degrees(),
+        high_optical_thickness(),
+        low_optical_thickness(),
+        zero_albedo(),
+
+        // ===== Debug Tests (Minimal Cases) =====
+        debug_single_at_origin(),
+        debug_single_offset(),
+        debug_two_at_origin(),
+        debug_grid_2x2(),
+        minimal_behind_camera(),
+        minimal_in_front(),
+        multiple_same_z()
     };
 }
 

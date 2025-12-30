@@ -3,6 +3,7 @@
 #include "thesis/host/utils/check.h"
 
 #include <cuda.h>
+#include <cuda_runtime.h>
 
 #include <spdlog/spdlog.h>
 #include <utility>
@@ -15,8 +16,8 @@ class Context {
     CUdevice device_ = -1;
 
     void reset() noexcept {
-        if (context_) {
-            CU_CHECK_NOEXCEPT(cuCtxDestroy(context_));
+        if (context_ && device_ != -1) {
+            CU_CHECK_NOEXCEPT(cuDevicePrimaryCtxRelease(device_));
             context_ = nullptr;
             device_ = -1;
         }
@@ -24,10 +25,15 @@ class Context {
 
    public:
     explicit Context(int device_ordinal = 0) {
+        // Use Runtime API to initialize CUDA and create primary context
+        // This avoids conflicts between Driver and Runtime API contexts
+        CUDA_CHECK(cudaSetDevice(device_ordinal));
+        CUDA_CHECK(cudaFree(0));  // Force context creation
+
+        // Now get the primary context handle for OptiX (which needs CUcontext)
         CU_CHECK(cuInit(0));
         CU_CHECK(cuDeviceGet(&device_, device_ordinal));
-        CU_CHECK(cuCtxCreate(&context_, 0, device_));
-        CU_CHECK(cuCtxSetCurrent(context_));
+        CU_CHECK(cuDevicePrimaryCtxRetain(&context_, device_));
 
         char name[256];
         CU_CHECK(cuDeviceGetName(name, sizeof(name), device_));
@@ -69,6 +75,7 @@ class Context {
             if (this != &other) {
                 prev = std::exchange(other.prev, nullptr);
             }
+            return *this;
         }
     };
 

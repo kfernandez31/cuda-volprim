@@ -88,7 +88,7 @@ extern "C" __global__ void __raygen__rg() {
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
             if (is_debug) {
-                printf("\n--- RAYGEN bounce %u/%u ---\n", static_cast<uint>(bounce), consts::MAX_BOUNCES);
+                printf("\n--- RAYGEN bounce %u/%u ---\n", static_cast<uint>(bounce), static_cast<uint>(consts::MAX_BOUNCES));
                 printf("Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
                         ray.origin_.x, ray.origin_.y, ray.origin_.z,
                         ray.direction_.x, ray.direction_.y, ray.direction_.z);
