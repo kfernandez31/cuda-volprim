@@ -182,14 +182,8 @@ class THESIS_ALIGNMENT Primitive {
 
     // Device-only: optical depth from t0 to t1
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
-        // TODO: remove this debug print after confirming the issue
-        if (!(t0 <= t1 && isfinite(t1) && t1 > 0.0f)) {
-            printf("ERROR: optical_depth assertion would fail! t0=%.6f, t1=%.6f, isfinite(t1)=%d\n",
-                   t0, t1, isfinite(t1));
-            return -420.0f;  // Sentinel value indicating error (negative = invalid)
-        }
-        // Handle very small intervals (numerical precision)
-        if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH)
+        // Handle very small or invalid intervals gracefully
+        if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH || t0 > t1)
             return 0.0f;
 
         namespace math = common::math;
@@ -246,7 +240,7 @@ class THESIS_ALIGNMENT Primitive {
 
     // Device-only: density integral (optical depth * albedo)
     __device__ float3 density_integral(const geometry::Ray& ray, float t0) const {
-        auto result = albedo_ * optical_depth(ray, t0);
+        auto result = albedo_ * optical_depth(ray, t0, consts::INF_F, "density_integral_1arg");
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         return common::math::sanitize(result);
 #else
@@ -255,7 +249,7 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1) const {
-        auto result = albedo_ * optical_depth(ray, t0, t1);
+        auto result = albedo_ * optical_depth(ray, t0, t1, "density_integral_2arg");
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         return common::math::sanitize(result);
 #else

@@ -3,6 +3,12 @@
 #include "thesis/common/utils/types.h"
 #include "thesis/common/utils/math.h"
 
+// Compile-time guards (define in CMakeLists.txt for debug/test builds):
+// - THESIS_ENABLE_NUMERICAL_GUARDS: Enable runtime checks for numerical edge cases
+//   (degenerate directions, invalid exit computations, etc.)
+//   Adds ~5-10% overhead but catches numerical issues early
+//   Recommended for: debug builds, testing, validation
+
 namespace thesis {
 namespace device {
 namespace consts {
@@ -12,8 +18,15 @@ constexpr float INF_F = 1e20;
 constexpr uint VISIBILITY_ALL = 0xFF;
 
 // Primitive and scattering constants
-// Maximum capacity for both hit collection buffer and active primitives set
-constexpr size_t MAX_CAPACITY = 256;
+// Maximum number of primitives that can be processed simultaneously per ray
+constexpr size_t MAX_PRIMITIVES = 64;
+
+// Hit buffer capacity: must hold BOTH entry AND exit hits (2 hits per primitive)
+// Each primitive generates one entry hit and one exit hit during ray traversal
+constexpr size_t HIT_BUFFER_CAPACITY = 2 * MAX_PRIMITIVES;  // 128
+
+// Active primitives set capacity: tracks unique primitive indices only
+constexpr size_t ACTIVE_PRIMS_CAPACITY = MAX_PRIMITIVES;  // 64
 
 // Epsilon values for numerical stability and geometric tolerances
 // Used to detect coincident surface hits (primitives with surfaces at same t-value)

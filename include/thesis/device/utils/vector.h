@@ -70,6 +70,14 @@ class VectorBase : private Storage {
 
     __device__ __forceinline__ void clear() { size_ = 0; }
 
+    __device__ __forceinline__ bool resize(size_t new_size) {
+        if (new_size > capacity()) {
+            return false;
+        }
+        size_ = new_size;
+        return true;
+    }
+
     __device__ __forceinline__ bool push_back(const T& value) {
         if (full()) {
             return false;

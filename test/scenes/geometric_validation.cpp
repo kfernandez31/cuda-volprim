@@ -480,12 +480,13 @@ TestScene empty_scene() {
 TestScene hit_buffer_at_capacity() {
     TestScene scene;
     scene.name = "hit_buffer_at_capacity";
-    scene.description = "Exactly 256 Gaussians in line → tests MAX_CAPACITY boundary";
+    scene.description = "Exactly 64 Gaussians in line → tests MAX_PRIMITIVES boundary (128 hits = HIT_BUFFER_CAPACITY)";
 
     // Create tunnel of overlapping Gaussians along Z-axis
     // Each has radius ~0.3, spaced 0.5 apart for guaranteed hits
     // Low density to prevent early path termination
-    for (int i = 0; i < 256; ++i) {
+    // 64 primitives × 2 hits (entry + exit) = 128 hits (exactly at capacity)
+    for (int i = 0; i < 64; ++i) {
         scene.primitives.push_back(Primitive(
             make_float3(0.0f, 0.0f, static_cast<float>(i) * 0.5f + 1.0f),
             UnitQuaternion::identity(),
@@ -501,11 +502,11 @@ TestScene hit_buffer_at_capacity() {
 TestScene hit_buffer_overflow() {
     TestScene scene;
     scene.name = "hit_buffer_overflow";
-    scene.description = "300 Gaussians in line → tests overflow handling (>MAX_CAPACITY)";
+    scene.description = "65 Gaussians in line → tests overflow handling (130 hits > HIT_BUFFER_CAPACITY)";
 
-    // Similar to above but with 300 primitives (exceeds MAX_CAPACITY of 256)
-    // Tests that overflow is handled gracefully (truncation, no crash)
-    for (int i = 0; i < 300; ++i) {
+    // 65 primitives × 2 hits (entry + exit) = 130 hits (exceeds capacity by 2)
+    // Tests that overflow is handled gracefully (ray termination in anyhit, no crash)
+    for (int i = 0; i < 65; ++i) {
         scene.primitives.push_back(Primitive(
             make_float3(0.0f, 0.0f, static_cast<float>(i) * 0.5f + 1.0f),
             UnitQuaternion::identity(),
@@ -517,6 +518,7 @@ TestScene hit_buffer_overflow() {
 
     return scene;
 }
+
 
 TestScene ray_at_exact_boundary() {
     TestScene scene;
@@ -1001,7 +1003,7 @@ std::vector<TestScene> get_all_test_scenes() {
         debug_grid_2x2(),
         minimal_behind_camera(),
         minimal_in_front(),
-        multiple_same_z()
+        multiple_same_z(),
     };
 }
 

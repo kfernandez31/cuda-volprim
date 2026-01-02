@@ -68,7 +68,7 @@ extern "C" __global__ void __raygen__rg() {
         auto throughput = make_float3(1.0f);
         auto radiance = make_float3(0.0f);
 
-        optix::ScatteringEvent<consts::MAX_CAPACITY> event;
+        optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY> event;
         payloads::Miss miss;
 
         // Initialize active_prims from pre-computed camera containment (CPU-side)

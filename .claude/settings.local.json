@@ -36,7 +36,8 @@
       "Bash(make:*)",
       "Bash(nvcc:*)",
       "Bash(readelf:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git config:*)"
     ],
     "deny": [
       "Bash(git push:*)",

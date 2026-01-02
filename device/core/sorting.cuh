@@ -70,63 +70,95 @@ __device__ __forceinline__ void insertion_sort(utils::StaticVector<HitRecord, N>
 }
 
 // ============================================================================
-// Bitonic Sort (for n > 128)
+// Bitonic Sort (for n > 64)
 // ============================================================================
 // O(n log²n) parallel sorting network
+// Works on power-of-2 capacity by padding with sentinels
+// Helper: Initialize buffer with sentinels (call once after construction)
+// Compiles to no-op for non-power-of-2 capacities (zero overhead)
+template <size_t N>
+__device__ __forceinline__ void init_hit_buffer_sentinels(utils::StaticVector<HitRecord, N>& vec) {
+    if constexpr ((N & (N - 1)) != 0) {
+        // no-op for non-power-of-2 capacities (compiler eliminates entire function)
+        return;
+    }
+
+    // Capacity is power of 2: pre-fill entire capacity with sentinels
+    // This enables zero-overhead bitonic sort (just resize, no padding loop)
+    // Cost: 128 writes once per buffer, but enables multiple sorts if needed
+    const HitRecord sentinel{consts::INF_F, 0u, false};
+    vec.clear();
+    for (size_t i = 0; i < N; i++) {
+        vec.push_back(sentinel);
+    }
+    vec.clear();  // Reset size to 0, but all slots now contain sentinels
+}
+
 template <size_t N>
 __device__ void bitonic_sort(utils::StaticVector<HitRecord, N>& vec) {
-    const auto n = vec.size();
+    static_assert((N & (N - 1)) == 0, "Capacity must be power of 2 for bitonic sort");
 
-    // Bitonic sort requires power-of-2 size, so we pad conceptually
-    // by treating out-of-bounds as infinity
-    auto get_val = [&](size_t idx) -> float {
-        return (idx < n) ? vec[idx].t_hit : consts::INF_F;
+    const size_t original_size = vec.size();
+
+    // Extend to full capacity (assumes buffer was pre-initialized with sentinels)
+    vec.resize(N);
+    const size_t n = N;
+
+    // Comparison: primary key is t_hit, with deterministic tie-breaking
+    auto less = [](const HitRecord& a, const HitRecord& b) -> bool {
+        if (a.t_hit < b.t_hit) return true;
+        if (a.t_hit > b.t_hit) return false;
+        return a.prim_idx < b.prim_idx;
     };
 
-    auto compare_and_swap = [&](size_t i, size_t j, bool ascending) {
-        if (i >= n || j >= n) return;
-        const bool should_swap = ascending ? (vec[i].t_hit > vec[j].t_hit)
-                                           : (vec[i].t_hit < vec[j].t_hit);
-        if (should_swap) {
-            utility::swap(vec[i], vec[j]);
-        }
-    };
-
-    // Find next power of 2 >= n
-    const size_t pow2 = common::math::next_power_of_2(n);
-
-    for (size_t k = 2; k <= pow2; k *= 2) {
+    // Standard bitonic sort on power-of-2 array
+    for (size_t k = 2; k <= n; k *= 2) {
         for (size_t j = k / 2; j > 0; j /= 2) {
-            for (size_t i = 0; i < pow2; i++) {
+            for (size_t i = 0; i < n; i++) {
                 const size_t ixj = i ^ j;
-                if (ixj > i) {
-                    const bool ascending = ((i & k) == 0);
-                    compare_and_swap(i, ixj, ascending);
-                }
+                if (ixj <= i) continue;
+
+                const bool ascending = ((i & k) == 0);
+
+                HitRecord a = vec[i];
+                HitRecord b = vec[ixj];
+
+                const bool a_less = less(a, b);
+                HitRecord mn = a_less ? a : b;
+                HitRecord mx = a_less ? b : a;
+
+                vec[i]   = ascending ? mn : mx;
+                vec[ixj] = ascending ? mx : mn;
             }
         }
     }
+
+    // Restore original size (sentinels now at end after sorting)
+    vec.resize(original_size);
 }
 
 // ============================================================================
 // Adaptive Sort Dispatcher
 // ============================================================================
-// Automatically selects the best sorting algorithm based on array size
+// Automatically selects sorting algorithm based on size and capacity
 template <size_t N>
 __device__ __forceinline__ void sort(utils::StaticVector<HitRecord, N>& vec) {
     const size_t n = vec.size();
 
     if (n <= 1) {
         return;  // Already sorted
-    } else if (n <= 64) {
-        // Insertion sort: O(n²) but excellent cache behavior and low overhead
-        // NOTE: Warp shuffle sort would be faster but requires warp cooperation
-        // which doesn't work when each thread has its own independent vector
+    }
+
+    if (n <= 64) {
+        // Small arrays: O(n²) insertion sort has lower overhead
         insertion_sort(vec);
-    } else {
-        // Bitonic sort: O(n log²n) parallel sorting network
-        // Works well for larger arrays, single-threaded (no warp cooperation needed)
+    } else if constexpr ((N & (N - 1)) == 0) {
+        // Large arrays + power-of-2 capacity: O(n log²n) bitonic sort
+        // Requires pre-initialization with sentinels (see init_hit_buffer_sentinels)
         bitonic_sort(vec);
+    } else {
+        // Large arrays + non-power-of-2 capacity: fall back to insertion sort
+        insertion_sort(vec);
     }
 }
 

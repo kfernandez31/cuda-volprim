@@ -23,6 +23,11 @@ set_target_properties(device PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
 
+# Enable numerical guards for debugging (compile-time checks)
+target_compile_definitions(device PUBLIC
+    THESIS_ENABLE_NUMERICAL_GUARDS
+)
+
 # Link CUDA libraries (device-level dependencies)
 target_link_libraries(device PRIVATE
     CUDA::cuda_driver

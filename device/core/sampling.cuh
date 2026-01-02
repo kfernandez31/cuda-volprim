@@ -27,8 +27,8 @@ namespace device {
 
 namespace math = ::thesis::common::math;
 
-using PrimsSet = utils::Set<uint, consts::MAX_CAPACITY>;
-using HitBuffer = utils::StaticVector<HitRecord, consts::MAX_CAPACITY>;
+using PrimsSet = utils::Set<uint, consts::ACTIVE_PRIMS_CAPACITY>;
+using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 
 __forceinline__ __device__ float3 sample_phase(curandState& rng) {
     // Isotropic phase function: uniform over sphere
@@ -65,7 +65,7 @@ __forceinline__ __device__ float optical_depth_accumulated(
     #pragma unroll 4
     for (auto idx : prims) {
         const auto& prim = launch_params.primitives_[idx];
-        const auto prim_tau = prim.optical_depth(ray, t0, t1);
+        const auto prim_tau = prim.optical_depth(ray, t0, t1, "optical_depth_accumulated");
 
         // Check for sentinel value and propagate it
         if (prim_tau < 0.0f) {
@@ -164,7 +164,7 @@ __device__ __forceinline__ float3 evaluate_albedo(
     return accum_albedo * math::rcp(accum_weight);
 }
 
-__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::MAX_CAPACITY>& event, payloads::Miss& miss) {
+__device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss) {
     const auto chi = random::sample_uniform(rng);
     const auto tau_target = sample_target_optical_depth(chi);
 
@@ -179,6 +179,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
     }
 
     HitBuffer hit_buffer;
+    init_hit_buffer_sentinels(hit_buffer);  // Pre-fill with sentinels for fast sorting
 
     // STEP 1: For primitives we're inside, compute exits analytically
     const auto active_size = active_prims.size();
@@ -215,27 +216,50 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
         const auto& entry = hit_buffer[i];
         const auto& prim = launch_params.primitives_[entry.prim_idx];
 
-        const auto entry_point = ray.at(entry.t_hit);
-        const auto ray_from_entry = geometry::Ray::spawn_unchecked(entry_point, ray.direction_);
+        // Compute exit analytically using optimized formula (no epsilon offset needed!)
+        const float exit_t = common::geometry::compute_exit_from_entry(ray, entry.t_hit, prim);
 
-        // Intersect from inside the primitive - much more numerically stable!
-        auto isect_from_entry = common::geometry::intersect_ellipsoid(ray_from_entry, prim);
-
-        if (isect_from_entry.is_hit()) {
-            const float exit_t = entry.t_hit + isect_from_entry.t_exit;
-            hit_buffer.emplace_back(exit_t, entry.prim_idx, true);  // is_exit=true
-
-            if (is_debug_thread()) {
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Guard: verify exit computation succeeded (exit_t > entry.t_hit)
+        if (exit_t > entry.t_hit) {
+            // Defensive: check if buffer has space for exit
+            if (!hit_buffer.emplace_back(exit_t, entry.prim_idx, true)) {
+                // Buffer full - invalidate orphaned entry (should never happen with anyhit fix)
+                hit_buffer[i].t_hit = consts::INF_F;
+                printf("ERROR: Prim %u buffer overflow, couldn't add exit! Invalidating entry %u\n",
+                       entry.prim_idx, i);
+            } else if (is_debug_thread()) {
                 printf("  Prim %u: entry=%.6f, exit=%.6f (segment=%.6f)\n",
-                       entry.prim_idx, entry.t_hit, exit_t, isect_from_entry.t_exit);
+                       entry.prim_idx, entry.t_hit, exit_t, exit_t - entry.t_hit);
             }
         } else {
-            // This should never happen - OptiX gave us an entry, so intersection must succeed
-            printf("ERROR: Prim %u intersection failed from entry point %.6f! This is a bug.\n",
-                   entry.prim_idx, entry.t_hit);
-            // Don't add exit - let debugging reveal the issue
+            // Exit computation failed - mark entry as invalid for later removal
+            hit_buffer[i].t_hit = consts::INF_F;
+            printf("ERROR: Prim %u exit failed (entry=%.6f, exit=%.6f), invalidating entry\n",
+                   entry.prim_idx, entry.t_hit, exit_t);
+        }
+#else
+        // Production: assume exit computation always succeeds and buffer has space
+        hit_buffer.emplace_back(exit_t, entry.prim_idx, true);
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+    }
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    // Remove invalidated entries (marked with t_hit = INF_F)
+    size_t write_idx = 0;
+    for (size_t read_idx = 0; read_idx < hit_buffer.size(); read_idx++) {
+        if (hit_buffer[read_idx].t_hit < consts::INF_F) {
+            if (write_idx != read_idx) {
+                hit_buffer[write_idx] = hit_buffer[read_idx];
+            }
+            write_idx++;
         }
     }
+    // Truncate buffer to new size by popping excess elements
+    while (hit_buffer.size() > write_idx) {
+        hit_buffer.pop_back();
+    }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
     // If no hits (no entries traced, no active_prims), ray escaped
     if (hit_buffer.size() == 0) {
@@ -330,7 +354,7 @@ __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& r
                     // Ray started inside this primitive (no entry was detected)
                     // Manually integrate from ray origin to this exit
                     const auto& prim = launch_params.primitives_[prim_idx];
-                    const auto tau_from_origin = prim.optical_depth(ray, 0.0f, t_current);
+                    const auto tau_from_origin = prim.optical_depth(ray, 0.0f, t_current, "camera_inside");
 
                     // Check for sentinel error value (negative optical depth is invalid)
                     if (tau_from_origin < 0.0f) {
@@ -401,6 +425,7 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
     }
 
     HitBuffer hit_buffer;
+    init_hit_buffer_sentinels(hit_buffer);  // Pre-fill with sentinels for fast sorting
 
     // STEP 1: For primitives we're inside, compute exits analytically
     const auto active_size_initial = active_prims.size();
@@ -432,22 +457,47 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, Prim
         const auto& entry = hit_buffer[i];
         const auto& prim = launch_params.primitives_[entry.prim_idx];
 
-        const auto entry_point = ray.at(entry.t_hit);
-        const auto ray_from_entry = geometry::Ray::spawn_unchecked(entry_point, ray.direction_);
+        // Compute exit analytically using optimized formula (no epsilon offset needed!)
+        const float exit_t = common::geometry::compute_exit_from_entry(ray, entry.t_hit, prim);
 
-        // Intersect from inside the primitive - much more numerically stable!
-        auto isect_from_entry = common::geometry::intersect_ellipsoid(ray_from_entry, prim);
-
-        if (isect_from_entry.is_hit()) {
-            const float exit_t = entry.t_hit + isect_from_entry.t_exit;
-            hit_buffer.emplace_back(exit_t, entry.prim_idx, true);  // is_exit=true
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Guard: verify exit computation succeeded (exit_t > entry.t_hit)
+        if (exit_t > entry.t_hit) {
+            // Defensive: check if buffer has space for exit
+            if (!hit_buffer.emplace_back(exit_t, entry.prim_idx, true)) {
+                // Buffer full - invalidate orphaned entry (should never happen with anyhit fix)
+                hit_buffer[i].t_hit = consts::INF_F;
+                printf("ERROR: Prim %u buffer overflow, couldn't add exit! Invalidating entry %u\n",
+                       entry.prim_idx, i);
+            }
         } else {
-            // This should never happen - OptiX gave us an entry, so intersection must succeed
-            printf("ERROR: Prim %u intersection failed from entry point %.6f! This is a bug.\n",
-                   entry.prim_idx, entry.t_hit);
-            // Don't add exit - let debugging reveal the issue
+            // Exit computation failed - mark entry as invalid for later removal
+            hit_buffer[i].t_hit = consts::INF_F;
+            printf("ERROR: Prim %u exit failed (entry=%.6f, exit=%.6f), invalidating entry\n",
+                   entry.prim_idx, entry.t_hit, exit_t);
+        }
+#else
+        // Production: assume exit computation always succeeds and buffer has space
+        hit_buffer.emplace_back(exit_t, entry.prim_idx, true);
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+    }
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    // Remove invalidated entries (marked with t_hit = INF_F)
+    size_t write_idx = 0;
+    for (size_t read_idx = 0; read_idx < hit_buffer.size(); read_idx++) {
+        if (hit_buffer[read_idx].t_hit < consts::INF_F) {
+            if (write_idx != read_idx) {
+                hit_buffer[write_idx] = hit_buffer[read_idx];
+            }
+            write_idx++;
         }
     }
+    // Truncate buffer to new size by popping excess elements
+    while (hit_buffer.size() > write_idx) {
+        hit_buffer.pop_back();
+    }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
     // If no hits, no more geometry to process
     if (hit_buffer.size() == 0) {

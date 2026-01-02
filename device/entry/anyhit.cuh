@@ -13,7 +13,7 @@
 
 namespace thesis {
 namespace device {
-using HitBuffer = utils::StaticVector<HitRecord, consts::MAX_CAPACITY>;
+using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 }
 }
 
@@ -25,7 +25,9 @@ extern "C" __global__ void __anyhit__ah() {
 
     auto* hit_buffer = unpack_ptr<HitBuffer>(payload.buffer_ptr_low, payload.buffer_ptr_high);
 
-    if (!hit_buffer->full()) {
+    // Reserve space for exits: only collect up to MAX_PRIMITIVES entries
+    // Each entry needs a corresponding exit (total = 2 × MAX_PRIMITIVES = HIT_BUFFER_CAPACITY)
+    if (hit_buffer->size() < consts::MAX_PRIMITIVES) {
         const float t = optixGetRayTmax();
         const uint prim_idx = optixGetInstanceId();
 
@@ -37,10 +39,10 @@ extern "C" __global__ void __anyhit__ah() {
         hit_buffer->emplace_back(t, prim_idx, false);
         optixIgnoreIntersection();
     } else {
-        // Buffer full - terminate ray to prevent undefined behavior
+        // Entry capacity reached - terminate ray to reserve space for exits
         if (is_debug_thread()) {
-            printf("anyhit: HIT BUFFER FULL (capacity=%u), terminating ray\n",
-                   static_cast<uint>(consts::MAX_CAPACITY));
+            printf("anyhit: ENTRY CAPACITY REACHED (%u entries, max=%u), terminating ray\n",
+                   static_cast<uint>(hit_buffer->size()), static_cast<uint>(consts::MAX_PRIMITIVES));
         }
         optixTerminateRay();
     }
