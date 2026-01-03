@@ -26,8 +26,8 @@ namespace params {
 class Image {
    private:
     cuda::AsyncBuffer<float4> sample_buffer_managed_;    // Batch-sized buffer (not full spp)
-    cuda::AsyncBuffer<float3> accumulator_managed_;      // Running sum [pixels]
-    cuda::AsyncBuffer<float3> averaged_pixels_managed_;  // Final output
+    cuda::AsyncBuffer<float4> accumulator_managed_;      // Running sum [pixels] (RGBA, W unused for alignment)
+    cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
     device::params::Image device_image_;                 // Device-compatible POD struct
     size_t batch_size_;                                  // Maximum samples per batch
     std::shared_ptr<cuda::Stream> stream_;               // Stream for operations
@@ -46,7 +46,7 @@ class Image {
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
         device_image_.sample_buffer_ = const_cast<float4*>(sample_buffer_managed_.device());
-        device_image_.accumulator_ = const_cast<float3*>(accumulator_managed_.device());
+        device_image_.accumulator_ = const_cast<float4*>(accumulator_managed_.device());
         device_image_.width_ = width;
         device_image_.height_ = height;
         device_image_.image_size_ = width * height;

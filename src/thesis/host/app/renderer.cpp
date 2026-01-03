@@ -40,7 +40,7 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
       primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
-      camera_active_prims_(0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
+      camera_active_prims_(),
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
@@ -53,12 +53,6 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
     initPrimsAndGAS(std::move(primitives));
     createPipeline(std::move(module_file_future));
     initStaticParams();  // Initialize static parameters once (camera-inside, etc.)
-}
-
-Renderer::~Renderer() {
-    if (builtin_is_module_) {
-        optixModuleDestroy(builtin_is_module_);
-    }
 }
 
 void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
@@ -75,7 +69,7 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
         OptixInstance inst{};
 
         const auto transform = prim.localToWorld();
-        std::memcpy(inst.transform, transform.ptr(), 12 * sizeof(float));
+        std::memcpy(inst.transform, transform.ptr(), sizeof(transform));
 
         inst.traversableHandle = gas_.get();
         inst.instanceId = static_cast<uint>(i);
@@ -118,28 +112,20 @@ void Renderer::initStaticParams() {
 
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
-        camera_active_prims_ =
-            cuda::AsyncBuffer<uint>(camera_active.size(), cuda_ctx_.get(),
-                                    streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
-        std::memcpy(camera_active_prims_.host(), camera_active.data(),
-                    camera_active.size() * sizeof(uint));
-        camera_active_prims_.upload();
-    } else {
-        camera_active_prims_ = cuda::AsyncBuffer<uint>(
-            0, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
-    }
+        camera_active_prims_ = cuda::AsyncBuffer<uint>(camera_active, cuda_ctx_.get(),
+                                                        streams_[cuda::StreamKind::Main]);
+    } // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
 
     // Initialize static launch parameters (never change during rendering)
     auto& par = launch_params_[0];
     par.seed_ = config_.seed_;
-    par.debug_ = config_.debug_;
     par.ias_handle_ = ias_.get();
     par.camera_ = camera_.device_camera();
     par.env_map_ = env_map_.device_env_map();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(),
                                                                               primitives_.size());
     par.camera_active_prims_ =
-        device::utils::DynamicVector<uint>(camera_active_prims_.device(), camera_active.size());
+        device::utils::DynamicVector<uint>(camera_active_prims_.device(), camera_active_prims_.size());
 
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();
@@ -186,8 +172,9 @@ void Renderer::createPipeline(
     builtin_mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 #endif
 
-    OPTIX_CHECK(optixBuiltinISModuleGet(optix_ctx_.get(), &builtin_mco, &pco, &builtin_is_options,
-                                        &builtin_is_module_));
+    builtin_is_module_ =
+        optix::Module::createBuiltinIS(optix_ctx_.get(), builtin_mco, pco, builtin_is_options)
+            .value();
 
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(optix_ctx_.get(), module_.get(),
@@ -201,7 +188,7 @@ void Renderer::createPipeline(
     // Closesthit disabled via OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT in trace.cuh
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(), module_.get(), config_.anyhit_function_name_.c_str(),
-        builtin_is_module_  // Built-in sphere intersection module
+        builtin_is_module_.get()  // Built-in sphere intersection module
     );
 
     // sbt

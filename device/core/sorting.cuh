@@ -75,7 +75,6 @@ __device__ __forceinline__ void insertion_sort(utils::StaticVector<HitRecord, N>
 // O(n log²n) parallel sorting network
 // Works on power-of-2 capacity by padding with sentinels
 // Helper: Initialize buffer with sentinels (call once after construction)
-// Compiles to no-op for non-power-of-2 capacities (zero overhead)
 template <size_t N>
 __device__ __forceinline__ void init_hit_buffer_sentinels(utils::StaticVector<HitRecord, N>& vec) {
     if constexpr ((N & (N - 1)) != 0) {
@@ -100,21 +99,14 @@ __device__ void bitonic_sort(utils::StaticVector<HitRecord, N>& vec) {
 
     const size_t original_size = vec.size();
 
-    // Extend to full capacity (assumes buffer was pre-initialized with sentinels)
+    // Extend to full capacity (assumes buffer was pre-initialized with sentinels, see: init_hit_buffer_sentinels)
     vec.resize(N);
     const size_t n = N;
 
-    // Comparison: primary key is t_hit, with deterministic tie-breaking
-    auto less = [](const HitRecord& a, const HitRecord& b) -> bool {
-        if (a.t_hit < b.t_hit) return true;
-        if (a.t_hit > b.t_hit) return false;
-        return a.prim_idx < b.prim_idx;
-    };
-
     // Standard bitonic sort on power-of-2 array
-    for (size_t k = 2; k <= n; k *= 2) {
+    for (size_t k = 2; k <= N; k *= 2) {
         for (size_t j = k / 2; j > 0; j /= 2) {
-            for (size_t i = 0; i < n; i++) {
+            for (size_t i = 0; i < N; i++) {
                 const size_t ixj = i ^ j;
                 if (ixj <= i) continue;
 
@@ -123,7 +115,7 @@ __device__ void bitonic_sort(utils::StaticVector<HitRecord, N>& vec) {
                 HitRecord a = vec[i];
                 HitRecord b = vec[ixj];
 
-                const bool a_less = less(a, b);
+                const bool a_less = a < b;
                 HitRecord mn = a_less ? a : b;
                 HitRecord mx = a_less ? b : a;
 
@@ -149,16 +141,14 @@ __device__ __forceinline__ void sort(utils::StaticVector<HitRecord, N>& vec) {
         return;  // Already sorted
     }
 
-    if (n <= 64) {
-        // Small arrays: O(n²) insertion sort has lower overhead
+    if (n <= 64) { // small arrays
         insertion_sort(vec);
-    } else if constexpr ((N & (N - 1)) == 0) {
-        // Large arrays + power-of-2 capacity: O(n log²n) bitonic sort
-        // Requires pre-initialization with sentinels (see init_hit_buffer_sentinels)
-        bitonic_sort(vec);
-    } else {
-        // Large arrays + non-power-of-2 capacity: fall back to insertion sort
-        insertion_sort(vec);
+    } else { // big arrays
+        if constexpr ((N & (N - 1)) == 0) { // power-of-2 capacity
+            bitonic_sort(vec);
+        } else {
+            insertion_sort(vec);
+        }
     }
 }
 

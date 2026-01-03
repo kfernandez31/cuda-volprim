@@ -42,8 +42,8 @@ namespace async {
 [[nodiscard]] std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
     const std::filesystem::path& filename);
 
-// Saves image to EXR file
-[[nodiscard]] std::future<Result<>> saveExr(cuda::AsyncBuffer<float3>&& buffer, size_t width,
+// Saves image to EXR file (extracts RGB from RGBA, W component ignored)
+[[nodiscard]] std::future<Result<>> saveExr(cuda::AsyncBuffer<float4>&& buffer, size_t width,
                                             size_t height, const std::filesystem::path& filename,
                                             bool flip_vertical = true) noexcept;
 

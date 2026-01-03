@@ -47,6 +47,17 @@ class Module {
         return module;
     }
 
+    [[nodiscard]] static utils::Result<Module> createBuiltinIS(
+        OptixDeviceContext ctx, const OptixModuleCompileOptions& mco,
+        const OptixPipelineCompileOptions& pco, const OptixBuiltinISOptions& builtin_is_options) {
+        Module module;
+
+        OPTIX_CALL_LOGGED(optixBuiltinISModuleGet(ctx, &mco, &pco, &builtin_is_options,
+                                                   log.data(), &log_size, &module.handle_));
+
+        return module;
+    }
+
     ~Module() { reset(); }
 
     Module(Module&& other) noexcept

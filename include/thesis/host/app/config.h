@@ -28,7 +28,6 @@ struct Config {
     size_t image_height_ = 750;
 
     uint seed_ = 42;
-    bool debug_ = false;
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept {
         Config config;
@@ -61,7 +60,6 @@ struct Config {
         // clang-format off
         auto* runtime_group = app.add_option_group("Runtime tweaks");
         runtime_group->add_option("--seed", config.seed_, "Random seed");
-        runtime_group->add_option("--debug", config.debug_, "Enable debug output");
 
         // clang-format on
         argv = app.ensure_utf8(argv);

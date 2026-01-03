@@ -40,6 +40,20 @@ class THESIS_ALIGNMENT SetBase {
     __device__ __forceinline__ bool insert(const T& v) { return Policy::insert(*this, v); }
     __device__ __forceinline__ bool erase(const T& v) { return Policy::erase(*this, v); }
 
+    // Initialize from pre-sorted contiguous array (replaces existing contents)
+    // REQUIRES: src must be sorted if this is a BinarySet, unsorted OK for LinearSet
+    // Returns false if insufficient capacity, true on success
+    __device__ __forceinline__ bool init_from_presorted(const T* src, size_t count) {
+        if (count > Capacity) {
+            return false;
+        }
+        for (size_t i = 0; i < count; ++i) {
+            data_[i] = src[i];
+        }
+        size_ = count;
+        return true;
+    }
+
     // iterators
     __device__ __forceinline__ T* begin() { return data_; }
     __device__ __forceinline__ T* end() { return data_ + size_; }
@@ -184,6 +198,10 @@ constexpr size_t SET_THRESHOLD = 32;
 template <typename T, size_t Capacity>
 using Set =
     std::conditional_t<(Capacity > SET_THRESHOLD), BinarySet<T, Capacity>, LinearSet<T, Capacity>>;
+
+// Helper constant: true if Set<T, Capacity> uses BinarySet (requires sorted order)
+template <size_t Capacity>
+constexpr bool set_requires_sorting = (Capacity > SET_THRESHOLD);
 
 }  // namespace utils
 }  // namespace device

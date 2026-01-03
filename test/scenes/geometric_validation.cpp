@@ -278,7 +278,7 @@ TestScene transform_rotation() {
     return scene;
 }
 
-TestScene transform_translation() { // TODO: doesn't terminate
+TestScene transform_translation() {
     TestScene scene;
     scene.name = "transform_translation";
     scene.description = "Same Gaussian at different positions → validates translation";

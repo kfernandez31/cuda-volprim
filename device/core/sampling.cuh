@@ -65,12 +65,14 @@ __forceinline__ __device__ float optical_depth_accumulated(
     #pragma unroll 4
     for (auto idx : prims) {
         const auto& prim = launch_params.primitives_[idx];
-        const auto prim_tau = prim.optical_depth(ray, t0, t1, "optical_depth_accumulated");
+        const auto prim_tau = prim.optical_depth(ray, t0, t1);
 
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         // Check for sentinel value and propagate it
         if (prim_tau < 0.0f) {
-            return -420.0f;  // Propagate error sentinel
+            return -1.0f;  // Propagate error sentinel
         }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
         tau += prim_tau;
     }
@@ -164,426 +166,239 @@ __device__ __forceinline__ float3 evaluate_albedo(
     return accum_albedo * math::rcp(accum_weight);
 }
 
+// Helper: Collect and sort all ray-primitive hits
+// Returns sorted hit buffer. Also returns Miss payload if provided (for scattering event path).
+__device__ HitBuffer collect_and_sort_hits(
+    const geometry::Ray& ray,
+    const PrimsSet& active_prims,
+    payloads::Miss* out_miss = nullptr
+) {
+    HitBuffer hit_buffer;
+    init_hit_buffer_sentinels(hit_buffer);
+
+    // STEP 1: For primitives we're inside, compute exits analytically
+    const auto active_size = active_prims.size();
+    for (size_t idx = 0; idx < active_size; ++idx) {
+        const auto prim_idx = active_prims[idx];
+        const auto& prim = launch_params.primitives_[prim_idx];
+        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
+
+        if (isect.starts_inside()) {
+            (void)hit_buffer.emplace_back(isect.t_exit, prim_idx, true);
+        }
+    }
+
+    // STEP 2: Trace with backface culling to get NEW entries
+    const size_t num_computed_exits = hit_buffer.size();
+    auto miss = trace_ch_collect(ray, 0.0f, consts::INF_F, hit_buffer);
+    if (out_miss) *out_miss = miss;  // Optionally return Miss payload
+
+    // STEP 3: For each traced entry, compute exit analytically
+    const size_t total_after_trace = hit_buffer.size();
+    for (size_t i = num_computed_exits; i < total_after_trace; ++i) {
+        const auto& entry = hit_buffer[i];
+        const auto& prim = launch_params.primitives_[entry.prim_idx];
+
+        // Compute w_len2 once (optimization: avoid recomputing in compute_exit_from_entry)
+        const auto w = prim.transform_dir_local(ray.direction_);
+        const auto w_len2 = math::length2(w);
+
+        const float exit_t = common::geometry::compute_exit_from_entry(ray, entry.t_hit, prim, w_len2);
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        if (exit_t > entry.t_hit) {
+            if (!hit_buffer.emplace_back(exit_t, entry.prim_idx, true)) {
+                hit_buffer[i].t_hit = consts::INF_F;
+            }
+        } else {
+            hit_buffer[i].t_hit = consts::INF_F;
+        }
+#else
+        (void)hit_buffer.emplace_back(exit_t, entry.prim_idx, true);
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+    }
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    // Remove invalidated entries
+    size_t write_idx = 0;
+    for (size_t read_idx = 0; read_idx < hit_buffer.size(); ++read_idx) {
+        if (hit_buffer[read_idx].t_hit < consts::INF_F) {
+            if (write_idx != read_idx) {
+                hit_buffer[write_idx] = hit_buffer[read_idx];
+            }
+            ++write_idx;
+        }
+    }
+    hit_buffer.resize(write_idx);
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+
+    // STEP 4: Sort hits by t-value
+    sort(hit_buffer);
+
+    return hit_buffer;
+}
+
+// Process result enum for cluster processing callbacks
+enum class ClusterProcessResult {
+    CONTINUE,      // Continue to next cluster
+    EARLY_EXIT     // Stop processing immediately
+};
+
+// Generic cluster processor: processes sorted hit buffer in t-value clusters
+// Calls user callbacks for segment processing and ray-started-inside handling
+// This eliminates code duplication between sample_scattering_event and compute_optical_depth_along_ray
+template<typename SegmentCallback, typename RayStartedInsideCallback>
+__device__ void process_hit_clusters(
+    const geometry::Ray& ray,
+    const HitBuffer& hit_buffer,
+    PrimsSet& active_prims,
+    SegmentCallback&& on_segment,
+    RayStartedInsideCallback&& on_ray_started_inside
+) {
+    float t_prev_hit = 0.0f;
+
+    for (size_t i = 0; i < hit_buffer.size(); ) {
+        const float t_current = hit_buffer[i].t_hit;
+
+        // User-defined segment processing (returns CONTINUE or EARLY_EXIT)
+        const auto result = on_segment(t_prev_hit, t_current);
+        if (result == ClusterProcessResult::EARLY_EXIT) {
+            return;
+        }
+
+        // Process ALL hits at this t-value (cluster processing for coincident surfaces)
+        size_t j = i;
+        while (j < hit_buffer.size() && math::abs(hit_buffer[j].t_hit - t_current) < consts::HIT_COINCIDENCE_EPS) {
+            const auto& hit = hit_buffer[j];
+
+            // Update active primitives set
+            if (!hit.is_exit) {
+                (void)active_prims.insert(hit.prim_idx);
+            } else {
+                if (active_prims.contains(hit.prim_idx)) {
+                    // Normal paired exit - remove from active set
+                    (void)active_prims.erase(hit.prim_idx);
+                } else {
+                    // Ray started inside this primitive (no entry was detected)
+                    // Manually integrate from ray origin to this exit
+                    const auto result = on_ray_started_inside(hit.prim_idx, t_current);
+                    if (result == ClusterProcessResult::EARLY_EXIT) {
+                        return;
+                    }
+                }
+            }
+
+            ++j;
+        }
+
+        t_prev_hit = t_current;
+        i = j;  // Move to next cluster
+    }
+}
+
 __device__ bool sample_scattering_event(const geometry::Ray& ray, curandState& rng, optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss) {
     const auto chi = random::sample_uniform(rng);
     const auto tau_target = sample_target_optical_depth(chi);
 
     auto& active_prims = event.active_prims_;
 
-    if (is_debug_thread()) {
-        printf("\n=== sample_scattering_event ENTRY, tau_target=%.3f ===\n", tau_target);
-        printf("  Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
-               ray.origin_.x, ray.origin_.y, ray.origin_.z,
-               ray.direction_.x, ray.direction_.y, ray.direction_.z);
-        printf("  active_prims.size=%u\n", static_cast<uint>(active_prims.size()));
-    }
+    // Collect and sort all hits (also captures Miss payload)
+    auto hit_buffer = collect_and_sort_hits(ray, active_prims, &miss);
 
-    HitBuffer hit_buffer;
-    init_hit_buffer_sentinels(hit_buffer);  // Pre-fill with sentinels for fast sorting
-
-    // STEP 1: For primitives we're inside, compute exits analytically
-    const auto active_size = active_prims.size();
-    for (size_t idx = 0; idx < active_size; idx++) {
-        const auto prim_idx = active_prims[idx];
-        const auto& prim = launch_params.primitives_[prim_idx];
-        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
-
-        if (isect.starts_inside()) {
-            hit_buffer.emplace_back(isect.t_exit, prim_idx, true);  // is_exit=true
-
-            if (is_debug_thread()) {
-                printf("  Ray starts inside prim %u, exit at t=%.6f\n",
-                       prim_idx, isect.t_exit);
-            }
-        }
-    }
-
-    // STEP 2: Trace with backface culling to get NEW entries
-    const size_t num_computed_exits = hit_buffer.size();
-    trace_ch_collect(ray, 0.0f, consts::INF_F, hit_buffer);
-
-    if (is_debug_thread()) {
-        printf("  Traced %u entries (total buffer=%u)\n",
-               static_cast<uint>(hit_buffer.size() - num_computed_exits),
-               static_cast<uint>(hit_buffer.size()));
-    }
-
-    // STEP 3: For each traced entry, compute exit analytically
-    // Key insight: Compute exit from the ENTRY POINT (not ray origin) to avoid accumulated numerical error
-    const size_t total_after_trace = hit_buffer.size();
-    for (size_t i = num_computed_exits; i < total_after_trace; i++) {
-        // All traced hits are entries (backface culling)
-        const auto& entry = hit_buffer[i];
-        const auto& prim = launch_params.primitives_[entry.prim_idx];
-
-        // Compute exit analytically using optimized formula (no epsilon offset needed!)
-        const float exit_t = common::geometry::compute_exit_from_entry(ray, entry.t_hit, prim);
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-        // Guard: verify exit computation succeeded (exit_t > entry.t_hit)
-        if (exit_t > entry.t_hit) {
-            // Defensive: check if buffer has space for exit
-            if (!hit_buffer.emplace_back(exit_t, entry.prim_idx, true)) {
-                // Buffer full - invalidate orphaned entry (should never happen with anyhit fix)
-                hit_buffer[i].t_hit = consts::INF_F;
-                printf("ERROR: Prim %u buffer overflow, couldn't add exit! Invalidating entry %u\n",
-                       entry.prim_idx, i);
-            } else if (is_debug_thread()) {
-                printf("  Prim %u: entry=%.6f, exit=%.6f (segment=%.6f)\n",
-                       entry.prim_idx, entry.t_hit, exit_t, exit_t - entry.t_hit);
-            }
-        } else {
-            // Exit computation failed - mark entry as invalid for later removal
-            hit_buffer[i].t_hit = consts::INF_F;
-            printf("ERROR: Prim %u exit failed (entry=%.6f, exit=%.6f), invalidating entry\n",
-                   entry.prim_idx, entry.t_hit, exit_t);
-        }
-#else
-        // Production: assume exit computation always succeeds and buffer has space
-        hit_buffer.emplace_back(exit_t, entry.prim_idx, true);
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-    }
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-    // Remove invalidated entries (marked with t_hit = INF_F)
-    size_t write_idx = 0;
-    for (size_t read_idx = 0; read_idx < hit_buffer.size(); read_idx++) {
-        if (hit_buffer[read_idx].t_hit < consts::INF_F) {
-            if (write_idx != read_idx) {
-                hit_buffer[write_idx] = hit_buffer[read_idx];
-            }
-            write_idx++;
-        }
-    }
-    // Truncate buffer to new size by popping excess elements
-    while (hit_buffer.size() > write_idx) {
-        hit_buffer.pop_back();
-    }
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-
-    // If no hits (no entries traced, no active_prims), ray escaped
-    if (hit_buffer.size() == 0) {
-        if (is_debug_thread()) printf("  No geometry, RETURNING FALSE\n");
+    // If no hits, ray escaped
+    if (hit_buffer.empty()) {
         active_prims.clear();
-        auto color = launch_params.env_map_.sample(ray.direction_);
-        miss = payloads::Miss(color);
         return false;
     }
 
-    // Sort hits by t-value
-    sort(hit_buffer);
-
-    if (is_debug_thread()) {
-        printf("  After sort, buffer size=%u:\n", static_cast<uint>(hit_buffer.size()));
-        for (size_t j = 0; j < hit_buffer.size(); j++) {
-            printf("    [%u] t=%.6f, prim=%u, exit=%d\n",
-                   static_cast<uint>(j), hit_buffer[j].t_hit, hit_buffer[j].prim_idx, hit_buffer[j].is_exit);
-
-            // Check for coincident hits (surfaces at same t-value)
-            if (j > 0 && math::abs(hit_buffer[j].t_hit - hit_buffer[j-1].t_hit) < consts::HIT_COINCIDENCE_EPS) {
-                printf("      WARNING: Coincident with previous hit (dt=%.9f)\n",
-                       hit_buffer[j].t_hit - hit_buffer[j-1].t_hit);
-            }
-        }
-    }
-
     // Process hits incrementally until scattering occurs
-    // Key insight: Process ALL hits at the same t-value before integrating to next t
     float tau_cumulative = 0.0f;
-    float t_prev_hit = 0.0f;
+    bool scattered = false;
 
-    for (size_t i = 0; i < hit_buffer.size(); ) {
-        const float t_current = hit_buffer[i].t_hit;
+    process_hit_clusters(
+        ray, hit_buffer, active_prims,
+        // Segment callback: integrate optical depth and check for scattering
+        [&](float t_prev, float t_current) -> ClusterProcessResult {
+            const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_prev, t_current);
 
-        // Integrate from previous t to current t
-        const auto tau_segment = optical_depth_accumulated(ray, active_prims, t_prev_hit, t_current);
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+            // Check for sentinel error value (negative optical depth is invalid)
+            if (tau_segment < 0.0f) {
+                // Force ray to escape to avoid infinite loop
+                return ClusterProcessResult::EARLY_EXIT;
+            }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-        // Check for sentinel error value (negative optical depth is invalid)
-        if (tau_segment < 0.0f) {
-            printf("ERROR: Hit sentinel value (%.3f) in tau_segment! Terminating ray.\n", tau_segment);
-            // Force ray to escape to avoid infinite loop
-            auto color = launch_params.env_map_.sample(ray.direction_);
-            miss = payloads::Miss(color);
-            return false;
-        }
+            // Check if scattering occurs before reaching this cluster
+            if (tau_cumulative + tau_segment >= tau_target) {
+                const auto tau_needed = tau_target - tau_cumulative;
+                const auto t_scatter = sample_distance_bisection(ray, active_prims, tau_needed, t_prev, t_current);
 
-        if (is_debug_thread()) {
-            printf("  Processing cluster at t=%.6f, tau_segment=%.3f, tau_cumulative=%.3f, tau_target=%.3f, active_prims.size=%u\n",
-                   t_current, tau_segment, tau_cumulative, tau_target, static_cast<uint>(active_prims.size()));
-        }
+                event.t_hit_ = t_scatter;
+                event.position_ = ray.at(t_scatter);
+                event.direction_ = sample_phase(rng);
 
-        // Check if scattering occurs before reaching this cluster
-        if (tau_cumulative + tau_segment >= tau_target) {
-            auto tau_needed = tau_target - tau_cumulative;
-
-            auto t_scatter = sample_distance_bisection(ray, active_prims, tau_needed, t_prev_hit, t_current);
-
-            if (is_debug_thread()) {
-                printf("  SCATTERING at t=%.3f, active_prims=[", t_scatter);
-                const auto size = active_prims.size();
-                for (size_t i = 0; i < size; i++) {
-                    if (i > 0) printf(",");
-                    printf("%u", active_prims[i]);
-                }
-                printf("] size=%u\n", static_cast<uint>(size));
+                scattered = true;
+                return ClusterProcessResult::EARLY_EXIT;
             }
 
-            event.t_hit_ = t_scatter;
-            event.position_ = ray.at(t_scatter);
-            event.direction_ = sample_phase(rng);
+            tau_cumulative += tau_segment;
+            return ClusterProcessResult::CONTINUE;
+        },
+        // Ray-started-inside callback: handle primitives we're already inside
+        [&](uint prim_idx, float t_exit) -> ClusterProcessResult {
+            const auto& prim = launch_params.primitives_[prim_idx];
+            const auto tau_from_origin = prim.optical_depth(ray, 0.0f, t_exit);
 
-            return true;
-        }
-
-        tau_cumulative += tau_segment;
-
-        // Process ALL hits at this t-value before moving to next segment
-        size_t j = i;
-        while (j < hit_buffer.size() && math::abs(hit_buffer[j].t_hit - t_current) < consts::HIT_COINCIDENCE_EPS) {
-            const auto& hit = hit_buffer[j];
-            const auto prim_idx = hit.prim_idx;
-            const auto is_exit = hit.is_exit;
-
-            if (is_debug_thread()) {
-                printf("    Hit %u: t=%.6f, prim=%u, is_exit=%d\n", static_cast<uint>(j), hit.t_hit, prim_idx, is_exit);
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+            // Check for sentinel error value (negative optical depth is invalid)
+            if (tau_from_origin < 0.0f) {
+                // Force ray to escape to avoid infinite loop
+                return ClusterProcessResult::EARLY_EXIT;
             }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-            // Update active primitives set
-            if (is_exit) {
-                if (!active_prims.contains(prim_idx)) {
-                    // Ray started inside this primitive (no entry was detected)
-                    // Manually integrate from ray origin to this exit
-                    const auto& prim = launch_params.primitives_[prim_idx];
-                    const auto tau_from_origin = prim.optical_depth(ray, 0.0f, t_current, "camera_inside");
-
-                    // Check for sentinel error value (negative optical depth is invalid)
-                    if (tau_from_origin < 0.0f) {
-                        printf("ERROR: Hit sentinel value (%.3f) in tau_from_origin! Terminating ray.\n", tau_from_origin);
-                        // Force ray to escape to avoid infinite loop
-                        auto color = launch_params.env_map_.sample(ray.direction_);
-                        miss = payloads::Miss(color);
-                        return false;
-                    }
-
-                    tau_cumulative += tau_from_origin;
-
-                    if (is_debug_thread()) {
-                        printf("      UNPAIRED EXIT: prim %u was active from ray origin, tau=[0,%.3f]=%.3f\n",
-                               prim_idx, t_current, tau_from_origin);
-                    }
-                    // Don't try to erase - it's not in the set
-                } else {
-                    // Normal paired exit - remove from active set
-                    if (is_debug_thread()) printf("      EXIT: erasing prim %u from active_prims\n", prim_idx);
-                    if (!active_prims.erase(prim_idx)) {
-                        if (is_debug_thread()) printf("      erase failed for prim %u\n", prim_idx);
-                    } else if (is_debug_thread()) {
-                        printf("      erased prim %u\n", prim_idx);
-                    }
-                }
-            } else {
-                if (is_debug_thread()) printf("      ENTRY: inserting prim %u into active_prims\n", prim_idx);
-                if (!active_prims.insert(prim_idx)) {
-                    if (is_debug_thread()) printf("      insert failed for prim %u\n", prim_idx);
-                } else if (is_debug_thread()) {
-                    printf("      inserted prim %u\n", prim_idx);
-                }
-            }
-
-            j++;
+            tau_cumulative += tau_from_origin;
+            return ClusterProcessResult::CONTINUE;
         }
+    );
 
-        t_prev_hit = t_current;
-        i = j;  // Move to next cluster
-    }
-
-    // No scattering occurred along entire ray
-    if (is_debug_thread()) {
-        printf("  Processed all %u hits, no scattering, RETURNING FALSE\n", static_cast<uint>(hit_buffer.size()));
-    }
-
-    auto color = launch_params.env_map_.sample(ray.direction_);
-    miss = payloads::Miss(color);
-    return false;
+    // miss already set from trace_ch_collect
+    return scattered;
 }
 
 __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray, PrimsSet& active_prims) {
     auto acc_optical_depth = make_float3(0.0f);
 
-    if (is_debug_thread()) {
-        printf("\n=== compute_optical_depth_along_ray ===\n");
-        printf("Ray: origin=(%.3f,%.3f,%.3f), dir=(%.3f,%.3f,%.3f)\n",
-               ray.origin_.x, ray.origin_.y, ray.origin_.z,
-               ray.direction_.x, ray.direction_.y, ray.direction_.z);
-        printf("Initial active_prims: [");
-        const auto size = active_prims.size();
-        for (size_t i = 0; i < size; i++) {
-            if (i > 0) printf(",");
-            printf("%u", active_prims[i]);
-        }
-        printf("] size=%u\n", static_cast<uint>(size));
-    }
+    // Collect and sort all hits (Miss payload not needed, so don't capture it)
+    auto hit_buffer = collect_and_sort_hits(ray, active_prims);
 
-    HitBuffer hit_buffer;
-    init_hit_buffer_sentinels(hit_buffer);  // Pre-fill with sentinels for fast sorting
-
-    // STEP 1: For primitives we're inside, compute exits analytically
-    const auto active_size_initial = active_prims.size();
-    for (size_t idx = 0; idx < active_size_initial; idx++) {
-        const auto prim_idx = active_prims[idx];
-        const auto& prim = launch_params.primitives_[prim_idx];
-        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
-
-        if (isect.starts_inside()) {
-            hit_buffer.emplace_back(isect.t_exit, prim_idx, true);  // is_exit=true
-        }
-    }
-
-    // STEP 2: Trace with backface culling to get NEW entries
-    const size_t num_computed_exits = hit_buffer.size();
-    trace_ch_collect(ray, 0.0f, consts::INF_F, hit_buffer);
-
-    if (is_debug_thread()) {
-        printf("  Traced %u entries (total buffer=%u)\n",
-               static_cast<uint>(hit_buffer.size() - num_computed_exits),
-               static_cast<uint>(hit_buffer.size()));
-    }
-
-    // STEP 3: For each traced entry, compute exit analytically
-    // Key insight: Compute exit from the ENTRY POINT (not ray origin) to avoid accumulated numerical error
-    const size_t total_after_trace = hit_buffer.size();
-    for (size_t i = num_computed_exits; i < total_after_trace; i++) {
-        // All traced hits are entries (backface culling)
-        const auto& entry = hit_buffer[i];
-        const auto& prim = launch_params.primitives_[entry.prim_idx];
-
-        // Compute exit analytically using optimized formula (no epsilon offset needed!)
-        const float exit_t = common::geometry::compute_exit_from_entry(ray, entry.t_hit, prim);
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-        // Guard: verify exit computation succeeded (exit_t > entry.t_hit)
-        if (exit_t > entry.t_hit) {
-            // Defensive: check if buffer has space for exit
-            if (!hit_buffer.emplace_back(exit_t, entry.prim_idx, true)) {
-                // Buffer full - invalidate orphaned entry (should never happen with anyhit fix)
-                hit_buffer[i].t_hit = consts::INF_F;
-                printf("ERROR: Prim %u buffer overflow, couldn't add exit! Invalidating entry %u\n",
-                       entry.prim_idx, i);
-            }
-        } else {
-            // Exit computation failed - mark entry as invalid for later removal
-            hit_buffer[i].t_hit = consts::INF_F;
-            printf("ERROR: Prim %u exit failed (entry=%.6f, exit=%.6f), invalidating entry\n",
-                   entry.prim_idx, entry.t_hit, exit_t);
-        }
-#else
-        // Production: assume exit computation always succeeds and buffer has space
-        hit_buffer.emplace_back(exit_t, entry.prim_idx, true);
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-    }
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-    // Remove invalidated entries (marked with t_hit = INF_F)
-    size_t write_idx = 0;
-    for (size_t read_idx = 0; read_idx < hit_buffer.size(); read_idx++) {
-        if (hit_buffer[read_idx].t_hit < consts::INF_F) {
-            if (write_idx != read_idx) {
-                hit_buffer[write_idx] = hit_buffer[read_idx];
-            }
-            write_idx++;
-        }
-    }
-    // Truncate buffer to new size by popping excess elements
-    while (hit_buffer.size() > write_idx) {
-        hit_buffer.pop_back();
-    }
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-
-    // If no hits, no more geometry to process
-    if (hit_buffer.size() == 0) {
-        if (is_debug_thread()) {
-            printf("  No geometry, returning zero optical depth\n");
-        }
+    // If no hits, no geometry to process
+    if (hit_buffer.empty()) {
         return make_float3(0.0f);
     }
 
-    // Sort hits by t-value
-    sort(hit_buffer);
+    // Store final t_prev for the tail segment integration
+    float final_t_prev = 0.0f;
 
-    // Process all hits and integrate segments
-    // Process hits in clusters (all hits at same t-value together)
-    float t_prev_hit = 0.0f;
-
-    for (size_t i = 0; i < hit_buffer.size(); ) {
-        const float t_current = hit_buffer[i].t_hit;
-
-        // Integrate from previous t to current t
-        acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit, t_current);
-
-        // Process ALL hits at this t-value
-        size_t j = i;
-        while (j < hit_buffer.size() && math::abs(hit_buffer[j].t_hit - t_current) < consts::HIT_COINCIDENCE_EPS) {
-            const auto& hit = hit_buffer[j];
-            const auto prim_idx = hit.prim_idx;
-            const auto is_exit = hit.is_exit;
-
-            if (is_debug_thread()) {
-                printf("  Hit %u: t=%.6f, prim=%u, is_exit=%d\n", static_cast<uint>(j), hit.t_hit, prim_idx, is_exit);
-            }
-
-            // Update active primitives set
-            if (is_exit) {
-                if (!active_prims.contains(prim_idx)) {
-                    // Ray started inside this primitive (no entry was detected)
-                    // Manually integrate from ray origin to this exit
-                    const auto& prim = launch_params.primitives_[prim_idx];
-                    acc_optical_depth += prim.density_integral(ray, 0.0f, t_current);
-
-                    if (is_debug_thread()) {
-                        printf("  UNPAIRED EXIT: prim %u was active from ray origin, integrated [0,%.3f]\n",
-                               prim_idx, t_current);
-                    }
-                    // Don't try to erase - it's not in the set
-                } else {
-                    // Normal paired exit - remove from active set
-                    if (!active_prims.erase(prim_idx)) {
-                        if (is_debug_thread()) printf("erase failed for prim %u\n", prim_idx);
-                    } else if (is_debug_thread()) {
-                        printf("erased prim %u\n", prim_idx);
-                    }
-                }
-            } else {
-                if (!active_prims.insert(prim_idx)) {
-                    if (is_debug_thread()) printf("insert failed for prim %u\n", prim_idx);
-                } else if (is_debug_thread()) {
-                    printf("inserted prim %u\n", prim_idx);
-                }
-            }
-
-            j++;
+    process_hit_clusters(
+        ray, hit_buffer, active_prims,
+        // Segment callback: integrate density along segment
+        [&](float t_prev, float t_current) -> ClusterProcessResult {
+            acc_optical_depth += integrate_primitives(ray, active_prims, t_prev, t_current);
+            final_t_prev = t_current;  // Track last t for tail integration
+            return ClusterProcessResult::CONTINUE;
+        },
+        // Ray-started-inside callback: handle primitives we're already inside
+        [&](uint prim_idx, float t_exit) -> ClusterProcessResult {
+            const auto& prim = launch_params.primitives_[prim_idx];
+            acc_optical_depth += prim.density_integral(ray, 0.0f, t_exit);
+            return ClusterProcessResult::CONTINUE;
         }
-
-        t_prev_hit = t_current;
-        i = j;  // Move to next cluster
-    }
+    );
 
     // Integrate remaining active primitives to infinity
-    if (is_debug_thread()) {
-        printf("  After processing all hits, active_prims: [");
-        const auto active_size = active_prims.size();
-        for (size_t j = 0; j < active_size; j++) {
-            if (j > 0) printf(",");
-            printf("%u", *(active_prims.begin() + j));
-        }
-        printf("] size=%u\n", static_cast<uint>(active_size));
-    }
-
-    acc_optical_depth += integrate_primitives(ray, active_prims, t_prev_hit);
-
-    if (is_debug_thread()) {
-        printf("  Final optical depth: (%.3f,%.3f,%.3f)\n",
-               acc_optical_depth.x, acc_optical_depth.y, acc_optical_depth.z);
-    }
+    acc_optical_depth += integrate_primitives(ray, active_prims, final_t_prev);
 
     return acc_optical_depth;
 }

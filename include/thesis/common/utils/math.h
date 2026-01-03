@@ -141,7 +141,11 @@ THESIS_HOST_DEVICE THESIS_INLINE float rcp(float x) noexcept {
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
     return (x != 0.0f) ? (1.0f / x) : 0.0f;
 #else
-    return 1.0f / x;
+    #ifdef DEVICE
+        return __frcp_rn(x);  // Fast reciprocal (round-to-nearest)
+    #else
+        return 1.0f / x;
+    #endif
 #endif
 }
 
@@ -229,7 +233,11 @@ THESIS_HOST_DEVICE THESIS_INLINE float fma(float a, float b, float c) noexcept {
 
 // Standard C math wrappers (work on host and device)
 THESIS_HOST_DEVICE THESIS_INLINE float sqrt(float x) noexcept {
+#ifdef DEVICE
+    return __fsqrt_rn(x);  // Fast sqrt (round-to-nearest)
+#else
     return sqrtf(x);
+#endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float exp(float x) noexcept {
     return expf(x);

@@ -26,13 +26,16 @@ namespace geometry {
 struct EllipsoidIntersection {
     float t_entry;
     float t_exit;
+    float w_len2;  // Cached ||w||² for exit recomputation (avoids redundant transform)
 
-    THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection(float t_1, float t_2)
+    THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection(float t_1, float t_2, float w_len2_val = 0.0f)
         : t_entry(t_1),
-          t_exit(t_2) {}
+          t_exit(t_2),
+          w_len2(w_len2_val) {}
     THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection()
         : t_entry(-1.0f),
-          t_exit(-1.0f) {}
+          t_exit(-1.0f),
+          w_len2(0.0f) {}
 
     THESIS_HOST_DEVICE THESIS_INLINE bool is_hit() const { return t_exit > 0.0f; }
     THESIS_HOST_DEVICE THESIS_INLINE bool starts_inside() const {
@@ -84,7 +87,7 @@ intersect_ellipsoid(const device::geometry::Ray& ray, const device::params::Prim
     // The optical depth integration handles thin segments correctly (they contribute ~0),
     // and rejecting them here would cause mismatch with OptiX hardware intersection.
 
-    return {t_1, t_2};
+    return {t_1, t_2, a};  // Cache a (w_len2) for potential exit recomputation
 }
 
 // Optimized exit computation from entry point (avoids full intersection solve)
@@ -100,18 +103,15 @@ intersect_ellipsoid(const device::geometry::Ray& ray, const device::params::Prim
 // This eliminates: discriminant checks, epsilon offsets, and full quadratic solve
 __device__ __forceinline__ float
 compute_exit_from_entry(const device::geometry::Ray& ray, float t_entry,
-                        const device::params::Primitive& prim) {
+                        const device::params::Primitive& prim, float w_len2) {
     // Transform entry point and ray direction to local whitened space
     const auto entry_point = ray.at(t_entry);
     const auto p = prim.transform_pos_local(entry_point);
     const auto w = prim.transform_dir_local(ray.direction_);
 
-    const auto w_len2 = math::length2(w);
-
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
     // Guard against degenerate direction (compile-time optional)
     if (w_len2 < device::consts::RAY_DIRECTION_MIN_LENGTH2) {
-        printf("ERROR: compute_exit_from_entry - degenerate direction! |w|²=%.6e\n", w_len2);
         return -1.0f;
     }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS
@@ -125,9 +125,6 @@ compute_exit_from_entry(const device::geometry::Ray& ray, float t_entry,
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
     // Sanity check that exit distance is positive (compile-time optional)
     if (exit_dist <= 0.0f) {
-        const float p_len2 = math::length2(p);
-        printf("ERROR: compute_exit_from_entry - negative exit! exit_dist=%.6f, |p|²=%.6f, p·w=%.6f\n",
-               exit_dist, p_len2, p_dot_w);
         return -1.0f;
     }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS

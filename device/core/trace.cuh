@@ -6,6 +6,7 @@
 #include "thesis/device/geometry/ray.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/device/payloads/anyhit.h"
+#include "thesis/device/payloads/miss.h"
 
 #include <optix.h>
 #include <vector_types.h>
@@ -14,10 +15,10 @@ namespace thesis {
 namespace device {
 
 // Trace with anyhit collection mode - collects ALL hits into buffer
-// Anyhit always calls optixIgnoreIntersection, so this always returns Miss
+// Anyhit always calls optixIgnoreIntersection, causing Miss shader to execute and return env color
 // The actual hit data is collected in the buffer via anyhit program
 template <size_t N>
-__device__ __forceinline__ void trace_ch_collect(
+__device__ __forceinline__ payloads::Miss trace_ch_collect(
     const geometry::Ray& ray,
     float t_min,
     float t_max,
@@ -44,6 +45,9 @@ __device__ __forceinline__ void trace_ch_collect(
         0,                          // miss SBT index: first miss program
         ps[0], ps[1], ps[2]         // Tag (0) + buffer pointer (1-2)
     );
+
+    // Unpack and return Miss payload (always set since anyhit calls optixIgnoreIntersection)
+    return payloads::Miss::unpackFromOptix();
 }
 
 } // namespace device

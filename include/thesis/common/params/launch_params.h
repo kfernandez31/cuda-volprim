@@ -25,7 +25,6 @@ struct THESIS_ALIGNMENT LaunchParams {
     device::utils::DynamicVector<device::params::Primitive> primitives_;
     device::utils::DynamicVector<uint> camera_active_prims_;
     uint seed_;
-    bool debug_;
 };
 
 }  // namespace params

@@ -64,7 +64,7 @@ Result<std::vector<std::byte>> readFile(const std::filesystem::path& filename) {
 }
 
 // Internal helper for saving EXR
-Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t height,
+Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t height,
                       const std::filesystem::path& filename, bool flip_vertical) noexcept {
     try {
         constexpr std::array<const char*, NUM_CHANNELS> channel_names = {"B", "G", "R"};
@@ -82,7 +82,7 @@ Result<> saveExrImage(std::span<const float3> framebuffer, size_t width, size_t 
                 const auto& c = framebuffer[row_in + x];
                 channels[0][row_out + x] = c.x;  // R
                 channels[1][row_out + x] = c.y;  // G
-                channels[2][row_out + x] = c.z;  // B
+                channels[2][row_out + x] = c.z;  // B (W component ignored)
             }
         }
 
@@ -223,9 +223,50 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
         for (size_t i = 0; i < N; ++i) {
             const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
             const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
-            const auto scale = make_float3(scale_0[i], scale_1[i], scale_2[i]);
-            const auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            const auto optical_thickness = sigma_t[i];
+            auto scale = make_float3(scale_0[i], scale_1[i], scale_2[i]);
+            auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
+            auto optical_thickness = sigma_t[i];
+
+            // Validate geometry (prevent division by zero and numerical errors)
+            // Critical errors: fail fast
+            if (scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) {
+                return make_error("Primitive {}: Invalid scale ({}, {}, {}) - all components must be > 0",
+                                  i, scale.x, scale.y, scale.z);
+            }
+            if (!std::isfinite(scale.x) || !std::isfinite(scale.y) || !std::isfinite(scale.z)) {
+                return make_error("Primitive {}: NaN/Inf in scale ({}, {}, {})",
+                    i, scale.x, scale.y, scale.z);
+            }
+            if (optical_thickness <= 0.0f) {
+                return make_error("Primitive {}: Invalid optical_thickness {} - must be > 0",
+                                    i, optical_thickness);
+            }
+            if (!std::isfinite(optical_thickness)) {
+                return make_error("Primitive {}: NaN/Inf in optical_thickness {}",
+                                  i, optical_thickness);
+            }
+            if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) {
+                return make_error("Primitive {}: NaN/Inf in center ({}, {}, {})",
+                                  i, center.x, center.y, center.z);
+            }
+
+            // Non-critical: clamp and warn
+            auto clamp_albedo = [&](float& val, const char* component) {
+                if (!std::isfinite(val)) {
+                    spdlog::warn("Primitive {}: NaN/Inf in albedo.{}, setting to 0", i, component);
+                    val = 0.0f;
+                } else if (val < 0.0f) {
+                    spdlog::warn("Primitive {}: Negative albedo.{} = {}, clamping to 0", i, component, val);
+                    val = 0.0f;
+                } else if (val > 1.0f) {
+                    spdlog::warn("Primitive {}: albedo.{} = {} > 1.0, clamping to 1.0", i, component, val);
+                    val = 1.0f;
+                }
+            };
+            clamp_albedo(albedo.x, "r");
+            clamp_albedo(albedo.y, "g");
+            clamp_albedo(albedo.z, "b");
+
             result.emplace_back(center, quat, scale, albedo, optical_thickness);
         }
 
@@ -266,7 +307,7 @@ std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
     });
 }
 
-std::future<Result<>> saveExr(cuda::AsyncBuffer<float3>&& buffer, size_t width, size_t height,
+std::future<Result<>> saveExr(cuda::AsyncBuffer<float4>&& buffer, size_t width, size_t height,
                               const std::filesystem::path& filename, bool flip_vertical) noexcept {
     return std::async(
         std::launch::async,

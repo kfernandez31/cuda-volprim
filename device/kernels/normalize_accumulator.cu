@@ -13,19 +13,18 @@ namespace kernels {
 constexpr size_t MAX_GRID_BLOCKS = 1024;
 constexpr size_t BLOCK_SIZE = 256;
 
-static __global__ void normalize_accumulator_kernel(float3* out_pixels, const float3* accumulator,
+static __global__ void normalize_accumulator_kernel(float4* out_pixels, const float4* accumulator,
                                                     size_t image_size, float normalization_factor) {
     const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t stride = blockDim.x * gridDim.x;
 
     // Grid-stride loop: each thread processes multiple pixels (coalesced memory access)
     for (size_t pixel_index = tid; pixel_index < image_size; pixel_index += stride) {
-        out_pixels[pixel_index] = accumulator[pixel_index] *
-                                  normalization_factor;  // TODO: can this be vectorized & unrolled?
+        out_pixels[pixel_index] = accumulator[pixel_index] * normalization_factor;
     }
 }
 
-void launch_normalize_accumulator_kernel(float3* out_pixels, const float3* accumulator,
+void launch_normalize_accumulator_kernel(float4* out_pixels, const float4* accumulator,
                                          size_t image_size, float normalization_factor,
                                          cudaStream_t stream) {
     const size_t num_blocks =

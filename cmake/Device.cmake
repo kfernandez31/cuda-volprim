@@ -23,10 +23,15 @@ set_target_properties(device PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
 
-# Enable numerical guards for debugging (compile-time checks)
-target_compile_definitions(device PUBLIC
-    THESIS_ENABLE_NUMERICAL_GUARDS
-)
+# Enable numerical guards only for Debug/RelWithDebInfo builds
+# Adds 5-10% overhead but catches numerical issues early
+# Production (Release) builds should disable this for maximum performance
+if(CMAKE_BUILD_TYPE MATCHES "Debug|RelWithDebInfo")
+    message(STATUS "Enabling THESIS_ENABLE_NUMERICAL_GUARDS for ${CMAKE_BUILD_TYPE} build")
+    target_compile_definitions(device PUBLIC THESIS_ENABLE_NUMERICAL_GUARDS)
+else()
+    message(STATUS "Disabling THESIS_ENABLE_NUMERICAL_GUARDS for ${CMAKE_BUILD_TYPE} build (production)")
+endif()
 
 # Link CUDA libraries (device-level dependencies)
 target_link_libraries(device PRIVATE

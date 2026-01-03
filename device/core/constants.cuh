@@ -19,14 +19,14 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 
 // Primitive and scattering constants
 // Maximum number of primitives that can be processed simultaneously per ray
-constexpr size_t MAX_PRIMITIVES = 64;
+constexpr size_t MAX_PRIMITIVES = 64; // TODO(kacper): change based on realistic estimates
 
 // Hit buffer capacity: must hold BOTH entry AND exit hits (2 hits per primitive)
 // Each primitive generates one entry hit and one exit hit during ray traversal
-constexpr size_t HIT_BUFFER_CAPACITY = 2 * MAX_PRIMITIVES;  // 128
+constexpr size_t HIT_BUFFER_CAPACITY = 2 * MAX_PRIMITIVES;
 
 // Active primitives set capacity: tracks unique primitive indices only
-constexpr size_t ACTIVE_PRIMS_CAPACITY = MAX_PRIMITIVES;  // 64
+constexpr size_t ACTIVE_PRIMS_CAPACITY = MAX_PRIMITIVES;
 
 // Epsilon values for numerical stability and geometric tolerances
 // Used to detect coincident surface hits (primitives with surfaces at same t-value)

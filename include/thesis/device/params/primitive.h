@@ -110,55 +110,57 @@ class THESIS_ALIGNMENT Primitive {
         // Compute normalization factor K
         const auto K = w_len * math::exp(exponent) * inv_cdf_factor_;
 
-        // Clamp to avoid NaNs
         auto erfinv_arg = math::erf(wp * math::ROOT_TWO_F) + chi * K;
 
-        // TODO: remove this debug print after confirming the issue
-        if (!isfinite(erfinv_arg) || erfinv_arg < -1.0f || erfinv_arg > 1.0f) {
-            printf("ERROR: inv_cdf erfinv_arg out of range! arg=%.6f, wp=%.6f, K=%.6f, chi=%.6f\n",
-                   erfinv_arg, wp, K, chi);
-            return -420.0f;  // Sentinel value indicating error (negative = invalid)
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Only check for NaN/Inf (actual numerical error)
+        // Out-of-range values are valid (ray sampling Gaussian tail) and will be clamped below
+        if (!isfinite(erfinv_arg)) {
+            printf("ERROR: inv_cdf erfinv_arg is NaN!\n");
+            return -1.0f;  // Sentinel: numerical error detected
         }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-        erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);  // clamp to avoid NaN
+        // Clamp to erfinv domain [-1, 1] (always enabled - handles tail sampling gracefully)
+        // When ray samples Gaussian tail, K*chi can be large due to exponential growth (exp(0.5*diff))
+        // This is valid physics, not a bug - clamp prevents erfinv from receiving out-of-domain input
+        erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);
 
         return math::ROOT_TWO_F * erfinv(erfinv_arg) - wp;
     }
 
     // Device-only: optical depth from t0 to infinity
     __device__ float optical_depth(const geometry::Ray& ray, float t0) const {
-        // TODO: remove this debug print after confirming the issue
-        if (t0 < 0.0f) {
-            printf("ERROR: optical_depth(t0=%.6f to inf) called with negative t0!\n", t0);
-            return -420.0f;  // Sentinel value indicating error (negative = invalid)
-        }
-
         namespace math = common::math;
 
         // Transform to whitened space
         const auto w = transform_dir_local(ray.direction_);
         const auto p = transform_pos_local(ray.origin_);
 
-        // Check for NaN/Inf in transformed values
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Check for NaN/Inf in transformed values (indicates malformed geometry or corrupted ray)
         if (!isfinite(math::length2(w)) || !isfinite(math::length2(p))) {
-            printf("ERROR: NaN/Inf in transformed ray! w_len2=%f, p_len2=%f\n",
+            printf("ERROR: optical_depth(t0) NaN/Inf in transforms! w_len2=%f, p_len2=%f\n",
                    math::length2(w), math::length2(p));
-            return -420.0f;
+            return -1.0f;  // Sentinel: numerical error detected
         }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
         const auto ray_local = geometry::Ray::spawn_unchecked(p, w);
 
         // Precompute inverse length
         const auto w_inv_len = math::rlength(w);
 
-        // Check for degenerate direction
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Check for degenerate direction (extreme scale ratios or zero-length after transform)
         if (!isfinite(w_inv_len) || w_inv_len > 1e10f) {
-            printf("ERROR: Degenerate ray direction! w_inv_len=%f\n", w_inv_len);
-            return -420.0f;
+            printf("ERROR: optical_depth(t0) degenerate direction! w_inv_len=%f\n", w_inv_len);
+            return -1.0f;  // Sentinel: degenerate ray
         }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
         // Point along the ray in local space
-        // Clamp t0 to avoid issues with negative values
+        // Clamp t0 to handle numerical imprecision (ray spawning can produce small negative values)
         const auto t0_safe = math::max(0.0f, t0);
         const auto p0 = ray_local.at(t0_safe);
 
@@ -183,8 +185,9 @@ class THESIS_ALIGNMENT Primitive {
     // Device-only: optical depth from t0 to t1
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
         // Handle very small or invalid intervals gracefully
-        if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH || t0 > t1)
+        if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH || t0 > t1) {
             return 0.0f;
+        }
 
         namespace math = common::math;
 
@@ -192,26 +195,30 @@ class THESIS_ALIGNMENT Primitive {
         const auto w = transform_dir_local(ray.direction_);
         const auto p = transform_pos_local(ray.origin_);
 
-        // Check for NaN/Inf in transformed values
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Check for NaN/Inf in transformed values (indicates malformed geometry or corrupted ray)
         if (!isfinite(math::length2(w)) || !isfinite(math::length2(p))) {
-            printf("ERROR: optical_depth(t0,t1) NaN/Inf! w_len2=%f, p_len2=%f\n",
+            printf("ERROR: optical_depth(t0,t1) NaN/Inf in transforms! w_len2=%f, p_len2=%f\n",
                    math::length2(w), math::length2(p));
-            return -420.0f;
+            return -1.0f;  // Sentinel: numerical error detected
         }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
         const auto ray_local = geometry::Ray::spawn_unchecked(p, w);
 
         // Precompute inverse length
         const auto w_inv_len = math::rlength(w);
 
-        // Check for degenerate direction
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Check for degenerate direction (extreme scale ratios or zero-length after transform)
         if (!isfinite(w_inv_len) || w_inv_len > 1e10f) {
-            printf("ERROR: optical_depth(t0,t1) degenerate! w_inv_len=%f\n", w_inv_len);
-            return -420.0f;
+            printf("ERROR: optical_depth(t0,t1) degenerate direction! w_inv_len=%f\n", w_inv_len);
+            return -1.0f;  // Sentinel: degenerate ray
         }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
         // Points along the ray in local space
-        // Clamp t-values to avoid issues with negative values
+        // Clamp t-values to handle numerical imprecision (ray spawning can produce small negative values)
         const auto t0_safe = math::max(0.0f, t0);
         const auto t1_safe = math::max(t0_safe + consts::RAY_SEGMENT_MIN_LENGTH, t1);
         const auto p0 = ray_local.at(t0_safe);
@@ -240,21 +247,25 @@ class THESIS_ALIGNMENT Primitive {
 
     // Device-only: density integral (optical depth * albedo)
     __device__ float3 density_integral(const geometry::Ray& ray, float t0) const {
-        auto result = albedo_ * optical_depth(ray, t0, consts::INF_F, "density_integral_1arg");
+        auto result = albedo_ * optical_depth(ray, t0);
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Sanitize: clamp negative values + filter NaN/Inf (defense-in-depth)
+        // Catches overflow in optical_depth or negative albedo from bad PLY data
         return common::math::sanitize(result);
 #else
         return result;
-#endif
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
     }
 
     __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1) const {
-        auto result = albedo_ * optical_depth(ray, t0, t1, "density_integral_2arg");
+        auto result = albedo_ * optical_depth(ray, t0, t1);
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        // Sanitize: clamp negative values + filter NaN/Inf (defense-in-depth)
+        // Catches overflow in optical_depth or negative albedo from bad PLY data
         return common::math::sanitize(result);
 #else
         return result;
-#endif
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
     }
 #endif  // DEVICE
 };

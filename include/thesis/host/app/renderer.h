@@ -49,8 +49,7 @@ class Renderer {
     cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;
-    OptixModule builtin_is_module_ =
-        nullptr;  // TODO: could this be RAII-ified? We have a optix::Module class already
+    optix::Module builtin_is_module_;
     optix::ProgramGroup raygen_pg_;
     optix::ProgramGroup miss_pg_;
     optix::ProgramGroup hitgroup_pg_;
@@ -59,7 +58,6 @@ class Renderer {
 
    public:
     explicit Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives);
-    ~Renderer();
 
     void render();
 };
