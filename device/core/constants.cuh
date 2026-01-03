@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/common/utils/types.h"
 #include "thesis/common/utils/math.h"
+#include "thesis/common/utils/types.h"
 
 // Compile-time guards (define in CMakeLists.txt for debug/test builds):
 // - THESIS_ENABLE_NUMERICAL_GUARDS: Enable runtime checks for numerical edge cases
@@ -19,7 +19,7 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 
 // Primitive and scattering constants
 // Maximum number of primitives that can be processed simultaneously per ray
-constexpr size_t MAX_PRIMITIVES = 64; // TODO(kacper): change based on realistic estimates
+constexpr size_t MAX_PRIMITIVES = 64;  // TODO(kacper): change based on realistic estimates
 
 // Hit buffer capacity: must hold BOTH entry AND exit hits (2 hits per primitive)
 // Each primitive generates one entry hit and one exit hit during ray traversal
@@ -78,22 +78,23 @@ constexpr float INTERSECTION_MIN_SEGMENT_LENGTH = 1e-8f;
 // Path tracing parameters (tune experimentally for your scenes)
 
 // Maximum path depth before forced termination
-constexpr size_t MAX_BOUNCES     = 128;  // Mitsuba production: 64-128, consider reducing to 64 after profiling
+constexpr size_t MAX_BOUNCES =
+    128;  // Mitsuba production: 64-128, consider reducing to 64 after profiling
 
 // Minimum throughput before path termination (prevents numerical underflow)
-constexpr float  MIN_THROUGHPUT  = 1e-4f;
+constexpr float MIN_THROUGHPUT = 1e-4f;
 
 // Depth at which Russian roulette path termination begins
 // Volumetric media with high albedo needs higher values than surface rendering
 // Mitsuba surface rendering: 5-8, volumetric rendering may benefit from similar or higher
-constexpr size_t RR_DEPTH        = 5;  // Increased from 3 for proper volumetric path lengths
+constexpr size_t RR_DEPTH = 5;  // Increased from 3 for proper volumetric path lengths
 
 // Maximum survival probability for Russian roulette (maintains unbiasedness)
-constexpr float  RR_MAX_SURVIVAL = 0.99f; // Standard production value (Mitsuba, PBRT)
+constexpr float RR_MAX_SURVIVAL = 0.99f;  // Standard production value (Mitsuba, PBRT)
 
 // Isotropic phase function value: 1/(4π) normalized over unit sphere
-constexpr float  PHASE_VALUE     = common::math::ONE_OVER_FOUR_PI_F;
+constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 
-} // namespace consts
-} // namespace device
-} // namespace thesis
+}  // namespace consts
+}  // namespace device
+}  // namespace thesis

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/launch_params.cuh"
+
 #include "thesis/device/payloads/miss.h"
 
 #include <optix.h>

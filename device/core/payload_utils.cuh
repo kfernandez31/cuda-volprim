@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optix.h>
+
 #include <cstdint>
 
 namespace thesis {
@@ -20,5 +21,5 @@ __device__ __forceinline__ T* unpack_ptr(uint32_t p0, uint32_t p1) {
     return reinterpret_cast<T*>(uptr);
 }
 
-} // namespace device
-} // namespace thesis
+}  // namespace device
+}  // namespace thesis

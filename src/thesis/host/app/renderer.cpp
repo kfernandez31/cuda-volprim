@@ -113,8 +113,8 @@ void Renderer::initStaticParams() {
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
         camera_active_prims_ = cuda::AsyncBuffer<uint>(camera_active, cuda_ctx_.get(),
-                                                        streams_[cuda::StreamKind::Main]);
-    } // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
+                                                       streams_[cuda::StreamKind::Main]);
+    }  // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
 
     // Initialize static launch parameters (never change during rendering)
     auto& par = launch_params_[0];
@@ -124,8 +124,8 @@ void Renderer::initStaticParams() {
     par.env_map_ = env_map_.device_env_map();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(),
                                                                               primitives_.size());
-    par.camera_active_prims_ =
-        device::utils::DynamicVector<uint>(camera_active_prims_.device(), camera_active_prims_.size());
+    par.camera_active_prims_ = device::utils::DynamicVector<uint>(camera_active_prims_.device(),
+                                                                  camera_active_prims_.size());
 
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();
@@ -247,8 +247,10 @@ void Renderer::render() {
     utils::try_unwrap_or_exit(save_future.get());
 
     const auto end_time = std::chrono::high_resolution_clock::now();
-    const auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    const auto duration_sec = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time).count();
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    const auto duration_sec =
+        std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time).count();
 
     spdlog::info("Rendering complete - Total time: {:.3f}s ({} ms)", duration_sec, duration_ms);
 }

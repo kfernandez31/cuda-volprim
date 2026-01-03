@@ -13,7 +13,8 @@ namespace params {
 // Device-side POD struct for image buffer (no RAII, same size on host and device)
 struct THESIS_ALIGNMENT Image {
     float4* sample_buffer_ = nullptr;  // Using float4 for vectorized access (w component unused)
-    float4* accumulator_ = nullptr;    // Running sum for batched rendering (RGBA, W unused for 128-bit alignment)
+    float4* accumulator_ =
+        nullptr;  // Running sum for batched rendering (RGBA, W unused for 128-bit alignment)
     size_t width_ = 0;
     size_t height_ = 0;
     size_t image_size_ = 0;             // Precomputed: width * height (saves 1 multiply per ray)

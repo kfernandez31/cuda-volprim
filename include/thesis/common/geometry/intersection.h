@@ -28,7 +28,8 @@ struct EllipsoidIntersection {
     float t_exit;
     float w_len2;  // Cached ||w||² for exit recomputation (avoids redundant transform)
 
-    THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection(float t_1, float t_2, float w_len2_val = 0.0f)
+    THESIS_HOST_DEVICE THESIS_INLINE EllipsoidIntersection(float t_1, float t_2,
+                                                           float w_len2_val = 0.0f)
         : t_entry(t_1),
           t_exit(t_2),
           w_len2(w_len2_val) {}
@@ -101,9 +102,10 @@ intersect_ellipsoid(const device::geometry::Ray& ray, const device::params::Prim
 //              world space (no scaling needed).
 //
 // This eliminates: discriminant checks, epsilon offsets, and full quadratic solve
-__device__ __forceinline__ float
-compute_exit_from_entry(const device::geometry::Ray& ray, float t_entry,
-                        const device::params::Primitive& prim, float w_len2) {
+__device__ __forceinline__ float compute_exit_from_entry(const device::geometry::Ray& ray,
+                                                         float t_entry,
+                                                         const device::params::Primitive& prim,
+                                                         float w_len2) {
     // Transform entry point and ray direction to local whitened space
     const auto entry_point = ray.at(t_entry);
     const auto p = prim.transform_pos_local(entry_point);
@@ -114,7 +116,7 @@ compute_exit_from_entry(const device::geometry::Ray& ray, float t_entry,
     if (w_len2 < device::consts::RAY_DIRECTION_MIN_LENGTH2) {
         return -1.0f;
     }
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+#endif  // THESIS_ENABLE_NUMERICAL_GUARDS
 
     const auto p_dot_w = math::dot(p, w);
 
@@ -127,7 +129,7 @@ compute_exit_from_entry(const device::geometry::Ray& ray, float t_entry,
     if (exit_dist <= 0.0f) {
         return -1.0f;
     }
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+#endif  // THESIS_ENABLE_NUMERICAL_GUARDS
 
     // Parametric distance is invariant under transformation
     return t_entry + exit_dist;

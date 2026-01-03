@@ -230,24 +230,25 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
             // Validate geometry (prevent division by zero and numerical errors)
             // Critical errors: fail fast
             if (scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) {
-                return make_error("Primitive {}: Invalid scale ({}, {}, {}) - all components must be > 0",
-                                  i, scale.x, scale.y, scale.z);
+                return make_error(
+                    "Primitive {}: Invalid scale ({}, {}, {}) - all components must be > 0", i,
+                    scale.x, scale.y, scale.z);
             }
             if (!std::isfinite(scale.x) || !std::isfinite(scale.y) || !std::isfinite(scale.z)) {
-                return make_error("Primitive {}: NaN/Inf in scale ({}, {}, {})",
-                    i, scale.x, scale.y, scale.z);
+                return make_error("Primitive {}: NaN/Inf in scale ({}, {}, {})", i, scale.x,
+                                  scale.y, scale.z);
             }
             if (optical_thickness <= 0.0f) {
-                return make_error("Primitive {}: Invalid optical_thickness {} - must be > 0",
-                                    i, optical_thickness);
+                return make_error("Primitive {}: Invalid optical_thickness {} - must be > 0", i,
+                                  optical_thickness);
             }
             if (!std::isfinite(optical_thickness)) {
-                return make_error("Primitive {}: NaN/Inf in optical_thickness {}",
-                                  i, optical_thickness);
+                return make_error("Primitive {}: NaN/Inf in optical_thickness {}", i,
+                                  optical_thickness);
             }
             if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) {
-                return make_error("Primitive {}: NaN/Inf in center ({}, {}, {})",
-                                  i, center.x, center.y, center.z);
+                return make_error("Primitive {}: NaN/Inf in center ({}, {}, {})", i, center.x,
+                                  center.y, center.z);
             }
 
             // Non-critical: clamp and warn
@@ -256,10 +257,12 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
                     spdlog::warn("Primitive {}: NaN/Inf in albedo.{}, setting to 0", i, component);
                     val = 0.0f;
                 } else if (val < 0.0f) {
-                    spdlog::warn("Primitive {}: Negative albedo.{} = {}, clamping to 0", i, component, val);
+                    spdlog::warn("Primitive {}: Negative albedo.{} = {}, clamping to 0", i,
+                                 component, val);
                     val = 0.0f;
                 } else if (val > 1.0f) {
-                    spdlog::warn("Primitive {}: albedo.{} = {} > 1.0, clamping to 1.0", i, component, val);
+                    spdlog::warn("Primitive {}: albedo.{} = {} > 1.0, clamping to 1.0", i,
+                                 component, val);
                     val = 1.0f;
                 }
             };

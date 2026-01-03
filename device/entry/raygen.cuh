@@ -1,13 +1,13 @@
 #pragma once
 
 #include "core/launch_params.cuh"
-#include "core/sampling.cuh"
 #include "core/random.cuh"
+#include "core/sampling.cuh"
 
-#include "thesis/device/utils/vector.h"
-#include "thesis/device/utils/set.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
+#include "thesis/device/utils/set.h"
+#include "thesis/device/utils/vector.h"
 
 #include <optix.h>
 #include <vector_types.h>
@@ -29,10 +29,12 @@ extern "C" __global__ void __raygen__rg() {
     auto batch_radiance = make_float3(0.0f);
 
     // Process batch_size samples per pixel
-    for (size_t sample_in_batch = 0; sample_in_batch < launch_params.image_.batch_size_; ++sample_in_batch) {
+    for (size_t sample_in_batch = 0; sample_in_batch < launch_params.image_.batch_size_;
+         ++sample_in_batch) {
         // Compute global sample index for this sample
         const size_t global_sample_idx = launch_params.image_.batch_offset_ + sample_in_batch;
-        const size_t rng_seed = math::fma(pixel_linear_idx, launch_params.image_.num_samples_per_pixel_, global_sample_idx);
+        const size_t rng_seed = math::fma(
+            pixel_linear_idx, launch_params.image_.num_samples_per_pixel_, global_sample_idx);
 
         // RNG setup (unique per sample)
         curandState rng;
@@ -49,10 +51,8 @@ extern "C" __global__ void __raygen__rg() {
         payloads::Miss miss;
 
         // Initialize active_prims from pre-computed camera containment (CPU-side, pre-sorted)
-        event.active_prims_.init_from_presorted(
-            launch_params.camera_active_prims_.data(),
-            launch_params.camera_active_prims_.size()
-        );
+        event.active_prims_.init_from_presorted(launch_params.camera_active_prims_.data(),
+                                                launch_params.camera_active_prims_.size());
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
             const auto result = sample_scattering_event(ray, rng, event, miss);

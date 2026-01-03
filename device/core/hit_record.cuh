@@ -13,11 +13,13 @@ struct HitRecord {
 
     // Comparison: primary key is t_hit, with deterministic tie-breaking
     __device__ __forceinline__ bool operator<(const HitRecord& other) const {
-        if (t_hit < other.t_hit) return true;
-        if (t_hit > other.t_hit) return false;
+        if (t_hit < other.t_hit)
+            return true;
+        if (t_hit > other.t_hit)
+            return false;
         return prim_idx < other.prim_idx;
     }
 };
 
-} // namespace device
-} // namespace thesis
+}  // namespace device
+}  // namespace thesis

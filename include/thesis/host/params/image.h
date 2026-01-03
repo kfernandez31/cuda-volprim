@@ -25,8 +25,9 @@ namespace params {
 // Host-side wrapper with RAII buffer management
 class Image {
    private:
-    cuda::AsyncBuffer<float4> sample_buffer_managed_;    // Batch-sized buffer (not full spp)
-    cuda::AsyncBuffer<float4> accumulator_managed_;      // Running sum [pixels] (RGBA, W unused for alignment)
+    cuda::AsyncBuffer<float4> sample_buffer_managed_;  // Batch-sized buffer (not full spp)
+    cuda::AsyncBuffer<float4>
+        accumulator_managed_;  // Running sum [pixels] (RGBA, W unused for alignment)
     cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
     device::params::Image device_image_;                 // Device-compatible POD struct
     size_t batch_size_;                                  // Maximum samples per batch

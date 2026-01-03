@@ -141,11 +141,11 @@ THESIS_HOST_DEVICE THESIS_INLINE float rcp(float x) noexcept {
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
     return (x != 0.0f) ? (1.0f / x) : 0.0f;
 #else
-    #ifdef DEVICE
-        return __frcp_rn(x);  // Fast reciprocal (round-to-nearest)
-    #else
-        return 1.0f / x;
-    #endif
+#ifdef DEVICE
+    return __frcp_rn(x);  // Fast reciprocal (round-to-nearest)
+#else
+    return 1.0f / x;
+#endif
 #endif
 }
 

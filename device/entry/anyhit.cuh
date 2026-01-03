@@ -1,20 +1,22 @@
 #pragma once
 
 #include "core/constants.cuh"
-#include "core/payload_utils.cuh"
 #include "core/hit_record.cuh"
-#include "thesis/device/utils/vector.h"
-#include "thesis/device/payloads/anyhit.h"
+#include "core/payload_utils.cuh"
+
 #include "thesis/common/utils/types.h"
+#include "thesis/device/payloads/anyhit.h"
+#include "thesis/device/utils/vector.h"
 
 #include <optix.h>
+
 #include <cstdint>
 
 namespace thesis {
 namespace device {
 using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 }
-}
+}  // namespace thesis
 
 extern "C" __global__ void __anyhit__ah() {
     using namespace thesis::device;
