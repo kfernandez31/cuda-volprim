@@ -37,11 +37,13 @@ __device__ __forceinline__ payloads::Miss trace_ch_collect(
                0,                                              // SBT offset (single ray type)
                1,                   // SBT stride (single hit record per geometry)
                0,                   // miss SBT index: first miss program
-               ps[0], ps[1], ps[2]  // Tag (0) + buffer pointer (1-2)
+               ps[0], ps[1], ps[2], ps[3]  // Payloads (miss shader will overwrite with Miss payload)
     );
 
-    // Unpack and return Miss payload (always set since anyhit calls optixIgnoreIntersection)
-    return payloads::Miss::unpackFromOptix();
+    // Unpack and return Miss payload from ps[] (modified by miss shader)
+    payloads::Miss miss;
+    miss.unpack(ps);
+    return miss;
 }
 
 }  // namespace device

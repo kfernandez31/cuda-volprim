@@ -13,6 +13,25 @@ namespace thesis::test::scenes {
 // Correctness Tests
 // ─────────────────────────────────────────────────────────────────────
 
+TestScene single_purple() {
+    TestScene scene;
+    scene.name = "single_purple";
+    scene.description = "Single purple Gaussian → reference for coincident_surfaces test";
+
+    // Purple Gaussian (reference for red+blue overlap)
+    // Albedo: density-weighted average = (1,0,0)*0.5 + (0,0,1)*0.5 = (0.5, 0, 0.5)
+    // Sigma_t: sum of optical thicknesses = 0.5 + 0.5 = 1.0
+    scene.primitives.push_back(Primitive(
+        make_float3(0.0f, 0.0f, 0.0f),        // translation
+        UnitQuaternion::identity(),           // rotation
+        make_float3(0.5f, 0.5f, 0.5f),        // scale
+        make_float3(0.5f, 0.0f, 0.5f),        // purple albedo (density-weighted average)
+        1.0f                                  // sigma_t (sum of both)
+    ));
+
+    return scene;
+}
+
 TestScene coincident_surfaces() {
     TestScene scene;
     scene.name = "coincident_surfaces";
@@ -42,23 +61,23 @@ TestScene coincident_surfaces() {
 TestScene partial_overlap() {
     TestScene scene;
     scene.name = "partial_overlap";
-    scene.description = "Two Gaussians partially intersecting → should show red, purple (overlap), blue regions";
+    scene.description = "Two Gaussians partially intersecting → should show blue, purple (overlap), red regions [COLORS SWAPPED FOR DEBUG]";
 
-    // Red Gaussian on left
+    // Blue Gaussian on left (SWAPPED)
     scene.primitives.push_back(Primitive(
         make_float3(-0.3f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
-        make_float3(1.0f, 0.0f, 0.0f),        // red
+        make_float3(0.0f, 0.0f, 1.0f),        // blue
         0.5f
     ));
 
-    // Blue Gaussian on right
+    // Red Gaussian on right (SWAPPED)
     scene.primitives.push_back(Primitive(
         make_float3(0.3f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
-        make_float3(0.0f, 0.0f, 1.0f),        // blue
+        make_float3(1.0f, 0.0f, 0.0f),        // red
         0.5f
     ));
 
@@ -463,6 +482,114 @@ TestScene tangent_rays() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Performance Stress Tests (Increasing Gaussian Counts)
+// All gaussians positioned to be visible in camera frustum
+// ─────────────────────────────────────────────────────────────────────
+
+namespace {
+
+// Helper function to create stress test grids with gradient coloring
+TestScene create_grid_stress_test(
+    const std::string& name,
+    const std::string& description,
+    int grid_x,
+    int grid_y,
+    float spacing,
+    float3 scale,
+    float z_depth = 5.0f,
+    float sigma_t = 0.5f
+) {
+    TestScene scene;
+    scene.name = name;
+    scene.description = description;
+
+    const float grid_width = (grid_x - 1) * spacing;
+    const float grid_height = (grid_y - 1) * spacing;
+    const float offset_x = -grid_width * 0.5f;
+    const float offset_y = -grid_height * 0.5f;
+
+    for (int y = 0; y < grid_y; ++y) {
+        for (int x = 0; x < grid_x; ++x) {
+            const float r = static_cast<float>(x) / (grid_x - 1);
+            const float b = static_cast<float>(y) / (grid_y - 1);
+            const auto albedo = make_float3(r, 0.5f, b);
+
+            scene.primitives.push_back(Primitive(
+                make_float3(offset_x + x * spacing, offset_y + y * spacing, z_depth),
+                UnitQuaternion::identity(),
+                scale,
+                albedo,
+                sigma_t
+            ));
+        }
+    }
+
+    return scene;
+}
+
+}  // anonymous namespace
+
+TestScene stress_256_gaussians() {
+    return create_grid_stress_test(
+        "stress_256_gaussians",
+        "16×16 grid (256 gaussians) in front of camera → performance baseline",
+        16, 16,  // grid_x, grid_y
+        0.4f,  // spacing
+        make_float3(0.2f, 0.2f, 0.2f)  // scale
+    );
+}
+
+TestScene stress_512_gaussians() {
+    return create_grid_stress_test(
+        "stress_512_gaussians",
+        "16×32 grid (512 gaussians) → moderate density",
+        32, 16,  // grid_x, grid_y
+        0.2f,  // spacing
+        make_float3(0.1f, 0.1f, 0.1f)  // scale
+    );
+}
+
+TestScene stress_1024_gaussians() {
+    return create_grid_stress_test(
+        "stress_1024_gaussians",
+        "32×32 grid (1024 gaussians) → heavy BVH traversal",
+        32, 32,  // grid_x, grid_y
+        0.2f,  // spacing
+        make_float3(0.1f, 0.1f, 0.1f)  // scale
+    );
+}
+
+TestScene stress_2048_gaussians() {
+    return create_grid_stress_test(
+        "stress_2048_gaussians",
+        "32×64 grid (2048 gaussians) → extreme density",
+        64, 32,  // grid_x, grid_y
+        0.1f,  // spacing
+        make_float3(0.05f, 0.05f, 0.05f)  // scale
+    );
+}
+
+TestScene stress_4096_gaussians() {
+    return create_grid_stress_test(
+        "stress_4096_gaussians",
+        "64×64 grid (4096 gaussians) → maximum stress test",
+        64, 64,  // grid_x, grid_y
+        0.1f,  // spacing
+        make_float3(0.05f, 0.05f, 0.05f)  // scale
+    );
+}
+
+TestScene stress_8192_gaussians() {
+    return create_grid_stress_test(
+        "stress_8192_gaussians",
+        "64×128 grid (8192 gaussians) → beyond maximum stress",
+        128, 64,  // grid_x, grid_y
+        0.05f,  // spacing
+        make_float3(0.025f, 0.025f, 0.025f)  // scale
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Edge Case Tests: Priority 0 (Critical - Could Crash/Hang)
 // ─────────────────────────────────────────────────────────────────────
 
@@ -743,18 +870,18 @@ TestScene nested_off_center() {
 TestScene chain_overlaps() {
     TestScene scene;
     scene.name = "chain_overlaps";
-    scene.description = "A overlaps B, B overlaps C, but A and C don't overlap → tests local overlap handling";
+    scene.description = "A overlaps B, B overlaps C, but A and C don't overlap → tests local overlap handling [COLORS SWAPPED FOR DEBUG]";
 
-    // Gaussian A (left)
+    // Gaussian A (left) - BLUE now
     scene.primitives.push_back(Primitive(
         make_float3(-0.8f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
-        make_float3(1.0f, 0.0f, 0.0f),  // red
+        make_float3(0.0f, 0.0f, 1.0f),  // blue (SWAPPED)
         0.5f
     ));
 
-    // Gaussian B (center) - overlaps both A and C
+    // Gaussian B (center) - overlaps both A and C - GREEN unchanged
     scene.primitives.push_back(Primitive(
         make_float3(0.0f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
@@ -763,12 +890,12 @@ TestScene chain_overlaps() {
         0.5f
     ));
 
-    // Gaussian C (right)
+    // Gaussian C (right) - RED now
     scene.primitives.push_back(Primitive(
         make_float3(0.8f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
-        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        make_float3(1.0f, 0.0f, 0.0f),  // red (SWAPPED)
         0.5f
     ));
 
@@ -782,26 +909,26 @@ TestScene chain_overlaps() {
 TestScene rotation_180_degrees() {
     TestScene scene;
     scene.name = "rotation_180_degrees";
-    scene.description = "180-degree rotation → tests quaternion edge case (w≈0)";
+    scene.description = "180-degree rotation → tests quaternion edge case (w≈0) [COLORS SWAPPED FOR DEBUG]";
 
     const auto scale = make_float3(1.0f, 0.3f, 0.3f);  // elongated
 
-    // No rotation (reference)
+    // No rotation (reference) - BLUE now
     scene.primitives.push_back(Primitive(
         make_float3(-1.0f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
         scale,
-        make_float3(1.0f, 0.0f, 0.0f),  // red
+        make_float3(0.0f, 0.0f, 1.0f),  // blue (SWAPPED)
         0.5f
     ));
 
-    // 180-degree rotation around Z axis
+    // 180-degree rotation around Z axis - RED now
     // Quaternion: (w, x, y, z) = (0, 0, 0, 1) for 180° around Z
     scene.primitives.push_back(Primitive(
         make_float3(1.0f, 0.0f, 0.0f),
         UnitQuaternion::from_unchecked(0.0f, 0.0f, 0.0f, 1.0f),
         scale,
-        make_float3(0.0f, 0.0f, 1.0f),  // blue
+        make_float3(1.0f, 0.0f, 0.0f),  // red (SWAPPED)
         0.5f
     ));
 
@@ -949,12 +1076,13 @@ TestScene debug_grid_2x2() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Get All Test Scenes
+// Get Test Scenes by Category
 // ─────────────────────────────────────────────────────────────────────
 
-std::vector<TestScene> get_all_test_scenes() {
+std::vector<TestScene> get_validation_test_scenes() {
     return {
         // ===== Core Correctness Tests =====
+        single_purple(),
         coincident_surfaces(),
         partial_overlap(),
         total_overlap(),
@@ -1005,6 +1133,26 @@ std::vector<TestScene> get_all_test_scenes() {
         minimal_in_front(),
         multiple_same_z(),
     };
+}
+
+std::vector<TestScene> get_stress_test_scenes() {
+    return {
+        stress_256_gaussians(),
+        stress_512_gaussians(),
+        stress_1024_gaussians(),
+        stress_2048_gaussians(),
+        stress_4096_gaussians(),
+        stress_8192_gaussians(),
+    };
+}
+
+std::vector<TestScene> get_all_test_scenes() {
+    auto validation = get_validation_test_scenes();
+    auto stress = get_stress_test_scenes();
+
+    // Combine both vectors
+    validation.insert(validation.end(), stress.begin(), stress.end());
+    return validation;
 }
 
 }  // namespace thesis::test::scenes

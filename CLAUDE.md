@@ -355,22 +355,7 @@ Pixel (x, y) with N samples:
 
 ## 3. Production Rendering: Memory Architecture
 
-### The Problem
-
-Current implementation uses OptiX's 3D launch grid `[width, height, samples]` with a sample buffer of size `pixels × samples × 16 bytes`. This creates a **hard memory ceiling**:
-
-```cpp
-// Current allocation (PROBLEMATIC)
-sample_buffer_managed_(width * height * num_samples_per_pixel, ...)
-// 1920×1080×1024×16 = 33.6 GB (impossible on consumer GPUs)
-```
-
-**Empirical findings on RTX 2080 (8 GB):**
-- Max stable at 1080p: ~207 samples per pixel
-- Beyond 207 spp: OOM errors, screen flickering
-- 4K rendering: impossible at any meaningful spp
-
-### The Solution: Batched Online Averaging
+### Batched Online Averaging
 
 **Industry-standard pattern** used by Mitsuba, Arnold, Cycles, and OptiX samples:
 
@@ -396,124 +381,6 @@ normalize_and_save(accumulator, total_samples);
 
 **Key insight:** No atomics needed. Each thread owns exactly one pixel. Multiple samples processed sequentially within each thread, accumulated in registers.
 
-### Memory Comparison
-
-| Configuration | Current | Batched (batch=64) | Reduction |
-|---------------|---------|-------------------|-----------|
-| 1080p × 1024 spp | 34 GB | 1.1 GB | **96.8%** |
-| 4K × 1024 spp | 135 GB | 4.2 GB | **96.9%** |
-| 4K × 4096 spp | 540 GB | 4.2 GB | **99.2%** |
-
-### Implementation Requirements
-
-**1. New device structures:**
-
-```cpp
-// device/params/image.h
-struct Image {
-    float3* accumulator_;        // Running sum [pixels]
-    float4* batch_buffer_;       // Current batch [batch_size × pixels]
-    int batch_offset_;           // Current batch start index
-    int batch_size_;             // Samples in this batch
-    int total_spp_;              // Total samples for normalization
-};
-```
-
-**2. Modified raygen kernel:**
-
-```cpp
-__global__ void __raygen__rg() {
-    const uint3 idx = optixGetLaunchIndex();
-    const int pixel_idx = idx.y * params.width + idx.x;
-
-    // Accumulate batch_size samples in registers
-    float3 batch_contribution = make_float3(0.0f);
-    for (int s = 0; s < params.batch_size_; ++s) {
-        int sample_idx = params.batch_offset_ + s;
-
-        // Generate unique ray per sample
-        curandState rng;
-        curand_init(seed, pixel_idx * params.total_spp_ + sample_idx, 0, &rng);
-
-        Ray ray = generate_camera_ray(idx.x, idx.y, &rng);
-        float3 radiance = path_trace(ray, &rng);
-        batch_contribution += radiance;
-    }
-
-    // Single non-atomic write per thread
-    params.accumulator_[pixel_idx] += batch_contribution / float(params.total_spp_);
-}
-```
-
-**3. New accumulation kernel:**
-
-```cpp
-// device/kernels/accumulate_samples.cu
-__global__ void accumulate_samples_kernel(
-    float3* __restrict__ accumulator,
-    const float4* __restrict__ batch_buffer,
-    size_t batch_size, size_t image_size
-) {
-    const size_t pixel_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (pixel_idx >= image_size) return;
-
-    float3 sum = accumulator[pixel_idx];
-    for (size_t s = 0; s < batch_size; ++s) {
-        const auto sample = batch_buffer[s * image_size + pixel_idx];
-        sum += make_float3(sample.x, sample.y, sample.z);
-    }
-    accumulator[pixel_idx] = sum;
-}
-```
-
-**4. Host render loop:**
-
-```cpp
-void Renderer::render() {
-    initStaticParams();  // Once at start
-
-    constexpr size_t BATCH_SIZE = 64;  // Tune based on available VRAM
-    const size_t num_batches = (spp + BATCH_SIZE - 1) / BATCH_SIZE;
-
-    for (size_t batch = 0; batch < num_batches; ++batch) {
-        const size_t batch_start = batch * BATCH_SIZE;
-        const size_t samples_in_batch = min(BATCH_SIZE, spp - batch_start);
-
-        updateDynamicParams(batch_start, samples_in_batch);
-
-        pipeline_.launch(stream, params_ptr, params_size, sbt,
-                        width, height, 1);  // Note: Z=1, batch handled internally
-
-        spdlog::info("Batch {}/{}: {} samples rendered",
-                    batch + 1, num_batches, batch_start + samples_in_batch);
-    }
-
-    image_.saveFinal(output_path);
-}
-```
-
-### Additional Benefits
-
-| Benefit | Description |
-|---------|-------------|
-| **Progressive rendering** | See image converge in real-time |
-| **Fault tolerance** | Crash at batch N → keep batches 1 to N-1 |
-| **Early termination** | Stop when converged (variance threshold) |
-| **Debugging** | See artifacts after first batch (~2-5 seconds) |
-| **Checkpointing** | Save intermediate results for long renders |
-
-### Optimal Batch Size
-
-```
-RTX 2080 (8 GB available ~6.5 GB after env map, GAS, IAS):
-  1080p: 6.5 GB / (1920×1080×16) ≈ 200 samples/batch
-  4K:    6.5 GB / (3840×2160×16) ≈ 50 samples/batch
-
-Recommended:
-  Interactive/debugging: 16-32 samples/batch (fast updates)
-  Production:            64-128 samples/batch (balanced)
-```
-
 ---
 
 ## 4. Testing Framework
@@ -529,23 +396,6 @@ test/
 │   └── geometric_validation.cpp  # Test scene implementations
 ├── test_runner.cpp               # Main entry point
 └── CMakeLists.txt                # Test build configuration
-```
-
-### Required Renderer Refactoring
-
-**Current:** Primitives hardcoded in `initPrimsAndGAS()` with `#define NUM_PRIMITIVES 1`
-
-**Required:** Constructor accepts optional primitives vector:
-
-```cpp
-class Renderer {
-public:
-    explicit Renderer(const app::Config& config,
-                     std::vector<params::Primitive> primitives = {});
-private:
-    std::vector<params::Primitive> scene_primitives_;
-    size_t num_primitives_;
-};
 ```
 
 ### Test Scenes

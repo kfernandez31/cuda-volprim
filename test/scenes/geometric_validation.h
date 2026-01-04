@@ -15,6 +15,7 @@ struct TestScene {
 };
 
 // Core correctness tests
+TestScene single_purple();
 TestScene coincident_surfaces();
 TestScene partial_overlap();
 TestScene total_overlap();
@@ -31,6 +32,14 @@ TestScene transform_translation();
 TestScene many_gaussians();
 TestScene nested_structure();
 TestScene tangent_rays();
+
+// Performance stress tests (increasing gaussian counts)
+TestScene stress_256_gaussians();
+TestScene stress_512_gaussians();
+TestScene stress_1024_gaussians();
+TestScene stress_2048_gaussians();
+TestScene stress_4096_gaussians();
+TestScene stress_8192_gaussians();
 
 // Edge case tests: Priority 0 (Critical - Could Crash/Hang)
 TestScene empty_scene();
@@ -65,7 +74,9 @@ TestScene minimal_behind_camera();
 TestScene minimal_in_front();
 TestScene multiple_same_z();
 
-// Get all test scenes
+// Get test scenes by category
 std::vector<TestScene> get_all_test_scenes();
+std::vector<TestScene> get_validation_test_scenes();
+std::vector<TestScene> get_stress_test_scenes();
 
 }  // namespace thesis::test::scenes

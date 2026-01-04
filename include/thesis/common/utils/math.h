@@ -5,6 +5,7 @@
 #include <vector_functions.h>
 #include <vector_types.h>
 
+#include <bit>
 #include <cmath>
 
 // Vector convenience overloads in global namespace (where float3/float4 live)
@@ -279,10 +280,11 @@ THESIS_HOST_DEVICE THESIS_INLINE float rsqrt(float x) noexcept {
     return rsqrtf(x);
 #else
     // Quake III fast inverse square root with Newton-Raphson refinement
+    // Use std::bit_cast to avoid strict-aliasing violations
     const auto neg_xhalf = -0.5f * x;
-    auto i = *reinterpret_cast<const int*>(&x);
+    auto i = std::bit_cast<int>(x);
     i = 0x5f3759df - (i >> 1);
-    auto y = *reinterpret_cast<const float*>(&i);
+    auto y = std::bit_cast<float>(i);
     y *= fma(pow2(y), neg_xhalf, 1.5f);  // Newton-Raphson iteration
     return y;
 #endif

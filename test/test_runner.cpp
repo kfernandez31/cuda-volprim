@@ -26,6 +26,8 @@ struct TestConfig {
     std::string scene_name;
     bool list_scenes = false;
     bool run_all = false;
+    bool run_validation = false;
+    bool run_stress = false;
     size_t spp = 64;
     size_t width = 1920;
     size_t height = 1080;
@@ -33,9 +35,22 @@ struct TestConfig {
     std::string output_file = "";
 };
 
-void list_scenes() {
-    auto scenes = get_all_test_scenes();
-    std::cout << "\nAvailable Test Scenes (" << scenes.size() << " total):\n\n";
+void list_scenes(const std::string& category = "all") {
+    std::vector<TestScene> scenes;
+    std::string header;
+
+    if (category == "validation") {
+        scenes = get_validation_test_scenes();
+        header = "Validation Test Scenes";
+    } else if (category == "stress") {
+        scenes = get_stress_test_scenes();
+        header = "Performance Stress Test Scenes";
+    } else {
+        scenes = get_all_test_scenes();
+        header = "All Test Scenes";
+    }
+
+    std::cout << "\n" << header << " (" << scenes.size() << " total):\n\n";
 
     for (const auto& scene : scenes) {
         std::cout << "  " << scene.name << "\n";
@@ -53,6 +68,8 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     app.add_option("--scene", config.scene_name, "Run specific test scene");
     app.add_flag("--list", config.list_scenes, "List all available test scenes");
     app.add_flag("--all", config.run_all, "Run all test scenes");
+    app.add_flag("--validation", config.run_validation, "Run validation/correctness tests only");
+    app.add_flag("--stress", config.run_stress, "Run performance stress tests only");
 
     // Render settings
     app.add_option("--spp", config.spp, "Samples per pixel")->default_val(64)->check(CLI::PositiveNumber);
@@ -91,7 +108,6 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     std::cout << "SPP: " << test_config.spp << "\n";
     std::cout << "Resolution: " << test_config.width << "×" << test_config.height << "\n";
     std::cout << "Output: " << output_path << "\n";
-    std::cout << "Debug: ENABLED (diagnostic output will be shown)\n";
     std::cout << "────────────────────────────────────────────────────────\n";
 
     // Create config for renderer
@@ -101,7 +117,6 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.num_samples_per_pixel_ = test_config.spp;
     renderer_config.output_path_ = output_path;
     renderer_config.seed_ = 42;  // Fixed seed for reproducibility
-    renderer_config.debug_ = true;  // Always enable debug for test runner to diagnose issues
 
     // Assume env map and module paths are in default locations
     renderer_config.env_map_path_ = "assets/meadow_2_4k.hdr";
@@ -128,24 +143,45 @@ int main(int argc, char* argv[]) {
 
     // Handle --list
     if (test_config.list_scenes) {
-        list_scenes();
+        if (test_config.run_validation) {
+            list_scenes("validation");
+        } else if (test_config.run_stress) {
+            list_scenes("stress");
+        } else {
+            list_scenes("all");
+        }
         return 0;
     }
 
-    // Get all scenes
-    auto all_scenes = get_all_test_scenes();
+    // Determine which scenes to run
+    std::vector<TestScene> scenes_to_run;
+    std::string run_mode;
 
-    // Handle --all
-    if (test_config.run_all) {
+    if (test_config.run_validation) {
+        scenes_to_run = get_validation_test_scenes();
+        run_mode = "validation";
+    } else if (test_config.run_stress) {
+        scenes_to_run = get_stress_test_scenes();
+        run_mode = "stress";
+    } else if (test_config.run_all) {
+        scenes_to_run = get_all_test_scenes();
+        run_mode = "all";
+    } else {
+        // Default: all scenes for --all or single scene mode
+        scenes_to_run = get_all_test_scenes();
+    }
+
+    // Handle --validation, --stress, or --all (run multiple scenes)
+    if (test_config.run_validation || test_config.run_stress || test_config.run_all) {
         // Create output directory
         fs::create_directories(test_config.output_dir);
 
-        std::cout << "Running all " << all_scenes.size() << " test scenes...\n";
+        std::cout << "Running " << run_mode << " tests (" << scenes_to_run.size() << " scenes)...\n";
 
         size_t passed = 0;
         size_t failed = 0;
 
-        for (const auto& scene : all_scenes) {
+        for (const auto& scene : scenes_to_run) {
             std::string output_path = test_config.output_dir + "/" + scene.name + ".exr";
 
             try {
@@ -159,7 +195,8 @@ int main(int argc, char* argv[]) {
 
         std::cout << "\n════════════════════════════════════════════════════════\n";
         std::cout << "Test Summary:\n";
-        std::cout << "  Total:  " << all_scenes.size() << "\n";
+        std::cout << "  Mode:   " << run_mode << "\n";
+        std::cout << "  Total:  " << scenes_to_run.size() << "\n";
         std::cout << "  Passed: " << passed << "\n";
         std::cout << "  Failed: " << failed << "\n";
         std::cout << "════════════════════════════════════════════════════════\n";
@@ -170,10 +207,10 @@ int main(int argc, char* argv[]) {
     // Handle single scene
     if (!test_config.scene_name.empty()) {
         // Find the requested scene
-        auto it = std::find_if(all_scenes.begin(), all_scenes.end(),
+        auto it = std::find_if(scenes_to_run.begin(), scenes_to_run.end(),
             [&](const TestScene& s) { return s.name == test_config.scene_name; });
 
-        if (it == all_scenes.end()) {
+        if (it == scenes_to_run.end()) {
             std::cerr << "Error: Scene '" << test_config.scene_name << "' not found.\n";
             std::cerr << "Use --list to see available scenes.\n";
             return 1;

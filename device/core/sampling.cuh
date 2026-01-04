@@ -58,6 +58,13 @@ __forceinline__ __device__ float sample_target_optical_depth(float uniform_sampl
 __forceinline__ __device__ float optical_depth_accumulated(const geometry::Ray& ray,
                                                            const PrimsSet& prims, float t0,
                                                            float t1) {
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    if (t1 < t0) {
+        printf("[ERROR] optical_depth_accumulated: t1 (%.6f) < t0 (%.6f) at pixel (%u, %u)\n",
+               t1, t0, optixGetLaunchIndex().x, optixGetLaunchIndex().y);
+        return -1.0f;  // Return error sentinel
+    }
+#endif
     auto tau = 0.0f;
 
 #pragma unroll 4
@@ -93,6 +100,13 @@ __forceinline__ __device__ float3 integrate_primitives(const geometry::Ray& ray,
 
 __forceinline__ __device__ float3 integrate_primitives(const geometry::Ray& ray,
                                                        const PrimsSet& prims, float t0, float t1) {
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    if (t1 < t0) {
+        printf("[ERROR] integrate_primitives: t1 (%.6f) < t0 (%.6f) at pixel (%u, %u)\n",
+               t1, t0, optixGetLaunchIndex().x, optixGetLaunchIndex().y);
+        return make_float3(0.0f);  // Return zero to avoid propagating error
+    }
+#endif
     float3 result = make_float3(0.0f);
 
 #pragma unroll 4
@@ -219,6 +233,18 @@ __device__ HitBuffer collect_and_sort_hits(const geometry::Ray& ray, const Prims
 
     // STEP 4: Sort hits by t-value
     sort(hit_buffer);
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    // Validate buffer is sorted
+    for (size_t i = 1; i < hit_buffer.size(); ++i) {
+        if (hit_buffer[i].t_hit < hit_buffer[i - 1].t_hit) {
+            printf("[ERROR] Hit buffer not sorted at pixel (%u, %u): t[%zu]=%.6f < t[%zu]=%.6f\n",
+                   optixGetLaunchIndex().x, optixGetLaunchIndex().y,
+                   i, hit_buffer[i].t_hit, i - 1, hit_buffer[i - 1].t_hit);
+            break;  // Only print first violation to avoid spam
+        }
+    }
+#endif
 
     return hit_buffer;
 }

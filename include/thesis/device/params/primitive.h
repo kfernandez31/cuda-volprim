@@ -185,7 +185,7 @@ class THESIS_ALIGNMENT Primitive {
     // Device-only: optical depth from t0 to t1
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
         // Handle very small or invalid intervals gracefully
-        if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH || t0 > t1) {
+        if (t1 - t0 <= consts::RAY_SEGMENT_MIN_LENGTH) {
             return 0.0f;
         }
 

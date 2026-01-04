@@ -18,8 +18,18 @@ constexpr float INF_F = 1e20;
 constexpr uint VISIBILITY_ALL = 0xFF;
 
 // Primitive and scattering constants
-// Maximum number of primitives that can be processed simultaneously per ray
-constexpr size_t MAX_PRIMITIVES = 64;  // TODO(kacper): change based on realistic estimates
+// Maximum number of primitives that can be SIMULTANEOUSLY OVERLAPPING per ray
+// This is NOT the total scene primitive count - it's the max depth of ray-primitive overlap
+// Limited by OptiX continuation stack size (hardware/driver dependent)
+// Stack allocation: Hit buffer (2×MAX × ~24 bytes) + Active set (~MAX × 8 bytes)
+// Tested limits (OptiX compilation success):
+//   - MAX_PRIMITIVES=128:  ~6KB stack (✓ safe on all GPUs)
+//   - MAX_PRIMITIVES=256:  ~12KB stack (✓ safe on most GPUs)
+//   - MAX_PRIMITIVES=512:  ~25KB stack (? test on your GPU)
+//   - MAX_PRIMITIVES=1024: ~50KB stack (✓ RTX 3090, ? other GPUs)
+//   - MAX_PRIMITIVES=2048: ~100KB stack (✗ OptiX compile error)
+// If buffer overflow occurs: ray terminated early → BIASED RENDERING
+constexpr size_t MAX_PRIMITIVES = 256;
 
 // Hit buffer capacity: must hold BOTH entry AND exit hits (2 hits per primitive)
 // Each primitive generates one entry hit and one exit hit during ray traversal

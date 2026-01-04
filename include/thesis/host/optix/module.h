@@ -52,8 +52,7 @@ class Module {
         const OptixPipelineCompileOptions& pco, const OptixBuiltinISOptions& builtin_is_options) {
         Module module;
 
-        OPTIX_CALL_LOGGED(optixBuiltinISModuleGet(ctx, &mco, &pco, &builtin_is_options, log.data(),
-                                                  &log_size, &module.handle_));
+        OPTIX_CHECK(optixBuiltinISModuleGet(ctx, &mco, &pco, &builtin_is_options, &module.handle_));
 
         return module;
     }
