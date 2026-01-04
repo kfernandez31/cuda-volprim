@@ -249,20 +249,14 @@ __device__ HitBuffer collect_and_sort_hits(const geometry::Ray& ray, const Prims
     return hit_buffer;
 }
 
-// Process result enum for cluster processing callbacks
 enum class ClusterProcessResult {
-    CONTINUE,   // Continue to next cluster
-    EARLY_EXIT  // Stop processing immediately
+    CONTINUE,
+    EARLY_EXIT
 };
 
-// Generic cluster processor: processes sorted hit buffer in t-value clusters
-// Calls user callbacks for segment processing and ray-started-inside handling
-// This eliminates code duplication between sample_scattering_event and
-// compute_optical_depth_along_ray
-template <typename SegmentCallback, typename RayStartedInsideCallback>
+template <typename SegmentCallback>
 __device__ void process_hit_clusters(const geometry::Ray& ray, const HitBuffer& hit_buffer,
-                                     PrimsSet& active_prims, SegmentCallback&& on_segment,
-                                     RayStartedInsideCallback&& on_ray_started_inside) {
+                                     PrimsSet& active_prims, SegmentCallback&& on_segment) {
     float t_prev_hit = 0.0f;
 
     for (size_t i = 0; i < hit_buffer.size();) {
@@ -280,21 +274,10 @@ __device__ void process_hit_clusters(const geometry::Ray& ray, const HitBuffer& 
                math::abs(hit_buffer[j].t_hit - t_current) < consts::HIT_COINCIDENCE_EPS) {
             const auto& hit = hit_buffer[j];
 
-            // Update active primitives set
             if (!hit.is_exit) {
                 (void) active_prims.insert(hit.prim_idx);
             } else {
-                if (active_prims.contains(hit.prim_idx)) {
-                    // Normal paired exit - remove from active set
-                    (void) active_prims.erase(hit.prim_idx);
-                } else {
-                    // Ray started inside this primitive (no entry was detected)
-                    // Manually integrate from ray origin to this exit
-                    const auto result = on_ray_started_inside(hit.prim_idx, t_current);
-                    if (result == ClusterProcessResult::EARLY_EXIT) {
-                        return;
-                    }
-                }
+                (void) active_prims.erase(hit.prim_idx);
             }
 
             ++j;
@@ -313,6 +296,15 @@ __device__ bool sample_scattering_event(
 
     auto& active_prims = event.active_prims_;
 
+    // Pre-populate active_prims with primitives containing ray origin
+    // This eliminates the "ray started inside" branch in exit hit processing
+    const size_t num_primitives = launch_params.primitives_.size();
+    for (size_t i = 0; i < num_primitives; ++i) {
+        if (common::geometry::point_inside_ellipsoid(ray.origin_, launch_params.primitives_[i])) {
+            (void) active_prims.insert(static_cast<uint>(i));
+        }
+    }
+
     // Collect and sort all hits (also captures Miss payload)
     auto hit_buffer = collect_and_sort_hits(ray, active_prims, &miss);
 
@@ -328,20 +320,16 @@ __device__ bool sample_scattering_event(
 
     process_hit_clusters(
         ray, hit_buffer, active_prims,
-        // Segment callback: integrate optical depth and check for scattering
         [&](float t_prev, float t_current) -> ClusterProcessResult {
             const auto tau_segment =
                 optical_depth_accumulated(ray, active_prims, t_prev, t_current);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-            // Check for sentinel error value (negative optical depth is invalid)
             if (tau_segment < 0.0f) {
-                // Force ray to escape to avoid infinite loop
                 return ClusterProcessResult::EARLY_EXIT;
             }
-#endif  // THESIS_ENABLE_NUMERICAL_GUARDS
+#endif
 
-            // Check if scattering occurs before reaching this cluster
             if (tau_cumulative + tau_segment >= tau_target) {
                 const auto tau_needed = tau_target - tau_cumulative;
                 const auto t_scatter =
@@ -357,22 +345,6 @@ __device__ bool sample_scattering_event(
 
             tau_cumulative += tau_segment;
             return ClusterProcessResult::CONTINUE;
-        },
-        // Ray-started-inside callback: handle primitives we're already inside
-        [&](uint prim_idx, float t_exit) -> ClusterProcessResult {
-            const auto& prim = launch_params.primitives_[prim_idx];
-            const auto tau_from_origin = prim.optical_depth(ray, 0.0f, t_exit);
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-            // Check for sentinel error value (negative optical depth is invalid)
-            if (tau_from_origin < 0.0f) {
-                // Force ray to escape to avoid infinite loop
-                return ClusterProcessResult::EARLY_EXIT;
-            }
-#endif  // THESIS_ENABLE_NUMERICAL_GUARDS
-
-            tau_cumulative += tau_from_origin;
-            return ClusterProcessResult::CONTINUE;
         });
 
     // miss already set from trace_ch_collect
@@ -382,6 +354,15 @@ __device__ bool sample_scattering_event(
 __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray,
                                                   PrimsSet& active_prims) {
     auto acc_optical_depth = make_float3(0.0f);
+
+    // Pre-populate active_prims with primitives containing ray origin
+    // This eliminates the "ray started inside" branch in exit hit processing
+    const size_t num_primitives = launch_params.primitives_.size();
+    for (size_t i = 0; i < num_primitives; ++i) {
+        if (common::geometry::point_inside_ellipsoid(ray.origin_, launch_params.primitives_[i])) {
+            (void) active_prims.insert(static_cast<uint>(i));
+        }
+    }
 
     // Collect and sort all hits (Miss payload not needed, so don't capture it)
     auto hit_buffer = collect_and_sort_hits(ray, active_prims);
@@ -396,16 +377,9 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray,
 
     process_hit_clusters(
         ray, hit_buffer, active_prims,
-        // Segment callback: integrate density along segment
         [&](float t_prev, float t_current) -> ClusterProcessResult {
             acc_optical_depth += integrate_primitives(ray, active_prims, t_prev, t_current);
-            final_t_prev = t_current;  // Track last t for tail integration
-            return ClusterProcessResult::CONTINUE;
-        },
-        // Ray-started-inside callback: handle primitives we're already inside
-        [&](uint prim_idx, float t_exit) -> ClusterProcessResult {
-            const auto& prim = launch_params.primitives_[prim_idx];
-            acc_optical_depth += prim.density_integral(ray, 0.0f, t_exit);
+            final_t_prev = t_current;
             return ClusterProcessResult::CONTINUE;
         });
 
