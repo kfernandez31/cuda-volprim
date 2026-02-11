@@ -26,7 +26,19 @@ class Camera {
     float3 lookat_ = make_float3(0.0f, 0.0f, 0.0f);
     float3 vup_ = make_float3(0.0f, 1.0f, 0.0f);
 
+    // Orthographic-specific parameters
+    bool is_orthographic_ = false;
+    float ortho_height_ = 2.0f;  // Height of orthographic viewport
+
     void build() noexcept {
+        if (is_orthographic_) {
+            buildOrthographic();
+        } else {
+            buildPerspective();
+        }
+    }
+
+    void buildPerspective() noexcept {
         const auto theta = vertical_fov_ * common::math::DEG_TO_RAD_F;
         const auto h = std::tan(0.5f * theta);
 
@@ -51,10 +63,50 @@ class Camera {
         const auto pixel00_relative = pixel00 - lookfrom_;  // Precompute for device
 
         // Populate device struct with precomputed values
+        device_camera_.is_orthographic_ = false;
         device_camera_.eye_ = lookfrom_;
         device_camera_.pixel00_relative_ = pixel00_relative;
         device_camera_.pixel_du_ = pixel_du;
         device_camera_.pixel_dv_ = pixel_dv;
+    }
+
+    void buildOrthographic() noexcept {
+        // Compute camera basis vectors
+        const auto view_dir = common::math::normalize(lookat_ - lookfrom_);
+        const auto right = common::math::normalize(common::math::cross(view_dir, vup_));
+        const auto up = common::math::cross(right, view_dir);
+
+        // Orthographic viewport dimensions
+        const auto aspect_ratio =
+            static_cast<float>(image_width_) * common::math::rcp(static_cast<float>(image_height_));
+        const auto viewport_height = ortho_height_;
+        const auto viewport_width = viewport_height * aspect_ratio;
+
+        // Viewport vectors (in world space)
+        const auto viewport_u = right * viewport_width;
+        const auto viewport_v = -up * viewport_height;
+
+        // Pixel delta vectors
+        const auto pixel_du = viewport_u * common::math::rcp(static_cast<float>(image_width_));
+        const auto pixel_dv = viewport_v * common::math::rcp(static_cast<float>(image_height_));
+
+        // View plane center (eye position for orthographic reference point)
+        const auto view_center = lookfrom_;
+
+        // Upper-left corner of viewport
+        const auto viewport_ul = view_center - common::math::midpoint(viewport_u, viewport_v);
+
+        // Pixel (0,0) center position
+        const auto pixel00 = viewport_ul + common::math::midpoint(pixel_du, pixel_dv);
+        const auto pixel00_relative = pixel00 - view_center;
+
+        // Populate device struct
+        device_camera_.is_orthographic_ = true;
+        device_camera_.eye_ = view_center;
+        device_camera_.pixel00_relative_ = pixel00_relative;
+        device_camera_.pixel_du_ = pixel_du;
+        device_camera_.pixel_dv_ = pixel_dv;
+        device_camera_.view_direction_ = view_dir;
     }
 
    public:
@@ -65,6 +117,22 @@ class Camera {
         Camera cam;
         cam.image_width_ = w;
         cam.image_height_ = h;
+        cam.is_orthographic_ = false;
+        cam.build();
+        return cam;
+    }
+
+    // Factory method for orthographic camera
+    static Camera createOrthographic(size_t width, size_t height, float3 origin, float3 target,
+                                     float3 up, float ortho_height) noexcept {
+        Camera cam;
+        cam.image_width_ = width;
+        cam.image_height_ = height;
+        cam.is_orthographic_ = true;
+        cam.lookfrom_ = origin;
+        cam.lookat_ = target;
+        cam.vup_ = up;
+        cam.ortho_height_ = ortho_height;
         cam.build();
         return cam;
     }
@@ -78,6 +146,9 @@ class Camera {
     [[nodiscard]] float3 lookfrom() const noexcept { return lookfrom_; }
     [[nodiscard]] float3 lookat() const noexcept { return lookat_; }
     [[nodiscard]] float vertical_fov() const noexcept { return vertical_fov_; }
+    [[nodiscard]] size_t width() const noexcept { return image_width_; }
+    [[nodiscard]] size_t height() const noexcept { return image_height_; }
+    [[nodiscard]] bool is_orthographic() const noexcept { return is_orthographic_; }
 };
 
 }  // namespace params

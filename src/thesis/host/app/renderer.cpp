@@ -26,7 +26,8 @@ namespace thesis::host::app {
 // Using conservative value that works well for both
 constexpr size_t BATCH_SIZE = 64;
 
-Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives)
+Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives,
+                   std::optional<params::Camera> camera)
     // clang-format off
     : config_(config),
       num_primitives_(primitives.size()),
@@ -38,12 +39,20 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
       instances_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
       env_map_(utils::io::async::loadHDR(config_.env_map_path_), cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
-      camera_(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_)),
+      camera_(camera.value_or(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_))),
       primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
       camera_active_prims_(),
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
+
+    // Validate camera dimensions match config (helps catch configuration errors)
+    if (camera_.width() != config_.image_width_ || camera_.height() != config_.image_height_) {
+        spdlog::warn(
+            "Camera dimensions ({}×{}) differ from image buffer dimensions ({}×{}). "
+            "This may cause incorrect rendering.",
+            camera_.width(), camera_.height(), config_.image_width_, config_.image_height_);
+    }
 
     auto module_file_future = utils::io::async::readFileToBytes(config_.module_blob_path_);
 

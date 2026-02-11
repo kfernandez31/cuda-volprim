@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <future>
+#include <optional>
 #include <vector>
 
 namespace thesis::host::app {
@@ -57,7 +58,8 @@ class Renderer {
     optix::Pipeline pipeline_;
 
    public:
-    explicit Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives);
+    explicit Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives,
+                     std::optional<params::Camera> camera = std::nullopt);
 
     void render();
 };

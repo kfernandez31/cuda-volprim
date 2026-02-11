@@ -20,6 +20,10 @@ struct THESIS_ALIGNMENT Camera {
     float3 pixel_du_ = make_float3(0.0f);
     float3 pixel_dv_ = make_float3(0.0f);
 
+    // Orthographic support
+    bool is_orthographic_ = false;
+    float3 view_direction_ = make_float3(0.0f, 0.0f, 1.0f);  // Constant ray direction for ortho
+
     Camera() = default;
     Camera(const Camera&) = default;
     Camera& operator=(const Camera&) = default;
@@ -38,8 +42,18 @@ struct THESIS_ALIGNMENT Camera {
     // Device-only: generate jittered camera ray
     __device__ __forceinline__ geometry::Ray jittered_ray(uint2 pixel, float2 jitter) const {
         const auto p = make_float2(pixel.x + jitter.x, pixel.y + jitter.y);
-        const auto dir = ray_direction(p);
-        return geometry::Ray::spawn(eye_, dir);
+
+        if (is_orthographic_) {
+            // Orthographic: ray origin varies across viewport, direction is constant
+            // ray_direction() computes the pixel position offset from eye_
+            const auto offset = ray_direction(p);
+            const auto origin = eye_ + offset;
+            return geometry::Ray::spawn(origin, view_direction_);
+        } else {
+            // Perspective: ray origin is constant (camera position), direction varies
+            const auto dir = ray_direction(p);
+            return geometry::Ray::spawn(eye_, dir);
+        }
     }
 
     // Device-only: get camera position

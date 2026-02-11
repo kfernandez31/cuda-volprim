@@ -1,5 +1,6 @@
 #include "thesis/pch.h"
 
+#include "scenes/cloud_validation.h"
 #include "scenes/geometric_validation.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/app/logging.h"
@@ -13,6 +14,7 @@
 
 #include <CLI11/CLI11.hpp>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -136,8 +138,94 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     }
 }
 
+void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_config) {
+    std::cout << "\n════════════════════════════════════════════════════════\n";
+    std::cout << "Running multi-view test: " << scene.name << "\n";
+    std::cout << "Description: " << scene.description << "\n";
+    std::cout << "Primitives: " << scene.primitives.size() << "\n";
+    std::cout << "Cameras: " << scene.cameras.size() << "\n";
+    std::cout << "SPP: " << test_config.spp << "\n";
+    std::cout << "════════════════════════════════════════════════════════\n";
+
+    // Validate scene has content
+    if (scene.cameras.empty()) {
+        std::cerr << "✗ Multi-view test failed: No cameras available\n";
+        std::cerr << "  This likely means Mitsuba config parsing failed.\n";
+        std::cerr << "  Check logs for errors related to __init__.py or args.json parsing.\n";
+        throw std::runtime_error("No cameras to render");
+    }
+
+    if (scene.primitives.empty()) {
+        std::cerr << "✗ Multi-view test failed: No primitives loaded\n";
+        std::cerr << "  Check that assets/cloud/root.primitives.ply exists and is valid.\n";
+        throw std::runtime_error("No primitives to render");
+    }
+
+    // Create output directory for this test
+    fs::path output_dir = fs::path(test_config.output_dir) / scene.name;
+    try {
+        fs::create_directories(output_dir);
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "✗ Failed to create output directory: " << e.what() << "\n";
+        throw;
+    }
+
+    // Render each camera view
+    for (size_t cam_idx = 0; cam_idx < scene.cameras.size(); ++cam_idx) {
+        const auto& camera = scene.cameras[cam_idx];
+
+        // Generate output path: test_results/cloud_asset_validation/0000.exr
+        std::ostringstream oss;
+        oss << std::setw(4) << std::setfill('0') << cam_idx << ".exr";
+        fs::path output_path = output_dir / oss.str();
+
+        std::cout << "\n  [" << (cam_idx + 1) << "/" << scene.cameras.size() << "] ";
+        std::cout << "Rendering camera " << cam_idx << " → " << output_path.string() << "\n";
+        std::cout << "    Resolution: " << camera.width() << "×" << camera.height();
+        std::cout << " (" << (camera.is_orthographic() ? "orthographic" : "perspective") << ")\n";
+
+        // Create renderer config
+        app::Config renderer_config;
+        renderer_config.image_width_ = camera.width();
+        renderer_config.image_height_ = camera.height();
+        renderer_config.num_samples_per_pixel_ = test_config.spp;
+        renderer_config.output_path_ = output_path.string();
+        renderer_config.seed_ = 42;
+
+        // Use override env map if specified, otherwise default
+        renderer_config.env_map_path_ =
+            scene.env_map_override.value_or("assets/meadow_2_4k.hdr");
+        renderer_config.module_blob_path_ = "build/device_program.optixir";
+
+        try {
+            // Create renderer with test scene primitives and specific camera
+            app::Renderer renderer(renderer_config,
+                                   std::vector<params::Primitive>(scene.primitives), camera);
+
+            // Render
+            renderer.render();
+
+            std::cout << "    ✓ Camera " << cam_idx << " completed\n";
+        } catch (const std::exception& e) {
+            std::cerr << "    ✗ Camera " << cam_idx << " failed: " << e.what() << "\n";
+            throw;
+        }
+    }
+
+    std::cout << "\n✓ Multi-view test completed successfully\n";
+    std::cout << "  Output directory: " << output_dir.string() << "\n";
+}
+
 int main(int argc, char* argv[]) {
     app::logging::init();
+
+    // Validate working directory (test runner must be run from project root)
+    if (!fs::exists("assets") || !fs::exists("build")) {
+        std::cerr << "Error: Test runner must be executed from project root directory.\n";
+        std::cerr << "Current directory: " << fs::current_path() << "\n";
+        std::cerr << "Expected assets/ and build/ directories to exist.\n";
+        return 1;
+    }
 
     auto test_config = utils::try_unwrap_or_exit(parse_args(argc, argv));
 
@@ -206,6 +294,26 @@ int main(int argc, char* argv[]) {
 
     // Handle single scene
     if (!test_config.scene_name.empty()) {
+        // Special case: cloud_asset_validation (multi-view test)
+        if (test_config.scene_name == "cloud_asset_validation") {
+            try {
+                auto cloud_scene_result = cloud_asset_validation();
+                if (!cloud_scene_result.has_value()) {
+                    std::cerr << "✗ Failed to load cloud asset: " << cloud_scene_result.error()
+                              << "\n";
+                    return 1;
+                }
+                run_multiview_test(cloud_scene_result.value(), test_config);
+                return 0;
+            } catch (const std::exception& e) {
+                std::cerr << "✗ Exception: " << e.what() << "\n";
+                return 1;
+            } catch (...) {
+                std::cerr << "✗ Unknown exception occurred\n";
+                return 1;
+            }
+        }
+
         // Find the requested scene
         auto it = std::find_if(scenes_to_run.begin(), scenes_to_run.end(),
             [&](const TestScene& s) { return s.name == test_config.scene_name; });
