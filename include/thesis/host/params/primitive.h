@@ -48,7 +48,7 @@ class Primitive {
 
     // Generate OptiX transformation matrix (local-to-world, uses forward rotation)
     [[nodiscard]] utils::math::Mat3x4 localToWorld() const noexcept {
-        static constexpr auto INTERSECTION_SCALING_FACTOR = 1.0f;  // TODO(kacper): set to 3.0f
+        static constexpr auto INTERSECTION_SCALING_FACTOR = 3.0f;  // Scale for proper Gaussian extent
         const auto scaled = device_primitive_.scale() * INTERSECTION_SCALING_FACTOR;
         return utils::math::Mat3x4::from_trs(device_primitive_.center(), rot_quat_,
                                              scaled);  // Use forward rotation
