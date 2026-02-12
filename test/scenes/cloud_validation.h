@@ -2,6 +2,7 @@
 
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/primitive.h"
+#include "thesis/host/utils/result.h"
 
 #include <optional>
 #include <string>

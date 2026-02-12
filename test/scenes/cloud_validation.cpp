@@ -19,7 +19,7 @@ Result<MultiViewTestScene> cloud_asset_validation() {
     // Load primitives from PLY
     spdlog::info("Loading cloud primitives from PLY...");
     auto primitives_future =
-        thesis::host::utils::io::async::loadPrimitives("assets/cloud/root.primitives.ply");
+        thesis::host::utils::io::async::loadPrimitives("assets/cloud/root.primitives_pyr0.ply");
     auto primitives_result = primitives_future.get();
 
     if (!primitives_result.has_value()) {

@@ -215,11 +215,10 @@ Result<MitsubaSceneConfig> parseMitsubaScene(const std::filesystem::path& init_p
 
 params::Camera createOrthographicCamera(const MitsubaCameraConfig& cam_config,
                                         float orthographic_extent) {
-    // For orthographic cameras, extent is the viewport WIDTH
-    // Height is computed from aspect ratio: height = width / aspect_ratio
+    // Use extent as viewport height (matching Mitsuba convention)
     const float aspect_ratio =
         static_cast<float>(cam_config.width) / static_cast<float>(cam_config.height);
-    const float ortho_height = orthographic_extent / aspect_ratio;
+    const float ortho_height = orthographic_extent;
 
     return params::Camera::createOrthographic(cam_config.width, cam_config.height, cam_config.origin,
                                               cam_config.target, cam_config.up, ortho_height);

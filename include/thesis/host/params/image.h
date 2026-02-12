@@ -112,8 +112,9 @@ class Image {
 
         spdlog::info("Saving to '{}'", filename.string());
         // Move buffer ownership to async task (zero-copy)
+        // flip_vertical=false to match Mitsuba coordinate system
         return utils::io::async::saveExr(std::move(averaged_pixels_managed_), device_image_.width_,
-                                         device_image_.height_, filename);
+                                         device_image_.height_, filename, false);
     }
 };
 

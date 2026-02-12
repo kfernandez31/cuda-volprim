@@ -223,9 +223,13 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
         for (size_t i = 0; i < N; ++i) {
             const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
             const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
-            auto scale = make_float3(scale_0[i], scale_1[i], scale_2[i]);
+            // Scale is in log-space: scale = exp(log_scale)
+            auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
             auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            auto optical_thickness = sigma_t[i];
+            // sigma_t is in LINEAR space (unlike scales which are log-space)
+            // Empirical scaling to match Mitsuba reference (Gabor-Gaussian mixture kernel)
+            // args.json sigmat_scale=7.5, but our plain Gaussian kernel needs more
+            auto optical_thickness = sigma_t[i] * 100.0f;
 
             // Validate geometry (prevent division by zero and numerical errors)
             // Critical errors: fail fast

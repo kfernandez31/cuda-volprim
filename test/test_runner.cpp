@@ -299,7 +299,7 @@ int main(int argc, char* argv[]) {
             try {
                 auto cloud_scene_result = cloud_asset_validation();
                 if (!cloud_scene_result.has_value()) {
-                    std::cerr << "✗ Failed to load cloud asset: " << cloud_scene_result.error()
+                    std::cerr << "✗ Failed to load cloud asset: " << cloud_scene_result.error().msg_
                               << "\n";
                     return 1;
                 }
