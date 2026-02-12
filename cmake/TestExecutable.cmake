@@ -33,6 +33,7 @@ target_link_libraries(test_runner PRIVATE
     CUDA::cuda_driver
     CUDA::cudart
     CUDA::curand
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:TBB::tbb>
 )
 
 # === Include Directories ===

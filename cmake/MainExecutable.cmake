@@ -23,12 +23,18 @@ target_precompile_headers(thesis PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:${INCLUDE_DIR}/thesis/pch.h>
 )
 
+# === Parallel STL (TBB required on GCC/Clang) ===
+if(NOT MSVC)
+    find_package(TBB REQUIRED)
+endif()
+
 # === Linking ===
 target_link_libraries(thesis PRIVATE
     device
     CUDA::cuda_driver
     CUDA::cudart
     CUDA::curand
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:TBB::tbb>
 )
 
 # === Include Directories ===

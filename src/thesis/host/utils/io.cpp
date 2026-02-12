@@ -6,9 +6,12 @@
 
 #include <vector_types.h>
 
+#include <algorithm>
 #include <array>
+#include <execution>
 #include <fstream>
 #include <ios>
+#include <numeric>
 #include <stb/stb_image.h>
 #include <string>
 #include <tinyexr/tinyexr.h>
@@ -74,7 +77,11 @@ Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t 
             chan.resize(width * height);
         }
 
-        for (size_t y = 0; y < height; ++y) {
+        // Parallel channel deinterleaving: each row is independent
+        std::vector<size_t> rows(height);
+        std::iota(rows.begin(), rows.end(), size_t{0});
+
+        std::for_each(std::execution::par, rows.begin(), rows.end(), [&](size_t y) {
             const auto row_in = y * width;
             const auto row_out = (flip_vertical ? height - 1 - y : y) * width;
 
@@ -84,7 +91,7 @@ Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t 
                 channels[1][row_out + x] = c.y;  // G
                 channels[2][row_out + x] = c.z;  // B (W component ignored)
             }
-        }
+        });
 
         EXRImage image;
         InitEXRImage(&image);
@@ -217,22 +224,13 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
 
         using namespace thesis::host;
         using namespace thesis::common::geometry;
-        std::vector<params::Primitive> result;
-        result.reserve(N);
 
+        // Sequential validation pass (cheap — just isfinite checks, enables early exit)
         for (size_t i = 0; i < N; ++i) {
-            const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
-            const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
-            // Scale is in log-space: scale = exp(log_scale)
             auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
-            auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            // sigma_t is in LINEAR space (unlike scales which are log-space)
-            // Empirical scaling to match Mitsuba reference (Gabor-Gaussian mixture kernel)
-            // args.json sigmat_scale=7.5, but our plain Gaussian kernel needs more
             auto optical_thickness = sigma_t[i] * 100.0f;
+            auto center = make_float3(p_x[i], p_y[i], p_z[i]);
 
-            // Validate geometry (prevent division by zero and numerical errors)
-            // Critical errors: fail fast
             if (scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) {
                 return make_error(
                     "Primitive {}: Invalid scale ({}, {}, {}) - all components must be > 0", i,
@@ -254,28 +252,33 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
                 return make_error("Primitive {}: NaN/Inf in center ({}, {}, {})", i, center.x,
                                   center.y, center.z);
             }
-
-            // Non-critical: clamp and warn
-            auto clamp_albedo = [&](float& val, const char* component) {
-                if (!std::isfinite(val)) {
-                    spdlog::warn("Primitive {}: NaN/Inf in albedo.{}, setting to 0", i, component);
-                    val = 0.0f;
-                } else if (val < 0.0f) {
-                    spdlog::warn("Primitive {}: Negative albedo.{} = {}, clamping to 0", i,
-                                 component, val);
-                    val = 0.0f;
-                } else if (val > 1.0f) {
-                    spdlog::warn("Primitive {}: albedo.{} = {} > 1.0, clamping to 1.0", i,
-                                 component, val);
-                    val = 1.0f;
-                }
-            };
-            clamp_albedo(albedo.x, "r");
-            clamp_albedo(albedo.y, "g");
-            clamp_albedo(albedo.z, "b");
-
-            result.emplace_back(center, quat, scale, albedo, optical_thickness);
         }
+
+        // Parallel primitive construction (expf, quaternion, albedo clamping)
+        std::vector<params::Primitive> result(N, params::Primitive{});
+        std::vector<size_t> indices(N);
+        std::iota(indices.begin(), indices.end(), size_t{0});
+
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t i) {
+            const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
+            const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
+            auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
+            auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
+            auto optical_thickness = sigma_t[i] * 100.0f;
+
+            // Non-critical: clamp silently (logging from parallel threads is noisy)
+            auto clamp_val = [](float val) {
+                if (!std::isfinite(val)) return 0.0f;
+                if (val < 0.0f) return 0.0f;
+                if (val > 1.0f) return 1.0f;
+                return val;
+            };
+            albedo.x = clamp_val(albedo.x);
+            albedo.y = clamp_val(albedo.y);
+            albedo.z = clamp_val(albedo.z);
+
+            result[i] = params::Primitive(center, quat, scale, albedo, optical_thickness);
+        });
 
         return result;
 
