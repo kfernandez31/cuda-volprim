@@ -228,7 +228,7 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
         // Sequential validation pass (cheap — just isfinite checks, enables early exit)
         for (size_t i = 0; i < N; ++i) {
             auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
-            auto optical_thickness = sigma_t[i] * 100.0f;
+            auto optical_thickness = sigma_t[i] * 40.0f;
             auto center = make_float3(p_x[i], p_y[i], p_z[i]);
 
             if (scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) {
@@ -264,7 +264,7 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
             const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
             auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
             auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            auto optical_thickness = sigma_t[i] * 100.0f;
+            auto optical_thickness = sigma_t[i] * 40.0f;
 
             // Non-critical: clamp silently (logging from parallel threads is noisy)
             auto clamp_val = [](float val) {

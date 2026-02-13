@@ -29,7 +29,7 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 //   - MAX_PRIMITIVES=1024: ~50KB stack (✓ RTX 3090, ? other GPUs)
 //   - MAX_PRIMITIVES=2048: ~100KB stack (✗ OptiX compile error)
 // If buffer overflow occurs: ray terminated early → BIASED RENDERING
-constexpr size_t MAX_PRIMITIVES = 256;
+constexpr size_t MAX_PRIMITIVES = 1024;
 
 // Hit buffer capacity: must hold BOTH entry AND exit hits (2 hits per primitive)
 // Each primitive generates one entry hit and one exit hit during ray traversal

@@ -11,9 +11,11 @@ struct UnitQuaternion {
     float s_;   // scalar part: w
     float3 u_;  // vector part: x, y, z
 
-   private:
-    UnitQuaternion() = default;
+   public:
+    // Default: identity quaternion (no rotation)
+    UnitQuaternion() : s_(1.0f), u_(make_float3(0.0f, 0.0f, 0.0f)) {}
 
+   private:
     // Construct from normalized quaternion components (unchecked)
     THESIS_HOST_DEVICE THESIS_INLINE UnitQuaternion(float w, float x, float y, float z)
         : s_(w),
