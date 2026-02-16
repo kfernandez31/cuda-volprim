@@ -175,7 +175,7 @@ Result<thesis::host::utils::io::HDRImageData> loadHDRImage(const std::filesystem
 
 // Internal helper for loading primitives
 Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
-    const std::filesystem::path& filename, float sigma_multiplier) {
+    const std::filesystem::path& filename, float sigma_multiplier, float3 albedo_override) {
     try {
         happly::PLYData ply(filename.string());
 
@@ -225,9 +225,13 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
             const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
             // Scale is in log-space: scale = exp(log_scale)
             auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
+
+            // Load albedo from PLY, override if requested (negative values indicate "use PLY data")
             auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            // Override albedo for scattering validation (PLY has albedo=0)
-            albedo = make_float3(0.9f, 0.9f, 0.9f);
+            if (albedo_override.x >= 0.0f && albedo_override.y >= 0.0f && albedo_override.z >= 0.0f) {
+                albedo = albedo_override;
+            }
+
             // sigma_t is in LINEAR space (unlike scales which are log-space)
             auto optical_thickness = sigma_t[i] * sigma_multiplier;
 
@@ -308,9 +312,9 @@ std::future<Result<HDRImageData>> loadHDR(const std::filesystem::path& filename)
 }
 
 std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
-    const std::filesystem::path& filename, float sigma_multiplier) {
-    return std::async(std::launch::async, [filename, sigma_multiplier]() -> Result<std::vector<params::Primitive>> {
-        return loadPrimitivesFromPLY(filename, sigma_multiplier);
+    const std::filesystem::path& filename, float sigma_multiplier, float3 albedo_override) {
+    return std::async(std::launch::async, [filename, sigma_multiplier, albedo_override]() -> Result<std::vector<params::Primitive>> {
+        return loadPrimitivesFromPLY(filename, sigma_multiplier, albedo_override);
     });
 }
 

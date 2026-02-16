@@ -217,30 +217,39 @@ class THESIS_ALIGNMENT Primitive {
         }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-        // Points along the ray in local space
         // Clamp t-values to handle numerical imprecision (ray spawning can produce small negative values)
         const auto t0_safe = math::max(0.0f, t0);
         const auto t1_safe = math::max(t0_safe + consts::RAY_SEGMENT_MIN_LENGTH, t1);
-        const auto p0 = ray_local.at(t0_safe);
-        const auto p1 = ray_local.at(t1_safe);
 
-        // Project onto ray direction (normalized)
+        // Normalize direction
         const auto w_normalized = w * w_inv_len;
-        const auto wp0 = math::dot(w_normalized, p0);
-        const auto wp1 = math::dot(w_normalized, p1);
 
-        // Use the midpoint for the exponential term
-        const auto mid_p = math::midpoint(p0, p1);
-        const auto wp_mid = math::midpoint(wp0, wp1);
-        const auto pp_mid = math::dot(mid_p, mid_p);
-        const auto perp_dist2 = math::fma(-wp_mid, wp_mid, pp_mid);
+        // Shift to starting point (using FMA for accuracy and performance)
+        const auto p_start = math::fma(t0_safe, w_normalized, p);
+        const auto t_limit = math::clamp(t1_safe - t0_safe, 0.0f, math::GAUSSIAN_DIAMETER_F);
+
+        // Projections using START point (not midpoint)
+        const auto B = math::dot(w_normalized, p_start);
+        const auto C = math::length2(p_start);
+        const auto perp_dist2 = math::fma(-B, B, C);  // C - B²
 
         // Common terms
         const auto e_term = math::exp(-0.5f * perp_dist2);
         const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
 
         // Error function difference for bounded integration
-        const auto erf_term = math::erf(wp1 * math::ROOT_TWO_F) - math::erf(wp0 * math::ROOT_TWO_F);
+        // Factor out sqrt(1/2) scaling to reduce operations
+        const auto sqrt_half = math::ONE_OVER_ROOT_TWO_F;
+        const auto B_scaled = B * sqrt_half;
+        const auto erf_plus = math::erf(B_scaled);
+        const auto erf_minus = math::erf(math::fma(t_limit, sqrt_half, B_scaled));
+        const auto erf_term_raw = (erf_minus - erf_plus) * 0.5f;
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        const auto erf_term = math::clamp(erf_term_raw, -1.0f, 1.0f);
+#else
+        const auto erf_term = erf_term_raw;
+#endif
 
         return optical_thickness_ * G_term * e_term * erf_term;
     }
