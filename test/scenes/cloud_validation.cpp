@@ -10,7 +10,7 @@ namespace thesis::test::scenes {
 
 using namespace thesis::host::utils;
 
-Result<MultiViewTestScene> cloud_asset_validation() {
+Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier) {
     MultiViewTestScene scene;
     scene.name = "cloud_asset_validation";
     scene.description =
@@ -19,7 +19,7 @@ Result<MultiViewTestScene> cloud_asset_validation() {
     // Load primitives from PLY
     spdlog::info("Loading cloud primitives from PLY...");
     auto primitives_future =
-        thesis::host::utils::io::async::loadPrimitives("assets/cloud/root.primitives_pyr0.ply");
+        thesis::host::utils::io::async::loadPrimitives("assets/cloud/root.primitives_pyr0.ply", sigma_multiplier);
     auto primitives_result = primitives_future.get();
 
     if (!primitives_result.has_value()) {

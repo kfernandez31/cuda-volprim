@@ -11,11 +11,8 @@
 #include "thesis/host/utils/math.h"
 #include "thesis/host/utils/result.h"
 
-#include <algorithm>
 #include <cstring>
-#include <execution>
 #include <filesystem>
-#include <numeric>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <utility>
@@ -72,12 +69,9 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
 
-    /* ── 2. Fill primitives_[] and OptixInstance[] (parallel) ─────── */
-    std::vector<size_t> prim_indices(num_primitives_);
-    std::iota(prim_indices.begin(), prim_indices.end(), size_t{0});
-    const auto gas_handle = gas_.get();
-
-    std::for_each(std::execution::par, prim_indices.begin(), prim_indices.end(), [&](size_t i) {
+    /* ── 2. Fill primitives_[] and OptixInstance[] ────────────────── */
+    for (size_t i = 0; i < num_primitives_; ++i) {
+        // Convert host primitive to device primitive
         const auto& prim = primitives[i];
         primitives_[i] = prim.device_primitive();
 
@@ -86,13 +80,13 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
         const auto transform = prim.localToWorld();
         std::memcpy(inst.transform, transform.ptr(), sizeof(transform));
 
-        inst.traversableHandle = gas_handle;
+        inst.traversableHandle = gas_.get();
         inst.instanceId = static_cast<uint>(i);
         inst.sbtOffset = 0;
         inst.visibilityMask = 0xFF;
         inst.flags = OPTIX_INSTANCE_FLAG_NONE;
         instances_[i] = inst;
-    });
+    }
 
     primitives_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
@@ -112,21 +106,15 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
 
 void Renderer::initStaticParams() {
     // Compute which primitives contain camera (CPU side, done once at init)
-    const auto camera_pos = camera_.lookfrom();
-
-    // Parallel containment test
-    std::vector<uint8_t> inside_flags(num_primitives_);
-    std::vector<size_t> init_indices(num_primitives_);
-    std::iota(init_indices.begin(), init_indices.end(), size_t{0});
-
-    std::for_each(std::execution::par, init_indices.begin(), init_indices.end(), [&](size_t i) {
-        inside_flags[i] = common::geometry::point_inside_ellipsoid(camera_pos, primitives_[i]) ? 1 : 0;
-    });
-
-    // Sequential gather (trivially fast)
     std::vector<uint> camera_active;
+    const auto camera_pos = camera_.lookfrom();  // Camera position
+
     for (size_t i = 0; i < num_primitives_; ++i) {
-        if (inside_flags[i]) {
+        // Get device primitive struct from buffer
+        const auto prim_device = primitives_[i];
+
+        // Check if camera is inside this primitive using shared intersection code
+        if (common::geometry::point_inside_ellipsoid(camera_pos, prim_device)) {
             camera_active.push_back(static_cast<uint>(i));
         }
     }

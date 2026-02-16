@@ -40,7 +40,7 @@ namespace async {
 
 // Loads primitives from PLY file
 [[nodiscard]] std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
-    const std::filesystem::path& filename);
+    const std::filesystem::path& filename, float sigma_multiplier = 60.0f);
 
 // Saves image to EXR file (extracts RGB from RGBA, W component ignored)
 [[nodiscard]] std::future<Result<>> saveExr(cuda::AsyncBuffer<float4>&& buffer, size_t width,

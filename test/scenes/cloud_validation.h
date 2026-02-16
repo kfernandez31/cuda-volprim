@@ -21,6 +21,6 @@ struct MultiViewTestScene {
 
 // Load cloud asset and cameras from Mitsuba config
 // Returns a multi-view test scene with 652 primitives and 24 orthographic cameras
-thesis::host::utils::Result<MultiViewTestScene> cloud_asset_validation();
+thesis::host::utils::Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier = 60.0f);
 
 }  // namespace thesis::test::scenes
