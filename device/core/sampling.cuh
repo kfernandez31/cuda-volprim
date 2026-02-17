@@ -13,7 +13,7 @@
 #include "thesis/common/utils/types.h"
 #include "thesis/device/optix/scattering_event.h"
 #include "thesis/device/payloads/miss.h"
-#include "thesis/device/utils/set.h"
+#include "thesis/device/utils/bit_vector.h"
 #include "thesis/device/utils/vector.h"
 
 #include <curand_kernel.h>
@@ -26,7 +26,7 @@ namespace device {
 
 namespace math = ::thesis::common::math;
 
-using PrimsSet = utils::Set<uint, consts::ACTIVE_PRIMS_CAPACITY>;
+using PrimsSet = utils::BitVector<consts::ACTIVE_PRIMS_CAPACITY>;
 using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 
 __forceinline__ __device__ float3 sample_phase(curandState& rng) {
