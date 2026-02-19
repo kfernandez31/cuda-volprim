@@ -224,11 +224,11 @@ class THESIS_ALIGNMENT Primitive {
         // Normalize direction
         const auto w_normalized = w * w_inv_len;
 
-        // Shift to starting point (using FMA for accuracy and performance)
-        const auto p_start = math::fma(t0_safe, w_normalized, p);
-        const auto t_limit = math::clamp(t1_safe - t0_safe, 0.0f, math::GAUSSIAN_DIAMETER_F);
+        // Shift to starting point using unnormalized direction (t is parameterized by w, not w_hat)
+        const auto p_start = ray_local.at(t0_safe);  // = p + t0 * w (unnormalized)
+        const auto t_limit = math::clamp((t1_safe - t0_safe) / w_inv_len, 0.0f, math::GAUSSIAN_DIAMETER_F);
 
-        // Projections using START point (not midpoint)
+        // Projections using START point
         const auto B = math::dot(w_normalized, p_start);
         const auto C = math::length2(p_start);
         const auto perp_dist2 = math::fma(-B, B, C);  // C - B²
@@ -241,9 +241,9 @@ class THESIS_ALIGNMENT Primitive {
         // Factor out sqrt(1/2) scaling to reduce operations
         const auto sqrt_half = math::ONE_OVER_ROOT_TWO_F;
         const auto B_scaled = B * sqrt_half;
-        const auto erf_plus = math::erf(B_scaled);
-        const auto erf_minus = math::erf(math::fma(t_limit, sqrt_half, B_scaled));
-        const auto erf_term_raw = (erf_minus - erf_plus) * 0.5f;
+        const auto erf_plus = math::erf(B_scaled);                 // erf(B/√2)
+        const auto erf_minus = math::erf((t_limit - B) * sqrt_half);  // erf((t_limit-B)/√2)
+        const auto erf_term_raw = (erf_plus + erf_minus) * 0.5f;
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         const auto erf_term = math::clamp(erf_term_raw, -1.0f, 1.0f);

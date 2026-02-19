@@ -26,7 +26,7 @@ TestScene single_purple() {
         UnitQuaternion::identity(),           // rotation
         make_float3(0.5f, 0.5f, 0.5f),        // scale
         make_float3(0.5f, 0.0f, 0.5f),        // purple albedo (density-weighted average)
-        1.0f                                  // sigma_t (sum of both)
+        2.0f                                  // sigma_t (sum of both)
     ));
 
     return scene;
