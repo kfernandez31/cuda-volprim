@@ -26,7 +26,7 @@ TestScene single_purple() {
         UnitQuaternion::identity(),           // rotation
         make_float3(0.5f, 0.5f, 0.5f),        // scale
         make_float3(0.5f, 0.0f, 0.5f),        // purple albedo (density-weighted average)
-        2.0f                                  // sigma_t (sum of both)
+        1.0f                                  // sigma_t (sum of both)
     ));
 
     return scene;
@@ -941,10 +941,11 @@ TestScene high_optical_thickness() {
     scene.description = "Very high sigma_t (10.0) → tests MAX_OPTICAL_DEPTH clamping";
 
     // Dense fog with very high extinction coefficient
+    // scale=0.5 keeps bounding sphere radius=0.5, camera at z=-1 is clearly outside
     scene.primitives.push_back(Primitive(
         make_float3(0.0f, 0.0f, 0.0f),
         UnitQuaternion::identity(),
-        make_float3(1.0f, 1.0f, 1.0f),
+        make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.8f, 0.8f, 0.8f),  // light gray
         10.0f  // very high density
     ));
