@@ -11,6 +11,7 @@
 #include "thesis/host/utils/math.h"
 #include "thesis/host/utils/result.h"
 
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <spdlog/spdlog.h>
@@ -68,6 +69,22 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
     /* ── 1. Build GAS with one unit sphere ───────────────────────── */
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
+
+    /* ── 1.5. Sort primitives by Morton code for better cache locality ─── */
+    if (num_primitives_ > 1) {
+        // Compute scene bounding box
+        const auto [scene_min, scene_max] = utils::math::computeBounds(primitives);
+
+        // Sort primitives by Morton code (Z-order curve)
+        std::sort(primitives.begin(), primitives.end(),
+                  [&scene_min, &scene_max](const params::Primitive& a, const params::Primitive& b) {
+                      const uint32_t morton_a = utils::math::morton3D(a.center(), scene_min, scene_max);
+                      const uint32_t morton_b = utils::math::morton3D(b.center(), scene_min, scene_max);
+                      return morton_a < morton_b;
+                  });
+
+        spdlog::debug("Sorted {} primitives by Morton code for cache locality", num_primitives_);
+    }
 
     /* ── 2. Fill primitives_[] and OptixInstance[] ────────────────── */
     for (size_t i = 0; i < num_primitives_; ++i) {
