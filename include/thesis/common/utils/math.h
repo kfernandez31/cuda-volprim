@@ -247,19 +247,35 @@ THESIS_HOST_DEVICE THESIS_INLINE float sqrt(float x) noexcept {
 #endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float exp(float x) noexcept {
+#ifdef DEVICE
+    return __expf(x);
+#else
     return expf(x);
+#endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float3 exp(float3 v) noexcept {
     return make_float3(exp(v.x), exp(v.y), exp(v.z));
 }
 THESIS_HOST_DEVICE THESIS_INLINE float log(float x) noexcept {
+#ifdef DEVICE
+    return __logf(x);
+#else
     return logf(x);
+#endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float sin(float x) noexcept {
+#ifdef DEVICE
+    return __sinf(x);
+#else
     return sinf(x);
+#endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float cos(float x) noexcept {
+#ifdef DEVICE
+    return __cosf(x);
+#else
     return cosf(x);
+#endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float abs(float x) noexcept {
     return fabsf(x);

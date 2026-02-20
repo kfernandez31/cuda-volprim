@@ -33,6 +33,17 @@ else()
     message(STATUS "Disabling THESIS_ENABLE_NUMERICAL_GUARDS for ${CMAKE_BUILD_TYPE} build (production)")
 endif()
 
+# Add fast math compilation flag for optimized builds
+# This enables faster but slightly less precise math operations
+# - Trades IEEE compliance for 2-3x faster transcendentals
+# - Safe for Monte Carlo path tracing (statistical noise tolerates minor precision loss)
+if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo")
+    target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
+    message(STATUS "Enabling fast math for ${CMAKE_BUILD_TYPE} build")
+else()
+    message(STATUS "Fast math disabled for ${CMAKE_BUILD_TYPE} build (preserving precision for debugging)")
+endif()
+
 # Link CUDA libraries (device-level dependencies)
 target_link_libraries(device PRIVATE
     CUDA::cuda_driver
