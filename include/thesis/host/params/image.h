@@ -28,6 +28,10 @@ class Image {
     cuda::AsyncBuffer<float4> sample_buffer_managed_;  // Batch-sized buffer (not full spp)
     cuda::AsyncBuffer<float4>
         accumulator_managed_;  // Running sum [pixels] (RGBA, W unused for alignment)
+#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
+    cuda::AsyncBuffer<float4> variance_managed_;      // Running variance (M2) for adaptive sampling
+    cuda::AsyncBuffer<size_t> sample_counts_managed_;  // Per-pixel sample counts
+#endif
     cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
     device::params::Image device_image_;                 // Device-compatible POD struct
     size_t batch_size_;                                  // Maximum samples per batch
@@ -42,12 +46,22 @@ class Image {
                                  cuda::AllocType::OnDeviceOnly),
           accumulator_managed_(width * height, ctx, sample_buffer_stream,
                                cuda::AllocType::OnDeviceOnly),
+#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
+          variance_managed_(width * height, ctx, sample_buffer_stream,
+                            cuda::AllocType::OnDeviceOnly),
+          sample_counts_managed_(width * height, ctx, sample_buffer_stream,
+                                 cuda::AllocType::OnDeviceOnly),
+#endif
           averaged_pixels_managed_(width * height, ctx, std::move(averaged_pixels_stream),
                                    cuda::AllocType::OnBoth),
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
         device_image_.sample_buffer_ = const_cast<float4*>(sample_buffer_managed_.device());
         device_image_.accumulator_ = const_cast<float4*>(accumulator_managed_.device());
+#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
+        device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
+        device_image_.sample_counts_ = const_cast<size_t*>(sample_counts_managed_.device());
+#endif
         device_image_.width_ = width;
         device_image_.height_ = height;
         device_image_.image_size_ = width * height;
@@ -57,6 +71,12 @@ class Image {
 
         // Initialize accumulator to zero
         accumulator_managed_.memset_device(0);
+
+#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
+        // Initialize variance and sample counts for adaptive sampling
+        variance_managed_.memset_device(0);
+        sample_counts_managed_.memset_device(0);
+#endif
     }
 
     Image(Image&&) noexcept = default;

@@ -44,6 +44,17 @@ else()
     message(STATUS "Fast math disabled for ${CMAKE_BUILD_TYPE} build (preserving precision for debugging)")
 endif()
 
+# Adaptive sampling (optional feature flag)
+# Enable to skip converged pixels early, saving samples on uniform/smooth regions
+# Add -DTHESIS_ENABLE_ADAPTIVE_SAMPLING=ON to CMake to enable
+option(THESIS_ENABLE_ADAPTIVE_SAMPLING "Enable adaptive sampling convergence termination" OFF)
+if(THESIS_ENABLE_ADAPTIVE_SAMPLING)
+    target_compile_definitions(device PUBLIC THESIS_ENABLE_ADAPTIVE_SAMPLING)
+    message(STATUS "Adaptive sampling ENABLED (threshold=1%, min_samples=16, per-channel convergence)")
+else()
+    message(STATUS "Adaptive sampling DISABLED (all pixels render to full SPP)")
+endif()
+
 # Link CUDA libraries (device-level dependencies)
 target_link_libraries(device PRIVATE
     CUDA::cuda_driver

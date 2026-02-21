@@ -246,6 +246,9 @@ THESIS_HOST_DEVICE THESIS_INLINE float sqrt(float x) noexcept {
     return sqrtf(x);
 #endif
 }
+THESIS_HOST_DEVICE THESIS_INLINE float3 sqrt(float3 v) noexcept {
+    return make_float3(sqrt(v.x), sqrt(v.y), sqrt(v.z));
+}
 THESIS_HOST_DEVICE THESIS_INLINE float exp(float x) noexcept {
 #ifdef DEVICE
     return __expf(x);
