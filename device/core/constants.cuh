@@ -108,9 +108,6 @@ constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 // =============================================================================
 // Adaptive Sampling Constants
 // =============================================================================
-// Compile-time flag: Enable adaptive sampling convergence termination
-// Define THESIS_ENABLE_ADAPTIVE_SAMPLING in CMake to enable
-#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
 
 // Minimum samples before convergence testing begins
 // Central Limit Theorem requires sufficient samples for variance estimation
@@ -118,16 +115,15 @@ constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 // Tune based on scene complexity: simple scenes can use 10, complex scenes need 20-30
 constexpr size_t ADAPTIVE_MIN_SAMPLES = 16;
 
-// Relative error threshold for convergence (default: 1%)
+// Relative error threshold for convergence
 // Pixel converges when: max(std_dev / mean) across all channels < threshold
 // Lower threshold = higher quality but less speedup
-constexpr float ADAPTIVE_THRESHOLD = 0.01f;
+// Production values: 5% (Cycles, Arnold default), 2-3% conservative, 1% minimal speedup
+constexpr float ADAPTIVE_THRESHOLD = 0.05f;
 
 // Minimum luminance to avoid division by zero in relative error computation
 // Used when computing relative error for near-black pixels
 constexpr float ADAPTIVE_MIN_LUMINANCE = 1e-6f;
-
-#endif  // THESIS_ENABLE_ADAPTIVE_SAMPLING
 
 }  // namespace consts
 }  // namespace device

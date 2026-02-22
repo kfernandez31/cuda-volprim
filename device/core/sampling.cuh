@@ -174,9 +174,7 @@ __device__ HitBuffer collect_and_sort_hits(const geometry::Ray& ray, const Prims
     init_hit_buffer_sentinels(hit_buffer);
 
     // STEP 1: For primitives we're inside, compute exits analytically
-    const auto active_size = active_prims.size();
-    for (size_t idx = 0; idx < active_size; ++idx) {
-        const auto prim_idx = active_prims[idx];
+    for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
         auto isect = common::geometry::intersect_ellipsoid(ray, prim);
 

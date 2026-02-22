@@ -20,7 +20,7 @@ static __global__ void normalize_accumulator_kernel(float4* out_pixels, const fl
 
     // Grid-stride loop: each thread processes multiple pixels (coalesced memory access)
     for (size_t pixel_index = tid; pixel_index < image_size; pixel_index += stride) {
-        out_pixels[pixel_index] = accumulator[pixel_index] * normalization_factor;
+        out_pixels[pixel_index] = __ldg(&accumulator[pixel_index]) * normalization_factor;
     }
 }
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "kernels/average_samples.h"
 #include "kernels/normalize_accumulator.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/device/params/image.h"
@@ -25,13 +24,10 @@ namespace params {
 // Host-side wrapper with RAII buffer management
 class Image {
    private:
-    cuda::AsyncBuffer<float4> sample_buffer_managed_;  // Batch-sized buffer (not full spp)
-    cuda::AsyncBuffer<float4>
-        accumulator_managed_;  // Running sum [pixels] (RGBA, W unused for alignment)
-#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
-    cuda::AsyncBuffer<float4> variance_managed_;      // Running variance (M2) for adaptive sampling
-    cuda::AsyncBuffer<size_t> sample_counts_managed_;  // Per-pixel sample counts
-#endif
+    cuda::AsyncBuffer<float4> sample_buffer_managed_;    // Batch-sized buffer (not full spp)
+    cuda::AsyncBuffer<float4> variance_managed_;         // Running M2 for Welford's algorithm
+    cuda::AsyncBuffer<float4> mean_managed_;             // Running mean for Welford's algorithm
+    cuda::AsyncBuffer<size_t> sample_counts_managed_;    // Per-pixel sample counts
     cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
     device::params::Image device_image_;                 // Device-compatible POD struct
     size_t batch_size_;                                  // Maximum samples per batch
@@ -44,24 +40,20 @@ class Image {
           std::shared_ptr<cuda::Stream> averaged_pixels_stream)
         : sample_buffer_managed_(width * height * batch_size, ctx, sample_buffer_stream,
                                  cuda::AllocType::OnDeviceOnly),
-          accumulator_managed_(width * height, ctx, sample_buffer_stream,
-                               cuda::AllocType::OnDeviceOnly),
-#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
           variance_managed_(width * height, ctx, sample_buffer_stream,
                             cuda::AllocType::OnDeviceOnly),
+          mean_managed_(width * height, ctx, sample_buffer_stream,
+                        cuda::AllocType::OnDeviceOnly),
           sample_counts_managed_(width * height, ctx, sample_buffer_stream,
                                  cuda::AllocType::OnDeviceOnly),
-#endif
           averaged_pixels_managed_(width * height, ctx, std::move(averaged_pixels_stream),
                                    cuda::AllocType::OnBoth),
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
         device_image_.sample_buffer_ = const_cast<float4*>(sample_buffer_managed_.device());
-        device_image_.accumulator_ = const_cast<float4*>(accumulator_managed_.device());
-#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
         device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
+        device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
         device_image_.sample_counts_ = const_cast<size_t*>(sample_counts_managed_.device());
-#endif
         device_image_.width_ = width;
         device_image_.height_ = height;
         device_image_.image_size_ = width * height;
@@ -69,14 +61,10 @@ class Image {
         device_image_.batch_offset_ = 0;
         device_image_.batch_size_ = 0;  // Will be set per batch
 
-        // Initialize accumulator to zero
-        accumulator_managed_.memset_device(0);
-
-#ifdef THESIS_ENABLE_ADAPTIVE_SAMPLING
-        // Initialize variance and sample counts for adaptive sampling
+        // Initialize Welford state and sample counts
         variance_managed_.memset_device(0);
+        mean_managed_.memset_device(0);
         sample_counts_managed_.memset_device(0);
-#endif
     }
 
     Image(Image&&) noexcept = default;
@@ -115,17 +103,14 @@ class Image {
     [[nodiscard]] std::future<utils::Result<>> save(const std::filesystem::path& filename) {
         const auto& stream = averaged_pixels_managed_.get_context_param();
 
-        spdlog::info("Normalizing accumulated samples ({}x{}, {} spp total)", device_image_.width_,
-                     device_image_.height_, device_image_.num_samples_per_pixel_);
+        spdlog::info("Saving render ({}x{}, {} spp)", device_image_.width_, device_image_.height_,
+                     device_image_.num_samples_per_pixel_);
 
-        // Normalize accumulator by total sample count
+        // Copy Welford mean directly to output (already correctly averaged per-pixel)
         const size_t image_size = device_image_.image_size_;
-        const float normalization =
-            common::math::rcp(static_cast<float>(device_image_.num_samples_per_pixel_));
-
         device::kernels::launch_normalize_accumulator_kernel(
-            averaged_pixels_managed_.device(), accumulator_managed_.device(), image_size,
-            normalization, stream->get());
+            averaged_pixels_managed_.device(), mean_managed_.device(), image_size, 1.0f,
+            stream->get());
 
         averaged_pixels_managed_.download();
         stream->synchronize();
