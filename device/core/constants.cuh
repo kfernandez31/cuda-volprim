@@ -110,10 +110,10 @@ constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 // =============================================================================
 
 // Minimum samples before convergence testing begins
-// Central Limit Theorem requires sufficient samples for variance estimation
-// Typical range: 10-30 samples (lower = more aggressive, higher = more conservative)
-// Tune based on scene complexity: simple scenes can use 10, complex scenes need 20-30
-constexpr size_t ADAPTIVE_MIN_SAMPLES = 16;
+// Must be large enough for Welford's variance estimate to be reliable.
+// Volumetric Monte Carlo is high-variance: too few samples causes false convergence on noisy pixels.
+// 64 is a safe minimum; use 128 for production quality.
+constexpr size_t ADAPTIVE_MIN_SAMPLES = 64;
 
 // Relative error threshold for convergence
 // Pixel converges when: max(std_dev / mean) across all channels < threshold

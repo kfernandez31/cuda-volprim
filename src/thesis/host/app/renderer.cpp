@@ -21,11 +21,11 @@
 
 namespace thesis::host::app {
 
-// Batch size for progressive rendering (tuned for RTX 2080 with 8GB VRAM)
-// For 1080p: 6.5GB / (1920×1080×16) ≈ 200 samples/batch
-// For 4K: 6.5GB / (3840×2160×16) ≈ 50 samples/batch
-// Using conservative value that works well for both
-constexpr size_t BATCH_SIZE = 64;
+// Batch size for progressive rendering
+// Matches ADAPTIVE_MIN_SAMPLES so convergence checking begins after the first batch.
+// With Welford's algorithm there is no batch buffer, so this only affects kernel launch
+// granularity — smaller values give finer adaptive sampling at negligible overhead.
+constexpr size_t BATCH_SIZE = 16;
 
 Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives,
                    std::optional<params::Camera> camera)

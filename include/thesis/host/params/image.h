@@ -24,7 +24,6 @@ namespace params {
 // Host-side wrapper with RAII buffer management
 class Image {
    private:
-    cuda::AsyncBuffer<float4> sample_buffer_managed_;    // Batch-sized buffer (not full spp)
     cuda::AsyncBuffer<float4> variance_managed_;         // Running M2 for Welford's algorithm
     cuda::AsyncBuffer<float4> mean_managed_;             // Running mean for Welford's algorithm
     cuda::AsyncBuffer<size_t> sample_counts_managed_;    // Per-pixel sample counts
@@ -38,9 +37,7 @@ class Image {
     Image(size_t width, size_t height, size_t num_samples_per_pixel, size_t batch_size,
           CUcontext ctx, std::shared_ptr<cuda::Stream> sample_buffer_stream,
           std::shared_ptr<cuda::Stream> averaged_pixels_stream)
-        : sample_buffer_managed_(width * height * batch_size, ctx, sample_buffer_stream,
-                                 cuda::AllocType::OnDeviceOnly),
-          variance_managed_(width * height, ctx, sample_buffer_stream,
+        : variance_managed_(width * height, ctx, sample_buffer_stream,
                             cuda::AllocType::OnDeviceOnly),
           mean_managed_(width * height, ctx, sample_buffer_stream,
                         cuda::AllocType::OnDeviceOnly),
@@ -50,7 +47,6 @@ class Image {
                                    cuda::AllocType::OnBoth),
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
-        device_image_.sample_buffer_ = const_cast<float4*>(sample_buffer_managed_.device());
         device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
         device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
         device_image_.sample_counts_ = const_cast<size_t*>(sample_counts_managed_.device());
