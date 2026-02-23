@@ -232,8 +232,8 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
                 albedo = albedo_override;
             }
 
-            // sigma_t is in LINEAR space (unlike scales which are log-space)
-            auto optical_thickness = sigma_t[i] * sigma_multiplier;
+            // sigma_t is in LOG-space (like scales): sigma_t = exp(log_sigma_t)
+            auto optical_thickness = expf(sigma_t[i]) * sigma_multiplier;
 
             // Validate geometry (prevent division by zero and numerical errors)
             // Critical errors: fail fast
