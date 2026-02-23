@@ -121,7 +121,7 @@ TestScene depth_ordering() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.5f
+        1.5f
     ));
 
     // Green Gaussian in middle
@@ -130,7 +130,7 @@ TestScene depth_ordering() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 1.0f, 0.0f),        // green
-        0.5f
+        1.5f
     ));
 
     // Blue Gaussian farthest
@@ -139,7 +139,7 @@ TestScene depth_ordering() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        0.5f
+        1.5f
     ));
 
     return scene;
@@ -253,7 +253,7 @@ TestScene transform_rotation() {
 
     // Define an elongated ellipsoid
     const auto scale = make_float3(1.0f, 0.3f, 0.3f);  // stretched along X
-    constexpr float sigma_t = 0.5f;
+    constexpr float sigma_t = 10.0f;
 
     // No rotation (0°)
     scene.primitives.push_back(Primitive(
@@ -400,7 +400,7 @@ TestScene many_gaussians() {
 
     const auto rotation = UnitQuaternion::identity();
     const auto scale = make_float3(0.1f, 0.1f, 0.1f);  // Smaller to fit more
-    constexpr float sigma_t = 0.3f;  // Less dense for better performance
+    constexpr float sigma_t = 2.0f;  // Less dense for better performance
 
     // 10x10 grid of Gaussians, scaled down to fit camera FOV
     for (int y = 0; y < 10; ++y) {
@@ -497,7 +497,7 @@ TestScene create_grid_stress_test(
     float spacing,
     float3 scale,
     float z_depth = 5.0f,
-    float sigma_t = 0.5f
+    float sigma_t = 10.0f
 ) {
     TestScene scene;
     scene.name = name;
@@ -528,6 +528,16 @@ TestScene create_grid_stress_test(
 }
 
 }  // anonymous namespace
+
+TestScene stress_16_gaussians() {
+    return create_grid_stress_test(
+        "stress_16_gaussians",
+        "4×4 grid (16 gaussians) in front of camera → performance baseline",
+        4, 4,  // grid_x, grid_y
+        0.4f,  // spacing
+        make_float3(0.2f, 0.2f, 0.2f)  // scale
+    );
+}
 
 TestScene stress_256_gaussians() {
     return create_grid_stress_test(
@@ -1138,6 +1148,7 @@ std::vector<TestScene> get_validation_test_scenes() {
 
 std::vector<TestScene> get_stress_test_scenes() {
     return {
+        stress_16_gaussians(),
         stress_256_gaussians(),
         stress_512_gaussians(),
         stress_1024_gaussians(),

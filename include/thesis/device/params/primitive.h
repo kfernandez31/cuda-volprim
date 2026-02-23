@@ -57,7 +57,7 @@ class THESIS_ALIGNMENT Primitive {
           scale_det_(common::math::prod(scale)),
           one_over_scale_det_(common::math::rcp(common::math::prod(scale))),
           density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::rcp(common::math::prod(scale))),
-          inv_cdf_factor_(common::math::FOUR_PI_F * common::math::prod(scale) * common::math::rcp(optical_thickness)),
+          inv_cdf_factor_(optical_thickness * common::math::ONE_OVER_TWO_PI_F * common::math::sqrt(common::math::prod(scale))),
           albedo_(albedo),
           optical_thickness_(optical_thickness) {}
 
@@ -100,17 +100,16 @@ class THESIS_ALIGNMENT Primitive {
 
         const auto w_len2 = math::length2(w);
         const auto w_inv_len = math::rsqrt(w_len2);
-        const auto w_len = w_len2 * w_inv_len;
 
         const auto wp = math::dot(w, p) * w_inv_len;
         const auto pp = math::length2(p);
         const auto diff = math::fma(-wp, wp, pp);  // pp - wp²
-        const auto exponent = 0.5f * diff;
 
-        // Compute normalization factor K
-        const auto K = w_len * math::exp(exponent) * inv_cdf_factor_;
+        // Compute normalization factor K (matches Mitsuba reference)
+        // K = σ_t * (1/|w|) * exp(-0.5*(C-B²)) * (1/2π) * sqrt(prod(scale))
+        const auto K = w_inv_len * math::exp(-0.5f * diff) * inv_cdf_factor_;
 
-        auto erfinv_arg = math::erf(wp * math::ROOT_TWO_F) + chi * K;
+        auto erfinv_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + 2.0f * chi * math::rcp(K);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         // Only check for NaN/Inf (actual numerical error)
@@ -226,7 +225,7 @@ class THESIS_ALIGNMENT Primitive {
 
         // Shift to starting point using unnormalized direction (t is parameterized by w, not w_hat)
         const auto p_start = ray_local.at(t0_safe);  // = p + t0 * w (unnormalized)
-        const auto t_limit = math::clamp((t1_safe - t0_safe) / w_inv_len, 0.0f, math::GAUSSIAN_DIAMETER_F);
+        const auto t_limit = math::clamp((t1_safe - t0_safe) * math::rcp(w_inv_len), 0.0f, math::GAUSSIAN_DIAMETER_F);
 
         // Projections using START point
         const auto B = math::dot(w_normalized, p_start);

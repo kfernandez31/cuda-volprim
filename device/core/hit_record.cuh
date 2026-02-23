@@ -5,13 +5,13 @@
 namespace thesis {
 namespace device {
 
-// Record of a single ray-primitive intersection
+// Record of a single ray-primitive entry hit
+// Note: With argmin optimization, we only store entry hits (exits computed on-demand)
 struct HitRecord {
-    float t_hit;
-    uint32_t prim_idx : 31;
-    uint32_t is_exit : 1;
+    float t_hit;      // 4 bytes - distance along ray to entry point
+    uint32_t prim_idx;  // 4 bytes - primitive index (no bitfield needed now)
 
-    // Comparison: primary key is t_hit, with deterministic tie-breaking
+    // Comparison for sorting (unused in argmin, but kept for potential future use)
     __device__ __forceinline__ bool operator<(const HitRecord& other) const {
         if (t_hit < other.t_hit)
             return true;

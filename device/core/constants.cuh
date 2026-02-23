@@ -31,24 +31,16 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 // If buffer overflow occurs: ray terminated early → BIASED RENDERING
 constexpr size_t MAX_PRIMITIVES = 1024;
 
-// Hit buffer capacity: must hold BOTH entry AND exit hits (2 hits per primitive)
-// Each primitive generates one entry hit and one exit hit during ray traversal
-constexpr size_t HIT_BUFFER_CAPACITY = 2 * MAX_PRIMITIVES;
+// Hit buffer capacity: only needs to hold entry hits (exits computed lazily in argmin)
+// With argmin optimization, we never store exit hits in the buffer
+constexpr size_t HIT_BUFFER_CAPACITY = MAX_PRIMITIVES;
 
 // Active primitives set capacity: tracks unique primitive indices only
 constexpr size_t ACTIVE_PRIMS_CAPACITY = MAX_PRIMITIVES;
 
-// Epsilon values for numerical stability and geometric tolerances
-// Used to detect coincident surface hits (primitives with surfaces at same t-value)
-constexpr float HIT_COINCIDENCE_EPS = 1e-6f;
-
 // Minimum ray segment length for optical depth integration
 // Segments shorter than this are considered degenerate
 constexpr float RAY_SEGMENT_MIN_LENGTH = 1e-6f;
-
-// Minimum clamping value for random samples to prevent log(0) in importance sampling
-// Used in tau = -log(1 - xi) where xi is uniform random sample
-constexpr float MIN_RANDOM_SAMPLE = 1e-6f;
 
 // Optical depth safety bounds (for single precision exp/log operations)
 // Minimum optical depth to prevent log(0) errors
@@ -57,13 +49,6 @@ constexpr float MIN_OPTICAL_DEPTH = 1e-8f;
 // Maximum optical depth before exp(-tau) underflows to zero
 // exp(-88.0f) ≈ 1.4e-39 ≈ FLT_MIN in IEEE 754 single precision
 constexpr float MAX_OPTICAL_DEPTH = 88.0f;
-
-// Bisection search tolerance for distance sampling
-// Balance between accuracy and iteration count (typically 4 iterations)
-constexpr float BISECTION_DISTANCE_EPS = 1e-4f;
-
-// Minimum optical depth difference in bisection to avoid infinite refinement
-constexpr float BISECTION_TAU_EPS = 1e-6f;
 
 // =============================================================================
 // Intersection Constants
@@ -110,16 +95,15 @@ constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 // =============================================================================
 
 // Minimum samples before convergence testing begins
-// Must be large enough for Welford's variance estimate to be reliable.
-// Volumetric Monte Carlo is high-variance: too few samples causes false convergence on noisy pixels.
-// 64 is a safe minimum; use 128 for production quality.
-constexpr size_t ADAPTIVE_MIN_SAMPLES = 64;
+// Central Limit Theorem requires sufficient samples for variance estimation
+// Typical range: 10-30 samples (lower = more aggressive, higher = more conservative)
+// Tune based on scene complexity: simple scenes can use 10, complex scenes need 20-30
+constexpr size_t ADAPTIVE_MIN_SAMPLES = 9999; // TODO: set lower
 
-// Relative error threshold for convergence
+// Relative error threshold for convergence (default: 1%)
 // Pixel converges when: max(std_dev / mean) across all channels < threshold
 // Lower threshold = higher quality but less speedup
-// Production values: 5% (Cycles, Arnold default), 2-3% conservative, 1% minimal speedup
-constexpr float ADAPTIVE_THRESHOLD = 0.05f;
+constexpr float ADAPTIVE_THRESHOLD = 0.01f;
 
 // Minimum luminance to avoid division by zero in relative error computation
 // Used when computing relative error for near-black pixels

@@ -44,10 +44,6 @@ else()
     message(STATUS "Fast math disabled for ${CMAKE_BUILD_TYPE} build (preserving precision for debugging)")
 endif()
 
-# Adaptive sampling is always enabled (Welford's algorithm, per-pixel convergence)
-target_compile_definitions(device PUBLIC THESIS_ENABLE_ADAPTIVE_SAMPLING)
-message(STATUS "Adaptive sampling ENABLED")
-
 # Link CUDA libraries (device-level dependencies)
 target_link_libraries(device PRIVATE
     CUDA::cuda_driver

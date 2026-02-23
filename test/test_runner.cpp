@@ -35,7 +35,7 @@ struct TestConfig {
     size_t height = 1080;
     std::string output_dir = "test_results";
     std::string output_file = "";
-    float sigma_multiplier = 60.0f;  // Default sigma_t scaling factor
+    float sigma_multiplier = 7.5f;  // Default sigma_t scaling factor
 };
 
 void list_scenes(const std::string& category = "all") {
@@ -76,7 +76,7 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
 
     // Render settings
     app.add_option("--spp", config.spp, "Samples per pixel")->default_val(64)->check(CLI::PositiveNumber);
-    app.add_option("--sigma-multiplier", config.sigma_multiplier, "Sigma_t scaling factor")->default_val(60.0f)->check(CLI::PositiveNumber);
+    app.add_option("--sigma-multiplier", config.sigma_multiplier, "Sigma_t scaling factor")->default_val(7.5f)->check(CLI::PositiveNumber);
     app.add_option("--width", config.width, "Image width")->default_val(1920)->check(CLI::PositiveNumber);
     app.add_option("--height", config.height, "Image height")->default_val(1080)->check(CLI::PositiveNumber);
 

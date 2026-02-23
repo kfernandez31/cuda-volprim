@@ -22,7 +22,6 @@
 namespace thesis::host::app {
 
 // Batch size for progressive rendering
-// Matches ADAPTIVE_MIN_SAMPLES so convergence checking begins after the first batch.
 // With Welford's algorithm there is no batch buffer, so this only affects kernel launch
 // granularity — smaller values give finer adaptive sampling at negligible overhead.
 constexpr size_t BATCH_SIZE = 16;
@@ -48,7 +47,7 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
     // clang-format on
 
     // Validate camera dimensions match config (helps catch configuration errors)
-    if (camera_.width() != config_.image_width_ || camera_.height() != config_.image_height_) {
+    if (camera_.width() != config_.image_width_ || camera_.height() != config_.image_height_) { // TODO: this seems like it could be avoided
         spdlog::warn(
             "Camera dimensions ({}×{}) differ from image buffer dimensions ({}×{}). "
             "This may cause incorrect rendering.",

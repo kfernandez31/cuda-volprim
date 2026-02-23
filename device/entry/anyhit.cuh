@@ -26,16 +26,15 @@ extern "C" __global__ void __anyhit__ah() {
 
     auto* hit_buffer = unpack_ptr<HitBuffer>(payload.buffer_ptr_low, payload.buffer_ptr_high);
 
-    // Keep space for exits: only collect up to MAX_PRIMITIVES entries
-    // Each entry needs a corresponding exit (total = 2 × MAX_PRIMITIVES = HIT_BUFFER_CAPACITY)
-    if (hit_buffer->size() < consts::MAX_PRIMITIVES) {
+    // Collect entry hits (exits computed on-demand in argmin approach)
+    if (hit_buffer->size() < consts::HIT_BUFFER_CAPACITY) {
         const float t = optixGetRayTmax();
         const uint prim_idx = optixGetInstanceId();
 
-        hit_buffer->emplace_back(t, prim_idx, false);
+        hit_buffer->emplace_back(t, prim_idx);
         optixIgnoreIntersection();
     } else {
-        // Entry capacity reached - terminate ray to reserve space for exits
+        // Hit buffer capacity reached - terminate ray
         optixTerminateRay();
     }
 }

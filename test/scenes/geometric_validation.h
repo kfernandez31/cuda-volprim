@@ -34,6 +34,7 @@ TestScene nested_structure();
 TestScene tangent_rays();
 
 // Performance stress tests (increasing gaussian counts)
+TestScene stress_16_gaussians();
 TestScene stress_256_gaussians();
 TestScene stress_512_gaussians();
 TestScene stress_1024_gaussians();
