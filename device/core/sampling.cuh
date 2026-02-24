@@ -164,7 +164,22 @@ __device__ bool sample_scattering_event(
 
     if (t_scatter_min >= consts::INF_F) {
         // No scattering occurred - ray escaped
-        active_prims.clear();
+        // Build the complete set of primitives the ray passed through for optical depth calculation
+        PrimsSet all_traversed_prims;
+
+        // Add primitives we started inside
+#pragma unroll 4
+        for (auto prim_idx : active_prims) {
+            (void) all_traversed_prims.insert(prim_idx);
+        }
+
+        // Add all primitives we entered (from hit buffer)
+#pragma unroll 4
+        for (const auto& hit : hit_buffer) {
+            (void) all_traversed_prims.insert(hit.prim_idx);
+        }
+
+        active_prims = all_traversed_prims;
         return false;
     }
 
