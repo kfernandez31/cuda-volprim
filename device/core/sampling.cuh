@@ -122,8 +122,16 @@ __device__ bool sample_scattering_event(
 
     float t_scatter_min = consts::INF_F;
 
+    // Cache exits for primitives we start inside (eliminates redundant computation)
+    // These exits are reused in both escape case (event collection) and scatter case (active_prims rebuild)
+    struct CachedExit {
+        uint prim_idx;
+        float t_exit;
+    };
+    utils::StaticVector<CachedExit, consts::ACTIVE_PRIMS_CAPACITY> cached_exits;
+
 #pragma unroll 4
-    for (auto prim_idx : active_prims) { // TODO: we could store active_prims in a HitBuffer too (with t_hit always = 0) - more to store but then we could avoid reuse logic between this and the next loop, potentially.
+    for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
         const float t_scatter = prim.inv_cdf(ray, chi);
 
@@ -131,6 +139,9 @@ __device__ bool sample_scattering_event(
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
             const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+
+            // Cache the exit for later reuse (escape or scatter case)
+            cached_exits.emplace_back(CachedExit{prim_idx, t_exit});
 
             if (t_scatter <= t_exit) {
                 t_scatter_min = t_scatter;
@@ -160,17 +171,11 @@ __device__ bool sample_scattering_event(
         // Memory savings: Was 2N×12 bytes (Event), now reusing hit_buffer structure
         utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY> events;
 
+        // Reuse cached exits from argmin loop (eliminates redundant computation)
 #pragma unroll 4
-        for (auto prim_idx : active_prims) { // TODO: I don't like how we're duplicating our work from the earlier loop here.
-            const auto& prim = launch_params.primitives_[prim_idx];
-            const auto w = prim.transform_dir_local(ray.direction_);
-            const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
-
-            // TODO: observation - we aren't adding the entry Event. BUT! Even if we do add the entry Event, I feel like we are duplicating data perhaps a bit too much - HitRecord could serve the function of the Event class if we added to it the extra is_exit event. Sure, it's completely redundant for actual tracing and would always be set to zero in the anyhit shader, but half of the time we end up in this code path, and are basically creating a HitRecord with the extra is_exit event in the form of the Event class... this is avoidable.
-
-            if (t_exit > 0.0f && t_exit < consts::INF_F) {
-                events.emplace_back(t_exit, prim_idx, true); // TODO: this is an inelegant usage of emplace back - we can just pass the ctor arg list without creating a new Event instance
+        for (const auto& cached : cached_exits) {
+            if (cached.t_exit > 0.0f && cached.t_exit < consts::INF_F) {
+                events.emplace_back(cached.t_exit, cached.prim_idx, true);
             }
         }
 
@@ -236,14 +241,11 @@ __device__ bool sample_scattering_event(
     // Rebuild active_prims at the scatter point
     PrimsSet final_active_prims;
 
+    // Reuse cached exits from argmin loop (eliminates redundant computation)
 #pragma unroll 4
-    for (auto prim_idx : active_prims) {
-        const auto& prim = launch_params.primitives_[prim_idx];
-        const auto w = prim.transform_dir_local(ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2)
-        if (t_scatter_min <= t_exit) {
-            (void) final_active_prims.insert(prim_idx);
+    for (const auto& cached : cached_exits) {
+        if (t_scatter_min <= cached.t_exit) {
+            (void) final_active_prims.insert(cached.prim_idx);
         }
     }
 
