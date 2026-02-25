@@ -79,7 +79,8 @@ extern "C" __global__ void __raygen__rg() {
 
             // no scattering - escaped medium
             if (!result) {
-                auto tau = compute_optical_depth_along_ray(ray, event.active_prims_);
+                // Use pre-computed optical depth from escape case handler
+                auto tau = event.escape_optical_depth_;
                 radiance += (throughput * math::exp(-tau)) * miss.color();
                 break;
             }

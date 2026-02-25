@@ -164,9 +164,97 @@ __device__ bool sample_scattering_event(
 
     if (t_scatter_min >= consts::INF_F) {
         // No scattering occurred - ray escaped
-        // For escape case, active_prims should be empty (ray escaped to infinity)
-        // All primitives have finite extent, so ray eventually exits all of them
+        // FALLBACK PATH: Need segment-by-segment integration with bounded integrals
+        // Cannot use simple density_integral(ray, 0) as it integrates [0, ∞]
+
+        // Event structure for tracking entry/exit points
+        struct Event {
+            float t;
+            uint prim_idx;
+            bool is_exit;
+
+            __device__ bool operator<(const Event& other) const {
+                return t < other.t;
+            }
+        };
+
+        // Collect all events (capacity: 2 per primitive)
+        utils::StaticVector<Event, 2 * consts::HIT_BUFFER_CAPACITY> events;
+
+        // Add exits for primitives we started inside
+#pragma unroll 4
+        for (auto prim_idx : active_prims) {
+            const auto& prim = launch_params.primitives_[prim_idx];
+            auto isect = common::geometry::intersect_ellipsoid(ray, prim);
+            if (isect.t_exit > 0.0f && isect.t_exit < consts::INF_F) {
+                events.emplace_back(Event{isect.t_exit, prim_idx, true});
+            }
+        }
+
+        // Add entry/exit pairs for primitives we entered
+#pragma unroll 4
+        for (const auto& hit : hit_buffer) {
+            const auto& prim = launch_params.primitives_[hit.prim_idx];
+
+            // Add entry event
+            events.emplace_back(Event{hit.t_hit, hit.prim_idx, false});
+
+            // Compute and add exit event
+            const auto w = prim.transform_dir_local(ray.direction_);
+            const auto w_len2 = math::length2(w);
+            const float t_exit = common::geometry::compute_exit_from_entry(
+                ray, hit.t_hit, prim, w_len2);
+
+            if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
+                events.emplace_back(Event{t_exit, hit.prim_idx, true});
+            }
+        }
+
+        // Sort events by t-value (use existing sort from sorting.cuh)
+        // For now, use simple insertion sort for small event counts
+        for (size_t i = 1; i < events.size(); ++i) {
+            Event key = events[i];
+            int j = static_cast<int>(i) - 1;
+            while (j >= 0 && events[j].t > key.t) {
+                events[j + 1] = events[j];
+                j--;
+            }
+            events[j + 1] = key;
+        }
+
+        // Process segments and accumulate optical depth
+        float t_prev = 0.0f;
+        PrimsSet current_active = active_prims;  // Start with primitives we're inside
+        float3 acc_optical_depth = make_float3(0.0f);
+
+        for (size_t i = 0; i < events.size(); ++i) {
+            const auto& event = events[i];
+
+            // Integrate current active set over [t_prev, event.t]
+            if (event.t > t_prev && !current_active.empty()) {
+#pragma unroll 4
+                for (auto prim_idx : current_active) {
+                    const auto& prim = launch_params.primitives_[prim_idx];
+                    acc_optical_depth += prim.density_integral(ray, t_prev, event.t);
+                }
+            }
+
+            // Update active set based on event type
+            if (event.is_exit) {
+                current_active.erase(event.prim_idx);
+            } else {
+                (void) current_active.insert(event.prim_idx);
+            }
+
+            t_prev = event.t;
+        }
+
+        // Store accumulated optical depth in the event structure
+        event.escape_optical_depth_ = acc_optical_depth;
+
+        // Clear active_prims (ray escaped, no longer inside any primitives)
         active_prims.clear();
+
         return false;
     }
 

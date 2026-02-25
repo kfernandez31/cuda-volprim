@@ -17,6 +17,7 @@ struct THESIS_ALIGNMENT ScatteringEvent {
     float3 direction_;
     float t_hit_;
     utils::BitVector<MaxPrims> active_prims_;
+    float3 escape_optical_depth_;  // Optical depth for escape case (segment-by-segment integration)
 };
 
 }  // namespace optix
