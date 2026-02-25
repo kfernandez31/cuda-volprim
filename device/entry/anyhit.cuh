@@ -31,7 +31,8 @@ extern "C" __global__ void __anyhit__ah() {
         const float t = optixGetRayTmax();
         const uint prim_idx = optixGetInstanceId();
 
-        hit_buffer->emplace_back(t, prim_idx);
+        // Note: is_exit = false for all hits from anyhit shader (entries only)
+        hit_buffer->emplace_back(t, prim_idx, false);
         optixIgnoreIntersection();
     } else {
         // Hit buffer capacity reached - terminate ray

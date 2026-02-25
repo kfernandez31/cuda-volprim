@@ -101,12 +101,10 @@ __device__ bool sample_scattering_event(
     const geometry::Ray& ray, curandState& rng,
     optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss) {
 
-    // Sample chi for the inverse CDF computation
     const auto chi = random::sample_uniform(rng);
 
     auto& active_prims = event.active_prims_;
 
-    // Pre-populate active_prims with primitives containing ray origin
     const size_t num_primitives = launch_params.primitives_.size();
 #pragma unroll 4
     for (size_t i = 0; i < num_primitives; ++i) {
@@ -116,28 +114,20 @@ __device__ bool sample_scattering_event(
         }
     }
 
-    // Collect all entry hits (no sorting, exits computed lazily)
     auto hit_buffer = collect_hits(ray, &miss);
 
-    // If no hits AND we're not inside any primitives, ray escaped into empty space
     if (hit_buffer.empty() && active_prims.empty()) {
         return false;
     }
 
-    // ARGMIN APPROACH: Find the minimum scatter distance across all active Gaussians
     float t_scatter_min = consts::INF_F;
 
-    // Check primitives we started inside (use optimized exit computation)
 #pragma unroll 4
-    for (auto prim_idx : active_prims) {
+    for (auto prim_idx : active_prims) { // TODO: we could store active_prims in a HitBuffer too (with t_hit always = 0) - more to store but then we could avoid reuse logic between this and the next loop, potentially.
         const auto& prim = launch_params.primitives_[prim_idx];
         const float t_scatter = prim.inv_cdf(ray, chi);
 
-        if (t_scatter >= 0.0f && t_scatter < t_scatter_min) {
-            // Optimized: use compute_exit_from_entry instead of full intersection (1.55x faster)
-            // For rays starting inside, use t_entry=0 (ray origin) to compute exit distance
-            // Note: t_scatter <= t_exit check is necessary because inv_cdf can return values
-            // beyond geometric bounds when sampling Gaussian tail (erfinv clamping)
+        if (t_scatter >= 0.0f && t_scatter < t_scatter_min) { // TODO: encapsulate in a check like `is_better_t`
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
             const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
@@ -148,7 +138,6 @@ __device__ bool sample_scattering_event(
         }
     }
 
-    // Check primitives we enter along the ray (use optimized exit computation)
 #pragma unroll 4
     for (const auto& hit : hit_buffer) {
         const auto& prim = launch_params.primitives_[hit.prim_idx];
@@ -157,8 +146,7 @@ __device__ bool sample_scattering_event(
         if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) {
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(
-                ray, hit.t_hit, prim, w_len2);
+            const float t_exit = common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
 
             if (t_scatter <= t_exit) {
                 t_scatter_min = t_scatter;
@@ -167,97 +155,76 @@ __device__ bool sample_scattering_event(
     }
 
     if (t_scatter_min >= consts::INF_F) {
-        // No scattering occurred - ray escaped
-        // FALLBACK PATH: Need segment-by-segment integration with bounded integrals
-        // Cannot use simple density_integral(ray, 0) as it integrates [0, ∞]
+        // Reuse HitRecord for event tracking (unified structure saves memory)
+        // HitRecord now contains is_exit field, eliminating need for separate Event struct
+        // Memory savings: Was 2N×12 bytes (Event), now reusing hit_buffer structure
+        utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY> events;
 
-        // Event structure for tracking entry/exit points
-        struct Event {
-            float t;
-            uint prim_idx;
-            bool is_exit;
-
-            __device__ bool operator<(const Event& other) const {
-                return t < other.t;
-            }
-        };
-
-        // Collect all events (capacity: 2 per primitive)
-        utils::StaticVector<Event, 2 * consts::HIT_BUFFER_CAPACITY> events;
-
-        // Add exits for primitives we started inside
 #pragma unroll 4
-        for (auto prim_idx : active_prims) {
+        for (auto prim_idx : active_prims) { // TODO: I don't like how we're duplicating our work from the earlier loop here.
             const auto& prim = launch_params.primitives_[prim_idx];
-            // Optimized: use compute_exit_from_entry instead of full intersection (1.55x faster)
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
             const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
 
+            // TODO: observation - we aren't adding the entry Event. BUT! Even if we do add the entry Event, I feel like we are duplicating data perhaps a bit too much - HitRecord could serve the function of the Event class if we added to it the extra is_exit event. Sure, it's completely redundant for actual tracing and would always be set to zero in the anyhit shader, but half of the time we end up in this code path, and are basically creating a HitRecord with the extra is_exit event in the form of the Event class... this is avoidable.
+
             if (t_exit > 0.0f && t_exit < consts::INF_F) {
-                events.emplace_back(Event{t_exit, prim_idx, true});
+                events.emplace_back(t_exit, prim_idx, true); // TODO: this is an inelegant usage of emplace back - we can just pass the ctor arg list without creating a new Event instance
             }
         }
 
-        // Add entry/exit pairs for primitives we entered
 #pragma unroll 4
         for (const auto& hit : hit_buffer) {
             const auto& prim = launch_params.primitives_[hit.prim_idx];
 
-            // Add entry event
-            events.emplace_back(Event{hit.t_hit, hit.prim_idx, false});
+            events.emplace_back(hit.t_hit, hit.prim_idx, false);
 
-            // Compute and add exit event
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(
-                ray, hit.t_hit, prim, w_len2);
+            const float t_exit = common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
 
             if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
-                events.emplace_back(Event{t_exit, hit.prim_idx, true});
+                events.emplace_back(t_exit, hit.prim_idx, true);
             }
         }
 
-        // Sort events by t-value (use existing sort from sorting.cuh)
-        // For now, use simple insertion sort for small event counts
+        // TODO: the below is fine, probably works, but I'd rather we use optimized adaptive sorting. I have a prototype available in optimized_sorting.cuh.
+        // Sort events by t-value using insertion sort
         for (size_t i = 1; i < events.size(); ++i) {
-            Event key = events[i];
+            HitRecord key = events[i];
             int j = static_cast<int>(i) - 1;
-            while (j >= 0 && events[j].t > key.t) {
+            while (j >= 0 && events[j].t_hit > key.t_hit) {
                 events[j + 1] = events[j];
                 j--;
             }
             events[j + 1] = key;
         }
 
-        // Process segments and accumulate optical depth
         float t_prev = 0.0f;
-        PrimsSet current_active = active_prims;  // Start with primitives we're inside
+        PrimsSet current_active = active_prims;  // Start with primitives we're inside // TODO: we can do this OR we would leave this set empty, and with the current implementation in which we don't hold entry events for prims we're inside, we would just ignore the fact that `erase` returns false. We understand it that conceptually the erasure is fine, but in the set the entry is simply not present. Design decision. But we can store the entry instead.
         float3 acc_optical_depth = make_float3(0.0f);
 
         for (size_t i = 0; i < events.size(); ++i) {
             const auto& event = events[i];
 
-            // Integrate current active set over [t_prev, event.t]
-            if (event.t > t_prev) {
+            if (event.t_hit > t_prev) {
 #pragma unroll 4
                 for (auto prim_idx : current_active) {
                     const auto& prim = launch_params.primitives_[prim_idx];
-                    acc_optical_depth += prim.density_integral(ray, t_prev, event.t);
+                    acc_optical_depth += prim.density_integral(ray, t_prev, event.t_hit);
                 }
             }
 
-            // Update active set based on event type
             if (event.is_exit) {
                 current_active.erase(event.prim_idx);
             } else {
                 (void) current_active.insert(event.prim_idx);
             }
 
-            t_prev = event.t;
+            t_prev = event.t_hit;
         }
 
-        // Store accumulated optical depth in the event structure
         event.escape_optical_depth_ = acc_optical_depth;
 
         // Clear active_prims (ray escaped, no longer inside any primitives)
@@ -269,19 +236,17 @@ __device__ bool sample_scattering_event(
     // Rebuild active_prims at the scatter point
     PrimsSet final_active_prims;
 
-    // Check primitives we started inside (use full intersection for exit)
 #pragma unroll 4
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
-        auto isect = common::geometry::intersect_ellipsoid(ray, prim);
-        if (t_scatter_min <= isect.t_exit) {
+        const auto w = prim.transform_dir_local(ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2)
+        if (t_scatter_min <= t_exit) {
             (void) final_active_prims.insert(prim_idx);
         }
     }
 
-    // Check primitives we entered before scatter (use optimized exit computation)
-    // Note: hit_buffer is unsorted (OptiX anyhit calls are in unspecified order)
-    // Must check all hits, cannot use early break optimization
 #pragma unroll 4
     for (const auto& hit : hit_buffer) {
         if (hit.t_hit > t_scatter_min) continue;  // Skip hits after scatter point
@@ -289,8 +254,7 @@ __device__ bool sample_scattering_event(
         const auto& prim = launch_params.primitives_[hit.prim_idx];
         const auto w = prim.transform_dir_local(ray.direction_);
         const auto w_len2 = math::length2(w);
-        const float t_exit = common::geometry::compute_exit_from_entry(
-            ray, hit.t_hit, prim, w_len2);
+        const float t_exit = common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
 
         if (t_scatter_min <= t_exit) {
             (void) final_active_prims.insert(hit.prim_idx);
