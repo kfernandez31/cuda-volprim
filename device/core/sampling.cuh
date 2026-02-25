@@ -126,7 +126,6 @@ __device__ bool sample_scattering_event(
 
     // ARGMIN APPROACH: Find the minimum scatter distance across all active Gaussians
     float t_scatter_min = consts::INF_F;
-    uint scatter_prim_idx = UINT_MAX;
 
     // Check primitives we started inside (use optimized exit computation)
 #pragma unroll 4
@@ -145,7 +144,6 @@ __device__ bool sample_scattering_event(
 
             if (t_scatter <= t_exit) {
                 t_scatter_min = t_scatter;
-                scatter_prim_idx = prim_idx;
             }
         }
     }
@@ -164,7 +162,6 @@ __device__ bool sample_scattering_event(
 
             if (t_scatter <= t_exit) {
                 t_scatter_min = t_scatter;
-                scatter_prim_idx = hit.prim_idx;
             }
         }
     }
@@ -242,7 +239,7 @@ __device__ bool sample_scattering_event(
             const auto& event = events[i];
 
             // Integrate current active set over [t_prev, event.t]
-            if (event.t > t_prev && !current_active.empty()) {
+            if (event.t > t_prev) {
 #pragma unroll 4
                 for (auto prim_idx : current_active) {
                     const auto& prim = launch_params.primitives_[prim_idx];
