@@ -4,6 +4,7 @@
 #include "core/hit_record.cuh"
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
+#include "core/sorting.cuh"
 #include "core/trace.cuh"
 
 #include "thesis/common/geometry/intersection.h"
@@ -101,8 +102,6 @@ __device__ bool sample_scattering_event(
     const geometry::Ray& ray, curandState& rng,
     optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss) {
 
-    const auto chi = random::sample_uniform(rng);
-
     auto& active_prims = event.active_prims_;
 
     const size_t num_primitives = launch_params.primitives_.size();
@@ -117,6 +116,8 @@ __device__ bool sample_scattering_event(
     auto hit_buffer = collect_hits(ray, &miss);
 
     if (hit_buffer.empty() && active_prims.empty()) {
+        // No primitives in scene - set optical depth to zero (ray escapes freely)
+        event.escape_optical_depth_ = make_float3(0.0f);
         return false;
     }
 
@@ -133,26 +134,33 @@ __device__ bool sample_scattering_event(
 #pragma unroll 4
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
-        const float t_scatter = prim.inv_cdf(ray, chi);
 
-        if (t_scatter >= 0.0f && t_scatter < t_scatter_min) { // TODO: encapsulate in a check like `is_better_t`
-            const auto w = prim.transform_dir_local(ray.direction_);
-            const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        // ALWAYS compute and cache exit (needed for escape case optical depth)
+        const auto w = prim.transform_dir_local(ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        cached_exits.emplace_back(CachedExit{prim_idx, t_exit});
 
-            // Cache the exit for later reuse (escape or scatter case)
-            cached_exits.emplace_back(CachedExit{prim_idx, t_exit});
+        // Sample INDEPENDENT chi per primitive (Analog Decomposition Tracking requirement)
+        const float chi_i = random::sample_uniform(rng);
+        const float t_scatter = prim.inv_cdf(ray, chi_i);
 
-            if (t_scatter <= t_exit) {
-                t_scatter_min = t_scatter;
-            }
+        if (t_scatter >= 0.0f && t_scatter < t_scatter_min && t_scatter <= t_exit) {
+            t_scatter_min = t_scatter;
         }
     }
 
 #pragma unroll 4
     for (const auto& hit : hit_buffer) {
         const auto& prim = launch_params.primitives_[hit.prim_idx];
-        const float t_scatter = prim.inv_cdf(ray, chi);
+
+        // Sample INDEPENDENT chi per primitive (Analog Decomposition Tracking requirement)
+        const float chi_j = random::sample_uniform(rng);
+
+        // For entry hits, sample from the entry point onward
+        // Note: We don't shift the ray origin because inv_cdf integrates from ray.origin
+        // Instead, we sample and then check the result is after the entry point
+        const float t_scatter = prim.inv_cdf(ray, chi_j);
 
         if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) {
             const auto w = prim.transform_dir_local(ray.direction_);
@@ -194,17 +202,8 @@ __device__ bool sample_scattering_event(
             }
         }
 
-        // TODO: the below is fine, probably works, but I'd rather we use optimized adaptive sorting. I have a prototype available in optimized_sorting.cuh.
-        // Sort events by t-value using insertion sort
-        for (size_t i = 1; i < events.size(); ++i) {
-            HitRecord key = events[i];
-            int j = static_cast<int>(i) - 1;
-            while (j >= 0 && events[j].t_hit > key.t_hit) {
-                events[j + 1] = events[j];
-                j--;
-            }
-            events[j + 1] = key;
-        }
+        // Sort events by t-value using optimized adaptive sort
+        sort(events);
 
         float t_prev = 0.0f;
         PrimsSet current_active = active_prims;  // Start with primitives we're inside // TODO: we can do this OR we would leave this set empty, and with the current implementation in which we don't hold entry events for prims we're inside, we would just ignore the fact that `erase` returns false. We understand it that conceptually the erasure is fine, but in the set the entry is simply not present. Design decision. But we can store the entry instead.
@@ -217,7 +216,10 @@ __device__ bool sample_scattering_event(
 #pragma unroll 4
                 for (auto prim_idx : current_active) {
                     const auto& prim = launch_params.primitives_[prim_idx];
-                    acc_optical_depth += prim.density_integral(ray, t_prev, event.t_hit);
+                    // For transmittance: T = exp(-sigma_t × L), NOT exp(-albedo × sigma_t × L)
+                    // Albedo affects scattering probability, not extinction
+                    const auto tau = prim.optical_depth(ray, t_prev, event.t_hit);
+                    acc_optical_depth += make_float3(tau);
                 }
             }
 
