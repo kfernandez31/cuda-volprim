@@ -99,6 +99,11 @@ extern "C" __global__ void __raygen__rg() {
                 throughput /= p_survive;
             }
 
+            // Early termination: throughput too low to contribute meaningfully
+            if (math::max(throughput) < consts::MIN_THROUGHPUT) {
+                break;
+            }
+
             // Safety check: terminate path if throughput becomes non-finite due to numerical errors
             if (!isfinite(math::sum(throughput))) {
                 break;
