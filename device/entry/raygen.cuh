@@ -70,7 +70,7 @@ extern "C" __global__ void __raygen__rg() {
         payloads::Miss miss;
 
         // Initialize active_prims from pre-computed camera containment (CPU-side, pre-sorted)
-        event.active_prims_.init_from_presorted(launch_params.camera_active_prims_.data(),
+        event.active_prims_.init_from_array(launch_params.camera_active_prims_.data(),
                                                 launch_params.camera_active_prims_.size());
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {

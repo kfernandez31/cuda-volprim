@@ -50,10 +50,9 @@ class Image {
         device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
         device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
         device_image_.sample_counts_ = const_cast<size_t*>(sample_counts_managed_.device());
-        device_image_.width_ = width;
-        device_image_.height_ = height;
-        device_image_.image_size_ = width * height;
-        device_image_.num_samples_per_pixel_ = num_samples_per_pixel;
+        device_image_.width_ = static_cast<uint32_t>(width);
+        device_image_.height_ = static_cast<uint32_t>(height);
+        device_image_.num_samples_per_pixel_ = static_cast<uint32_t>(num_samples_per_pixel);
         device_image_.batch_offset_ = 0;
         device_image_.batch_size_ = 0;  // Will be set per batch
 
@@ -73,8 +72,8 @@ class Image {
 
     // Set batch parameters (called before each batch render)
     void set_batch_params(size_t batch_offset, size_t batch_size) noexcept {
-        device_image_.batch_offset_ = batch_offset;
-        device_image_.batch_size_ = batch_size;
+        device_image_.batch_offset_ = static_cast<uint32_t>(batch_offset);
+        device_image_.batch_size_ = static_cast<uint32_t>(batch_size);
     }
 
     // Utility methods
@@ -85,7 +84,9 @@ class Image {
     }
     [[nodiscard]] size_t batch_size() const noexcept { return batch_size_; }
 
-    [[nodiscard]] size_t pixel_count() const noexcept { return device_image_.image_size_; }
+    [[nodiscard]] size_t pixel_count() const noexcept {
+        return static_cast<size_t>(device_image_.width_) * device_image_.height_;
+    }
     [[nodiscard]] size_t total_size() const noexcept {
         return device_image_.width_ * device_image_.height_ * device_image_.num_samples_per_pixel_;
     }
@@ -103,7 +104,7 @@ class Image {
                      device_image_.num_samples_per_pixel_);
 
         // Copy Welford mean directly to output (already correctly averaged per-pixel)
-        const size_t image_size = device_image_.image_size_;
+        const size_t image_size = pixel_count();
         device::kernels::launch_normalize_accumulator_kernel(
             averaged_pixels_managed_.device(), mean_managed_.device(), image_size, 1.0f,
             stream->get());

@@ -55,7 +55,7 @@ class THESIS_ALIGNMENT Primitive {
           scale_(scale),
           rcp_scale_(common::math::rcp(scale)),
           density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::prod(rcp_scale_)),
-          inv_cdf_factor_(optical_thickness * density_norm_factor_ * common::math::ROOT_TWO_PI_F),
+          inv_cdf_factor_(optical_thickness * density_norm_factor_ * common::math::ROOT_TWO_PI_F * 0.5f),
           albedo_(albedo),
           optical_thickness_(optical_thickness) {}
 
@@ -104,10 +104,11 @@ class THESIS_ALIGNMENT Primitive {
         const auto diff = math::fma(-wp, wp, pp);  // pp - wp²
 
         // Compute normalization factor K (matches Mitsuba reference)
-        // K = σ_t * (1/|w|) * exp(-0.5*(C-B²)) * (1/2π) * sqrt(prod(scale))
+        // K = σ_t × density_norm_factor × √(2π)/2 × (1/|w|) × exp(-0.5×perp²)
+        // The factor of 2 from the erfinv equation is absorbed into inv_cdf_factor_
         const auto K = w_inv_len * math::exp(-0.5f * diff) * inv_cdf_factor_;
 
-        auto erfinv_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + 2.0f * chi * math::rcp(K);
+        auto erfinv_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         // Only check for NaN/Inf (actual numerical error)

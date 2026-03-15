@@ -165,18 +165,12 @@ struct BitVector {
     }
 
     // Initialize from array (bulk insert)
-    // Note: For BitVector, order doesn't matter (unlike sorted arrays)
-    __device__ __forceinline__ void init_from_array(const uint* src, size_t count) {
+    template <typename IndexT>
+    __device__ __forceinline__ void init_from_array(const IndexT* src, size_t count) {
         clear();
         for (size_t i = 0; i < count; ++i) {
-            insert(src[i]);
+            insert(static_cast<uint>(src[i]));
         }
-    }
-
-    // DEPRECATED: Use init_from_array() instead
-    // Kept for backward compatibility with existing code
-    __device__ __forceinline__ void init_from_presorted(const uint* src, size_t count) {
-        init_from_array(src, count);
     }
 #endif  // DEVICE
 };
