@@ -58,6 +58,12 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
     initPrimsAndGAS(std::move(primitives));
     createPipeline(std::move(module_file_future));
     initStaticParams();  // Initialize static parameters once (camera-inside, etc.)
+
+    if (config_.denoise_) {
+        denoiser_.emplace(optix_ctx_.get(), static_cast<uint32_t>(image_.width()),
+                          static_cast<uint32_t>(image_.height()), cuda_ctx_.get(),
+                          streams_[cuda::StreamKind::Main]);
+    }
 }
 
 void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitives) {
@@ -270,9 +276,15 @@ void Renderer::render() {
 
     spdlog::info("All batches complete, saving image...");
 
-    // Save asynchronously and wait for completion
-    auto save_future = image_.save(config_.output_path_);
-    utils::try_unwrap_or_exit(save_future.get());
+    if (denoiser_) {
+        auto [raw_future, denoised_future] =
+            image_.denoise_and_save(*denoiser_, config_.output_path_, cuda_ctx_.get());
+        utils::try_unwrap_or_exit(raw_future.get());
+        utils::try_unwrap_or_exit(denoised_future.get());
+    } else {
+        auto save_future = image_.save(config_.output_path_);
+        utils::try_unwrap_or_exit(save_future.get());
+    }
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration_ms =

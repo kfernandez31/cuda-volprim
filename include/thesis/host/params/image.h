@@ -5,6 +5,7 @@
 #include "thesis/device/params/image.h"
 #include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/stream.h"
+#include "thesis/host/optix/denoiser.h"
 #include "thesis/host/utils/check.h"
 #include "thesis/host/utils/io.h"
 #include "thesis/host/utils/result.h"
@@ -98,24 +99,64 @@ class Image {
 
     // Save final averaged image to EXR file
     [[nodiscard]] std::future<utils::Result<>> save(const std::filesystem::path& filename) {
+        normalize();
+
+        averaged_pixels_managed_.download();
+        averaged_pixels_managed_.get_context_param()->synchronize();
+
+        spdlog::info("Saving to '{}'", filename.string());
+        // Move buffer ownership to async task (zero-copy)
+        return utils::io::async::saveExr(std::move(averaged_pixels_managed_), device_image_.width_,
+                                         device_image_.height_, filename);
+    }
+
+    // Denoise and save both raw and denoised images
+    // Raw image saved to filename, denoised saved to {stem}_denoised{ext}
+    [[nodiscard]] std::pair<std::future<utils::Result<>>, std::future<utils::Result<>>>
+    denoise_and_save(const optix::Denoiser& denoiser, const std::filesystem::path& filename,
+                     CUcontext cu_ctx) {
+        normalize();
+
+        // Download raw pixels to host
+        averaged_pixels_managed_.download();
+        averaged_pixels_managed_.get_context_param()->synchronize();
+
+        // Save raw image (copy host data, don't move — we still need the device buffer)
+        auto raw_path = filename;
+        auto raw_future = utils::io::async::saveExr(
+            cuda::AsyncBuffer<float4>(averaged_pixels_managed_.host_view(), cu_ctx,
+                                      averaged_pixels_managed_.get_context_param()),
+            device_image_.width_, device_image_.height_, raw_path);
+
+        // Denoise in-place on device
+        denoiser.invoke(averaged_pixels_managed_.device());
+
+        // Download denoised pixels
+        averaged_pixels_managed_.download();
+        averaged_pixels_managed_.get_context_param()->synchronize();
+
+        // Save denoised image
+        auto denoised_path = filename.parent_path() /
+                             (filename.stem().string() + "_denoised" + filename.extension().string());
+        spdlog::info("Saving denoised to '{}'", denoised_path.string());
+        auto denoised_future = utils::io::async::saveExr(
+            std::move(averaged_pixels_managed_), device_image_.width_, device_image_.height_,
+            denoised_path);
+
+        return {std::move(raw_future), std::move(denoised_future)};
+    }
+
+   private:
+    void normalize() {
         const auto& stream = averaged_pixels_managed_.get_context_param();
 
         spdlog::info("Saving render ({}x{}, {} spp)", device_image_.width_, device_image_.height_,
                      device_image_.num_samples_per_pixel_);
 
         // Copy Welford mean directly to output (already correctly averaged per-pixel)
-        const size_t image_size = pixel_count();
         device::kernels::launch_normalize_accumulator_kernel(
-            averaged_pixels_managed_.device(), mean_managed_.device(), image_size, 1.0f,
+            averaged_pixels_managed_.device(), mean_managed_.device(), pixel_count(), 1.0f,
             stream->get());
-
-        averaged_pixels_managed_.download();
-        stream->synchronize();
-
-        spdlog::info("Saving to '{}'", filename.string());
-        // Move buffer ownership to async task (zero-copy)
-        return utils::io::async::saveExr(std::move(averaged_pixels_managed_), device_image_.width_,
-                                         device_image_.height_, filename);
     }
 };
 

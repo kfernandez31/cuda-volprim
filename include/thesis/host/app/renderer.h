@@ -6,6 +6,7 @@
 #include "thesis/host/cuda/context.h"
 #include "thesis/host/cuda/stream_dag.h"
 #include "thesis/host/optix/context.h"
+#include "thesis/host/optix/denoiser.h"
 #include "thesis/host/optix/gas.h"
 #include "thesis/host/optix/ias.h"
 #include "thesis/host/optix/module.h"
@@ -56,6 +57,7 @@ class Renderer {
     optix::ProgramGroup hitgroup_pg_;
     optix::SBT sbt_;
     optix::Pipeline pipeline_;
+    std::optional<optix::Denoiser> denoiser_;
 
    public:
     explicit Renderer(const app::Config& config, std::vector<device::params::Primitive>&& primitives,
