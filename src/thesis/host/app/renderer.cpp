@@ -29,7 +29,7 @@ namespace thesis::host::app {
 // granularity — smaller values give finer adaptive sampling at negligible overhead.
 constexpr size_t BATCH_SIZE = 16;
 
-Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives,
+Renderer::Renderer(const app::Config& config, std::vector<device::params::Primitive>&& primitives,
                    std::optional<params::Camera> camera)
     // clang-format off
     : config_(config),
@@ -60,7 +60,7 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
     initStaticParams();  // Initialize static parameters once (camera-inside, etc.)
 }
 
-void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
+void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitives) {
     /* ── 1. Build GAS with one unit sphere ───────────────────────── */
     gas_.build(cuda_ctx_.get(), optix_ctx_.get());
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::GAS);
@@ -72,7 +72,7 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
 
         // Sort primitives by Morton code (Z-order curve)
         std::sort(primitives.begin(), primitives.end(),
-                  [&scene_min, &scene_max](const params::Primitive& a, const params::Primitive& b) {
+                  [&scene_min, &scene_max](const device::params::Primitive& a, const device::params::Primitive& b) {
                       const uint32_t morton_a = utils::math::morton3D(a.center(), scene_min, scene_max);
                       const uint32_t morton_b = utils::math::morton3D(b.center(), scene_min, scene_max);
                       return morton_a < morton_b;
@@ -86,9 +86,8 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
 
     const auto gas_handle = gas_.get();
     std::for_each(std::execution::par, prim_indices.begin(), prim_indices.end(), [&](size_t i) {
-        // Convert host primitive to device primitive
         const auto& prim = primitives[i];
-        primitives_[i] = prim.device_primitive();
+        primitives_[i] = prim;
 
         OptixInstance inst{};
 

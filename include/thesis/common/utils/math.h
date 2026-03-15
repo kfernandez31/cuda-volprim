@@ -162,6 +162,7 @@ constexpr float ONE_OVER_TWO_PI_F = 1.0f / (2.0f * PI_F);
 constexpr float ONE_OVER_FOUR_PI_F = 1.0f / (4.0f * PI_F);
 constexpr float ONE_OVER_TWO_PI_POW_3_2_F = 0.0634936359f;
 constexpr float ROOT_TWO_PI_F = 2.5066282746f;
+constexpr float ROOT_HALF_PI_F = ROOT_TWO_PI_F * 0.5f;  // √(π/2) = √(2π)/2
 constexpr float DEG_TO_RAD_F = PI_F / 180.0f;
 constexpr float RAD_TO_DEG_F = 180.0f / PI_F;
 

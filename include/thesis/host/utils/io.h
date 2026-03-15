@@ -1,7 +1,7 @@
 #pragma once
 
 #include "thesis/host/cuda/async_buffer.h"
-#include "thesis/host/params/primitive.h"
+#include "thesis/device/params/primitive.h"
 #include "thesis/host/utils/result.h"
 
 #include <vector_types.h>
@@ -39,7 +39,7 @@ namespace async {
 [[nodiscard]] std::future<Result<HDRImageData>> loadHDR(const std::filesystem::path& filename);
 
 // Loads primitives from PLY file
-[[nodiscard]] std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
+[[nodiscard]] std::future<Result<std::vector<device::params::Primitive>>> loadPrimitives(
     const std::filesystem::path& filename, float sigma_multiplier = 7.5f,
     float3 albedo_override = make_float3(-1.0f, -1.0f, -1.0f));
 

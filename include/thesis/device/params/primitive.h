@@ -12,6 +12,8 @@
 #include "thesis/device/geometry/ray.h"
 
 #include <math.h>
+#else
+#include "thesis/host/utils/math.h"
 #endif
 
 namespace thesis {
@@ -55,7 +57,7 @@ class THESIS_ALIGNMENT Primitive {
           scale_(scale),
           rcp_scale_(common::math::rcp(scale)),
           density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::prod(rcp_scale_)),
-          inv_cdf_factor_(optical_thickness * density_norm_factor_ * common::math::ROOT_TWO_PI_F * 0.5f),
+          inv_cdf_factor_(optical_thickness * density_norm_factor_ * common::math::ROOT_HALF_PI_F),
           albedo_(albedo),
           optical_thickness_(optical_thickness) {}
 
@@ -75,6 +77,25 @@ class THESIS_ALIGNMENT Primitive {
     THESIS_HOST_DEVICE THESIS_INLINE float3 transform_dir_local(float3 dir) const {
         return rot_quat_.rotate(dir) * rcp_scale_;
     }
+
+#ifndef DEVICE
+    // Host-only: construct from forward quaternion (conjugates internally for world-to-local)
+    static Primitive from_forward_quat(float3 center, const common::geometry::UnitQuaternion& forward_quat,
+                                       float3 scale, float3 albedo, float optical_thickness) {
+        return Primitive(center, forward_quat.conjugate(), scale, albedo, optical_thickness);
+    }
+
+    // Host-only: derive forward rotation from stored conjugate
+    [[nodiscard]] common::geometry::UnitQuaternion forward_rot_quat() const {
+        return rot_quat_.conjugate();
+    }
+
+    // Host-only: generate OptiX transformation matrix (local-to-world)
+    [[nodiscard]] host::utils::math::Mat3x4 localToWorld() const noexcept {
+        const auto scaled = scale_ * common::math::GAUSSIAN_EXTENT_F;
+        return host::utils::math::Mat3x4::from_trs(center_, forward_rot_quat(), scaled);
+    }
+#endif  // !DEVICE
 
 #ifdef DEVICE
     // Device-only: probability density function

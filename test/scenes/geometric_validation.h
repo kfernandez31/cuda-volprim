@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thesis/host/params/primitive.h"
+#include "thesis/device/params/primitive.h"
 
 #include <string>
 #include <vector>
@@ -11,7 +11,7 @@ namespace thesis::test::scenes {
 struct TestScene {
     std::string name;
     std::string description;
-    std::vector<thesis::host::params::Primitive> primitives;
+    std::vector<thesis::device::params::Primitive> primitives;
 };
 
 // Core correctness tests

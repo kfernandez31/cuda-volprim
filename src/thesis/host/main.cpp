@@ -4,7 +4,7 @@
 #include "thesis/host/app/config.h"
 #include "thesis/host/app/logging.h"
 #include "thesis/host/app/renderer.h"
-#include "thesis/host/params/primitive.h"
+#include "thesis/device/params/primitive.h"
 #include "thesis/host/utils/result.h"
 
 #ifndef OPTIX_FUNCTION_TABLE_INCLUDED
@@ -16,8 +16,9 @@
 #include <vector>
 
 using namespace thesis::host;
+using Primitive = thesis::device::params::Primitive;
 
-static std::vector<params::Primitive> createDefaultScene() {
+static std::vector<Primitive> createDefaultScene() {
     // Default scene: single purple Gaussian at origin
     const auto translation = make_float3(0.0f, 0.0f, 0.0f);
     const auto rotation = thesis::common::geometry::UnitQuaternion::identity();
@@ -25,7 +26,7 @@ static std::vector<params::Primitive> createDefaultScene() {
     const auto albedo = make_float3(0.5f, 0.0f, 0.5f);
     constexpr float sigma_t = 0.5f;
 
-    return {params::Primitive(translation, rotation, scale, albedo, sigma_t)};
+    return {Primitive::from_forward_quat(translation, rotation, scale, albedo, sigma_t)};
 }
 
 int main(int argc, char* argv[]) {

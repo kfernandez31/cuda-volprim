@@ -15,7 +15,7 @@
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
-#include "thesis/host/params/primitive.h"
+#include "thesis/device/params/primitive.h"
 
 #include <cstddef>
 #include <future>
@@ -26,7 +26,7 @@ namespace thesis::host::app {
 
 class Renderer {
    private:
-    void initPrimsAndGAS(std::vector<params::Primitive>&& primitives);
+    void initPrimsAndGAS(std::vector<device::params::Primitive>&& primitives);
     void initStaticParams();
     void updateDynamicParams();
     void createPrimitives();
@@ -58,7 +58,7 @@ class Renderer {
     optix::Pipeline pipeline_;
 
    public:
-    explicit Renderer(const app::Config& config, std::vector<params::Primitive>&& primitives,
+    explicit Renderer(const app::Config& config, std::vector<device::params::Primitive>&& primitives,
                      std::optional<params::Camera> camera = std::nullopt);
 
     void render();

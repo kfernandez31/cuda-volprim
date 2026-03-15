@@ -1,7 +1,7 @@
 #pragma once
 
 #include "thesis/host/params/camera.h"
-#include "thesis/host/params/primitive.h"
+#include "thesis/device/params/primitive.h"
 #include "thesis/host/utils/result.h"
 
 #include <optional>
@@ -20,7 +20,7 @@ struct CameraView {
 struct MultiViewTestScene {
     std::string name;
     std::string description;
-    std::vector<thesis::host::params::Primitive> primitives;
+    std::vector<thesis::device::params::Primitive> primitives;
     std::vector<CameraView> cameras;
     std::optional<std::string> env_map_override;  // Optional constant white env
 };

@@ -128,7 +128,7 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
 
     try {
         // Create renderer with test scene primitives
-        app::Renderer renderer(renderer_config, std::vector<params::Primitive>(scene.primitives));
+        app::Renderer renderer(renderer_config, decltype(scene.primitives)(scene.primitives));
 
         // Render
         renderer.render();
@@ -202,7 +202,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         try {
             // Create renderer with test scene primitives and specific camera
             app::Renderer renderer(renderer_config,
-                                   std::vector<params::Primitive>(scene.primitives), camera);
+                                   decltype(scene.primitives)(scene.primitives), camera);
 
             // Render
             renderer.render();

@@ -180,7 +180,7 @@ Result<thesis::host::utils::io::HDRImageData> loadHDRImage(const std::filesystem
 }
 
 // Internal helper for loading primitives
-Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
+Result<std::vector<thesis::device::params::Primitive>> loadPrimitivesFromPLY(
     const std::filesystem::path& filename, float sigma_multiplier, float3 albedo_override) {
     try {
         happly::PLYData ply(filename.string());
@@ -223,9 +223,10 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
 
         using namespace thesis::host;
         using namespace thesis::common::geometry;
+        using Primitive = thesis::device::params::Primitive;
 
         // Phase 1: Parallel construction (expf, quaternion math, Primitive precomputation)
-        std::vector<params::Primitive> result(N, params::Primitive{});
+        std::vector<Primitive> result(N, Primitive{});
 
         auto indices = std::views::iota(size_t{0}, N);
         std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t i) {
@@ -238,14 +239,14 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
                 : make_float3(alb_0[i], alb_1[i], alb_2[i]);
             auto optical_thickness = expf(sigma_t[i]) * sigma_multiplier;
 
-            result[i] = params::Primitive(center, quat, scale, albedo, optical_thickness);
+            result[i] = Primitive::from_forward_quat(center, quat, scale, albedo, optical_thickness);
         });
 
         // Phase 2: Sequential validation (early exit on error)
         for (size_t i = 0; i < N; ++i) {
             const auto scale = result[i].scale();
             const auto center = result[i].center();
-            const auto optical_thickness = result[i].optical_thickness();
+            const auto optical_thickness = result[i].optical_thickness_;
 
             if (scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) {
                 return make_error(
@@ -270,7 +271,7 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
             }
 
             // Non-critical: clamp and warn
-            auto& albedo = result[i].device_primitive().albedo_;
+            auto& albedo = result[i].albedo_;
             auto clamp_albedo = [&](float& val, const char* component) {
                 if (!std::isfinite(val)) {
                     spdlog::warn("Primitive {}: NaN/Inf in albedo.{}, setting to 0", i, component);
@@ -309,6 +310,8 @@ void CudaPinnedDeleter::operator()(float* ptr) const noexcept {
 
 namespace async {
 
+using Primitive = thesis::device::params::Primitive;
+
 std::future<Result<std::vector<std::byte>>> readFileToBytes(const std::filesystem::path& filename) {
     return std::async(std::launch::async, [filename]() -> Result<std::vector<std::byte>> {
         return readFile(filename);
@@ -320,9 +323,9 @@ std::future<Result<HDRImageData>> loadHDR(const std::filesystem::path& filename)
                       [filename]() -> Result<HDRImageData> { return loadHDRImage(filename); });
 }
 
-std::future<Result<std::vector<params::Primitive>>> loadPrimitives(
+std::future<Result<std::vector<Primitive>>> loadPrimitives(
     const std::filesystem::path& filename, float sigma_multiplier, float3 albedo_override) {
-    return std::async(std::launch::async, [filename, sigma_multiplier, albedo_override]() -> Result<std::vector<params::Primitive>> {
+    return std::async(std::launch::async, [filename, sigma_multiplier, albedo_override]() -> Result<std::vector<Primitive>> {
         return loadPrimitivesFromPLY(filename, sigma_multiplier, albedo_override);
     });
 }
