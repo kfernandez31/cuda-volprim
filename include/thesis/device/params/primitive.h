@@ -27,7 +27,6 @@ class THESIS_ALIGNMENT Primitive {
     float3 scale_;
 
     // Precomputed values for performance
-    float scale_det_;
     float one_over_scale_det_;
     float density_norm_factor_;
     float inv_cdf_factor_;
@@ -54,10 +53,9 @@ class THESIS_ALIGNMENT Primitive {
         : center_(center),
           rot_quat_(rot_quat),
           scale_(scale),
-          scale_det_(common::math::prod(scale)),
           one_over_scale_det_(common::math::rcp(common::math::prod(scale))),
-          density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::rcp(common::math::prod(scale))),
-          inv_cdf_factor_(optical_thickness * common::math::ONE_OVER_TWO_PI_F * common::math::sqrt(common::math::prod(scale))),
+          density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * one_over_scale_det_),
+          inv_cdf_factor_(optical_thickness * common::math::ONE_OVER_TWO_PI_F * one_over_scale_det_), // TODO: make depndent on density_norm_factor_
           albedo_(albedo),
           optical_thickness_(optical_thickness) {}
 
@@ -125,7 +123,8 @@ class THESIS_ALIGNMENT Primitive {
         // This is valid physics, not a bug - clamp prevents erfinv from receiving out-of-domain input
         erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);
 
-        return math::ROOT_TWO_F * erfinv(erfinv_arg) - wp;
+        // Result is in whitened arc-length (t * |w|); divide by |w| to get world-space ray parameter t
+        return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
     }
 
     // Device-only: optical depth from t0 to infinity
@@ -178,7 +177,7 @@ class THESIS_ALIGNMENT Primitive {
         // Complementary error function for integration to infinity
         const auto erf_term = math::erfc(wp0 * math::ROOT_TWO_F);
 
-        return optical_thickness_ * G_term * e_term * erf_term;
+        return optical_thickness_ * G_term * e_term * erf_term * density_norm_factor_;
     }
 
     // Device-only: optical depth from t0 to t1
@@ -250,7 +249,7 @@ class THESIS_ALIGNMENT Primitive {
         const auto erf_term = erf_term_raw;
 #endif
 
-        return optical_thickness_ * G_term * e_term * erf_term;
+        return optical_thickness_ * G_term * e_term * erf_term * density_norm_factor_;
     }
 
     // Device-only: density integral (optical depth * albedo)

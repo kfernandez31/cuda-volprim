@@ -141,9 +141,11 @@ __device__ bool sample_scattering_event(
         const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
         cached_exits.emplace_back(CachedExit{prim_idx, t_exit});
 
-        // Sample INDEPENDENT chi per primitive (Analog Decomposition Tracking requirement)
+        // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
+        // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
         const float chi_i = random::sample_uniform(rng);
-        const float t_scatter = prim.inv_cdf(ray, chi_i);
+        const float tau_i = -math::log(math::max(1.0f - chi_i, 1e-10f));
+        const float t_scatter = prim.inv_cdf(ray, tau_i);
 
         if (t_scatter >= 0.0f && t_scatter < t_scatter_min && t_scatter <= t_exit) {
             t_scatter_min = t_scatter;
@@ -154,13 +156,15 @@ __device__ bool sample_scattering_event(
     for (const auto& hit : hit_buffer) {
         const auto& prim = launch_params.primitives_[hit.prim_idx];
 
-        // Sample INDEPENDENT chi per primitive (Analog Decomposition Tracking requirement)
+        // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
+        // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
         const float chi_j = random::sample_uniform(rng);
+        const float tau_j = -math::log(math::max(1.0f - chi_j, 1e-10f));
 
         // For entry hits, sample from the entry point onward
         // Note: We don't shift the ray origin because inv_cdf integrates from ray.origin
         // Instead, we sample and then check the result is after the entry point
-        const float t_scatter = prim.inv_cdf(ray, chi_j);
+        const float t_scatter = prim.inv_cdf(ray, tau_j);
 
         if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) {
             const auto w = prim.transform_dir_local(ray.direction_);
@@ -216,8 +220,6 @@ __device__ bool sample_scattering_event(
 #pragma unroll 4
                 for (auto prim_idx : current_active) {
                     const auto& prim = launch_params.primitives_[prim_idx];
-                    // For transmittance: T = exp(-sigma_t × L), NOT exp(-albedo × sigma_t × L)
-                    // Albedo affects scattering probability, not extinction
                     const auto tau = prim.optical_depth(ray, t_prev, event.t_hit);
                     acc_optical_depth += make_float3(tau);
                 }

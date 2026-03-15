@@ -1,13 +1,22 @@
 #include "geometric_validation.h"
 
 #include "thesis/common/geometry/quat.h"
+#include "thesis/common/utils/math.h"
 
 #include <vector_types.h>
 
 using namespace thesis::host::params;
 using namespace thesis::common::geometry;
+namespace math = thesis::common::math;
 
 namespace thesis::test::scenes {
+
+// Convert "peak extinction" σ_t (intuitive: controls opacity at Gaussian center)
+// to DSYG-normalized σ_t (used by renderer: σ_t × normalized_PDF convention)
+// Factor: (2π)^{3/2} × ∏s — derived from DSYG paper equations 13-15
+static float sigma_dsyg(float sigma_peak, float3 scale) {
+    return sigma_peak * math::ROOT_TWO_PI_F * math::TWO_PI_F * math::prod(scale);
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Correctness Tests
@@ -26,7 +35,7 @@ TestScene single_purple() {
         UnitQuaternion::identity(),           // rotation
         make_float3(0.5f, 0.5f, 0.5f),        // scale
         make_float3(0.5f, 0.0f, 0.5f),        // purple albedo (density-weighted average)
-        1.0f                                  // sigma_t (sum of both)
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -43,7 +52,7 @@ TestScene coincident_surfaces() {
         UnitQuaternion::identity(),           // rotation
         make_float3(0.5f, 0.5f, 0.5f),        // scale
         make_float3(1.0f, 0.0f, 0.0f),        // red albedo
-        0.5f                                  // sigma_t
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     // Blue Gaussian at same position
@@ -52,7 +61,7 @@ TestScene coincident_surfaces() {
         UnitQuaternion::identity(),           // rotation
         make_float3(0.5f, 0.5f, 0.5f),        // scale
         make_float3(0.0f, 0.0f, 1.0f),        // blue albedo
-        0.5f                                  // sigma_t
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -69,7 +78,7 @@ TestScene partial_overlap() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     // Red Gaussian on right (SWAPPED)
@@ -78,7 +87,7 @@ TestScene partial_overlap() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -95,7 +104,7 @@ TestScene total_overlap() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 1.0f, 1.0f),        // large scale
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.3f
+        sigma_dsyg(0.3f, make_float3(1.0f, 1.0f, 1.0f))
     ));
 
     // Small blue Gaussian at center
@@ -104,7 +113,7 @@ TestScene total_overlap() {
         UnitQuaternion::identity(),
         make_float3(0.3f, 0.3f, 0.3f),        // small scale
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        0.8f                                  // denser
+        sigma_dsyg(0.8f, make_float3(0.3f, 0.3f, 0.3f))  // denser
     ));
 
     return scene;
@@ -121,7 +130,7 @@ TestScene depth_ordering() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        1.5f
+        sigma_dsyg(1.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     // Green Gaussian in middle
@@ -130,7 +139,7 @@ TestScene depth_ordering() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 1.0f, 0.0f),        // green
-        1.5f
+        sigma_dsyg(1.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     // Blue Gaussian farthest
@@ -139,7 +148,7 @@ TestScene depth_ordering() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        1.5f
+        sigma_dsyg(1.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     return scene;
@@ -157,7 +166,7 @@ TestScene camera_inside() {
         UnitQuaternion::identity(),
         make_float3(5.0f, 5.0f, 5.0f),        // very large
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.2f                                  // less dense for visibility
+        sigma_dsyg(0.2f, make_float3(5.0f, 5.0f, 5.0f))  // less dense for visibility
     ));
 
     return scene;
@@ -174,7 +183,7 @@ TestScene non_overlapping() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     // Green Gaussian center
@@ -183,7 +192,7 @@ TestScene non_overlapping() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 1.0f, 0.0f),        // green
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     // Blue Gaussian right
@@ -192,7 +201,7 @@ TestScene non_overlapping() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     return scene;
@@ -213,7 +222,7 @@ TestScene transform_scale() {
         UnitQuaternion::identity(),
         make_float3(0.2f, 0.2f, 0.2f),        // small uniform
         make_float3(1.0f, 0.0f, 0.0f),
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.2f, 0.2f, 0.2f))
     ));
 
     // Medium isotropic
@@ -222,7 +231,7 @@ TestScene transform_scale() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),        // medium uniform
         make_float3(0.0f, 1.0f, 0.0f),
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     // Large isotropic
@@ -231,7 +240,7 @@ TestScene transform_scale() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 1.0f, 1.0f),        // large uniform
         make_float3(0.0f, 0.0f, 1.0f),
-        0.5f
+        sigma_dsyg(0.5f, make_float3(1.0f, 1.0f, 1.0f))
     ));
 
     // Anisotropic (ellipsoid)
@@ -240,7 +249,7 @@ TestScene transform_scale() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 0.3f, 0.3f),        // stretched along X
         make_float3(1.0f, 1.0f, 0.0f),        // yellow
-        0.5f
+        sigma_dsyg(0.5f, make_float3(1.0f, 0.3f, 0.3f))
     ));
 
     return scene;
@@ -253,7 +262,7 @@ TestScene transform_rotation() {
 
     // Define an elongated ellipsoid
     const auto scale = make_float3(1.0f, 0.3f, 0.3f);  // stretched along X
-    constexpr float sigma_t = 10.0f;
+    const float sigma_t = sigma_dsyg(0.5f, scale);
 
     // No rotation (0°)
     scene.primitives.push_back(Primitive(
@@ -305,7 +314,7 @@ TestScene transform_translation() {
     const auto rotation = UnitQuaternion::identity();
     const auto scale = make_float3(0.4f, 0.4f, 0.4f);
     const auto albedo = make_float3(0.0f, 1.0f, 1.0f);  // cyan
-    constexpr float sigma_t = 0.5f;
+    const float sigma_t = sigma_dsyg(0.5f, scale);
 
     // Restore original 3x3 grid to see if multiple Gaussians cause the hang
     for (int y = -1; y <= 1; ++y) {
@@ -338,7 +347,7 @@ TestScene minimal_behind_camera() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -355,7 +364,7 @@ TestScene minimal_in_front() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.0f, 1.0f, 0.0f),        // green
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -369,7 +378,7 @@ TestScene multiple_same_z() {
     // Multiple Gaussians all at Z=2, slightly offset in X/Y
     const auto z = 2.0f;
     const auto scale = make_float3(0.3f, 0.3f, 0.3f);
-    constexpr float sigma_t = 0.5f;
+    const float sigma_t = sigma_dsyg(0.5f, scale);
 
     // Create a tight cluster of 9 Gaussians
     for (int y = -1; y <= 1; ++y) {
@@ -400,7 +409,7 @@ TestScene many_gaussians() {
 
     const auto rotation = UnitQuaternion::identity();
     const auto scale = make_float3(0.1f, 0.1f, 0.1f);  // Smaller to fit more
-    constexpr float sigma_t = 2.0f;  // Less dense for better performance
+    const float sigma_t = sigma_dsyg(2.0f, scale);  // Less dense for better performance
 
     // 10x10 grid of Gaussians, scaled down to fit camera FOV
     for (int y = 0; y < 10; ++y) {
@@ -439,7 +448,7 @@ TestScene nested_structure() {
         UnitQuaternion::identity(),
         make_float3(1.5f, 1.5f, 1.5f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.25f                                 // increased from 0.15 for visibility
+        sigma_dsyg(0.25f, make_float3(1.5f, 1.5f, 1.5f))  // increased from 0.15 for visibility
     ));
 
     // Middle shell (medium, medium density, green)
@@ -448,7 +457,7 @@ TestScene nested_structure() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 1.0f, 1.0f),
         make_float3(0.0f, 1.0f, 0.0f),        // green
-        0.3f
+        sigma_dsyg(0.3f, make_float3(1.0f, 1.0f, 1.0f))
     ));
 
     // Inner core (small, high density, blue)
@@ -457,7 +466,7 @@ TestScene nested_structure() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        0.6f                                  // high density
+        sigma_dsyg(0.6f, make_float3(0.5f, 0.5f, 0.5f))  // high density
     ));
 
     return scene;
@@ -475,7 +484,7 @@ TestScene tangent_rays() {
         UnitQuaternion::identity(),
         make_float3(0.8f, 0.8f, 0.8f),
         make_float3(1.0f, 1.0f, 0.0f),        // yellow
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.8f, 0.8f, 0.8f))
     ));
 
     return scene;
@@ -503,6 +512,7 @@ TestScene create_grid_stress_test(
     scene.name = name;
     scene.description = description;
 
+    const float sigma_t_dsyg = sigma_dsyg(sigma_t, scale);
     const float grid_width = (grid_x - 1) * spacing;
     const float grid_height = (grid_y - 1) * spacing;
     const float offset_x = -grid_width * 0.5f;
@@ -519,7 +529,7 @@ TestScene create_grid_stress_test(
                 UnitQuaternion::identity(),
                 scale,
                 albedo,
-                sigma_t
+                sigma_t_dsyg
             ));
         }
     }
@@ -629,7 +639,7 @@ TestScene hit_buffer_at_capacity() {
             UnitQuaternion::identity(),
             make_float3(0.3f, 0.3f, 0.3f),
             make_float3(1.0f, 0.0f, 0.0f),  // red
-            0.05f  // very low density
+            sigma_dsyg(0.05f, make_float3(0.3f, 0.3f, 0.3f))  // very low density
         ));
     }
 
@@ -649,7 +659,7 @@ TestScene hit_buffer_overflow() {
             UnitQuaternion::identity(),
             make_float3(0.3f, 0.3f, 0.3f),
             make_float3(0.0f, 1.0f, 0.0f),  // green
-            0.05f
+            sigma_dsyg(0.05f, make_float3(0.3f, 0.3f, 0.3f))
         ));
     }
 
@@ -671,7 +681,7 @@ TestScene ray_at_exact_boundary() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 1.0f, 1.0f),
         make_float3(1.0f, 1.0f, 0.0f),  // yellow
-        0.3f
+        sigma_dsyg(0.3f, make_float3(1.0f, 1.0f, 1.0f))
     ));
 
     return scene;
@@ -694,7 +704,7 @@ TestScene all_behind_camera() {
             UnitQuaternion::identity(),
             make_float3(0.5f, 0.5f, 0.5f),
             make_float3(1.0f, 0.0f, 1.0f),  // magenta
-            0.5f
+            sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
         ));
     }
 
@@ -716,7 +726,7 @@ TestScene extreme_anisotropic_scale() {
         UnitQuaternion::identity(),
         make_float3(5.0f, 0.05f, 0.05f),  // 100:1 ratio
         make_float3(1.0f, 0.0f, 0.0f),  // red
-        0.3f
+        sigma_dsyg(0.3f, make_float3(5.0f, 0.05f, 0.05f))
     ));
 
     // Pancake shape (flattened along Y)
@@ -725,7 +735,7 @@ TestScene extreme_anisotropic_scale() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 0.01f, 1.0f),  // 100:1 ratio
         make_float3(0.0f, 0.0f, 1.0f),  // blue
-        0.3f
+        sigma_dsyg(0.3f, make_float3(1.0f, 0.01f, 1.0f))
     ));
 
     // Needle along Z
@@ -734,7 +744,7 @@ TestScene extreme_anisotropic_scale() {
         UnitQuaternion::identity(),
         make_float3(0.05f, 0.05f, 5.0f),  // 100:1 ratio
         make_float3(0.0f, 1.0f, 0.0f),  // green
-        0.3f
+        sigma_dsyg(0.3f, make_float3(0.05f, 0.05f, 5.0f))
     ));
 
     return scene;
@@ -757,7 +767,7 @@ TestScene extreme_small_scale() {
                 UnitQuaternion::identity(),
                 make_float3(0.01f, 0.01f, 0.01f),  // extremely small
                 make_float3(1.0f, 1.0f, 0.0f),  // yellow
-                1.0f  // high density so they're visible
+                sigma_dsyg(1.0f, make_float3(0.01f, 0.01f, 0.01f))  // high density so they're visible
             ));
         }
     }
@@ -776,7 +786,7 @@ TestScene extreme_large_scale() {
         UnitQuaternion::identity(),
         make_float3(100.0f, 100.0f, 100.0f),  // extremely large
         make_float3(0.0f, 1.0f, 1.0f),  // cyan
-        0.01f  // very low density so we can see through it
+        sigma_dsyg(0.01f, make_float3(100.0f, 100.0f, 100.0f))  // very low density so we can see through it
     ));
 
     // Smaller Gaussian inside for reference
@@ -785,7 +795,7 @@ TestScene extreme_large_scale() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(1.0f, 0.0f, 0.0f),  // red
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -803,7 +813,7 @@ TestScene near_coincident_surfaces() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(1.0f, 0.0f, 0.0f),  // red
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     // Second Gaussian offset by 1e-5 units (just above epsilon threshold)
@@ -812,7 +822,7 @@ TestScene near_coincident_surfaces() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.0f, 0.0f, 1.0f),  // blue
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -843,7 +853,7 @@ TestScene collinear_with_gaps() {
             UnitQuaternion::identity(),
             scale,
             make_float3(r, g, b),
-            0.5f
+            sigma_dsyg(0.5f, scale)
         ));
     }
 
@@ -861,7 +871,7 @@ TestScene nested_off_center() {
         UnitQuaternion::identity(),
         make_float3(1.5f, 1.5f, 1.5f),
         make_float3(1.0f, 0.0f, 0.0f),  // red
-        0.2f
+        sigma_dsyg(0.2f, make_float3(1.5f, 1.5f, 1.5f))
     ));
 
     // Small Gaussian near the edge (not centered)
@@ -871,7 +881,7 @@ TestScene nested_off_center() {
         UnitQuaternion::identity(),
         make_float3(0.3f, 0.3f, 0.3f),
         make_float3(0.0f, 0.0f, 1.0f),  // blue
-        0.8f
+        sigma_dsyg(0.8f, make_float3(0.3f, 0.3f, 0.3f))
     ));
 
     return scene;
@@ -888,7 +898,7 @@ TestScene chain_overlaps() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.0f, 0.0f, 1.0f),  // blue (SWAPPED)
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     // Gaussian B (center) - overlaps both A and C - GREEN unchanged
@@ -897,7 +907,7 @@ TestScene chain_overlaps() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.0f, 1.0f, 0.0f),  // green
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     // Gaussian C (right) - RED now
@@ -906,7 +916,7 @@ TestScene chain_overlaps() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(1.0f, 0.0f, 0.0f),  // red (SWAPPED)
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.5f, 0.5f, 0.5f))
     ));
 
     return scene;
@@ -929,7 +939,7 @@ TestScene rotation_180_degrees() {
         UnitQuaternion::identity(),
         scale,
         make_float3(0.0f, 0.0f, 1.0f),  // blue (SWAPPED)
-        0.5f
+        sigma_dsyg(0.5f, scale)
     ));
 
     // 180-degree rotation around Z axis - RED now
@@ -939,7 +949,7 @@ TestScene rotation_180_degrees() {
         UnitQuaternion::from_unchecked(0.0f, 0.0f, 0.0f, 1.0f),
         scale,
         make_float3(1.0f, 0.0f, 0.0f),  // red (SWAPPED)
-        0.5f
+        sigma_dsyg(0.5f, scale)
     ));
 
     return scene;
@@ -957,7 +967,7 @@ TestScene high_optical_thickness() {
         UnitQuaternion::identity(),
         make_float3(0.5f, 0.5f, 0.5f),
         make_float3(0.8f, 0.8f, 0.8f),  // light gray
-        10.0f  // very high density
+        sigma_dsyg(10.0f, make_float3(0.5f, 0.5f, 0.5f))  // very high density
     ));
 
     return scene;
@@ -974,7 +984,7 @@ TestScene low_optical_thickness() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 1.0f, 1.0f),
         make_float3(0.0f, 1.0f, 1.0f),  // cyan
-        0.001f  // very low density
+        sigma_dsyg(0.001f, make_float3(1.0f, 1.0f, 1.0f))  // very low density
     ));
 
     return scene;
@@ -991,7 +1001,7 @@ TestScene zero_albedo() {
         UnitQuaternion::identity(),
         make_float3(1.0f, 1.0f, 1.0f),
         make_float3(0.0f, 0.0f, 0.0f),  // black (pure absorption)
-        0.5f
+        sigma_dsyg(0.5f, make_float3(1.0f, 1.0f, 1.0f))
     ));
 
     return scene;
@@ -1012,7 +1022,7 @@ TestScene debug_single_at_origin() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),        // same scale as transform_translation
         make_float3(0.0f, 1.0f, 1.0f),        // cyan
-        0.5f                                  // same sigma_t
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))  // same sigma_t
     ));
 
     return scene;
@@ -1029,7 +1039,7 @@ TestScene debug_single_offset() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 1.0f, 1.0f),        // cyan
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     return scene;
@@ -1046,7 +1056,7 @@ TestScene debug_two_at_origin() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(1.0f, 0.0f, 0.0f),        // red
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     scene.primitives.push_back(Primitive(
@@ -1054,7 +1064,7 @@ TestScene debug_two_at_origin() {
         UnitQuaternion::identity(),
         make_float3(0.4f, 0.4f, 0.4f),
         make_float3(0.0f, 0.0f, 1.0f),        // blue
-        0.5f
+        sigma_dsyg(0.5f, make_float3(0.4f, 0.4f, 0.4f))
     ));
 
     return scene;
@@ -1068,7 +1078,7 @@ TestScene debug_grid_2x2() {
     const auto rotation = UnitQuaternion::identity();
     const auto scale = make_float3(0.4f, 0.4f, 0.4f);
     const auto albedo = make_float3(0.0f, 1.0f, 1.0f);  // cyan
-    constexpr float sigma_t = 0.5f;
+    const float sigma_t = sigma_dsyg(0.5f, scale);
 
     // 2x2 grid (4 Gaussians)
     for (int y = 0; y <= 1; ++y) {
