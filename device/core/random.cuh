@@ -9,7 +9,19 @@ namespace thesis {
 namespace device {
 namespace random {
 
-// TODO: rethink whether I want to use curand and not e.g. Sobol
+// Performance note: curand (Philox-based PRNG) costs ~20-30 cycles per sample.
+// Sobol quasi-random sequences converge as O(1/N) vs O(1/√N) for pseudo-random,
+// yielding 2-4× faster convergence in practice for Monte Carlo integration.
+//
+// Caveats for switching to Sobol in this renderer:
+//   - Each bounce consumes a variable number of random dimensions (depends on
+//     primitive count hit by the ray). Sobol works best with fixed-dimension
+//     consumption per sample; wasted dimensions degrade toward pseudo-random.
+//   - Adaptive sampling skips converged pixels, breaking the lockstep ordering
+//     that Sobol assumes. Per-pixel Cranley-Patterson rotation (random offset
+//     into a shared Sobol sequence) would be needed.
+//   - cuRAND provides built-in Sobol (curandStateScrambledSobol32), so the API
+//     change is small — the hard part is the dimension mapping design.
 
 __device__ __forceinline__ curandState init(unsigned long long seed, unsigned long long sequence) {
     curandState state;

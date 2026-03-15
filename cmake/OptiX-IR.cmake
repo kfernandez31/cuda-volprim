@@ -29,6 +29,11 @@ add_custom_command(
         --ftz=true
         --prec-div=false
         --prec-sqrt=false
+        # TODO: Experiment with --maxrregcount=N (e.g. 96 or 128) to limit per-thread
+        # register usage. Lower values increase occupancy (more warps in flight) at the
+        # cost of register spills to local memory. Profile with NSight Compute to find
+        # the sweet spot — the large per-thread hit buffer (~8KB) likely already spills,
+        # so the benefit may be limited until that structure is reduced.
         -o "${OPTIXIR_OUTPUT}"
         -diag-suppress=20044
         -m64

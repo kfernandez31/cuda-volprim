@@ -23,6 +23,23 @@ class Pipeline {
         OPTIX_CALL_LOGGED(optixPipelineCreate(ctx, &pco, &plo, groups,
                                               static_cast<uint>(num_groups), log.data(), &log_size,
                                               &handle_));
+
+        // TODO: The default continuation stack size may be insufficient for large scenes
+        // (2048+ Gaussians). sample_scattering_event allocates ~32KB of stack per thread
+        // (hit_buffer 8KB + events 16KB + cached_exits 8KB). This causes "illegal memory
+        // access" on stress tests. Compute the required size and set explicitly:
+        //
+        // OptixStackSizes stack_sizes{};
+        // for (size_t i = 0; i < num_groups; ++i) {
+        //     OPTIX_CHECK(optixProgramGroupGetStackSize(groups[i], &stack_sizes));
+        // }
+        // OPTIX_CHECK(optixPipelineSetStackSize(
+        //     handle_,
+        //     /* directCallableStackSizeFromTraversal = */ 0,
+        //     /* directCallableStackSizeFromState = */ 0,
+        //     /* continuationStackSize = */ 65536,  // 64KB, tune empirically
+        //     /* maxTraversableGraphDepth = */ 2     // IAS -> GAS
+        // ));
     }
 
     ~Pipeline() {
