@@ -8,17 +8,16 @@ namespace thesis {
 namespace device {
 
 // Unified structure for ray-primitive intersections (entries and exits)
-// Used for both:
+// Used for:
 // 1. Hit collection during ray tracing (is_exit = false, from anyhit shader)
-// 2. Event processing in escape case (is_exit = true for exits, false for entries)
+// 2. Event processing in escape case (is_exit distinguishes entries/exits)
+// 3. Cached exits in argmin loop (is_exit = true)
 //
-// Memory: 8 bytes (float + uint16 + bool with padding)
+// Memory layout: float (4B) + prim_idx_t (2B) + bitfield (within prim_idx_t word) = 8 bytes
 struct HitRecord {
-    float t_hit;               // 4 bytes - distance along ray
-    prim_idx_t prim_idx;  // 2 bytes - primitive index
-    bool is_exit;              // 1 byte - false for entry, true for exit
-                        // Note: Always false during hit collection (anyhit shader)
-                        //       Only used in escape case event processing
+    float t_hit;            // 4 bytes - distance along ray
+    prim_idx_t prim_idx;    // 2 bytes - primitive index
+    prim_idx_t is_exit : 1; // 1 bit   - false for entry, true for exit
 
     // Comparison for sorting by t-value (with deterministic tie-breaking)
     __device__ __forceinline__ bool operator<(const HitRecord& other) const {

@@ -57,8 +57,7 @@ extern "C" __global__ void __raygen__rg() {
             pixel_linear_idx, launch_params.image_.num_samples_per_pixel_, global_sample_idx);
 
         // RNG setup (unique per sample)
-        curandState rng;
-        curand_init(launch_params.seed_, rng_seed, 0, &rng);
+        auto rng = random::init(launch_params.seed_, rng_seed);
 
         // Ray setup with jittering
         const auto jitter = random::sample_uniform_2d(rng, 0.5f);

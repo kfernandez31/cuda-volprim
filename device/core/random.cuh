@@ -9,6 +9,14 @@ namespace thesis {
 namespace device {
 namespace random {
 
+// TODO: rethink whether I want to use curand and not e.g. Sobol
+
+__device__ __forceinline__ curandState init(unsigned long long seed, unsigned long long sequence) {
+    curandState state;
+    curand_init(seed, sequence, 0, &state);
+    return state;
+}
+
 __device__ __forceinline__ float sample_uniform(curandState& state) {
     return static_cast<float>(curand(&state)) / static_cast<float>(UINT_MAX);
 }

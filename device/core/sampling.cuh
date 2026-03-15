@@ -125,11 +125,7 @@ __device__ bool sample_scattering_event(
 
     // Cache exits for primitives we start inside (eliminates redundant computation)
     // These exits are reused in both escape case (event collection) and scatter case (active_prims rebuild)
-    struct CachedExit { // TODO: we could use hit_record.cuh instead for reducing redundancy
-        prim_idx_t prim_idx;
-        float t_exit;
-    };
-    utils::StaticVector<CachedExit, consts::ACTIVE_PRIMS_CAPACITY> cached_exits;
+    utils::StaticVector<HitRecord, consts::ACTIVE_PRIMS_CAPACITY> cached_exits;
 
 #pragma unroll 4
     for (auto prim_idx : active_prims) {
@@ -139,7 +135,7 @@ __device__ bool sample_scattering_event(
         const auto w = prim.transform_dir_local(ray.direction_);
         const auto w_len2 = math::length2(w);
         const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
-        cached_exits.emplace_back(CachedExit{prim_idx, t_exit});
+        cached_exits.emplace_back(t_exit, prim_idx, true);
 
         // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
         // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
@@ -186,8 +182,8 @@ __device__ bool sample_scattering_event(
         // Reuse cached exits from argmin loop (eliminates redundant computation)
 #pragma unroll 4
         for (const auto& cached : cached_exits) {
-            if (cached.t_exit > 0.0f && cached.t_exit < consts::INF_F) {
-                events.emplace_back(cached.t_exit, cached.prim_idx, true);
+            if (cached.t_hit > 0.0f && cached.t_hit < consts::INF_F) {
+                events.emplace_back(cached.t_hit, cached.prim_idx, true);
             }
         }
 
@@ -248,7 +244,7 @@ __device__ bool sample_scattering_event(
     // Reuse cached exits from argmin loop (eliminates redundant computation)
 #pragma unroll 4
     for (const auto& cached : cached_exits) {
-        if (t_scatter_min <= cached.t_exit) {
+        if (t_scatter_min <= cached.t_hit) {
             (void) final_active_prims.insert(cached.prim_idx);
         }
     }

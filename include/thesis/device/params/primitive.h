@@ -55,7 +55,7 @@ class THESIS_ALIGNMENT Primitive {
           scale_(scale),
           rcp_scale_(common::math::rcp(scale)),
           density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::prod(rcp_scale_)),
-          inv_cdf_factor_(optical_thickness * common::math::ONE_OVER_TWO_PI_F * common::math::prod(rcp_scale_)), // TODO: compute in terms of density_norm_factor_. Might require a new constant in math::
+          inv_cdf_factor_(optical_thickness * density_norm_factor_ * common::math::ROOT_TWO_PI_F),
           albedo_(albedo),
           optical_thickness_(optical_thickness) {}
 
