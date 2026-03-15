@@ -11,36 +11,36 @@ namespace host {
 namespace params {
 
 // Host-side wrapper for primitive
+// Thin wrapper around device::params::Primitive — no additional stored state.
+// The device primitive stores the CONJUGATE quaternion (world-to-local);
+// the forward rotation (needed for OptiX transforms) is derived on demand.
 class Primitive {
    private:
     device::params::Primitive device_primitive_;
-    common::geometry::UnitQuaternion rot_quat_;  // Forward rotation for OptiX transform // TODO: redundant?
 
    public:
     // Default constructor
     Primitive() = default;
 
-    // Constructor with UnitQuaternion
-    // Stores forward rotation for OptiX, passes conjugate to device for world-to-local transforms
+    // Constructor: stores conjugate in device_primitive_ for world-to-local transforms
     Primitive(float3 center, const common::geometry::UnitQuaternion& rot_quat, float3 scale,
               float3 albedo, float optical_thickness)
-        : device_primitive_(center, rot_quat.conjugate(), scale, albedo, optical_thickness),
-          rot_quat_(rot_quat) {}
+        : device_primitive_(center, rot_quat.conjugate(), scale, albedo, optical_thickness) {}
 
     // Get device-compatible struct for launch params
     [[nodiscard]] const device::params::Primitive& device_primitive() const noexcept {
         return device_primitive_;
     }
 
-    // Allow non-const access for modification
+    // Allow non-const access for modification (e.g., albedo clamping in PLY loader)
     [[nodiscard]] device::params::Primitive& device_primitive() noexcept {
         return device_primitive_;
     }
 
     // Getters for introspection
     [[nodiscard]] float3 center() const { return device_primitive_.center(); }
-    [[nodiscard]] const common::geometry::UnitQuaternion& rot_quat() const {
-        return rot_quat_;  // Return forward rotation, not conjugate
+    [[nodiscard]] common::geometry::UnitQuaternion rot_quat() const {
+        return device_primitive_.rot_quat().conjugate();  // Derive forward from stored conjugate
     }
     [[nodiscard]] float3 scale() const { return device_primitive_.scale(); }
     [[nodiscard]] float3 albedo() const { return device_primitive_.albedo_; }
@@ -50,8 +50,8 @@ class Primitive {
     [[nodiscard]] utils::math::Mat3x4 localToWorld() const noexcept {
         // Scale by Gaussian extent for proper intersection bounds (~3 standard deviations)
         const auto scaled = device_primitive_.scale() * common::math::GAUSSIAN_EXTENT_F;
-        return utils::math::Mat3x4::from_trs(device_primitive_.center(), rot_quat_,
-                                             scaled);  // Use forward rotation
+        const auto forward_rot = device_primitive_.rot_quat().conjugate();
+        return utils::math::Mat3x4::from_trs(device_primitive_.center(), forward_rot, scaled);
     }
 };
 
