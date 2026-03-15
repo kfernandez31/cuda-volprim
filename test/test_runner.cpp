@@ -174,7 +174,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
 
     // Render each camera view
     for (size_t cam_idx = 0; cam_idx < scene.cameras.size(); ++cam_idx) {
-        const auto& camera = scene.cameras[cam_idx];
+        const auto& [camera, cam_width, cam_height] = scene.cameras[cam_idx];
 
         // Generate output path: test_results/cloud_asset_validation/0000.exr
         std::ostringstream oss;
@@ -183,13 +183,13 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
 
         std::cout << "\n  [" << (cam_idx + 1) << "/" << scene.cameras.size() << "] ";
         std::cout << "Rendering camera " << cam_idx << " → " << output_path.string() << "\n";
-        std::cout << "    Resolution: " << camera.width() << "×" << camera.height();
+        std::cout << "    Resolution: " << cam_width << "×" << cam_height;
         std::cout << " (" << (camera.is_orthographic() ? "orthographic" : "perspective") << ")\n";
 
         // Create renderer config
         app::Config renderer_config;
-        renderer_config.image_width_ = camera.width();
-        renderer_config.image_height_ = camera.height();
+        renderer_config.image_width_ = cam_width;
+        renderer_config.image_height_ = cam_height;
         renderer_config.num_samples_per_pixel_ = test_config.spp;
         renderer_config.output_path_ = output_path.string();
         renderer_config.seed_ = 42;

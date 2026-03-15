@@ -13,14 +13,13 @@ namespace host {
 namespace params {
 
 // Host-side wrapper for camera configuration
+// Note: image dimensions are NOT stored here — they belong to Image.
+// The camera only needs them transiently during build() to compute pixel deltas.
 class Camera {
    private:
     device::params::Camera device_camera_;
 
     // Host-only: camera configuration parameters
-    size_t image_width_ = 100;
-    size_t image_height_ = 100;
-    float aspect_ratio_ = 1.0f;
     float vertical_fov_ = 90.0f;
     float3 lookfrom_ = make_float3(0.0f, 0.0f, -1.0f);
     float3 lookat_ = make_float3(0.0f, 0.0f, 0.0f);
@@ -30,15 +29,15 @@ class Camera {
     bool is_orthographic_ = false;
     float ortho_height_ = 2.0f;  // Height of orthographic viewport
 
-    void build() noexcept {
+    void build(size_t image_width, size_t image_height) noexcept {
         if (is_orthographic_) {
-            buildOrthographic();
+            buildOrthographic(image_width, image_height);
         } else {
-            buildPerspective();
+            buildPerspective(image_width, image_height);
         }
     }
 
-    void buildPerspective() noexcept {
+    void buildPerspective(size_t image_width, size_t image_height) noexcept {
         const auto theta = vertical_fov_ * common::math::DEG_TO_RAD_F;
         const auto h = std::tan(0.5f * theta);
 
@@ -48,15 +47,15 @@ class Camera {
 
         const auto focal_len = common::math::length(lookfrom_ - lookat_);
         const auto aspect_ratio =
-            static_cast<float>(image_width_) * common::math::rcp(static_cast<float>(image_height_));
+            static_cast<float>(image_width) * common::math::rcp(static_cast<float>(image_height));
         const auto viewport_height = 2.0f * h * focal_len;
         const auto viewport_width = viewport_height * aspect_ratio;
 
         const auto viewport_u = u * viewport_width;
         const auto viewport_v = -v * viewport_height;
 
-        const auto pixel_du = viewport_u * common::math::rcp(static_cast<float>(image_width_));
-        const auto pixel_dv = viewport_v * common::math::rcp(static_cast<float>(image_height_));
+        const auto pixel_du = viewport_u * common::math::rcp(static_cast<float>(image_width));
+        const auto pixel_dv = viewport_v * common::math::rcp(static_cast<float>(image_height));
         const auto viewport_ul =
             lookfrom_ - focal_len * w - common::math::midpoint(viewport_u, viewport_v);
         const auto pixel00 = viewport_ul + common::math::midpoint(pixel_du, pixel_dv);
@@ -70,7 +69,7 @@ class Camera {
         device_camera_.pixel_dv_ = pixel_dv;
     }
 
-    void buildOrthographic() noexcept {
+    void buildOrthographic(size_t image_width, size_t image_height) noexcept {
         // Compute camera basis vectors
         const auto view_dir = common::math::normalize(lookat_ - lookfrom_);
         const auto right = common::math::normalize(common::math::cross(view_dir, vup_));
@@ -78,7 +77,7 @@ class Camera {
 
         // Orthographic viewport dimensions
         const auto aspect_ratio =
-            static_cast<float>(image_width_) * common::math::rcp(static_cast<float>(image_height_));
+            static_cast<float>(image_width) * common::math::rcp(static_cast<float>(image_height));
         const auto viewport_height = ortho_height_;
         const auto viewport_width = viewport_height * aspect_ratio;
 
@@ -87,8 +86,8 @@ class Camera {
         const auto viewport_v = -up * viewport_height;
 
         // Pixel delta vectors
-        const auto pixel_du = viewport_u * common::math::rcp(static_cast<float>(image_width_));
-        const auto pixel_dv = viewport_v * common::math::rcp(static_cast<float>(image_height_));
+        const auto pixel_du = viewport_u * common::math::rcp(static_cast<float>(image_width));
+        const auto pixel_dv = viewport_v * common::math::rcp(static_cast<float>(image_height));
 
         // View plane center (eye position for orthographic reference point)
         const auto view_center = lookfrom_;
@@ -115,10 +114,8 @@ class Camera {
     // Factory method for default camera
     static Camera getDefaultCamera(size_t w, size_t h) noexcept {
         Camera cam;
-        cam.image_width_ = w;
-        cam.image_height_ = h;
         cam.is_orthographic_ = false;
-        cam.build();
+        cam.build(w, h);
         return cam;
     }
 
@@ -126,14 +123,12 @@ class Camera {
     static Camera createOrthographic(size_t width, size_t height, float3 origin, float3 target,
                                      float3 up, float ortho_height) noexcept {
         Camera cam;
-        cam.image_width_ = width;
-        cam.image_height_ = height;
         cam.is_orthographic_ = true;
         cam.lookfrom_ = origin;
         cam.lookat_ = target;
         cam.vup_ = up;
         cam.ortho_height_ = ortho_height;
-        cam.build();
+        cam.build(width, height);
         return cam;
     }
 
@@ -146,8 +141,6 @@ class Camera {
     [[nodiscard]] float3 lookfrom() const noexcept { return lookfrom_; }
     [[nodiscard]] float3 lookat() const noexcept { return lookat_; }
     [[nodiscard]] float vertical_fov() const noexcept { return vertical_fov_; }
-    [[nodiscard]] size_t width() const noexcept { return image_width_; }
-    [[nodiscard]] size_t height() const noexcept { return image_height_; }
     [[nodiscard]] bool is_orthographic() const noexcept { return is_orthographic_; }
 };
 

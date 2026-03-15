@@ -46,7 +46,7 @@ Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier) {
     for (const auto& cam_config : config.cameras) {
         auto camera = thesis::host::utils::createOrthographicCamera(cam_config,
                                                                      config.orthographic_extent);
-        scene.cameras.push_back(camera);
+        scene.cameras.push_back({camera, cam_config.width, cam_config.height});
     }
 
     spdlog::info("Created {} orthographic cameras", scene.cameras.size());

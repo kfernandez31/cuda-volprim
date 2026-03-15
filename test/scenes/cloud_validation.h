@@ -11,11 +11,17 @@
 namespace thesis::test::scenes {
 
 // Multi-view test scene with multiple cameras (for validation against reference renders)
+struct CameraView {
+    thesis::host::params::Camera camera;
+    size_t width;
+    size_t height;
+};
+
 struct MultiViewTestScene {
     std::string name;
     std::string description;
     std::vector<thesis::host::params::Primitive> primitives;
-    std::vector<thesis::host::params::Camera> cameras;
+    std::vector<CameraView> cameras;
     std::optional<std::string> env_map_override;  // Optional constant white env
 };
 

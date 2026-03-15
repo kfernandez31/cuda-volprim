@@ -49,13 +49,6 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
 
-    // Validate camera dimensions match config (helps catch configuration errors)
-    if (camera_.width() != config_.image_width_ || camera_.height() != config_.image_height_) {
-        spdlog::warn(
-            "Camera dimensions ({}×{}) differ from image buffer dimensions ({}×{}). "
-            "This may cause incorrect rendering.",
-            camera_.width(), camera_.height(), config_.image_width_, config_.image_height_);
-    }
 
     auto module_file_future = utils::io::async::readFileToBytes(config_.module_blob_path_);
 
