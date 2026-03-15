@@ -84,10 +84,22 @@ extern "C" __global__ void __raygen__rg() {
                 break;
             }
 
-            // Evaluate albedo and environment lighting
             auto albedo = evaluate_albedo(event.position_, event.active_prims_);
-            auto env = launch_params.env_map_.sample(event.direction_);
-            radiance += throughput * albedo * env * consts::PHASE_VALUE;
+
+            if constexpr (consts::ENABLE_NEE) {
+                // NEE: sample light direction, compute shadow transmittance
+                auto light_dir = sample_phase(rng);
+                auto light_color = launch_params.env_map_.sample(light_dir);
+                auto transmittance = compute_transmittance_to_env(
+                    event.position_, light_dir, event.active_prims_);
+                // phase/pdf = 1 for isotropic phase + uniform sphere sampling
+                radiance += throughput * albedo * light_color * transmittance;
+            } else {
+                // Unoccluded single-scatter approximation (no shadow ray)
+                auto env = launch_params.env_map_.sample(event.direction_);
+                radiance += throughput * albedo * env * consts::PHASE_VALUE;
+            }
+
             throughput *= albedo;
 
             // Russian Roulette

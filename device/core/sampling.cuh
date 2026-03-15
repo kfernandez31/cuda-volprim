@@ -223,6 +223,12 @@ __device__ bool sample_scattering_event(
                     const auto tau = prim.optical_depth(ray, t_prev, event.t_hit);
                     acc_optical_depth += make_float3(tau);
                 }
+
+                // Early exit: exp(-τ) underflows to zero beyond MAX_OPTICAL_DEPTH,
+                // so further segments contribute nothing to the final transmittance.
+                if (math::min(acc_optical_depth) >= consts::MAX_OPTICAL_DEPTH) {
+                    break;
+                }
             }
 
             if (event.is_exit) {
@@ -275,6 +281,83 @@ __device__ bool sample_scattering_event(
     event.direction_ = sample_phase(rng);
 
     return true;
+}
+
+// Compute scalar transmittance from a scatter point to the environment along a direction.
+// The scatter point is inside the primitives in active_prims (inherited from the scatter event).
+// Traces a shadow ray, collects entry/exit events, integrates optical depth segment-by-segment.
+__device__ float compute_transmittance_to_env(float3 origin, float3 direction,
+                                              const PrimsSet& active_prims) {
+    auto shadow_ray = geometry::Ray::spawn_unchecked(origin, direction);
+    auto hit_buffer = collect_hits(shadow_ray);
+
+    // Build entry/exit event list
+    utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY> events;
+
+    // Exits for primitives we start inside (scatter point is inside these)
+#pragma unroll 4
+    for (auto prim_idx : active_prims) {
+        const auto& prim = launch_params.primitives_[prim_idx];
+        const auto w = prim.transform_dir_local(shadow_ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit =
+            common::geometry::compute_exit_from_entry(shadow_ray, 0.0f, prim, w_len2);
+        if (t_exit > 0.0f && t_exit < consts::INF_F) {
+            events.emplace_back(t_exit, prim_idx, true);
+        }
+    }
+
+    // Entry and exit events for primitives hit along the shadow ray
+#pragma unroll 4
+    for (const auto& hit : hit_buffer) {
+        const auto& prim = launch_params.primitives_[hit.prim_idx];
+
+        events.emplace_back(hit.t_hit, hit.prim_idx, false);
+
+        const auto w = prim.transform_dir_local(shadow_ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit =
+            common::geometry::compute_exit_from_entry(shadow_ray, hit.t_hit, prim, w_len2);
+        if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
+            events.emplace_back(t_exit, hit.prim_idx, true);
+        }
+    }
+
+    if (events.empty()) {
+        return 1.0f;  // No primitives along shadow ray
+    }
+
+    sort(events);
+
+    float t_prev = 0.0f;
+    PrimsSet current_active = active_prims;
+    float acc_tau = 0.0f;
+
+    for (size_t i = 0; i < events.size(); ++i) {
+        const auto& ev = events[i];
+
+        if (ev.t_hit > t_prev) {
+#pragma unroll 4
+            for (auto prim_idx : current_active) {
+                const auto& prim = launch_params.primitives_[prim_idx];
+                acc_tau += prim.optical_depth(shadow_ray, t_prev, ev.t_hit);
+            }
+
+            if (acc_tau >= consts::MAX_OPTICAL_DEPTH) {
+                return 0.0f;  // Fully opaque
+            }
+        }
+
+        if (ev.is_exit) {
+            current_active.erase(ev.prim_idx);
+        } else {
+            (void) current_active.insert(ev.prim_idx);
+        }
+
+        t_prev = ev.t_hit;
+    }
+
+    return math::exp(-acc_tau);
 }
 
 __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray,

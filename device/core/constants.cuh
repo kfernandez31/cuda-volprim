@@ -90,6 +90,11 @@ constexpr float RR_MAX_SURVIVAL = 0.99f;  // Standard production value (Mitsuba,
 // Isotropic phase function value: 1/(4π) normalized over unit sphere
 constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 
+// Next Event Estimation (NEE): compute shadow transmittance at scatter points
+// When enabled, direct lighting is attenuated by transmittance along shadow ray
+// When disabled, falls back to unoccluded single-scatter approximation
+constexpr bool ENABLE_NEE = true;
+
 // =============================================================================
 // Adaptive Sampling Constants
 // =============================================================================
