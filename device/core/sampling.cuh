@@ -206,7 +206,11 @@ __device__ bool sample_scattering_event(
         sort(events);
 
         float t_prev = 0.0f;
-        PrimsSet current_active = active_prims;  // Start with primitives we're inside // TODO: we can do this OR we would leave this set empty, and with the current implementation in which we don't hold entry events for prims we're inside, we would just ignore the fact that `erase` returns false. We understand it that conceptually the erasure is fine, but in the set the entry is simply not present. Design decision. But we can store the entry instead.
+        // Initialize with primitives containing the ray origin. These have exit events
+        // but no entry events in the list, so the set correctly tracks active state as
+        // exits remove them. Alternative: add synthetic t=0 entry events, but that adds
+        // sorting work for no correctness benefit.
+        PrimsSet current_active = active_prims;
         float3 acc_optical_depth = make_float3(0.0f);
 
         for (size_t i = 0; i < events.size(); ++i) {

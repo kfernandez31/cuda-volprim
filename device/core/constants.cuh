@@ -98,7 +98,7 @@ constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 // Central Limit Theorem requires sufficient samples for variance estimation
 // Typical range: 10-30 samples (lower = more aggressive, higher = more conservative)
 // Tune based on scene complexity: simple scenes can use 10, complex scenes need 20-30
-constexpr size_t ADAPTIVE_MIN_SAMPLES = 9999; // TODO: set lower
+constexpr size_t ADAPTIVE_MIN_SAMPLES = 32;
 
 // Relative error threshold for convergence (default: 1%)
 // Pixel converges when: max(std_dev / mean) across all channels < threshold

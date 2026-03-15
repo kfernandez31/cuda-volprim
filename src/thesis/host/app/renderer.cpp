@@ -50,7 +50,7 @@ Renderer::Renderer(const app::Config& config, std::vector<params::Primitive>&& p
     // clang-format on
 
     // Validate camera dimensions match config (helps catch configuration errors)
-    if (camera_.width() != config_.image_width_ || camera_.height() != config_.image_height_) { // TODO: this seems like it could be avoided
+    if (camera_.width() != config_.image_width_ || camera_.height() != config_.image_height_) {
         spdlog::warn(
             "Camera dimensions ({}×{}) differ from image buffer dimensions ({}×{}). "
             "This may cause incorrect rendering.",
