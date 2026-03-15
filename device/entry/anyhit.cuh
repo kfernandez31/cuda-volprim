@@ -29,7 +29,7 @@ extern "C" __global__ void __anyhit__ah() {
     // Collect entry hits (exits computed on-demand in argmin approach)
     if (hit_buffer->size() < consts::HIT_BUFFER_CAPACITY) {
         const float t = optixGetRayTmax();
-        const uint prim_idx = optixGetInstanceId();
+        const prim_idx_t prim_idx = static_cast<prim_idx_t>(optixGetInstanceId());
 
         // Note: is_exit = false for all hits from anyhit shader (entries only)
         hit_buffer->emplace_back(t, prim_idx, false);

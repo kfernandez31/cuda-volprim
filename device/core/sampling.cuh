@@ -109,7 +109,7 @@ __device__ bool sample_scattering_event(
     for (size_t i = 0; i < num_primitives; ++i) {
         const auto& prim = launch_params.primitives_[i];
         if (common::geometry::point_inside_ellipsoid(ray.origin_, prim)) {
-            (void) active_prims.insert(static_cast<uint>(i));
+            (void) active_prims.insert(static_cast<prim_idx_t>(i));
         }
     }
 
@@ -125,8 +125,8 @@ __device__ bool sample_scattering_event(
 
     // Cache exits for primitives we start inside (eliminates redundant computation)
     // These exits are reused in both escape case (event collection) and scatter case (active_prims rebuild)
-    struct CachedExit {
-        uint prim_idx;
+    struct CachedExit { // TODO: we could use hit_record.cuh instead for reducing redundancy
+        prim_idx_t prim_idx;
         float t_exit;
     };
     utils::StaticVector<CachedExit, consts::ACTIVE_PRIMS_CAPACITY> cached_exits;

@@ -25,9 +25,9 @@ class THESIS_ALIGNMENT Primitive {
     float3 center_;
     common::geometry::UnitQuaternion rot_quat_;  // Conjugate for world-to-local
     float3 scale_;
+    float3 rcp_scale_;  // 1/scale, precomputed to avoid per-call rcp()
 
     // Precomputed values for performance
-    float one_over_scale_det_;
     float density_norm_factor_;
     float inv_cdf_factor_;
 
@@ -53,9 +53,9 @@ class THESIS_ALIGNMENT Primitive {
         : center_(center),
           rot_quat_(rot_quat),
           scale_(scale),
-          one_over_scale_det_(common::math::rcp(common::math::prod(scale))),
-          density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * one_over_scale_det_),
-          inv_cdf_factor_(optical_thickness * common::math::ONE_OVER_TWO_PI_F * one_over_scale_det_), // TODO: make depndent on density_norm_factor_
+          rcp_scale_(common::math::rcp(scale)),
+          density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::prod(rcp_scale_)),
+          inv_cdf_factor_(optical_thickness * common::math::ONE_OVER_TWO_PI_F * common::math::prod(rcp_scale_)), // TODO: compute in terms of density_norm_factor_. Might require a new constant in math::
           albedo_(albedo),
           optical_thickness_(optical_thickness) {}
 
@@ -69,11 +69,11 @@ class THESIS_ALIGNMENT Primitive {
 
     // Transformation methods (work on both host and device)
     THESIS_HOST_DEVICE THESIS_INLINE float3 transform_pos_local(float3 pos) const {
-        return rot_quat_.rotate(pos - center_) * common::math::rcp(scale_);
+        return rot_quat_.rotate(pos - center_) * rcp_scale_;
     }
 
     THESIS_HOST_DEVICE THESIS_INLINE float3 transform_dir_local(float3 dir) const {
-        return rot_quat_.rotate(dir) * common::math::rcp(scale_);
+        return rot_quat_.rotate(dir) * rcp_scale_;
     }
 
 #ifdef DEVICE

@@ -46,7 +46,7 @@ class Renderer {
     host::params::Image image_;
     host::params::Camera camera_;
     cuda::AsyncBuffer<device::params::Primitive> primitives_;
-    cuda::AsyncBuffer<uint> camera_active_prims_;
+    cuda::AsyncBuffer<prim_idx_t> camera_active_prims_;
     cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
 
     optix::Module module_;

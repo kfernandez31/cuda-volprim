@@ -1,5 +1,7 @@
 #pragma once
 
+#include "thesis/common/utils/types.h"
+
 #include <cstdint>
 
 namespace thesis {
@@ -10,13 +12,11 @@ namespace device {
 // 1. Hit collection during ray tracing (is_exit = false, from anyhit shader)
 // 2. Event processing in escape case (is_exit = true for exits, false for entries)
 //
-// Memory: 12 bytes (float + uint + bool with padding)
-// Previous design used separate HitRecord (8 bytes) and Event (12 bytes) = 20 bytes total
+// Memory: 8 bytes (float + uint16 + bool with padding)
 struct HitRecord {
-    float t_hit;        // 4 bytes - distance along ray
-    uint32_t prim_idx;  // 4 bytes - primitive index
-                        // TODO: make size_t, but then let's have a typedef for the primitive index/count type based on upper bounds of primitive count that we expect to have to render
-    bool is_exit;       // 1 byte (padded to 4) - false for entry, true for exit
+    float t_hit;               // 4 bytes - distance along ray
+    prim_idx_t prim_idx;  // 2 bytes - primitive index
+    bool is_exit;              // 1 byte - false for entry, true for exit
                         // Note: Always false during hit collection (anyhit shader)
                         //       Only used in escape case event processing
 

@@ -14,7 +14,7 @@ namespace params {
 class Primitive {
    private:
     device::params::Primitive device_primitive_;
-    common::geometry::UnitQuaternion rot_quat_;  // Forward rotation for OptiX transform
+    common::geometry::UnitQuaternion rot_quat_;  // Forward rotation for OptiX transform // TODO: redundant?
 
    public:
     // Default constructor

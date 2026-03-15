@@ -6,9 +6,13 @@
 
 #include <vector_types.h>
 
+#include <algorithm>
 #include <array>
+#include <execution>
 #include <fstream>
 #include <ios>
+#include <numeric>
+#include <ranges>
 #include <stb/stb_image.h>
 #include <string>
 #include <tinyexr/tinyexr.h>
@@ -74,7 +78,9 @@ Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t 
             chan.resize(width * height);
         }
 
-        for (size_t y = 0; y < height; ++y) {
+        // Parallelize channel deinterleaving over rows
+        auto rows = std::views::iota(size_t{0}, height);
+        std::for_each(std::execution::par, rows.begin(), rows.end(), [&](size_t y) {
             const auto row_in = y * width;
             const auto row_out = (flip_vertical ? height - 1 - y : y) * width;
 
@@ -84,7 +90,7 @@ Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t 
                 channels[1][row_out + x] = c.y;  // G
                 channels[2][row_out + x] = c.z;  // B (W component ignored)
             }
-        }
+        });
 
         EXRImage image;
         InitEXRImage(&image);
@@ -217,26 +223,30 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
 
         using namespace thesis::host;
         using namespace thesis::common::geometry;
-        std::vector<params::Primitive> result;
-        result.reserve(N);
 
-        for (size_t i = 0; i < N; ++i) {
-            const auto center = make_float3(p_x[i], p_y[i], p_z[i]);
-            const auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
-            // Scale is in log-space: scale = exp(log_scale)
+        // Phase 1: Parallel construction (expf, quaternion math, Primitive precomputation)
+        std::vector<params::Primitive> result(N, params::Primitive{});
+
+        auto indices = std::views::iota(size_t{0}, N);
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t i) {
+            auto center = make_float3(p_x[i], p_y[i], p_z[i]);
+            auto quat = UnitQuaternion::from(rot_0[i], rot_1[i], rot_2[i], rot_3[i]);
             auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
-
-            // Load albedo from PLY, override if requested (negative values indicate "use PLY data")
-            auto albedo = make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            if (albedo_override.x >= 0.0f && albedo_override.y >= 0.0f && albedo_override.z >= 0.0f) {
-                albedo = albedo_override;
-            }
-
-            // sigma_t is in LOG-space (like scales): sigma_t = exp(log_sigma_t)
+            auto albedo = (albedo_override.x >= 0.0f && albedo_override.y >= 0.0f &&
+                           albedo_override.z >= 0.0f)
+                ? albedo_override
+                : make_float3(alb_0[i], alb_1[i], alb_2[i]);
             auto optical_thickness = expf(sigma_t[i]) * sigma_multiplier;
 
-            // Validate geometry (prevent division by zero and numerical errors)
-            // Critical errors: fail fast
+            result[i] = params::Primitive(center, quat, scale, albedo, optical_thickness);
+        });
+
+        // Phase 2: Sequential validation (early exit on error)
+        for (size_t i = 0; i < N; ++i) {
+            const auto scale = result[i].scale();
+            const auto center = result[i].center();
+            const auto optical_thickness = result[i].optical_thickness();
+
             if (scale.x <= 0.0f || scale.y <= 0.0f || scale.z <= 0.0f) {
                 return make_error(
                     "Primitive {}: Invalid scale ({}, {}, {}) - all components must be > 0", i,
@@ -260,6 +270,7 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
             }
 
             // Non-critical: clamp and warn
+            auto& albedo = result[i].device_primitive().albedo_;
             auto clamp_albedo = [&](float& val, const char* component) {
                 if (!std::isfinite(val)) {
                     spdlog::warn("Primitive {}: NaN/Inf in albedo.{}, setting to 0", i, component);
@@ -277,8 +288,6 @@ Result<std::vector<thesis::host::params::Primitive>> loadPrimitivesFromPLY(
             clamp_albedo(albedo.x, "r");
             clamp_albedo(albedo.y, "g");
             clamp_albedo(albedo.z, "b");
-
-            result.emplace_back(center, quat, scale, albedo, optical_thickness);
         }
 
         return result;

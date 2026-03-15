@@ -13,7 +13,10 @@
 
 #include <algorithm>
 #include <cstring>
+#include <execution>
 #include <filesystem>
+#include <numeric>
+#include <ranges>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <utility>
@@ -85,8 +88,11 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
         spdlog::debug("Sorted {} primitives by Morton code for cache locality", num_primitives_);
     }
 
-    /* ── 2. Fill primitives_[] and OptixInstance[] ────────────────── */
-    for (size_t i = 0; i < num_primitives_; ++i) {
+    /* ── 2. Fill primitives_[] and OptixInstance[] (parallel) ────── */
+    auto prim_indices = std::views::iota(size_t{0}, num_primitives_);
+
+    const auto gas_handle = gas_.get();
+    std::for_each(std::execution::par, prim_indices.begin(), prim_indices.end(), [&](size_t i) {
         // Convert host primitive to device primitive
         const auto& prim = primitives[i];
         primitives_[i] = prim.device_primitive();
@@ -96,13 +102,13 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
         const auto transform = prim.localToWorld();
         std::memcpy(inst.transform, transform.ptr(), sizeof(transform));
 
-        inst.traversableHandle = gas_.get();
+        inst.traversableHandle = gas_handle;
         inst.instanceId = static_cast<uint>(i);
         inst.sbtOffset = 0;
         inst.visibilityMask = 0xFF;
         inst.flags = OPTIX_INSTANCE_FLAG_NONE;
         instances_[i] = inst;
-    }
+    });
 
     primitives_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
@@ -122,22 +128,27 @@ void Renderer::initPrimsAndGAS(std::vector<params::Primitive>&& primitives) {
 
 void Renderer::initStaticParams() {
     // Compute which primitives contain camera (CPU side, done once at init)
-    std::vector<uint> camera_active;
-    const auto camera_pos = camera_.lookfrom();  // Camera position
+    // Phase 1: parallel flag computation (no synchronization needed)
+    // Note: uint8_t instead of bool to avoid std::vector<bool> bitpacking (unsafe for parallel writes)
+    const auto camera_pos = camera_.lookfrom();
+    std::vector<uint8_t> inside_flags(num_primitives_);
 
+    std::transform(std::execution::par, primitives_.begin(), primitives_.end(), inside_flags.begin(),
+        [camera_pos](const auto& prim) -> uint8_t {
+            return common::geometry::point_inside_ellipsoid(camera_pos, prim) ? 1 : 0;
+        });
+
+    // Phase 2: sequential gather (deterministic order, no sorting needed)
+    std::vector<prim_idx_t> camera_active;
     for (size_t i = 0; i < num_primitives_; ++i) {
-        // Get device primitive struct from buffer
-        const auto prim_device = primitives_[i];
-
-        // Check if camera is inside this primitive using shared intersection code
-        if (common::geometry::point_inside_ellipsoid(camera_pos, prim_device)) {
-            camera_active.push_back(static_cast<uint>(i));
+        if (inside_flags[i]) {
+            camera_active.push_back(static_cast<prim_idx_t>(i));
         }
     }
 
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
-        camera_active_prims_ = cuda::AsyncBuffer<uint>(camera_active, cuda_ctx_.get(),
+        camera_active_prims_ = cuda::AsyncBuffer<prim_idx_t>(camera_active, cuda_ctx_.get(),
                                                        streams_[cuda::StreamKind::Main]);
     }  // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
 
@@ -149,7 +160,7 @@ void Renderer::initStaticParams() {
     par.env_map_ = env_map_.device_env_map();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(),
                                                                               primitives_.size());
-    par.camera_active_prims_ = device::utils::DynamicVector<uint>(camera_active_prims_.device(),
+    par.camera_active_prims_ = device::utils::DynamicVector<prim_idx_t>(camera_active_prims_.device(),
                                                                   camera_active_prims_.size());
 
     // Image will be set by updateDynamicParams() before each batch
