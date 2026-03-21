@@ -15,7 +15,7 @@ struct THESIS_ALIGNMENT HitEvent {
 
     struct Less {
         __device__ constexpr bool operator()(const HitEvent& a, const HitEvent& b) const noexcept {
-            return (a.t_ < b.t_) || (a.t_ == b.t_ && a.is_entry_ > b.is_entry_);
+            return (a.t_ < b.t_) || (a.t_ == b.t_ && a.is_entry_ && !b.is_entry_);
         }
     };
 };

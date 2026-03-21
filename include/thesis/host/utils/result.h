@@ -31,8 +31,8 @@
 namespace thesis::host::utils {
 
 struct Unit {
-    constexpr bool operator==(Unit) const noexcept { return true; }
-    constexpr bool operator!=(Unit) const noexcept { return false; }
+    constexpr bool operator==(Unit /*other*/) const noexcept { return true; }
+    constexpr bool operator!=(Unit /*other*/) const noexcept { return false; }
 };
 
 namespace detail {
@@ -73,11 +73,11 @@ struct Error {
           msg_(fmt::format(fmt::runtime(fmt_str), std::forward<Args>(args)...)) {}
 
     template <typename... Args>
-    Error(fmt::format_string<Args...> fmt_str, Args&&... args)
+    explicit Error(fmt::format_string<Args...> fmt_str, Args&&... args)
         : Error(errno, fmt_str, std::forward<Args>(args)...) {}
 
     template <typename... Args>
-    Error(std::string_view fmt_str, Args&&... args)
+    explicit Error(std::string_view fmt_str, Args&&... args)
         : Error(errno, fmt_str, std::forward<Args>(args)...) {}
 };
 

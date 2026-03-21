@@ -31,13 +31,13 @@ struct AsyncBufferPolicy {
 
     [[nodiscard]] static device_ptr_type alloc_device(size_t count, CUcontext ctx,
                                                       ContextParam stream) {
-        Context::Guard g(ctx);
+        const Context::Guard g(ctx);
         void* raw = nullptr;
         CUDA_CHECK(cudaMallocAsync(&raw, count * sizeof(T), stream->get()));
         return device_ptr_type(static_cast<T*>(raw), {stream});
     }
 
-    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam) {
+    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam /*stream*/) {
         void* raw = nullptr;
         CUDA_CHECK(cudaHostAlloc(&raw, count * sizeof(T), cudaHostAllocDefault));
         return host_ptr_type(static_cast<T*>(raw));
@@ -58,7 +58,7 @@ struct AsyncBufferPolicy {
         CUDA_CHECK(cudaMemsetAsync(device_ptr, value, bytes, stream->get()));
     }
 
-    [[nodiscard]] static const ContextParam& get_context_param(const host_ptr_type&,
+    [[nodiscard]] static const ContextParam& get_context_param(const host_ptr_type& /*host_ptr*/,
                                                                const device_ptr_type& device_ptr) {
         return device_ptr.get_deleter().stream_;
     }

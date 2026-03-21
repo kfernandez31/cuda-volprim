@@ -46,9 +46,9 @@ class SphereGAS {
         in.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
         // Setup interleaved buffer: vertex at offset 0, radius at offset 12 bytes
-        CUdeviceptr base_ptr = sphere_data_.cu_device_ptr();
-        CUdeviceptr vertex_buffer_ptr = base_ptr;
-        CUdeviceptr radius_buffer_ptr = base_ptr + 3 * sizeof(float);
+        const CUdeviceptr base_ptr = sphere_data_.cu_device_ptr();
+        const CUdeviceptr vertex_buffer_ptr = base_ptr;
+        const CUdeviceptr radius_buffer_ptr = base_ptr + 3 * sizeof(float);
 
         in.sphereArray.vertexBuffers = &vertex_buffer_ptr;
         in.sphereArray.vertexStrideInBytes = sizeof(float4);
@@ -56,7 +56,7 @@ class SphereGAS {
 
         in.sphereArray.radiusBuffers = &radius_buffer_ptr;
         in.sphereArray.radiusStrideInBytes = sizeof(float4);
-        in.sphereArray.singleRadius = false;
+        in.sphereArray.singleRadius = 0;
 
         in.sphereArray.flags = geomFlags;
         in.sphereArray.numSbtRecords = 1;

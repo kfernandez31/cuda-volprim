@@ -66,7 +66,7 @@ class Context {
     struct Guard {
         CUcontext prev = nullptr;
 
-        Guard(CUcontext ctx) { CU_CHECK(cuCtxPushCurrent(ctx)); }
+        explicit Guard(CUcontext ctx) { CU_CHECK(cuCtxPushCurrent(ctx)); }
         ~Guard() { CU_CHECK_NOEXCEPT(cuCtxPopCurrent(&prev)); }
 
         Guard(Guard&& other) noexcept

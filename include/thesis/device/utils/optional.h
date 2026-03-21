@@ -20,16 +20,16 @@ struct Optional {
 
     Optional()
         : has_value_(false) {}
-    Optional(NullOptTag)
+    explicit Optional(NullOptTag /*tag*/)
         : has_value_(false) {}
-    Optional(const T& v)
+    explicit Optional(const T& v)
         : has_value_(true),
           value_(v) {}
 
     Optional(const Optional&) = default;
     Optional& operator=(const Optional&) = default;
 
-    Optional& operator=(NullOptTag) {
+    Optional& operator=(NullOptTag /*tag*/) {
         has_value_ = false;
         return *this;
     }
@@ -49,7 +49,7 @@ struct Optional {
     __device__ __forceinline__ void reset() { has_value_ = false; }
 
     __device__ __forceinline__ bool has() const { return has_value_; }
-    __device__ __forceinline__ operator bool() const { return has_value_; }
+    __device__ __forceinline__ explicit operator bool() const { return has_value_; }
 
     __device__ __forceinline__ T& unwrap() { return value_; }
     __device__ __forceinline__ const T& unwrap() const { return value_; }

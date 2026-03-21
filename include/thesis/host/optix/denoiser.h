@@ -77,7 +77,7 @@ class Denoiser {
 
     // Denoise in-place on a device float4 buffer
     void invoke(float4* device_pixels) const {
-        OptixDenoiserGuideLayer guide{};
+        const OptixDenoiserGuideLayer guide{};
 
         OptixImage2D image{};
         image.data = reinterpret_cast<CUdeviceptr>(device_pixels);
@@ -91,7 +91,7 @@ class Denoiser {
         layer.input = image;
         layer.output = image;  // in-place
 
-        OptixDenoiserParams params{};
+        const OptixDenoiserParams params{};
         // TODO: params.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY; // API changed in newer OptiX
 
         OPTIX_CHECK(optixDenoiserInvoke(handle_, stream_->get(), &params, state_.cu_device_ptr(),

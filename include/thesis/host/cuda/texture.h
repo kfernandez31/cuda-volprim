@@ -26,7 +26,7 @@ struct CudaArrayDeleter {
 struct TextureObjectDeleter {
     cudaTextureObject_t handle_ = 0;
 
-    inline void operator()(void*) const noexcept {
+    inline void operator()(void* /*ptr*/) const noexcept {
         if (handle_) {
             CUDA_CHECK_NOEXCEPT(cudaDestroyTextureObject(handle_));
         }
@@ -42,14 +42,14 @@ class CudaTexture {
     [[nodiscard]] static CudaTexture createRGBA(std::span<const float> data, size_t width,
                                                 size_t height, size_t num_channels, CUcontext ctx,
                                                 std::shared_ptr<Stream> stream) {
-        Context::Guard g(ctx);
+        const Context::Guard g(ctx);
 
         if (num_channels != 4) {
             throw std::runtime_error("CudaTexture: Only 4-channel RGBA textures supported");
         }
 
         // Create channel descriptor for 32-bit float RGBA
-        cudaChannelFormatDesc channel_desc =
+        const cudaChannelFormatDesc channel_desc =
             cudaCreateChannelDesc(32, 32, 32, 32,  // 32-bit R, G, B, A
                                   cudaChannelFormatKindFloat);
 

@@ -15,7 +15,7 @@ class Context {
     OptixDeviceContext handle_ = nullptr;
 
    public:
-    Context(CUcontext cu_ctx) {
+    explicit Context(CUcontext cu_ctx) {
         OPTIX_CHECK(optixInit());
 
         OptixDeviceContextOptions opts = {};

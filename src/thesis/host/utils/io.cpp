@@ -140,7 +140,7 @@ Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t 
 Result<thesis::host::utils::io::HDRImageData> loadHDRImage(const std::filesystem::path& filename) {
     spdlog::info("Loading environment map from '{}'", filename.string());
 
-    stbi_set_flip_vertically_on_load(true);
+    stbi_set_flip_vertically_on_load(1);
 
     int w, h, c;
     // Force RGBA format (4 channels) for CUDA texture compatibility

@@ -21,27 +21,28 @@ struct SyncBufferPolicy {
     using host_ptr_type = std::unique_ptr<T[]>;
     using ContextParam = std::monostate;
 
-    [[nodiscard]] static device_ptr_type alloc_device(size_t count, CUcontext ctx, ContextParam) {
-        Context::Guard g(ctx);
+    [[nodiscard]] static device_ptr_type alloc_device(size_t count, CUcontext ctx,
+                                                      ContextParam /*unused*/) {
+        const Context::Guard g(ctx);
         void* raw = nullptr;
         CUDA_CHECK(cudaMalloc(&raw, count * sizeof(T)));
         return device_ptr_type(static_cast<T*>(raw), {});
     }
 
-    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam) {
+    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam /*unused*/) {
         return std::make_unique<T[]>(count);
     }
 
-    static void upload(T* dst_device, const T* src_host, size_t bytes, ContextParam) {
+    static void upload(T* dst_device, const T* src_host, size_t bytes, ContextParam /*unused*/) {
         CUDA_CHECK(cudaMemcpy(dst_device, src_host, bytes, cudaMemcpyHostToDevice));
     }
 
-    static void download(T* dst_host, const T* src_device, size_t bytes, ContextParam) {
+    static void download(T* dst_host, const T* src_device, size_t bytes, ContextParam /*unused*/) {
         CUDA_CHECK(cudaMemcpy(dst_host, src_device, bytes, cudaMemcpyDeviceToHost));
     }
 
-    [[nodiscard]] static ContextParam get_context_param(const host_ptr_type&,
-                                                        const device_ptr_type&) {
+    [[nodiscard]] static ContextParam get_context_param(const host_ptr_type& /*host_ptr*/,
+                                                        const device_ptr_type& /*device_ptr*/) {
         return {};
     }
 };

@@ -18,10 +18,10 @@ struct Result {
     __device__ Result()
         : is_ok_(false),
           err_value_() {}
-    __device__ Result(const T& ok)
+    __device__ explicit Result(const T& ok)
         : is_ok_(true),
           ok_value_(ok) {}
-    __device__ Result(const E& err)
+    __device__ explicit Result(const E& err)
         : is_ok_(false),
           err_value_(err) {}
 
@@ -49,7 +49,7 @@ struct Result {
     __device__ const E& unwrap_err() const { return err_value_; }
     __device__ E& unwrap_err() { return err_value_; }
 
-    __device__ operator bool() const { return is_ok_; }
+    __device__ explicit operator bool() const { return is_ok_; }
 
     __device__ const T& operator*() const { return ok_value_; }
     __device__ T& operator*() { return ok_value_; }

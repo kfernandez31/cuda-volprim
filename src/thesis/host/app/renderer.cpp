@@ -194,7 +194,7 @@ void Renderer::createPipeline(
     // Get built-in sphere intersection module
     OptixBuiltinISOptions builtin_is_options{};
     builtin_is_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
-    builtin_is_options.usesMotionBlur = false;
+    builtin_is_options.usesMotionBlur = 0;
     builtin_is_options.buildFlags = optix::GAS_BUILD_FLAGS;
 
     OptixModuleCompileOptions builtin_mco{};

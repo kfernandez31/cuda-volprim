@@ -14,7 +14,7 @@ namespace {
 
 // Parse a Python list literal like "[1.0, 2.0, 3.0]" into float3
 Result<float3> parseFloat3(const std::string& str) {
-    std::regex float3_regex(R"(\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
+    const std::regex float3_regex(R"(\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
     std::smatch match;
 
     if (!std::regex_search(str, match, float3_regex) || match.size() != 4) {
@@ -22,9 +22,9 @@ Result<float3> parseFloat3(const std::string& str) {
     }
 
     try {
-        float x = std::stof(match[1].str());
-        float y = std::stof(match[2].str());
-        float z = std::stof(match[3].str());
+        const float x = std::stof(match[1].str());
+        const float y = std::stof(match[2].str());
+        const float z = std::stof(match[3].str());
         return make_float3(x, y, z);
     } catch (const std::exception& e) {
         return make_error("Failed to convert float3 values: {}", e.what());
@@ -53,7 +53,7 @@ Result<std::vector<MitsubaCameraConfig>> parseCameras(const std::filesystem::pat
 
     while (std::getline(file, line)) {
         // Match camera name: 'cam_XXXX': {
-        std::regex cam_start_regex(R"('(cam_\d+)':\s*\{)");
+        const std::regex cam_start_regex(R"('(cam_\d+)':\s*\{)");
         std::smatch cam_match;
         if (std::regex_search(line, cam_match, cam_start_regex)) {
             current_camera_name = cam_match[1].str();
@@ -65,7 +65,7 @@ Result<std::vector<MitsubaCameraConfig>> parseCameras(const std::filesystem::pat
 
         if (state == State::InCamera) {
             // Match width: 'width': 900,
-            std::regex width_regex(R"('width':\s*(\d+))");
+            const std::regex width_regex(R"('width':\s*(\d+))");
             std::smatch width_match;
             if (std::regex_search(line, width_match, width_regex)) {
                 camera_width = std::stoull(width_match[1].str());
@@ -73,7 +73,7 @@ Result<std::vector<MitsubaCameraConfig>> parseCameras(const std::filesystem::pat
             }
 
             // Match height: 'height': 600,
-            std::regex height_regex(R"('height':\s*(\d+))");
+            const std::regex height_regex(R"('height':\s*(\d+))");
             std::smatch height_match;
             if (std::regex_search(line, height_match, height_regex)) {
                 camera_height = std::stoull(height_match[1].str());
@@ -93,15 +93,19 @@ Result<std::vector<MitsubaCameraConfig>> parseCameras(const std::filesystem::pat
             // Check if we've reached the end of look_at block
             if (line.find("),") != std::string::npos) {
                 // Parse origin, target, up from accumulated block
-                std::regex origin_regex(R"(origin=\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
-                std::regex target_regex(R"(target=\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
-                std::regex up_regex(R"(up=\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
+                const std::regex origin_regex(
+                    R"(origin=\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
+                const std::regex target_regex(
+                    R"(target=\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
+                const std::regex up_regex(R"(up=\[([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\])");
 
                 std::smatch origin_match, target_match, up_match;
 
-                bool has_origin = std::regex_search(look_at_block, origin_match, origin_regex);
-                bool has_target = std::regex_search(look_at_block, target_match, target_regex);
-                bool has_up = std::regex_search(look_at_block, up_match, up_regex);
+                const bool has_origin =
+                    std::regex_search(look_at_block, origin_match, origin_regex);
+                const bool has_target =
+                    std::regex_search(look_at_block, target_match, target_regex);
+                const bool has_up = std::regex_search(look_at_block, up_match, up_regex);
 
                 if (has_origin && has_target && has_up) {
                     auto origin = parseFloat3(origin_match[0].str());
@@ -151,11 +155,11 @@ Result<MitsubaSceneConfig> parseMitsubaScene(const std::filesystem::path& init_p
         }
 
         // Simple JSON parsing for the specific fields we need
-        std::string json_content((std::istreambuf_iterator<char>(json_file)),
-                                 std::istreambuf_iterator<char>());
+        const std::string json_content((std::istreambuf_iterator<char>(json_file)),
+                                       std::istreambuf_iterator<char>());
 
         // Extract cam_res (default resolution)
-        std::regex cam_res_regex(R"("cam_res":\s*(\d+))");
+        const std::regex cam_res_regex(R"("cam_res":\s*(\d+))");
         std::smatch cam_res_match;
         if (std::regex_search(json_content, cam_res_match, cam_res_regex)) {
             config.default_width = std::stoull(cam_res_match[1].str());
@@ -180,11 +184,11 @@ Result<MitsubaSceneConfig> parseMitsubaScene(const std::filesystem::path& init_p
     try {
         std::ifstream py_file(init_py_path);
         if (py_file) {
-            std::string py_content((std::istreambuf_iterator<char>(py_file)),
-                                   std::istreambuf_iterator<char>());
+            const std::string py_content((std::istreambuf_iterator<char>(py_file)),
+                                         std::istreambuf_iterator<char>());
 
             // Look for 'extent': value in OBJECTS dictionary
-            std::regex extent_regex(R"('extent':\s*([\d.e+-]+))");
+            const std::regex extent_regex(R"('extent':\s*([\d.e+-]+))");
             std::smatch extent_match;
             if (std::regex_search(py_content, extent_match, extent_regex)) {
                 config.orthographic_extent = std::stof(extent_match[1].str());
