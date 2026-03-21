@@ -79,10 +79,13 @@ __device__ __forceinline__ float3 evaluate_albedo(float3 pos, const PrimsSet& pr
     return accum_albedo * math::rcp(accum_weight);
 }
 
+using EventBuffer = utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY>;
+
 // Helper: Collect ray-primitive entry hits (exits computed lazily)
-// Returns unsorted hit buffer containing only entry hits. Also returns Miss payload if provided.
-__device__ HitBuffer collect_hits(const geometry::Ray& ray, payloads::Miss* out_miss = nullptr) {
-    HitBuffer hit_buffer;
+// Clears and fills the provided hit buffer. Also returns Miss payload if provided.
+__device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
+                             payloads::Miss* out_miss = nullptr) {
+    hit_buffer.clear();
 
     // STEP 1: Trace with backface culling to get entry hits (no exits!)
     auto miss = trace_ch_collect(ray, 0.0f, consts::INF_F, hit_buffer);
@@ -92,15 +95,21 @@ __device__ HitBuffer collect_hits(const geometry::Ray& ray, payloads::Miss* out_
     // No exit computation - exits will be computed on-demand in argmin loop
     // No sorting - argmin doesn't need sorted hits
 
-    return hit_buffer;
+#ifdef DEBUG
+    if (hit_buffer.full()) {
+        printf("WARNING: Hit buffer overflow (%zu/%zu entries) — ray may be biased\n",
+               hit_buffer.size(), hit_buffer.capacity());
+    }
+#endif
 }
 
 // Sample scattering event using argmin approach (no sorting!)
 // Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
 // The minimum of independent inverse CDFs gives the same distribution as sorting
-__device__ bool sample_scattering_event(
+__device__ __noinline__ bool sample_scattering_event(
     const geometry::Ray& ray, curandState& rng,
-    optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss) {
+    optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss,
+    HitBuffer& hit_buffer, EventBuffer& events) {
 
     auto& active_prims = event.active_prims_;
 
@@ -113,7 +122,7 @@ __device__ bool sample_scattering_event(
         }
     }
 
-    auto hit_buffer = collect_hits(ray, &miss);
+    collect_hits(ray, hit_buffer, &miss);
 
     if (hit_buffer.empty() && active_prims.empty()) {
         // No primitives in scene - set optical depth to zero (ray escapes freely)
@@ -123,19 +132,13 @@ __device__ bool sample_scattering_event(
 
     float t_scatter_min = consts::INF_F;
 
-    // Cache exits for primitives we start inside (eliminates redundant computation)
-    // These exits are reused in both escape case (event collection) and scatter case (active_prims rebuild)
-    utils::StaticVector<HitRecord, consts::ACTIVE_PRIMS_CAPACITY> cached_exits;
-
 #pragma unroll 4
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
 
-        // ALWAYS compute and cache exit (needed for escape case optical depth)
         const auto w = prim.transform_dir_local(ray.direction_);
         const auto w_len2 = math::length2(w);
         const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
-        cached_exits.emplace_back(t_exit, prim_idx, true);
 
         // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
         // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
@@ -174,16 +177,17 @@ __device__ bool sample_scattering_event(
     }
 
     if (t_scatter_min >= consts::INF_F) {
-        // Reuse HitRecord for event tracking (unified structure saves memory)
-        // HitRecord now contains is_exit field, eliminating need for separate Event struct
-        // Memory savings: Was 2N×12 bytes (Event), now reusing hit_buffer structure
-        utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY> events;
+        events.clear();
 
-        // Reuse cached exits from argmin loop (eliminates redundant computation)
+        // Recompute exits for primitives containing the ray origin
 #pragma unroll 4
-        for (const auto& cached : cached_exits) {
-            if (cached.t_hit > 0.0f && cached.t_hit < consts::INF_F) {
-                events.emplace_back(cached.t_hit, cached.prim_idx, true);
+        for (auto prim_idx : active_prims) {
+            const auto& prim = launch_params.primitives_[prim_idx];
+            const auto w = prim.transform_dir_local(ray.direction_);
+            const auto w_len2 = math::length2(w);
+            const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+            if (t_exit > 0.0f && t_exit < consts::INF_F) {
+                events.emplace_back(t_exit, prim_idx, true);
             }
         }
 
@@ -245,11 +249,15 @@ __device__ bool sample_scattering_event(
     // Rebuild active_prims at the scatter point
     PrimsSet final_active_prims;
 
-    // Reuse cached exits from argmin loop (eliminates redundant computation)
+    // Recompute exits for primitives containing the ray origin
 #pragma unroll 4
-    for (const auto& cached : cached_exits) {
-        if (t_scatter_min <= cached.t_hit) {
-            (void) final_active_prims.insert(cached.prim_idx);
+    for (auto prim_idx : active_prims) {
+        const auto& prim = launch_params.primitives_[prim_idx];
+        const auto w = prim.transform_dir_local(ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        if (t_scatter_min <= t_exit) {
+            (void) final_active_prims.insert(prim_idx);
         }
     }
 

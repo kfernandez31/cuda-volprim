@@ -29,13 +29,15 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 //   - MAX_PRIMITIVES=1024: ~50KB stack (✓ RTX 3090, ? other GPUs)
 //   - MAX_PRIMITIVES=2048: ~100KB stack (✗ OptiX compile error)
 // If buffer overflow occurs: ray terminated early → BIASED RENDERING
-constexpr size_t MAX_PRIMITIVES = 1024;
+constexpr size_t MAX_PRIMITIVES = 256;
 
-// Hit buffer capacity: only needs to hold entry hits (exits computed lazily in argmin)
-// With argmin optimization, we never store exit hits in the buffer
-constexpr size_t HIT_BUFFER_CAPACITY = MAX_PRIMITIVES;
+// Hit buffer capacity: max entry hits stored per ray (decoupled from MAX_PRIMITIVES).
+// Most rays hit far fewer primitives than MAX_PRIMITIVES; overflow is handled gracefully
+// by StaticVector (push_back returns false, hit silently dropped → slight bias for that ray).
+constexpr size_t HIT_BUFFER_CAPACITY = 128;
 
-// Active primitives set capacity: tracks unique primitive indices only
+// Active primitives set capacity: must cover all primitive indices in the scene.
+// BitVector uses this for O(1) insert/contains/erase by primitive index.
 constexpr size_t ACTIVE_PRIMS_CAPACITY = MAX_PRIMITIVES;
 
 // Minimum ray segment length for optical depth integration

@@ -68,13 +68,15 @@ extern "C" __global__ void __raygen__rg() {
 
         optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY> event;
         payloads::Miss miss;
+        HitBuffer hit_buffer;
+        EventBuffer events;
 
         // Initialize active_prims from pre-computed camera containment (CPU-side, pre-sorted)
         event.active_prims_.init_from_array(launch_params.camera_active_prims_.data(),
                                                 launch_params.camera_active_prims_.size());
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
-            const auto result = sample_scattering_event(ray, rng, event, miss);
+            const auto result = sample_scattering_event(ray, rng, event, miss, hit_buffer, events);
 
             // no scattering - escaped medium
             if (!result) {

@@ -36,12 +36,7 @@ struct BitVector {
     }
 
     __device__ __forceinline__ void insert(uint idx) {
-#ifdef DEBUG
-        if (idx >= N) {
-            printf("ERROR: BitVector::insert(%u) out of bounds (N=%zu)\n", idx, N);
-            return;
-        }
-#endif // DEBUG
+        if (idx >= N) return;
         const uint word = idx >> 6;   // Divide by 64
         const uint bit = idx & 63;    // Modulo 64
         const uint64_t mask = 1ULL << bit;
@@ -54,24 +49,14 @@ struct BitVector {
     }
 
     __device__ __forceinline__ bool contains(uint idx) const {
-#ifdef DEBUG
-        if (idx >= N) {
-            printf("ERROR: BitVector::contains(%u) out of bounds (N=%zu)\n", idx, N);
-            return false;
-        }
-#endif // DEBUG
+        if (idx >= N) return false;
         const uint word = idx >> 6;   // Divide by 64
         const uint bit = idx & 63;    // Modulo 64
         return bits_[word] & (1ULL << bit);
     }
 
     __device__ __forceinline__ void erase(uint idx) {
-#ifdef DEBUG
-        if (idx >= N) {
-            printf("ERROR: BitVector::erase(%u) out of bounds (N=%zu)\n", idx, N);
-            return;
-        }
-#endif // DEBUG
+        if (idx >= N) return;
         const uint word = idx >> 6;   // Divide by 64
         const uint bit = idx & 63;    // Modulo 64
         const uint64_t mask = 1ULL << bit;
