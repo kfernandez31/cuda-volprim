@@ -235,11 +235,12 @@ Result<std::vector<thesis::device::params::Primitive>> loadPrimitivesFromPLY(
             auto scale = make_float3(expf(scale_0[i]), expf(scale_1[i]), expf(scale_2[i]));
             auto albedo = (albedo_override.x >= 0.0f && albedo_override.y >= 0.0f &&
                            albedo_override.z >= 0.0f)
-                ? albedo_override
-                : make_float3(alb_0[i], alb_1[i], alb_2[i]);
+                              ? albedo_override
+                              : make_float3(alb_0[i], alb_1[i], alb_2[i]);
             auto optical_thickness = expf(sigma_t[i]) * sigma_multiplier;
 
-            result[i] = Primitive::from_forward_quat(center, quat, scale, albedo, optical_thickness);
+            result[i] =
+                Primitive::from_forward_quat(center, quat, scale, albedo, optical_thickness);
         });
 
         // Phase 2: Sequential validation (early exit on error)
@@ -323,11 +324,14 @@ std::future<Result<HDRImageData>> loadHDR(const std::filesystem::path& filename)
                       [filename]() -> Result<HDRImageData> { return loadHDRImage(filename); });
 }
 
-std::future<Result<std::vector<Primitive>>> loadPrimitives(
-    const std::filesystem::path& filename, float sigma_multiplier, float3 albedo_override) {
-    return std::async(std::launch::async, [filename, sigma_multiplier, albedo_override]() -> Result<std::vector<Primitive>> {
-        return loadPrimitivesFromPLY(filename, sigma_multiplier, albedo_override);
-    });
+std::future<Result<std::vector<Primitive>>> loadPrimitives(const std::filesystem::path& filename,
+                                                           float sigma_multiplier,
+                                                           float3 albedo_override) {
+    return std::async(
+        std::launch::async,
+        [filename, sigma_multiplier, albedo_override]() -> Result<std::vector<Primitive>> {
+            return loadPrimitivesFromPLY(filename, sigma_multiplier, albedo_override);
+        });
 }
 
 std::future<Result<>> saveExr(cuda::AsyncBuffer<float4>&& buffer, size_t width, size_t height,

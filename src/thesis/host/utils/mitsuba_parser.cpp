@@ -33,8 +33,7 @@ Result<float3> parseFloat3(const std::string& str) {
 
 // Extract camera configurations from Mitsuba __init__.py
 Result<std::vector<MitsubaCameraConfig>> parseCameras(const std::filesystem::path& init_py_path,
-                                                      size_t default_width,
-                                                      size_t default_height) {
+                                                      size_t default_width, size_t default_height) {
     std::ifstream file(init_py_path);
     if (!file) {
         return make_error("Failed to open Mitsuba config file: {}", init_py_path.string());
@@ -202,8 +201,7 @@ Result<MitsubaSceneConfig> parseMitsubaScene(const std::filesystem::path& init_p
     }
 
     // Parse cameras from __init__.py
-    auto cameras_result =
-        parseCameras(init_py_path, config.default_width, config.default_height);
+    auto cameras_result = parseCameras(init_py_path, config.default_width, config.default_height);
     if (!cameras_result) {
         return make_error("Failed to parse cameras: {}", cameras_result.error());
     }
@@ -221,8 +219,9 @@ params::Camera createOrthographicCamera(const MitsubaCameraConfig& cam_config,
         static_cast<float>(cam_config.width) / static_cast<float>(cam_config.height);
     const float ortho_height = 2.0f / aspect_ratio;
 
-    return params::Camera::createOrthographic(cam_config.width, cam_config.height, cam_config.origin,
-                                              cam_config.target, cam_config.up, ortho_height);
+    return params::Camera::createOrthographic(cam_config.width, cam_config.height,
+                                              cam_config.origin, cam_config.target, cam_config.up,
+                                              ortho_height);
 }
 
 }  // namespace thesis::host::utils

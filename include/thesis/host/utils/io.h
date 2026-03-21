@@ -1,7 +1,7 @@
 #pragma once
 
-#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/device/params/primitive.h"
+#include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/utils/result.h"
 
 #include <vector_types.h>

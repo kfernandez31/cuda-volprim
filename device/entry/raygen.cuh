@@ -78,9 +78,13 @@ extern "C" __global__ void __raygen__rg() {
 
             // no scattering - escaped medium
             if (!result) {
-                // Use pre-computed optical depth from escape case handler
-                auto tau = event.escape_optical_depth_;
-                radiance += (throughput * math::exp(-tau)) * miss.color();
+                // With NEE, all scatter→env paths are estimated via shadow rays.
+                // Only add escape contribution for transmitted paths (bounce == 0),
+                // otherwise we double-count with the NEE contributions already added.
+                if (!consts::ENABLE_NEE || bounce == 0) {
+                    auto tau = event.escape_optical_depth_;
+                    radiance += (throughput * math::exp(-tau)) * miss.color();
+                }
                 break;
             }
 

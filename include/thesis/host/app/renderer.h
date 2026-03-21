@@ -1,6 +1,7 @@
 #pragma once
 
 #include "thesis/common/params/launch_params.h"
+#include "thesis/device/params/primitive.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/context.h"
@@ -16,7 +17,6 @@
 #include "thesis/host/params/camera.h"
 #include "thesis/host/params/environment_map.h"
 #include "thesis/host/params/image.h"
-#include "thesis/device/params/primitive.h"
 
 #include <cstddef>
 #include <future>
@@ -60,8 +60,9 @@ class Renderer {
     std::optional<optix::Denoiser> denoiser_;
 
    public:
-    explicit Renderer(const app::Config& config, std::vector<device::params::Primitive>&& primitives,
-                     std::optional<params::Camera> camera = std::nullopt);
+    explicit Renderer(const app::Config& config,
+                      std::vector<device::params::Primitive>&& primitives,
+                      std::optional<params::Camera> camera = std::nullopt);
 
     void render();
 };

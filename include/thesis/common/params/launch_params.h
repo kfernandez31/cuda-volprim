@@ -8,7 +8,6 @@
 #include "thesis/device/params/primitive.h"
 #include "thesis/device/utils/vector.h"
 
-
 #include <optix.h>
 #include <vector_types.h>
 

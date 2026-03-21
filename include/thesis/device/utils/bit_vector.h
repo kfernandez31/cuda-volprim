@@ -11,7 +11,7 @@ namespace utils {
 //
 // Memory usage: ceil(N/64) × 8 bytes + 2 bytes = (N/8 + 2) bytes
 // Example: BitVector<1024> = 128 + 2 = 130 bytes (vs ~4100 for Set<uint, 1024>)
-template<size_t N>
+template <size_t N>
 struct BitVector {
     static_assert((N & 63) == 0, "Capacity must be multiple of 64 for efficient word packing");
     static constexpr size_t NUM_WORDS = N >> 6;
@@ -20,15 +20,16 @@ struct BitVector {
     size_t size_;  // Cached size (avoids recomputing popcnt)
 
 #ifdef DEVICE
-    __device__ __forceinline__ BitVector() : size_(0) {
-        #pragma unroll
+    __device__ __forceinline__ BitVector()
+        : size_(0) {
+#pragma unroll
         for (int i = 0; i < NUM_WORDS; ++i) {
             bits_[i] = 0;
         }
     }
 
     __device__ __forceinline__ void clear() {
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < NUM_WORDS; ++i) {
             bits_[i] = 0;
         }
@@ -41,9 +42,9 @@ struct BitVector {
             printf("ERROR: BitVector::insert(%u) out of bounds (N=%zu)\n", idx, N);
             return;
         }
-#endif // DEBUG
-        const uint word = idx >> 6;   // Divide by 64
-        const uint bit = idx & 63;    // Modulo 64
+#endif                               // DEBUG
+        const uint word = idx >> 6;  // Divide by 64
+        const uint bit = idx & 63;   // Modulo 64
         const uint64_t mask = 1ULL << bit;
 
         // Only increment size if bit wasn't already set (avoid double-counting)
@@ -59,9 +60,9 @@ struct BitVector {
             printf("ERROR: BitVector::contains(%u) out of bounds (N=%zu)\n", idx, N);
             return false;
         }
-#endif // DEBUG
-        const uint word = idx >> 6;   // Divide by 64
-        const uint bit = idx & 63;    // Modulo 64
+#endif                               // DEBUG
+        const uint word = idx >> 6;  // Divide by 64
+        const uint bit = idx & 63;   // Modulo 64
         return bits_[word] & (1ULL << bit);
     }
 
@@ -71,9 +72,9 @@ struct BitVector {
             printf("ERROR: BitVector::erase(%u) out of bounds (N=%zu)\n", idx, N);
             return;
         }
-#endif // DEBUG
-        const uint word = idx >> 6;   // Divide by 64
-        const uint bit = idx & 63;    // Modulo 64
+#endif                               // DEBUG
+        const uint word = idx >> 6;  // Divide by 64
+        const uint bit = idx & 63;   // Modulo 64
         const uint64_t mask = 1ULL << bit;
 
         // Only decrement size if bit was set
@@ -84,17 +85,11 @@ struct BitVector {
     }
 
     // O(1) cached size - no recomputation needed!
-    __device__ __forceinline__ uint size() const {
-        return size_;
-    }
+    __device__ __forceinline__ uint size() const { return size_; }
 
-    __device__ __forceinline__ bool empty() const {
-        return size_ == 0;
-    }
+    __device__ __forceinline__ bool empty() const { return size_ == 0; }
 
-    static constexpr size_t capacity() {
-        return N;
-    }
+    static constexpr size_t capacity() { return N; }
 
     // Range-based for loop support - iterate over set bits
     // Iterator complexity:
@@ -109,7 +104,9 @@ struct BitVector {
         uint64_t remaining_;
 
         __device__ __forceinline__ Iterator(const BitVector* vec, size_t word)
-            : vec_(vec), word_(word), remaining_(0) {
+            : vec_(vec),
+              word_(word),
+              remaining_(0) {
             if (word_ < NUM_WORDS) {
                 remaining_ = vec_->bits_[word_];
                 advance_to_next_set_bit();
@@ -134,9 +131,9 @@ struct BitVector {
             if (remaining_ == 0) {
                 printf("ERROR: Dereferencing BitVector iterator with remaining_=0\n");
             }
-#endif // DEBUG
-            // __ffsll returns 1-indexed position, or 0 if no bits set
-            // Subtracting 1 gives 0-indexed position
+#endif  // DEBUG
+        // __ffsll returns 1-indexed position, or 0 if no bits set
+        // Subtracting 1 gives 0-indexed position
             const uint bit = __ffsll(remaining_) - 1;
             return (word_ << 6) + bit;  // Multiply word by 64, add bit position
         }
@@ -150,19 +147,17 @@ struct BitVector {
         __device__ __forceinline__ bool operator!=(const Iterator& other) const {
             // End iterator has word_ == NUM_WORDS
             // Compare positions, not bit patterns
-            if (word_ != other.word_) return true;
-            if (word_ >= NUM_WORDS) return false;  // Both at end
+            if (word_ != other.word_)
+                return true;
+            if (word_ >= NUM_WORDS)
+                return false;  // Both at end
             return remaining_ != other.remaining_;
         }
     };
 
-    __device__ __forceinline__ Iterator begin() const {
-        return Iterator(this, 0);
-    }
+    __device__ __forceinline__ Iterator begin() const { return Iterator(this, 0); }
 
-    __device__ __forceinline__ Iterator end() const {
-        return Iterator(this, NUM_WORDS);
-    }
+    __device__ __forceinline__ Iterator end() const { return Iterator(this, NUM_WORDS); }
 
     // Initialize from array (bulk insert)
     template <typename IndexT>

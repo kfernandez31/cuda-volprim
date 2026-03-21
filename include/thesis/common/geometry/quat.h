@@ -13,7 +13,9 @@ struct UnitQuaternion {
 
    public:
     // Default: identity quaternion (no rotation)
-    UnitQuaternion() : s_(1.0f), u_(make_float3(0.0f, 0.0f, 0.0f)) {}
+    UnitQuaternion()
+        : s_(1.0f),
+          u_(make_float3(0.0f, 0.0f, 0.0f)) {}
 
    private:
     // Construct from normalized quaternion components (unchecked)
