@@ -16,7 +16,6 @@
 #include "thesis/device/utils/bit_vector.h"
 #include "thesis/device/utils/vector.h"
 
-#include <curand_kernel.h>
 #include <optix.h>
 
 #include <math.h>
@@ -29,7 +28,7 @@ namespace math = ::thesis::common::math;
 using PrimsSet = utils::BitVector<consts::ACTIVE_PRIMS_CAPACITY>;
 using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 
-__forceinline__ __device__ float3 sample_phase(curandState& rng) {
+__forceinline__ __device__ float3 sample_phase(random::PCG32& rng) {
     // Isotropic phase function: uniform over sphere
     // Role:
     // Determines in which direction light scatters after the event.
@@ -107,7 +106,7 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
 // Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
 // The minimum of independent inverse CDFs gives the same distribution as sorting
 __device__ __noinline__ bool sample_scattering_event(
-    const geometry::Ray& ray, curandState& rng,
+    const geometry::Ray& ray, random::PCG32& rng,
     optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss,
     HitBuffer& hit_buffer, EventBuffer& events) {
 

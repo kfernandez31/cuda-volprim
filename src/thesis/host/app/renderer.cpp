@@ -49,7 +49,6 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
 
-
     auto module_file_future = utils::io::async::readFileToBytes(config_.module_blob_path_);
 
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::EnvMap);
@@ -77,12 +76,14 @@ void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitiv
         const auto [scene_min, scene_max] = utils::math::computeBounds(primitives);
 
         // Sort primitives by Morton code (Z-order curve)
-        std::sort(primitives.begin(), primitives.end(),
-                  [&scene_min, &scene_max](const device::params::Primitive& a, const device::params::Primitive& b) {
-                      const uint32_t morton_a = utils::math::morton3D(a.center(), scene_min, scene_max);
-                      const uint32_t morton_b = utils::math::morton3D(b.center(), scene_min, scene_max);
-                      return morton_a < morton_b;
-                  });
+        std::sort(
+            primitives.begin(), primitives.end(),
+            [&scene_min, &scene_max](const device::params::Primitive& a,
+                                     const device::params::Primitive& b) {
+                const uint32_t morton_a = utils::math::morton3D(a.center(), scene_min, scene_max);
+                const uint32_t morton_b = utils::math::morton3D(b.center(), scene_min, scene_max);
+                return morton_a < morton_b;
+            });
 
         spdlog::debug("Sorted {} primitives by Morton code for cache locality", num_primitives_);
     }
@@ -127,14 +128,15 @@ void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitiv
 void Renderer::initStaticParams() {
     // Compute which primitives contain camera (CPU side, done once at init)
     // Phase 1: parallel flag computation (no synchronization needed)
-    // Note: uint8_t instead of bool to avoid std::vector<bool> bitpacking (unsafe for parallel writes)
+    // Note: uint8_t instead of bool to avoid std::vector<bool> bitpacking (unsafe for parallel
+    // writes)
     const auto camera_pos = camera_.lookfrom();
     std::vector<uint8_t> inside_flags(num_primitives_);
 
-    std::transform(std::execution::par, primitives_.begin(), primitives_.end(), inside_flags.begin(),
-        [camera_pos](const auto& prim) -> uint8_t {
-            return common::geometry::point_inside_ellipsoid(camera_pos, prim) ? 1 : 0;
-        });
+    std::transform(std::execution::par, primitives_.begin(), primitives_.end(),
+                   inside_flags.begin(), [camera_pos](const auto& prim) -> uint8_t {
+                       return common::geometry::point_inside_ellipsoid(camera_pos, prim) ? 1 : 0;
+                   });
 
     // Phase 2: sequential gather (deterministic order, no sorting needed)
     std::vector<prim_idx_t> camera_active;
@@ -147,7 +149,7 @@ void Renderer::initStaticParams() {
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
         camera_active_prims_ = cuda::AsyncBuffer<prim_idx_t>(camera_active, cuda_ctx_.get(),
-                                                       streams_[cuda::StreamKind::Main]);
+                                                             streams_[cuda::StreamKind::Main]);
     }  // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
 
     // Initialize static launch parameters (never change during rendering)
@@ -158,8 +160,8 @@ void Renderer::initStaticParams() {
     par.env_map_ = env_map_.device_env_map();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(),
                                                                               primitives_.size());
-    par.camera_active_prims_ = device::utils::DynamicVector<prim_idx_t>(camera_active_prims_.device(),
-                                                                  camera_active_prims_.size());
+    par.camera_active_prims_ = device::utils::DynamicVector<prim_idx_t>(
+        camera_active_prims_.device(), camera_active_prims_.size());
 
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();

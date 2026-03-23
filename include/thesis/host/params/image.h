@@ -40,8 +40,7 @@ class Image {
           std::shared_ptr<cuda::Stream> averaged_pixels_stream)
         : variance_managed_(width * height, ctx, sample_buffer_stream,
                             cuda::AllocType::OnDeviceOnly),
-          mean_managed_(width * height, ctx, sample_buffer_stream,
-                        cuda::AllocType::OnDeviceOnly),
+          mean_managed_(width * height, ctx, sample_buffer_stream, cuda::AllocType::OnDeviceOnly),
           sample_counts_managed_(width * height, ctx, sample_buffer_stream,
                                  cuda::AllocType::OnDeviceOnly),
           averaged_pixels_managed_(width * height, ctx, std::move(averaged_pixels_stream),
@@ -136,12 +135,12 @@ class Image {
         averaged_pixels_managed_.get_context_param()->synchronize();
 
         // Save denoised image
-        auto denoised_path = filename.parent_path() /
-                             (filename.stem().string() + "_denoised" + filename.extension().string());
+        auto denoised_path = filename.parent_path() / (filename.stem().string() + "_denoised" +
+                                                       filename.extension().string());
         spdlog::info("Saving denoised to '{}'", denoised_path.string());
-        auto denoised_future = utils::io::async::saveExr(
-            std::move(averaged_pixels_managed_), device_image_.width_, device_image_.height_,
-            denoised_path);
+        auto denoised_future =
+            utils::io::async::saveExr(std::move(averaged_pixels_managed_), device_image_.width_,
+                                      device_image_.height_, denoised_path);
 
         return {std::move(raw_future), std::move(denoised_future)};
     }
@@ -154,9 +153,9 @@ class Image {
                      device_image_.num_samples_per_pixel_);
 
         // Copy Welford mean directly to output (already correctly averaged per-pixel)
-        device::kernels::launch_normalize_accumulator_kernel(
-            averaged_pixels_managed_.device(), mean_managed_.device(), pixel_count(), 1.0f,
-            stream->get());
+        device::kernels::launch_normalize_accumulator_kernel(averaged_pixels_managed_.device(),
+                                                             mean_managed_.device(), pixel_count(),
+                                                             1.0f, stream->get());
     }
 };
 

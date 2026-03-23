@@ -13,9 +13,10 @@ namespace params {
 
 // Device-side POD struct for image buffer (no RAII, same size on host and device)
 struct THESIS_ALIGNMENT Image {
-    float4* variance_ = nullptr;        // Running M2 (sum of squared deviations) for Welford's algorithm
-    float4* mean_ = nullptr;            // Running mean for Welford's algorithm
-    size_t* sample_counts_ = nullptr;   // Number of samples taken per pixel (size_t for buffer compatibility)
+    float4* variance_ = nullptr;  // Running M2 (sum of squared deviations) for Welford's algorithm
+    float4* mean_ = nullptr;      // Running mean for Welford's algorithm
+    size_t* sample_counts_ =
+        nullptr;  // Number of samples taken per pixel (size_t for buffer compatibility)
     uint32_t width_ = 0;
     uint32_t height_ = 0;
     uint32_t num_samples_per_pixel_ = 0;  // Total samples (for final normalization)

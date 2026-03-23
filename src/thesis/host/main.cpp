@@ -1,10 +1,10 @@
 #include "thesis/pch.h"
 
 #include "thesis/common/geometry/quat.h"
+#include "thesis/device/params/primitive.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/app/logging.h"
 #include "thesis/host/app/renderer.h"
-#include "thesis/device/params/primitive.h"
 #include "thesis/host/utils/result.h"
 
 #ifndef OPTIX_FUNCTION_TABLE_INCLUDED

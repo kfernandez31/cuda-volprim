@@ -26,13 +26,15 @@ class Denoiser {
    public:
     Denoiser(OptixDeviceContext optix_ctx, uint32_t width, uint32_t height, CUcontext cu_ctx,
              std::shared_ptr<cuda::Stream> stream)
-        : stream_(std::move(stream)), width_(width), height_(height) {
+        : stream_(std::move(stream)),
+          width_(width),
+          height_(height) {
         OptixDenoiserOptions options{};
         options.guideAlbedo = 0;
         options.guideNormal = 0;
 
-        OPTIX_CHECK(optixDenoiserCreate(optix_ctx, OPTIX_DENOISER_MODEL_KIND_HDR, &options,
-                                        &handle_));
+        OPTIX_CHECK(
+            optixDenoiserCreate(optix_ctx, OPTIX_DENOISER_MODEL_KIND_HDR, &options, &handle_));
 
         OptixDenoiserSizes sizes{};
         OPTIX_CHECK(optixDenoiserComputeMemoryResources(handle_, width, height, &sizes));
