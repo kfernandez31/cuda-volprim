@@ -6,6 +6,7 @@
 
 #include "thesis/common/utils/types.h"
 #include "thesis/device/payloads/anyhit.h"
+#include "thesis/device/payloads/miss.h"
 #include "thesis/device/utils/vector.h"
 
 #include <optix.h>
@@ -35,7 +36,10 @@ extern "C" __global__ void __anyhit__ah() {
         hit_buffer->emplace_back(t, prim_idx, false);
         optixIgnoreIntersection();
     } else {
-        // Hit buffer capacity reached - terminate ray
+        // Hit buffer capacity reached — terminate ray early.
+        // Write a zero-color Miss payload so trace_ch_collect reads valid data
+        // (the miss shader won't run after optixTerminateRay).
+        payloads::Miss(0.0f, 0.0f, 0.0f).packToOptix();
         optixTerminateRay();
     }
 }

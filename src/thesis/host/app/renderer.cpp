@@ -2,6 +2,8 @@
 
 #include "thesis/pch.h"
 
+#include "core/constants.cuh"
+
 #include "thesis/common/geometry/intersection.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/device/utils/vector.h"
@@ -48,6 +50,14 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
+
+    if (num_primitives_ > device::consts::MAX_PRIMITIVES && device::consts::MAX_PRIMITIVES <= 256) {
+        spdlog::error(
+            "Scene has {} primitives but MAX_PRIMITIVES is {} (BitVector mode). "
+            "Primitives with sorted index >= {} will be silently ignored, causing black artifacts. "
+            "Increase MAX_PRIMITIVES in constants.cuh past 256 to switch to CompactSet mode.",
+            num_primitives_, device::consts::MAX_PRIMITIVES, device::consts::MAX_PRIMITIVES);
+    }
 
     auto module_file_future = utils::io::async::readFileToBytes(config_.module_blob_path_);
 

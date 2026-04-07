@@ -17,28 +17,20 @@ namespace consts {
 constexpr float INF_F = 1e20;
 constexpr uint VISIBILITY_ALL = 0xFF;
 
-// Primitive and scattering constants
-// Maximum number of primitives that can be SIMULTANEOUSLY OVERLAPPING per ray
-// This is NOT the total scene primitive count - it's the max depth of ray-primitive overlap
-// Limited by OptiX continuation stack size (hardware/driver dependent)
-// Stack allocation: Hit buffer (2×MAX × ~24 bytes) + Active set (~MAX × 8 bytes)
-// Tested limits (OptiX compilation success):
-//   - MAX_PRIMITIVES=128:  ~6KB stack (✓ safe on all GPUs)
-//   - MAX_PRIMITIVES=256:  ~12KB stack (✓ safe on most GPUs)
-//   - MAX_PRIMITIVES=512:  ~25KB stack (? test on your GPU)
-//   - MAX_PRIMITIVES=1024: ~50KB stack (✓ RTX 3090, ? other GPUs)
-//   - MAX_PRIMITIVES=2048: ~100KB stack (✗ OptiX compile error)
-// If buffer overflow occurs: ray terminated early → BIASED RENDERING
-constexpr size_t MAX_PRIMITIVES = 256;
+// Total number of primitives in the scene.
+// Governs PrimsSet implementation selection:
+//   ≤256: BitVector<N>    — O(1) insert/erase, N/8 bytes, indexed by prim ID
+//   >256: CompactSet<N>   — O(k) insert/erase, 2*MAX_ACTIVE_PRIMS bytes, decoupled from scene size
+constexpr size_t MAX_PRIMITIVES = 1024;  // >256 → uses CompactSet (supports any scene size)
 
-// Hit buffer capacity: max entry hits stored per ray (decoupled from MAX_PRIMITIVES).
-// Most rays hit far fewer primitives than MAX_PRIMITIVES; overflow is handled gracefully
-// by StaticVector (push_back returns false, hit silently dropped → slight bias for that ray).
+// Max primitives simultaneously overlapping at a single point along a ray.
+// Only used when MAX_PRIMITIVES > 256 (CompactSet mode).
+// Cloud scene (652 Gaussians): measured max overlap = 37 at 1σ, 45 at 2σ.
+constexpr size_t MAX_ACTIVE_PRIMS = 64;
+
+// Hit buffer capacity: max entry hits stored per ray.
+// Overflow handled by optixTerminateRay() in anyhit → biased but safe.
 constexpr size_t HIT_BUFFER_CAPACITY = 128;
-
-// Active primitives set capacity: must cover all primitive indices in the scene.
-// BitVector uses this for O(1) insert/contains/erase by primitive index.
-constexpr size_t ACTIVE_PRIMS_CAPACITY = MAX_PRIMITIVES;
 
 // Minimum ray segment length for optical depth integration
 // Segments shorter than this are considered degenerate

@@ -99,8 +99,11 @@ __device__ void bitonic_sort(utils::StaticVector<HitRecord, N>& vec) {
 
     const size_t original_size = vec.size();
 
-    // Extend to full capacity (assumes buffer was pre-initialized with sentinels, see:
-    // init_hit_buffer_sentinels)
+    // Pad unused slots with sentinels so they sort to the end
+    const HitRecord sentinel{consts::INF_F, 0u, false};
+    for (size_t i = original_size; i < N; ++i) {
+        vec.data()[i] = sentinel;
+    }
     vec.resize(N);
 
     // Standard bitonic sort on power-of-2 array

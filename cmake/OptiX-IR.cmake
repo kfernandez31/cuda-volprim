@@ -6,6 +6,13 @@
 set(DEVICE_ENTRY "${DEVICE_DIR}/device_program.cu")
 set(OPTIXIR_OUTPUT "${CMAKE_BINARY_DIR}/device_program.optixir")
 
+# Track all device headers so changes trigger rebuild
+file(GLOB_RECURSE DEVICE_HEADERS
+    "${DEVICE_DIR}/*.cuh"
+    "${INCLUDE_DIR}/thesis/device/*.h"
+    "${INCLUDE_DIR}/thesis/common/*.h"
+)
+
 add_custom_command(
     OUTPUT ${OPTIXIR_OUTPUT}
     COMMAND ${CMAKE_COMMAND} -E echo "Compiling OptiX-IR: ${DEVICE_ENTRY} to ${OPTIXIR_OUTPUT}"
@@ -33,7 +40,7 @@ add_custom_command(
         -diag-suppress=20044
         -m64
         "${DEVICE_ENTRY}"
-    DEPENDS ${DEVICE_ENTRY}
+    DEPENDS ${DEVICE_ENTRY} ${DEVICE_HEADERS}
     COMMENT "Compiling OptiX-IR..."
 )
 

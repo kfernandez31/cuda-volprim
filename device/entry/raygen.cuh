@@ -37,10 +37,9 @@ extern "C" __global__ void __raygen__rg() {
         const auto std_dev = math::sqrt(variance);
 
         // Per-channel relative error to avoid one channel dominating the criterion
-        const auto safe_mean = make_float3(
-            math::max(mean.x, consts::ADAPTIVE_MIN_LUMINANCE),
-            math::max(mean.y, consts::ADAPTIVE_MIN_LUMINANCE),
-            math::max(mean.z, consts::ADAPTIVE_MIN_LUMINANCE));
+        const auto safe_mean = make_float3(math::max(mean.x, consts::ADAPTIVE_MIN_LUMINANCE),
+                                           math::max(mean.y, consts::ADAPTIVE_MIN_LUMINANCE),
+                                           math::max(mean.z, consts::ADAPTIVE_MIN_LUMINANCE));
         const auto per_channel_error = std_dev / safe_mean;
 
         if (math::max(per_channel_error) < consts::ADAPTIVE_THRESHOLD) {
@@ -66,17 +65,16 @@ extern "C" __global__ void __raygen__rg() {
         auto throughput = make_float3(1.0f);
         auto radiance = make_float3(0.0f);
 
-        optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY> event;
+        optix::ScatteringEvent<PrimsSet> event;
         payloads::Miss miss;
         HitBuffer hit_buffer;
-        EventBuffer events;
 
         // Initialize active_prims from pre-computed camera containment (CPU-side, pre-sorted)
         event.active_prims_.init_from_array(launch_params.camera_active_prims_.data(),
-                                                launch_params.camera_active_prims_.size());
+                                            launch_params.camera_active_prims_.size());
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
-            const auto result = sample_scattering_event(ray, rng, event, miss, hit_buffer, events);
+            const auto result = sample_scattering_event(ray, rng, event, miss, hit_buffer);
 
             // no scattering - escaped medium
             if (!result) {
@@ -125,7 +123,8 @@ extern "C" __global__ void __raygen__rg() {
     // Write back Welford state
     launch_params.image_.variance_[pixel_linear_idx] = make_float4(M2);
     launch_params.image_.mean_[pixel_linear_idx] = make_float4(mean);
-    launch_params.image_.sample_counts_[pixel_linear_idx] = prev_count + launch_params.image_.batch_size_;
+    launch_params.image_.sample_counts_[pixel_linear_idx] =
+        prev_count + launch_params.image_.batch_size_;
 }
 
 }  // namespace device

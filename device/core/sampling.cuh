@@ -14,18 +14,25 @@
 #include "thesis/device/optix/scattering_event.h"
 #include "thesis/device/payloads/miss.h"
 #include "thesis/device/utils/bit_vector.h"
+#include "thesis/device/utils/compact_set.h"
 #include "thesis/device/utils/vector.h"
 
 #include <optix.h>
 
 #include <math.h>
+#include <type_traits>
 
 namespace thesis {
 namespace device {
 
 namespace math = ::thesis::common::math;
 
-using PrimsSet = utils::BitVector<consts::ACTIVE_PRIMS_CAPACITY>;
+// PrimsSet: tracks which primitives are active (overlapping) at the current ray point.
+// For small scenes (≤256 prims): BitVector — O(1) ops, indexed by primitive ID.
+// For large scenes: CompactSet — O(k) ops, decoupled from scene size.
+using PrimsSet = std::conditional_t<(consts::MAX_PRIMITIVES <= 256),
+                                    utils::BitVector<((consts::MAX_PRIMITIVES + 63) & ~size_t{63})>,
+                                    utils::CompactSet<prim_idx_t, consts::MAX_ACTIVE_PRIMS> >;
 using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 
 __forceinline__ __device__ float3 sample_phase(random::PCG32& rng) {
@@ -47,7 +54,6 @@ __forceinline__ __device__ float3 integrate_primitives(const geometry::Ray& ray,
                                                        const PrimsSet& prims, float t0) {
     float3 result = make_float3(0.0f);
 
-#pragma unroll 4
     for (auto idx : prims) {
         const auto& prim = launch_params.primitives_[idx];
         result += prim.density_integral(ray, t0);
@@ -60,7 +66,6 @@ __device__ __forceinline__ float3 evaluate_albedo(float3 pos, const PrimsSet& pr
     auto accum_albedo = make_float3(0.0f);
     auto accum_weight = 0.0f;
 
-#pragma unroll 4
     for (auto idx : prims) {
         const auto& prim = launch_params.primitives_[idx];
 
@@ -73,8 +78,12 @@ __device__ __forceinline__ float3 evaluate_albedo(float3 pos, const PrimsSet& pr
         accum_weight += weight;
     }
 
-    // Invariant: This function is only called after scattering occurs, which requires non-empty
-    // active_prims
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+    if (accum_weight <= 0.0f) {
+        printf("ERROR: evaluate_albedo called with zero total weight (empty active_prims?)\n");
+        return make_float3(0.0f);
+    }
+#endif  // THESIS_ENABLE_NUMERICAL_GUARDS
     return accum_albedo * math::rcp(accum_weight);
 }
 
@@ -91,8 +100,8 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
     if (out_miss)
         *out_miss = miss;  // Optionally return Miss payload
 
-    // No exit computation - exits will be computed on-demand in argmin loop
-    // No sorting - argmin doesn't need sorted hits
+        // No exit computation - exits will be computed on-demand in argmin loop
+        // No sorting - argmin doesn't need sorted hits
 
 #ifdef DEBUG
     if (hit_buffer.full()) {
@@ -102,18 +111,79 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
 #endif
 }
 
+// Compute optical depth along escape ray using segment-by-segment integration
+// Separated into __noinline__ to isolate EventBuffer + sort register pressure from scatter path
+__device__ __noinline__ float3 compute_escape_optical_depth(const geometry::Ray& ray,
+                                                            const PrimsSet& active_prims,
+                                                            const HitBuffer& hit_buffer) {
+    EventBuffer events;
+
+    // Build exit events for primitives containing the ray origin
+    for (auto prim_idx : active_prims) {
+        const auto& prim = launch_params.primitives_[prim_idx];
+        const auto w = prim.transform_dir_local(ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        if (t_exit > 0.0f && t_exit < consts::INF_F) {
+            events.emplace_back(t_exit, prim_idx, true);
+        }
+    }
+
+    // Build entry+exit events for ray-intersected primitives
+    for (const auto& hit : hit_buffer) {
+        const auto& prim = launch_params.primitives_[hit.prim_idx];
+
+        events.emplace_back(hit.t_hit, hit.prim_idx, false);
+
+        const auto w = prim.transform_dir_local(ray.direction_);
+        const auto w_len2 = math::length2(w);
+        const float t_exit =
+            common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
+
+        if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
+            events.emplace_back(t_exit, hit.prim_idx, true);
+        }
+    }
+
+    sort(events);
+
+    float t_prev = 0.0f;
+    PrimsSet current_active = active_prims;
+    float3 acc_optical_depth = make_float3(0.0f);
+
+    for (size_t i = 0; i < events.size(); ++i) {
+        const auto& ev = events[i];
+
+        if (ev.t_hit > t_prev) {
+            for (auto prim_idx : current_active) {
+                const auto& prim = launch_params.primitives_[prim_idx];
+                const auto tau = prim.optical_depth(ray, t_prev, ev.t_hit);
+                acc_optical_depth += make_float3(tau);
+            }
+        }
+
+        if (ev.is_exit) {
+            current_active.erase(ev.prim_idx);
+        } else {
+            (void) current_active.insert(ev.prim_idx);
+        }
+
+        t_prev = ev.t_hit;
+    }
+
+    return acc_optical_depth;
+}
+
 // Sample scattering event using argmin approach (no sorting!)
 // Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
 // The minimum of independent inverse CDFs gives the same distribution as sorting
-__device__ __noinline__ bool sample_scattering_event(
-    const geometry::Ray& ray, random::PCG32& rng,
-    optix::ScatteringEvent<consts::ACTIVE_PRIMS_CAPACITY>& event, payloads::Miss& miss,
-    HitBuffer& hit_buffer, EventBuffer& events) {
-
+__device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, random::PCG32& rng,
+                                                     optix::ScatteringEvent<PrimsSet>& event,
+                                                     payloads::Miss& miss, HitBuffer& hit_buffer) {
     auto& active_prims = event.active_prims_;
 
     const size_t num_primitives = launch_params.primitives_.size();
-#pragma unroll 4
+
     for (size_t i = 0; i < num_primitives; ++i) {
         const auto& prim = launch_params.primitives_[i];
         if (common::geometry::point_inside_ellipsoid(ray.origin_, prim)) {
@@ -131,7 +201,6 @@ __device__ __noinline__ bool sample_scattering_event(
 
     float t_scatter_min = consts::INF_F;
 
-#pragma unroll 4
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
 
@@ -150,7 +219,6 @@ __device__ __noinline__ bool sample_scattering_event(
         }
     }
 
-#pragma unroll 4
     for (const auto& hit : hit_buffer) {
         const auto& prim = launch_params.primitives_[hit.prim_idx];
 
@@ -167,7 +235,8 @@ __device__ __noinline__ bool sample_scattering_event(
         if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) {
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
+            const float t_exit =
+                common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
 
             if (t_scatter <= t_exit) {
                 t_scatter_min = t_scatter;
@@ -176,72 +245,8 @@ __device__ __noinline__ bool sample_scattering_event(
     }
 
     if (t_scatter_min >= consts::INF_F) {
-        events.clear();
-
-        // Recompute exits for primitives containing the ray origin
-#pragma unroll 4
-        for (auto prim_idx : active_prims) {
-            const auto& prim = launch_params.primitives_[prim_idx];
-            const auto w = prim.transform_dir_local(ray.direction_);
-            const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
-            if (t_exit > 0.0f && t_exit < consts::INF_F) {
-                events.emplace_back(t_exit, prim_idx, true);
-            }
-        }
-
-#pragma unroll 4
-        for (const auto& hit : hit_buffer) {
-            const auto& prim = launch_params.primitives_[hit.prim_idx];
-
-            events.emplace_back(hit.t_hit, hit.prim_idx, false);
-
-            const auto w = prim.transform_dir_local(ray.direction_);
-            const auto w_len2 = math::length2(w);
-            const float t_exit = common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
-
-            if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
-                events.emplace_back(t_exit, hit.prim_idx, true);
-            }
-        }
-
-        // Sort events by t-value using optimized adaptive sort
-        sort(events);
-
-        float t_prev = 0.0f;
-        // Initialize with primitives containing the ray origin. These have exit events
-        // but no entry events in the list, so the set correctly tracks active state as
-        // exits remove them. Alternative: add synthetic t=0 entry events, but that adds
-        // sorting work for no correctness benefit.
-        PrimsSet current_active = active_prims;
-        float3 acc_optical_depth = make_float3(0.0f);
-
-        for (size_t i = 0; i < events.size(); ++i) {
-            const auto& event = events[i];
-
-            if (event.t_hit > t_prev) {
-#pragma unroll 4
-                for (auto prim_idx : current_active) {
-                    const auto& prim = launch_params.primitives_[prim_idx];
-                    const auto tau = prim.optical_depth(ray, t_prev, event.t_hit);
-                    acc_optical_depth += make_float3(tau);
-                }
-            }
-
-            if (event.is_exit) {
-                current_active.erase(event.prim_idx);
-            } else {
-                (void) current_active.insert(event.prim_idx);
-            }
-
-            t_prev = event.t_hit;
-        }
-
-        event.escape_optical_depth_ = acc_optical_depth;
-
-        // Clear active_prims (ray escaped, no longer inside any primitives)
+        event.escape_optical_depth_ = compute_escape_optical_depth(ray, active_prims, hit_buffer);
         active_prims.clear();
-
         return false;
     }
 
@@ -249,7 +254,6 @@ __device__ __noinline__ bool sample_scattering_event(
     PrimsSet final_active_prims;
 
     // Recompute exits for primitives containing the ray origin
-#pragma unroll 4
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
         const auto w = prim.transform_dir_local(ray.direction_);
@@ -260,14 +264,15 @@ __device__ __noinline__ bool sample_scattering_event(
         }
     }
 
-#pragma unroll 4
     for (const auto& hit : hit_buffer) {
-        if (hit.t_hit > t_scatter_min) continue;  // Skip hits after scatter point
+        if (hit.t_hit > t_scatter_min)
+            continue;  // Skip hits after scatter point
 
         const auto& prim = launch_params.primitives_[hit.prim_idx];
         const auto w = prim.transform_dir_local(ray.direction_);
         const auto w_len2 = math::length2(w);
-        const float t_exit = common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
+        const float t_exit =
+            common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
 
         if (t_scatter_min <= t_exit) {
             (void) final_active_prims.insert(hit.prim_idx);
@@ -290,7 +295,6 @@ __device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray,
     // active_prims already contains the correct set from sample_scattering_event
     auto acc_optical_depth = make_float3(0.0f);
 
-#pragma unroll 4
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
         acc_optical_depth += prim.density_integral(ray, 0.0f);

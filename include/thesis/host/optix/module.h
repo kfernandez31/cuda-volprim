@@ -30,6 +30,7 @@ class Module {
         Module module;
 
         OptixModuleCompileOptions mco{};
+        mco.maxRegisterCount = 96;
 #ifdef DEBUG
         mco.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
 #else
