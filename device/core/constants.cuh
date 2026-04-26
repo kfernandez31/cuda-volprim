@@ -81,8 +81,31 @@ constexpr size_t RR_DEPTH = 5;  // Increased from 3 for proper volumetric path l
 // Maximum survival probability for Russian roulette (maintains unbiasedness)
 constexpr float RR_MAX_SURVIVAL = 0.99f;  // Standard production value (Mitsuba, PBRT)
 
-// Isotropic phase function value: 1/(4π) normalized over unit sphere
+// Isotropic phase function value: 1/(4π). Used by the legacy unoccluded
+// single-scatter accumulation; NEE/MIS paths use eval_phase() instead.
 constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
+
+// Henyey-Greenstein anisotropy parameter g ∈ (-1, 1):
+//   g = 0   → isotropic (HG reduces to 1/(4π))
+//   g > 0   → forward-scattering (clouds typically use ~0.85)
+//   g < 0   → back-scattering
+// Default 0 keeps behavior identical to the prior isotropic implementation.
+constexpr float HG_G = 0.0f;
+
+// |g| below this threshold uses the isotropic branch (avoids 1/g in the inversion).
+constexpr float HG_ISOTROPIC_EPS = 1e-3f;
+
+// Next Event Estimation: at each scatter, sample a direction toward the env and
+// attenuate by transmittance along a shadow ray. With NEE on, the unscattered-only
+// escape rule kicks in (paths that scattered already counted env via shadow rays).
+constexpr bool ENABLE_NEE = true;
+
+// Multiple Importance Sampling between phase IS and env IS at scatter points.
+// Mathematically a no-op when phase is isotropic AND env is uniform (both strategies
+// degenerate to uniform sphere). Real benefit appears with HG_G != 0 OR a non-uniform
+// HDR environment map. Costs 2× shadow rays per scatter, so disable on simple scenes.
+// Requires ENABLE_NEE.
+constexpr bool ENABLE_MIS = false;
 
 // =============================================================================
 // Adaptive Sampling Constants

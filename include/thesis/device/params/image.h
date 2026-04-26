@@ -17,6 +17,15 @@ struct THESIS_ALIGNMENT Image {
     float4* mean_ = nullptr;      // Running mean for Welford's algorithm
     size_t* sample_counts_ =
         nullptr;  // Number of samples taken per pixel (size_t for buffer compatibility)
+
+    // Auxiliary outputs ("AOVs") for the OptiX denoiser as guide layers.
+    // Both are running per-pixel means across SPP (no Welford M2 needed — we just need
+    // the average for the denoiser's prior). Written at bounce 0 only.
+    //   albedo_aov_: scatter-point albedo at first scatter, or 0 for unscattered paths.
+    //   normal_aov_: -ray.direction at the first bounce (camera-facing pseudo-normal).
+    float4* albedo_aov_ = nullptr;
+    float4* normal_aov_ = nullptr;
+
     uint32_t width_ = 0;
     uint32_t height_ = 0;
     uint32_t num_samples_per_pixel_ = 0;  // Total samples (for final normalization)

@@ -257,12 +257,12 @@ class THESIS_ALIGNMENT Primitive {
         const auto e_term = math::exp(-0.5f * perp_dist2);
         const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
 
-        // Error function difference for bounded integration
-        // Factor out sqrt(1/2) scaling to reduce operations
+        // Error function difference for bounded integration.
+        // Factor out sqrt(1/2) scaling and reuse B_scaled via FMA to avoid recomputing B*sqrt_half.
         const auto sqrt_half = math::ONE_OVER_ROOT_TWO_F;
         const auto B_scaled = B * sqrt_half;
-        const auto erf_lower = math::erf(B_scaled);                    // erf(B/√2) at start
-        const auto erf_upper = math::erf((B + t_limit) * sqrt_half);  // erf((B+t_limit)/√2) at end
+        const auto erf_lower = math::erf(B_scaled);                              // erf(B/√2)
+        const auto erf_upper = math::erf(math::fma(t_limit, sqrt_half, B_scaled));  // erf((B+t_limit)/√2)
         const auto erf_term_raw = (erf_upper - erf_lower) * 0.5f;
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS

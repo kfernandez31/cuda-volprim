@@ -29,4 +29,11 @@ struct MultiViewTestScene {
 // Returns a multi-view test scene with 652 primitives and 24 orthographic cameras
 thesis::host::utils::Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier = 60.0f);
 
+// Same primitives + cameras as cloud_asset_validation, but with albedo overridden
+// to a high scattering value. Use this to exercise features that only fire at
+// scatter events (NEE, MIS, anisotropic phase, denoiser AOVs). The PLY ships
+// albedo ≈ 0 (pure absorber), so the validation scene cannot test them.
+thesis::host::utils::Result<MultiViewTestScene> cloud_asset_scattering(float sigma_multiplier = 60.0f,
+                                                                       float albedo = 0.9f);
+
 }  // namespace thesis::test::scenes

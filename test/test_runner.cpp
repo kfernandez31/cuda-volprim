@@ -300,10 +300,14 @@ int main(int argc, char* argv[]) {
 
     // Handle single scene
     if (!test_config.scene_name.empty()) {
-        // Special case: cloud_asset_validation (multi-view test)
-        if (test_config.scene_name == "cloud_asset_validation") {
+        // Special case: cloud asset multi-view tests (validation = pure absorber, scattering = albedo override)
+        if (test_config.scene_name == "cloud_asset_validation" ||
+            test_config.scene_name == "cloud_asset_scattering") {
             try {
-                auto cloud_scene_result = cloud_asset_validation(test_config.sigma_multiplier);
+                auto cloud_scene_result =
+                    (test_config.scene_name == "cloud_asset_scattering")
+                        ? cloud_asset_scattering(test_config.sigma_multiplier)
+                        : cloud_asset_validation(test_config.sigma_multiplier);
                 if (!cloud_scene_result.has_value()) {
                     std::cerr << "✗ Failed to load cloud asset: " << cloud_scene_result.error().msg_
                               << "\n";

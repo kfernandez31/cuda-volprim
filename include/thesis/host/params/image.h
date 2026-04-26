@@ -29,6 +29,8 @@ class Image {
     cuda::AsyncBuffer<float4> mean_managed_;             // Running mean for Welford's algorithm
     cuda::AsyncBuffer<size_t> sample_counts_managed_;    // Per-pixel sample counts
     cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
+    cuda::AsyncBuffer<float4> albedo_aov_managed_;       // Denoiser albedo guide (running mean)
+    cuda::AsyncBuffer<float4> normal_aov_managed_;       // Denoiser normal guide (running mean)
     device::params::Image device_image_;                 // Device-compatible POD struct
     size_t batch_size_;                                  // Maximum samples per batch
     std::shared_ptr<cuda::Stream> stream_;               // Stream for operations
@@ -45,21 +47,37 @@ class Image {
                                  cuda::AllocType::OnDeviceOnly),
           averaged_pixels_managed_(width * height, ctx, std::move(averaged_pixels_stream),
                                    cuda::AllocType::OnBoth),
+          albedo_aov_managed_(width * height, ctx, sample_buffer_stream,
+                              cuda::AllocType::OnDeviceOnly),
+          normal_aov_managed_(width * height, ctx, sample_buffer_stream,
+                              cuda::AllocType::OnDeviceOnly),
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
         device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
         device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
         device_image_.sample_counts_ = const_cast<size_t*>(sample_counts_managed_.device());
+        device_image_.albedo_aov_ = const_cast<float4*>(albedo_aov_managed_.device());
+        device_image_.normal_aov_ = const_cast<float4*>(normal_aov_managed_.device());
         device_image_.width_ = static_cast<uint32_t>(width);
         device_image_.height_ = static_cast<uint32_t>(height);
         device_image_.num_samples_per_pixel_ = static_cast<uint32_t>(num_samples_per_pixel);
         device_image_.batch_offset_ = 0;
         device_image_.batch_size_ = 0;  // Will be set per batch
 
-        // Initialize Welford state and sample counts
+        // Initialize Welford state, sample counts, and AOV running means.
         variance_managed_.memset_device(0);
         mean_managed_.memset_device(0);
         sample_counts_managed_.memset_device(0);
+        albedo_aov_managed_.memset_device(0);
+        normal_aov_managed_.memset_device(0);
+    }
+
+    // Device pointers for the AOV buffers (read-only — caller must not free).
+    [[nodiscard]] const float4* albedo_aov_device() const noexcept {
+        return albedo_aov_managed_.device();
+    }
+    [[nodiscard]] const float4* normal_aov_device() const noexcept {
+        return normal_aov_managed_.device();
     }
 
     Image(Image&&) noexcept = default;
@@ -127,8 +145,9 @@ class Image {
                                       averaged_pixels_managed_.get_context_param()),
             device_image_.width_, device_image_.height_, raw_path);
 
-        // Denoise in-place on device
-        denoiser.invoke(averaged_pixels_managed_.device());
+        // Denoise in-place on device, supplying albedo + normal AOVs as guide layers.
+        denoiser.invoke(averaged_pixels_managed_.device(), albedo_aov_managed_.device(),
+                        normal_aov_managed_.device());
 
         // Download denoised pixels
         averaged_pixels_managed_.download();
