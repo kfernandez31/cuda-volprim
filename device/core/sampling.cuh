@@ -138,28 +138,106 @@ __forceinline__ __device__ float3 sample_phase(random::PCG32& rng) {
 // =============================================================================
 // Environment importance sampling
 // =============================================================================
-// Currently a uniform-sphere stub: appropriate for constant-radiance environments
-// (which is what the cloud asset uses). Replace this namespace with a real CDF-based
-// HDR env importance sampler when scenes with directional features (sun, bright sky)
-// are added — MIS in raygen automatically benefits without further code changes.
+// Mitsuba-style 2D-CDF over the lat-long environment map (luminance × sin(θ)).
+// CDFs are precomputed on the host (see EnvironmentMap::buildCdf) and live in
+// launch_params.env_map_. Falls back to uniform-sphere when total_integral_ ≤ 0
+// (e.g. a black env or a degenerate map), so a missing CDF is non-fatal.
+//
+// (u, v) ↔ direction convention is matched to env_map.sample() in
+// device/params/environment_map.h:
+//   u = atan2(dir.z, dir.x) / (2π) + 0.5      ↔  azimuth
+//   v = acos(dir.y) / π                        ↔  polar from +y axis
+// Solid-angle Jacobian: dω = 2π² · sin(θ) · du · dv.
 
 namespace env_is {
 
 struct Sample {
     float3 wo;
-    float pdf;
+    float pdf;  // density in solid-angle measure (sr⁻¹)
 };
 
-__device__ __forceinline__ Sample sample(random::PCG32& rng) {
-    const auto u = random::sample_uniform_2d(rng);
-    const auto z = math::fma(-2.0f, u.x, 1.0f);
-    const auto r = math::sqrt(math::max(0.0f, math::fma(-z, z, 1.0f)));
-    const auto phi = math::TWO_PI_F * u.y;
-    return {make_float3(r * math::cos(phi), r * math::sin(phi), z), consts::PHASE_VALUE};
+// Smallest i in [0, n) such that cdf[i] > u. cdf is normalized to end at 1.
+__device__ __forceinline__ int upper_bound(const float* cdf, int n, float u) {
+    int lo = 0, hi = n;
+    while (lo < hi) {
+        const int mid = (lo + hi) >> 1;
+        if (cdf[mid] <= u) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo < n ? lo : n - 1;
 }
 
-__device__ __forceinline__ float pdf(float3 /*wo*/) {
-    return consts::PHASE_VALUE;  // 1/(4π) — uniform sphere for constant env
+__device__ __forceinline__ Sample sample(random::PCG32& rng) {
+    const auto& env = launch_params.env_map_;
+    const auto u01 = random::sample_uniform_2d(rng);
+
+    // Fallback: uniform sphere when no CDF is available.
+    if (env.total_integral_ <= 0.0f || env.cdf_width_ == 0 || env.cdf_height_ == 0) {
+        const auto z = math::fma(-2.0f, u01.x, 1.0f);
+        const auto r = math::sqrt(math::max(0.0f, math::fma(-z, z, 1.0f)));
+        const auto phi = math::TWO_PI_F * u01.y;
+        return {make_float3(r * math::cos(phi), r * math::sin(phi), z), consts::PHASE_VALUE};
+    }
+
+    const int W = static_cast<int>(env.cdf_width_);
+    const int H = static_cast<int>(env.cdf_height_);
+
+    const int v = upper_bound(env.marginal_cdf_, H, u01.x);
+    const int u = upper_bound(env.conditional_cdf_ + v * W, W, u01.y);
+
+    // Texel center → (u_norm, v_norm) ∈ [0, 1]²
+    const float u_norm = (static_cast<float>(u) + 0.5f) * math::rcp(static_cast<float>(W));
+    const float v_norm = (static_cast<float>(v) + 0.5f) * math::rcp(static_cast<float>(H));
+
+    const float theta = math::fma(2.0f * math::PI_F, u_norm, -math::PI_F);  // azimuth ∈ [-π, π]
+    const float polar = v_norm * math::PI_F;                                 // polar ∈ [0, π]
+    const float sin_polar = math::sin(polar);
+
+    const auto wo = make_float3(sin_polar * math::cos(theta), math::cos(polar),
+                                 sin_polar * math::sin(theta));
+
+    // pdf in (u, v) space (normalized to integrate to 1 over [0,1]²):
+    //   p_uv = (joint_density / total_integral) · W · H
+    // Convert to solid angle: p_ω = p_uv / (2π² · sin(polar))
+    const float joint = env.joint_density_[v * W + u];
+    const float p_uv = (joint * math::rcp(env.total_integral_)) * static_cast<float>(W * H);
+    const float jacobian = 2.0f * math::PI_F * math::PI_F * sin_polar;
+    const float pdf_omega = (sin_polar > 0.0f) ? p_uv * math::rcp(jacobian) : 0.0f;
+
+    return {wo, pdf_omega};
+}
+
+__device__ __forceinline__ float pdf(float3 wo) {
+    const auto& env = launch_params.env_map_;
+    if (env.total_integral_ <= 0.0f || env.cdf_width_ == 0 || env.cdf_height_ == 0) {
+        return consts::PHASE_VALUE;
+    }
+
+    const int W = static_cast<int>(env.cdf_width_);
+    const int H = static_cast<int>(env.cdf_height_);
+
+    // Direction → (u_norm, v_norm), matching env_map.sample()
+    const float theta = atan2f(wo.z, wo.x);
+    const float polar = acosf(math::clamp(wo.y, -1.0f, 1.0f));
+    const float u_norm = math::fma(theta, math::ONE_OVER_TWO_PI_F, 0.5f);
+    const float v_norm = polar * math::ONE_OVER_PI_F;
+
+    int u = static_cast<int>(u_norm * static_cast<float>(W));
+    int v = static_cast<int>(v_norm * static_cast<float>(H));
+    u = u < 0 ? 0 : (u >= W ? W - 1 : u);
+    v = v < 0 ? 0 : (v >= H ? H - 1 : v);
+
+    const float joint = env.joint_density_[v * W + u];
+    const float sin_polar = math::sin(polar);
+    if (joint <= 0.0f || sin_polar <= 0.0f) {
+        return 0.0f;
+    }
+    const float p_uv = (joint * math::rcp(env.total_integral_)) * static_cast<float>(W * H);
+    const float jacobian = 2.0f * math::PI_F * math::PI_F * sin_polar;
+    return p_uv * math::rcp(jacobian);
 }
 
 }  // namespace env_is

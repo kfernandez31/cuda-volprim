@@ -14,6 +14,19 @@ namespace params {
 struct THESIS_ALIGNMENT EnvironmentMap {
     cudaTextureObject_t tex_obj_ = 0;
 
+    // 2D CDF for importance sampling (Mitsuba-style envmap emitter).
+    //   marginal_cdf_    : prefix sum over rows, normalized to [0, 1]            (cdf_height_)
+    //   conditional_cdf_ : per-row prefix sums, each row normalized to [0, 1]    (cdf_height_ * cdf_width_)
+    //   joint_density_   : unnormalized luminance * sin(θ) at each texel         (cdf_height_ * cdf_width_)
+    //   total_integral_  : Σ joint_density (used to normalize pdf evaluations)
+    // Falls back to uniform-sphere when total_integral_ ≤ 0 or dims are zero.
+    const float* marginal_cdf_ = nullptr;
+    const float* conditional_cdf_ = nullptr;
+    const float* joint_density_ = nullptr;
+    uint32_t cdf_width_ = 0;
+    uint32_t cdf_height_ = 0;
+    float total_integral_ = 0.0f;
+
     EnvironmentMap() = default;
     EnvironmentMap(const EnvironmentMap&) = default;
     EnvironmentMap& operator=(const EnvironmentMap&) = default;
