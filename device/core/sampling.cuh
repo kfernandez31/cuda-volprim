@@ -429,13 +429,12 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         const float chi_j = random::sample_uniform(rng);
         const float tau_j = -math::log(math::max(1.0f - chi_j, 1e-10f));
 
-        // Sample scatter from full Gaussian CDF, then check if result falls within
-        // the BVH sphere [t_hit, t_exit]. For dense media with albedo≈0, scatter
-        // naturally fails (scatter point precedes entry) → escape path computes
-        // correct Beer-Lambert transmittance.
-        const float t_scatter = prim.inv_cdf(ray, tau_j);
+        // Segment-restricted CDF: solves optical_depth(ray, hit.t_hit, t_scatter) = tau_j.
+        // Replaces the prior full-Gaussian inv_cdf + reject (t_scatter >= hit.t_hit),
+        // which was biased — rejected samples were dropped rather than re-rolled.
+        const float t_scatter = prim.inv_cdf_segment(ray, hit.t_hit, tau_j);
 
-        if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) {
+        if (t_scatter < t_scatter_min) {
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
             const float t_exit =

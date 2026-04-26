@@ -34,45 +34,6 @@ Items intentionally left for later, with enough context that a future pass can p
 
 ---
 
-## ADT scatter sampling for hit-buffer primitives — segment-restricted inv_cdf
-
-**Status:** Currently using full-Gaussian inv_cdf with rejection sampling for primitives the ray enters mid-flight (those in `hit_buffer`). Subtly biased.
-
-**Where:** `device/core/sampling.cuh::sample_scattering_event`, the second per-primitive loop:
-```cpp
-for (const auto& hit : hit_buffer) {
-    const float t_scatter = prim.inv_cdf(ray, tau_j);
-    if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) { ... }
-}
-```
-
-**The bug:** ADT (SDTracking §4.1, Theorem 1) requires each per-primitive free-flight sample `T_i` to come from medium `i`'s **own** CDF along the ray — i.e., the integral of σ_i(t) starting at t = 0. For a primitive the ray hasn't entered yet, σ_i(t) = 0 for t < t_hit and Gaussian for t ≥ t_hit. The correct sample solves `∫_{t_hit}^t σ(s) ds = tau_j`.
-
-The current code samples from the *full* Gaussian CDF starting at t = 0 in primitive's local frame and rejects any result with `t_scatter < hit.t_hit`. Rejected samples are dropped (not re-rolled), so the primitive systematically under-contributes scatter events.
-
-**Bias direction:** scatter events are pushed further along the ray (or replaced by escape). Rendered images are biased toward less scattering → brighter for high-albedo media, more transmissive for low-albedo media. Invisible on the absorber (no scattering anyway); affects scattering scenes by an unknown amount.
-
-**Why we haven't seen it explicitly:** no scattering reference to compare against. Absorber RMSE doesn't exercise this code path.
-
-**The fix:** add a segment-restricted variant of `inv_cdf` to `primitive.h`. Math is the same closed-form erf inversion already used in `optical_depth(ray, t0, t1)`, just rearranged to solve for `t_scatter` given `tau`. Roughly:
-
-```cpp
-// Solve: optical_depth(ray, t_hit, t_scatter) = tau_target
-// for t_scatter ∈ [t_hit, t_exit].
-__device__ float inv_cdf_segment(const Ray& ray, float t_hit, float tau_target) const;
-```
-
-Then in `sample_scattering_event`, replace `prim.inv_cdf(ray, tau_j)` with `prim.inv_cdf_segment(ray, hit.t_hit, tau_j)` for the hit-buffer loop. Drop the `t_scatter >= hit.t_hit` rejection — it becomes implicit.
-
-**Validation:**
-- Render the absorber → RMSE 0.0504 should not change (no scattering, no path through this code).
-- Render the scattering scene → may change visibly (less bias).
-- Compare against Mitsuba reference once available for a scattering scene.
-
-**Estimated cost:** half a day. The math is closed-form (single erf inversion); the call-site change is mechanical.
-
----
-
 ## Other deferred items
 
 (Add new items above this line.)

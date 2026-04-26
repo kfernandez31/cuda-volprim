@@ -149,6 +149,54 @@ class THESIS_ALIGNMENT Primitive {
         return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
     }
 
+    // Device-only: free-flight inverse CDF restricted to t ≥ t_offset.
+    // Solves optical_depth(ray, t_offset, t_scatter) = chi for t_scatter.
+    //
+    // Used by ADT scatter sampling for primitives the ray enters mid-flight
+    // (hit_buffer case in sample_scattering_event). Sampling from the full
+    // Gaussian CDF and rejecting t < t_offset is biased: rejected samples are
+    // dropped rather than re-rolled, so the primitive systematically
+    // under-contributes scatter events. This variant samples directly from the
+    // segment-restricted CDF, yielding unbiased free-flight per SDTracking §4.1.
+    //
+    // Math: identical to inv_cdf except the erf reference shifts from
+    //   erf(wp/√2)  →  erf((wp + t_offset·|w|)/√2)
+    // The perpendicular distance in whitened space is invariant under shifts
+    // along the ray, so K (and hence the per-step erf advance chi/K) is unchanged.
+    __device__ float inv_cdf_segment(const geometry::Ray& ray, float t_offset, float chi) const {
+        namespace math = common::math;
+
+        const auto w = transform_dir_local(ray.direction_);
+        const auto p = transform_pos_local(ray.origin_);
+
+        const auto w_len2 = math::length2(w);
+        const auto w_inv_len = math::rsqrt(w_len2);
+        const auto w_len = w_len2 * w_inv_len;  // |w| reusing rsqrt result
+
+        const auto wp = math::dot(w, p) * w_inv_len;
+        const auto pp = math::length2(p);
+        const auto diff = math::fma(-wp, wp, pp);  // pp - wp²
+
+        const auto K = w_inv_len * math::exp(-0.5f * diff) * inv_cdf_factor_;
+
+        // Shift the erf reference from t=0 to t=t_offset.
+        const auto wp_off = math::fma(t_offset, w_len, wp);
+        auto erfinv_arg = math::erf(wp_off * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
+
+#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
+        if (!isfinite(erfinv_arg)) {
+            printf("ERROR: inv_cdf_segment erfinv_arg is NaN!\n");
+            return -1.0f;
+        }
+#endif // THESIS_ENABLE_NUMERICAL_GUARDS
+
+        // Saturated at 1.0 means tau exceeds the primitive's remaining mass —
+        // erfinv(1) = +∞ → t_scatter = +∞, which the caller rejects via t_exit check.
+        erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);
+
+        return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
+    }
+
     // Device-only: optical depth from t0 to infinity
     __device__ float optical_depth(const geometry::Ray& ray, float t0) const {
         namespace math = common::math;
