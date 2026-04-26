@@ -237,7 +237,13 @@ Result<std::vector<thesis::device::params::Primitive>> loadPrimitivesFromPLY(
                            albedo_override.z >= 0.0f)
                               ? albedo_override
                               : make_float3(alb_0[i], alb_1[i], alb_2[i]);
-            auto optical_thickness = expf(sigma_t[i]) * sigma_multiplier;
+            // Convert from Jorge's peak-extinction convention to DSYG unnormalized convention:
+            // Jorge:  σ(x) = sigmat * exp(-0.5 * |x_local|²)
+            // DSYG:   σ(x) = optical_thickness * (2π)^{-3/2} * ∏(1/s) * exp(-0.5 * |x_local|²)
+            // Match peaks: optical_thickness = sigmat * (2π)^{3/2} * ∏(s)
+            auto sigmat = expf(sigma_t[i]) * sigma_multiplier;
+            auto optical_thickness =
+                sigmat * thesis::common::math::TWO_PI_POW_3_2_F * scale.x * scale.y * scale.z;
 
             result[i] =
                 Primitive::from_forward_quat(center, quat, scale, albedo, optical_thickness);

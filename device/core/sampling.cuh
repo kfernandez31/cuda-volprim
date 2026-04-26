@@ -227,9 +227,10 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         const float chi_j = random::sample_uniform(rng);
         const float tau_j = -math::log(math::max(1.0f - chi_j, 1e-10f));
 
-        // For entry hits, sample from the entry point onward
-        // Note: We don't shift the ray origin because inv_cdf integrates from ray.origin
-        // Instead, we sample and then check the result is after the entry point
+        // Sample scatter from full Gaussian CDF, then check if result falls within
+        // the BVH sphere [t_hit, t_exit]. For dense media with albedo≈0, scatter
+        // naturally fails (scatter point precedes entry) → escape path computes
+        // correct Beer-Lambert transmittance.
         const float t_scatter = prim.inv_cdf(ray, tau_j);
 
         if (t_scatter >= hit.t_hit && t_scatter < t_scatter_min) {

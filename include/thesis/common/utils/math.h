@@ -160,7 +160,8 @@ constexpr float FOUR_PI_F = 4.0f * PI_F;
 constexpr float ONE_OVER_PI_F = 1.0f / PI_F;
 constexpr float ONE_OVER_TWO_PI_F = 1.0f / (2.0f * PI_F);
 constexpr float ONE_OVER_FOUR_PI_F = 1.0f / (4.0f * PI_F);
-constexpr float ONE_OVER_TWO_PI_POW_3_2_F = 0.0634936359f;
+constexpr float TWO_PI_POW_3_2_F = 15.7496099457f;           // (2π)^{3/2}
+constexpr float ONE_OVER_TWO_PI_POW_3_2_F = 0.0634936359f;  // (2π)^{-3/2}
 constexpr float ROOT_TWO_PI_F = 2.5066282746f;
 constexpr float ROOT_HALF_PI_F = ROOT_TWO_PI_F * 0.5f;  // √(π/2) = √(2π)/2
 constexpr float DEG_TO_RAD_F = PI_F / 180.0f;
@@ -169,7 +170,7 @@ constexpr float RAD_TO_DEG_F = 180.0f / PI_F;
 // Gaussian extent scaling factor
 // Used for OptiX intersection scaling and optical depth t_limit clamping
 // Represents ~3 standard deviations in whitened space (99.7% of Gaussian mass)
-constexpr float GAUSSIAN_EXTENT_F = 1.0f;  // 3σ covers 99.7% of Gaussian mass
+constexpr float GAUSSIAN_EXTENT_F = 3.0f;  // 3σ covers 99.7% of Gaussian mass
 constexpr float GAUSSIAN_DIAMETER_F = GAUSSIAN_EXTENT_F * 2.0f;
 
 constexpr float ROOT_TWO_F = 1.41421356237309504880f;

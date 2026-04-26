@@ -261,9 +261,9 @@ class THESIS_ALIGNMENT Primitive {
         // Factor out sqrt(1/2) scaling to reduce operations
         const auto sqrt_half = math::ONE_OVER_ROOT_TWO_F;
         const auto B_scaled = B * sqrt_half;
-        const auto erf_plus = math::erf(B_scaled);                 // erf(B/√2)
-        const auto erf_minus = math::erf((t_limit - B) * sqrt_half);  // erf((t_limit-B)/√2)
-        const auto erf_term_raw = (erf_plus + erf_minus) * 0.5f;
+        const auto erf_lower = math::erf(B_scaled);                    // erf(B/√2) at start
+        const auto erf_upper = math::erf((B + t_limit) * sqrt_half);  // erf((B+t_limit)/√2) at end
+        const auto erf_term_raw = (erf_upper - erf_lower) * 0.5f;
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         const auto erf_term = math::clamp(erf_term_raw, -1.0f, 1.0f);

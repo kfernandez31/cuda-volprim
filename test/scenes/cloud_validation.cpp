@@ -17,9 +17,12 @@ Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier) {
         "Jorge's cloud asset with 652 Gaussian primitives and 24 orthographic camera views";
 
     // Load primitives from PLY
+    // Use PLY albedo values (≈0, pure absorption). Jorge's optimization used albedo_lr=0,
+    // so all albedos stayed at init_albedo=0. This produces a dark cloud via Beer-Lambert
+    // transmittance: brightness = exp(-τ) × background.
     spdlog::info("Loading cloud primitives from PLY...");
-    auto primitives_future =
-        thesis::host::utils::io::async::loadPrimitives("assets/cloud/root.primitives_pyr0.ply", sigma_multiplier);
+    auto primitives_future = thesis::host::utils::io::async::loadPrimitives(
+        "assets/cloud/root.primitives_pyr0.ply", sigma_multiplier);
     auto primitives_result = primitives_future.get();
 
     if (!primitives_result.has_value()) {
@@ -41,15 +44,14 @@ Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier) {
     const auto& config = config_result.value();
     spdlog::info("Parsed {} cameras from Mitsuba config", config.cameras.size());
 
-    // Create orthographic cameras
-    scene.cameras.reserve(config.cameras.size());
+    // Create orthographic cameras for every view in the Mitsuba config
     for (const auto& cam_config : config.cameras) {
         auto camera = thesis::host::utils::createOrthographicCamera(cam_config,
                                                                      config.orthographic_extent);
         scene.cameras.push_back({camera, cam_config.width, cam_config.height});
     }
 
-    spdlog::info("Created {} orthographic cameras", scene.cameras.size());
+    spdlog::info("Created {} orthographic camera(s)", scene.cameras.size());
 
     // Use white constant environment to match Mitsuba reference
     scene.env_map_override = "assets/white_constant.hdr";

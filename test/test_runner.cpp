@@ -36,6 +36,7 @@ struct TestConfig {
     std::string output_dir = "test_results";
     std::string output_file = "";
     float sigma_multiplier = 7.5f;  // Default sigma_t scaling factor
+    bool denoise = false;
 };
 
 void list_scenes(const std::string& category = "all") {
@@ -83,6 +84,7 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     // Output settings
     app.add_option("--output", config.output_file, "Output file (for single scene)");
     app.add_option("--output-dir", config.output_dir, "Output directory (for --all)")->default_val("test_results");
+    app.add_flag("--denoise", config.denoise, "Apply OptiX AI denoiser");
 
     argv = app.ensure_utf8(argv);
     try {
@@ -121,6 +123,7 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.num_samples_per_pixel_ = test_config.spp;
     renderer_config.output_path_ = output_path;
     renderer_config.seed_ = 42;  // Fixed seed for reproducibility
+    renderer_config.denoise_ = test_config.denoise;
 
     // Assume env map and module paths are in default locations
     renderer_config.env_map_path_ = "assets/meadow_2_4k.hdr";
@@ -193,6 +196,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         renderer_config.num_samples_per_pixel_ = test_config.spp;
         renderer_config.output_path_ = output_path.string();
         renderer_config.seed_ = 42;
+        renderer_config.denoise_ = test_config.denoise;
 
         // Use override env map if specified, otherwise default
         renderer_config.env_map_path_ =

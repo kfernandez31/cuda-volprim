@@ -82,8 +82,10 @@ class Camera {
         const auto viewport_width = viewport_height * aspect_ratio;
 
         // Viewport vectors (in world space)
+        // Note: positive up (not negated) because saveExr applies flip_vertical=true,
+        // converting from bottom-up GPU convention to top-down EXR convention.
         const auto viewport_u = right * viewport_width;
-        const auto viewport_v = -up * viewport_height;
+        const auto viewport_v = up * viewport_height;
 
         // Pixel delta vectors
         const auto pixel_du = viewport_u * common::math::rcp(static_cast<float>(image_width));

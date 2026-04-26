@@ -68,7 +68,7 @@ constexpr float INTERSECTION_MIN_SEGMENT_LENGTH = 1e-8f;
 
 // Maximum path depth before forced termination
 constexpr size_t MAX_BOUNCES =
-    128;  // Mitsuba production: 64-128, consider reducing to 64 after profiling
+    128;  // Mitsuba production: 64-128
 
 // Minimum throughput before path termination (prevents numerical underflow)
 constexpr float MIN_THROUGHPUT = 1e-4f;
@@ -97,7 +97,7 @@ constexpr size_t ADAPTIVE_MIN_SAMPLES = 32;
 // Relative error threshold for convergence (default: 1%)
 // Pixel converges when: max(std_dev / mean) across all channels < threshold
 // Lower threshold = higher quality but less speedup
-constexpr float ADAPTIVE_THRESHOLD = 0.01f;
+constexpr float ADAPTIVE_THRESHOLD = 0.0f;  // Disabled: 0 is unreachable → all pixels get full SPP
 
 // Minimum luminance to avoid division by zero in relative error computation
 // Used when computing relative error for near-black pixels
