@@ -63,20 +63,19 @@ class Context {
         return *this;
     }
 
+    // Scope-bound RAII for cuCtxPushCurrent/PopCurrent. Non-movable: destruction
+    // unconditionally pops the context that the ctor pushed, so a moved-from Guard
+    // would double-pop. All call sites use Guard as a local stack variable.
     struct Guard {
         CUcontext prev = nullptr;
 
         Guard(CUcontext ctx) { CU_CHECK(cuCtxPushCurrent(ctx)); }
         ~Guard() { CU_CHECK_NOEXCEPT(cuCtxPopCurrent(&prev)); }
 
-        Guard(Guard&& other) noexcept
-            : prev(std::exchange(other.prev, nullptr)) {}
-        Guard& operator=(Guard&& other) noexcept {
-            if (this != &other) {
-                prev = std::exchange(other.prev, nullptr);
-            }
-            return *this;
-        }
+        Guard(const Guard&) = delete;
+        Guard& operator=(const Guard&) = delete;
+        Guard(Guard&&) = delete;
+        Guard& operator=(Guard&&) = delete;
     };
 
     [[nodiscard]] CUcontext get() const noexcept { return context_; }

@@ -31,7 +31,7 @@ struct THESIS_ALIGNMENT EnvironmentMap {
     EnvironmentMap(const EnvironmentMap&) = default;
     EnvironmentMap& operator=(const EnvironmentMap&) = default;
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     // Device-only: sample environment map using hardware-accelerated texture
     __device__ __forceinline__ float3 sample(float3 dir) const {
         namespace math = common::math;

@@ -5,7 +5,7 @@
 
 #include <vector_types.h>
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
 #include "thesis/device/geometry/ray.h"
 #endif
 
@@ -28,7 +28,7 @@ struct THESIS_ALIGNMENT Camera {
     Camera(const Camera&) = default;
     Camera& operator=(const Camera&) = default;
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     // Device-only: helper for computing ray direction
     __device__ __forceinline__ float3 ray_direction(float2 jittered_pixel) const {
         // Compute: pixel00_relative + x*pixel_du + y*pixel_dv

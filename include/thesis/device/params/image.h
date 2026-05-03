@@ -13,10 +13,10 @@ namespace params {
 
 // Device-side POD struct for image buffer (no RAII, same size on host and device)
 struct THESIS_ALIGNMENT Image {
-    float4* variance_ = nullptr;  // Running M2 (sum of squared deviations) for Welford's algorithm
+    float4* variance_ = nullptr;  // Welford M2; null when adaptive sampling is disabled (skip writes)
     float4* mean_ = nullptr;      // Running mean for Welford's algorithm
-    size_t* sample_counts_ =
-        nullptr;  // Number of samples taken per pixel (size_t for buffer compatibility)
+    uint16_t* sample_counts_ =
+        nullptr;  // Per-pixel sample count (max 65535 spp; widen if you ever need more)
 
     // Auxiliary outputs ("AOVs") for the OptiX denoiser as guide layers.
     // Both are running per-pixel means across SPP (no Welford M2 needed — we just need

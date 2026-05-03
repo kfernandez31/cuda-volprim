@@ -21,7 +21,7 @@ struct CompactSet {
     T data_[Capacity];
     size_t size_;
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ CompactSet()
         : size_(0) {}
 

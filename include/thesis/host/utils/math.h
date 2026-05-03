@@ -110,19 +110,19 @@ inline constexpr uint32_t expandBits(uint32_t v) noexcept {
 
 // Encode 3D position to 30-bit Morton code (10 bits per dimension)
 // Morton code interleaves x, y, z bits: z|y|x|z|y|x|...
-// Points that are spatially close get numerically close Morton codes
-inline uint32_t morton3D(float3 pos, float3 scene_min, float3 scene_max) noexcept {
+// Points that are spatially close get numerically close Morton codes.
+// `inv_extent` must be precomputed as 1/(scene_max - scene_min); for degenerate
+// axes (zero extent) the caller should clamp the divisor away from zero so the
+// product `(pos - scene_min) * inv_extent` stays finite.
+inline uint32_t morton3D(float3 pos, float3 scene_min, float3 inv_extent) noexcept {
     using namespace common::math;
 
-    // Normalize position to [0, 1] range
-    const float3 normalized = (pos - scene_min) / (scene_max - scene_min);
+    const float3 normalized = (pos - scene_min) * inv_extent;
 
-    // Clamp to [0, 1] and convert to 10-bit integers (0-1023)
     const uint32_t x = static_cast<uint32_t>(clamp(normalized.x, 0.0f, 1.0f) * 1023.0f);
     const uint32_t y = static_cast<uint32_t>(clamp(normalized.y, 0.0f, 1.0f) * 1023.0f);
     const uint32_t z = static_cast<uint32_t>(clamp(normalized.z, 0.0f, 1.0f) * 1023.0f);
 
-    // Interleave bits: shift expanded components and OR them together
     const uint32_t xx = expandBits(x);
     const uint32_t yy = expandBits(y);
     const uint32_t zz = expandBits(z);

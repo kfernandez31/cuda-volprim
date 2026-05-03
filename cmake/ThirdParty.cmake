@@ -4,7 +4,7 @@
 
 # Gather third-party sources
 file(GLOB_RECURSE THIRD_PARTY_SOURCES CONFIGURE_DEPENDS
-    "${THIRD_PARTY_DIR}/stb/*.c"
+    "${THIRD_PARTY_DIR}/miniply/*.cpp"
     "${THIRD_PARTY_DIR}/tinyexr/*.c"
     "${THIRD_PARTY_DIR}/tinyexr/*.cpp"
 )

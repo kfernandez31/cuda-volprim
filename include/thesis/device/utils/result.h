@@ -55,7 +55,7 @@ struct Result {
     __device__ T& operator*() { return ok_value_; }
 };
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
 template <typename T, typename E, typename... Args>
 __device__ Result<T, E> make_ok(Args&&... args) {
     return Result<T, E>(T(utility::forward<Args>(args)...));

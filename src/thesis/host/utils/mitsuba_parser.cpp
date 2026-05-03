@@ -3,7 +3,7 @@
 #include "thesis/pch.h"
 
 #include <fstream>
-#include <regex>
+#include <regex> // could added to pch.h, but better yet, replace with re2 since this is slow as shit (https://github.com/google/re2)
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <string>

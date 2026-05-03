@@ -22,7 +22,7 @@ template <typename Derived, Tag T>
 struct THESIS_ALIGNMENT Base {
     static constexpr Tag tag_v = T;
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ void pack(uint* out) const {
         const auto* self = static_cast<const Derived*>(this);
         out[0] = static_cast<uint>(self->tag_v);

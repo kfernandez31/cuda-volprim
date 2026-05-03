@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/constants.cuh"
 #include "kernels/normalize_accumulator.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/device/params/image.h"
@@ -25,51 +26,67 @@ namespace params {
 // Host-side wrapper with RAII buffer management
 class Image {
    private:
-    cuda::AsyncBuffer<float4> variance_managed_;         // Running M2 for Welford's algorithm
+    cuda::AsyncBuffer<float4> variance_managed_;         // Welford M2 (only allocated when ENABLE_ADAPTIVE_SAMPLING)
     cuda::AsyncBuffer<float4> mean_managed_;             // Running mean for Welford's algorithm
-    cuda::AsyncBuffer<size_t> sample_counts_managed_;    // Per-pixel sample counts
+    cuda::AsyncBuffer<uint16_t> sample_counts_managed_;  // Per-pixel sample counts (max 65535 spp)
     cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
-    cuda::AsyncBuffer<float4> albedo_aov_managed_;       // Denoiser albedo guide (running mean)
-    cuda::AsyncBuffer<float4> normal_aov_managed_;       // Denoiser normal guide (running mean)
+    cuda::AsyncBuffer<float4> albedo_aov_managed_;       // Denoiser albedo guide (only when denoising)
+    cuda::AsyncBuffer<float4> normal_aov_managed_;       // Denoiser normal guide (only when denoising)
     device::params::Image device_image_;                 // Device-compatible POD struct
     size_t batch_size_;                                  // Maximum samples per batch
     std::shared_ptr<cuda::Stream> stream_;               // Stream for operations
 
    public:
-    // Constructor for buffer allocation
+    // Constructor for buffer allocation. `enable_aovs` allocates the denoiser
+    // guide-layer buffers; pass false when not denoising to save 2·W·H·16B of
+    // device memory plus a per-sample write each. Variance buffer is gated on
+    // device::consts::ENABLE_ADAPTIVE_SAMPLING (compile-time, in constants.cuh).
     Image(size_t width, size_t height, size_t num_samples_per_pixel, size_t batch_size,
-          CUcontext ctx, std::shared_ptr<cuda::Stream> sample_buffer_stream,
+          bool enable_aovs, CUcontext ctx,
+          std::shared_ptr<cuda::Stream> sample_buffer_stream,
           std::shared_ptr<cuda::Stream> averaged_pixels_stream)
-        : variance_managed_(width * height, ctx, sample_buffer_stream,
-                            cuda::AllocType::OnDeviceOnly),
-          mean_managed_(width * height, ctx, sample_buffer_stream, cuda::AllocType::OnDeviceOnly),
+        : mean_managed_(width * height, ctx, sample_buffer_stream, cuda::AllocType::OnDeviceOnly),
           sample_counts_managed_(width * height, ctx, sample_buffer_stream,
                                  cuda::AllocType::OnDeviceOnly),
           averaged_pixels_managed_(width * height, ctx, std::move(averaged_pixels_stream),
                                    cuda::AllocType::OnBoth),
-          albedo_aov_managed_(width * height, ctx, sample_buffer_stream,
-                              cuda::AllocType::OnDeviceOnly),
-          normal_aov_managed_(width * height, ctx, sample_buffer_stream,
-                              cuda::AllocType::OnDeviceOnly),
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
-        device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
+        if constexpr (device::consts::ENABLE_ADAPTIVE_SAMPLING) {
+            variance_managed_ = cuda::AsyncBuffer<float4>(width * height, ctx, sample_buffer_stream,
+                                                          cuda::AllocType::OnDeviceOnly);
+            variance_managed_.memset_device(0);
+            device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
+        } else {
+            device_image_.variance_ = nullptr;
+        }
+
+        if (enable_aovs) {
+            albedo_aov_managed_ = cuda::AsyncBuffer<float4>(width * height, ctx,
+                                                            sample_buffer_stream,
+                                                            cuda::AllocType::OnDeviceOnly);
+            normal_aov_managed_ = cuda::AsyncBuffer<float4>(width * height, ctx,
+                                                            sample_buffer_stream,
+                                                            cuda::AllocType::OnDeviceOnly);
+            albedo_aov_managed_.memset_device(0);
+            normal_aov_managed_.memset_device(0);
+            device_image_.albedo_aov_ = const_cast<float4*>(albedo_aov_managed_.device());
+            device_image_.normal_aov_ = const_cast<float4*>(normal_aov_managed_.device());
+        } else {
+            device_image_.albedo_aov_ = nullptr;
+            device_image_.normal_aov_ = nullptr;
+        }
+
         device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
-        device_image_.sample_counts_ = const_cast<size_t*>(sample_counts_managed_.device());
-        device_image_.albedo_aov_ = const_cast<float4*>(albedo_aov_managed_.device());
-        device_image_.normal_aov_ = const_cast<float4*>(normal_aov_managed_.device());
+        device_image_.sample_counts_ = const_cast<uint16_t*>(sample_counts_managed_.device());
         device_image_.width_ = static_cast<uint32_t>(width);
         device_image_.height_ = static_cast<uint32_t>(height);
         device_image_.num_samples_per_pixel_ = static_cast<uint32_t>(num_samples_per_pixel);
         device_image_.batch_offset_ = 0;
         device_image_.batch_size_ = 0;  // Will be set per batch
 
-        // Initialize Welford state, sample counts, and AOV running means.
-        variance_managed_.memset_device(0);
         mean_managed_.memset_device(0);
         sample_counts_managed_.memset_device(0);
-        albedo_aov_managed_.memset_device(0);
-        normal_aov_managed_.memset_device(0);
     }
 
     // Device pointers for the AOV buffers (read-only — caller must not free).

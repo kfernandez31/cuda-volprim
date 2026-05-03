@@ -6,7 +6,7 @@
 
 #include <vector_types.h>
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
 #include "core/constants.cuh"
 
 #include "thesis/device/geometry/ray.h"
@@ -78,7 +78,7 @@ class THESIS_ALIGNMENT Primitive {
         return rot_quat_.rotate(dir) * rcp_scale_;
     }
 
-#ifndef DEVICE
+#ifndef __CUDA_ARCH__
     // Host-only: construct from forward quaternion (conjugates internally for world-to-local)
     static Primitive from_forward_quat(float3 center, const common::geometry::UnitQuaternion& forward_quat,
                                        float3 scale, float3 albedo, float optical_thickness) {
@@ -97,7 +97,7 @@ class THESIS_ALIGNMENT Primitive {
     }
 #endif  // !DEVICE
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     // Device-only: probability density function
     __device__ __forceinline__ float pdf(float3 pos) const {
         namespace math = common::math;
@@ -197,59 +197,6 @@ class THESIS_ALIGNMENT Primitive {
         return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
     }
 
-    // Device-only: optical depth from t0 to infinity
-    __device__ float optical_depth(const geometry::Ray& ray, float t0) const {
-        namespace math = common::math;
-
-        // Transform to whitened space
-        const auto w = transform_dir_local(ray.direction_);
-        const auto p = transform_pos_local(ray.origin_);
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-        // Check for NaN/Inf in transformed values (indicates malformed geometry or corrupted ray)
-        if (!isfinite(math::length2(w)) || !isfinite(math::length2(p))) {
-            printf("ERROR: optical_depth(t0) NaN/Inf in transforms! w_len2=%f, p_len2=%f\n",
-                   math::length2(w), math::length2(p));
-            return -1.0f;  // Sentinel: numerical error detected
-        }
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-
-        const auto ray_local = geometry::Ray::spawn_unchecked(p, w);
-
-        // Precompute inverse length
-        const auto w_inv_len = math::rlength(w);
-
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-        // Check for degenerate direction (extreme scale ratios or zero-length after transform)
-        if (!isfinite(w_inv_len) || w_inv_len > 1e10f) {
-            printf("ERROR: optical_depth(t0) degenerate direction! w_inv_len=%f\n", w_inv_len);
-            return -1.0f;  // Sentinel: degenerate ray
-        }
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-
-        // Point along the ray in local space
-        // Clamp t0 to handle numerical imprecision (ray spawning can produce small negative values)
-        const auto t0_safe = math::max(0.0f, t0);
-        const auto p0 = ray_local.at(t0_safe);
-
-        // Project onto ray direction (normalized)
-        const auto w_normalized = w * w_inv_len;
-        const auto wp0 = math::dot(w_normalized, p0);
-
-        // Use starting point for the exponential term (integrating to infinity)
-        const auto pp0 = math::length2(p0);
-        const auto perp_dist2 = math::fma(-wp0, wp0, pp0);  // pp0 - wp0²
-
-        // Common terms
-        const auto e_term = math::exp(-0.5f * perp_dist2);
-        const auto G_term = math::ROOT_TWO_PI_F * w_inv_len;
-
-        // Complementary error function for integration to infinity
-        const auto erf_term = math::erfc(wp0 * math::ROOT_TWO_F);
-
-        return optical_thickness_ * G_term * e_term * erf_term * density_norm_factor_;
-    }
-
     // Device-only: optical depth from t0 to t1
     __device__ float optical_depth(const geometry::Ray& ray, float t0, float t1) const {
         // Handle very small or invalid intervals gracefully
@@ -323,17 +270,6 @@ class THESIS_ALIGNMENT Primitive {
     }
 
     // Device-only: density integral (optical depth * albedo)
-    __device__ float3 density_integral(const geometry::Ray& ray, float t0) const {
-        auto result = albedo_ * optical_depth(ray, t0);
-#ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-        // Sanitize: clamp negative values + filter NaN/Inf (defense-in-depth)
-        // Catches overflow in optical_depth or negative albedo from bad PLY data
-        return common::math::sanitize(result);
-#else
-        return result;
-#endif // THESIS_ENABLE_NUMERICAL_GUARDS
-    }
-
     __device__ float3 density_integral(const geometry::Ray& ray, float t0, float t1) const {
         auto result = albedo_ * optical_depth(ray, t0, t1);
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS

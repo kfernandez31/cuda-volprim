@@ -40,8 +40,8 @@ class AccelerationStructure {
         OptixAccelEmitDesc* emit_desc_ptr = nullptr;
         OptixAccelEmitDesc emit{};
         if (build_flags & OPTIX_BUILD_FLAG_ALLOW_COMPACTION) {
-            compacted_size_[0] = 0;
-            compacted_size_.upload();
+            // Zero the device slot before optixAccelBuild emits into it.
+            CUDA_CHECK(cudaMemsetAsync(compacted_size_.device(), 0, sizeof(size_t), stream));
             emit.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
             emit.result = compacted_size_.cu_device_ptr();
             emit_desc_ptr = &emit;
@@ -55,24 +55,40 @@ class AccelerationStructure {
             spdlog::debug("{} compaction not requested", structure_type);
         } else {
             stream_->synchronize();
-            compacted_size_.download();
-
-            const auto compacted_size = compacted_size_[0];
+            // 8-byte readback after the sync above — synchronous cudaMemcpy is
+            // simpler than another async + sync round-trip and avoids the 4 KB
+            // pinned-page tax of an OnBoth host allocation for a single size_t.
+            size_t compacted_size = 0;
+            CUDA_CHECK(cudaMemcpy(&compacted_size, compacted_size_.device(), sizeof(size_t),
+                                  cudaMemcpyDeviceToHost));
             if (compacted_size > 0 && compacted_size < out_.size()) {
                 spdlog::info("{} compaction issued ({} -> {} bytes)", structure_type, out_.size(),
                              compacted_size);
+                // Move the original (uncompacted) buffer into a local so it
+                // outlives optixAccelCompact. Without this, `out_ = ...` below
+                // would queue cudaFreeAsync on the original memory FIRST, then
+                // optixAccelCompact (queued AFTER on the same stream) would
+                // read from already-freed memory via `handle_`.
+                auto old_out = std::move(out_);
                 out_ = cuda::AsyncBuffer<std::byte>(compacted_size, cuda_ctx, stream_,
                                                     cuda::AllocType::OnDeviceOnly);
                 OPTIX_CHECK(optixAccelCompact(optix_ctx, stream, handle_,
                                               reinterpret_cast<CUdeviceptr>(out_.device()),
                                               compacted_size, &handle_));
+                // `old_out` destructs here — its cudaFreeAsync is queued on
+                // `stream_` AFTER optixAccelCompact, so the read happens before
+                // the free.
             }
         }
+
+        // temp_ is build scratch — neither optixAccelBuild nor optixAccelCompact references it
+        // afterwards. Stream-ordered async free here is correctly sequenced after both.
+        temp_ = cuda::AsyncBuffer<std::byte>();
     }
 
    public:
     AccelerationStructure(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
-        : compacted_size_(1, ctx, stream, cuda::AllocType::OnBoth),
+        : compacted_size_(1, ctx, stream, cuda::AllocType::OnDeviceOnly),
           stream_(std::move(stream)) {}
 
     AccelerationStructure(AccelerationStructure&&) noexcept = default;

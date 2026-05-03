@@ -140,6 +140,14 @@ class EnvironmentMap {
 
         spdlog::debug("Env CDF built: {}×{}, total integral = {:.4g}", width, height,
                       cdf.total_integral);
+
+        // Sync the EnvMap stream before letting `hdr_data` go out of scope. The
+        // texture upload (cudaMemcpy2DToArrayAsync) and the three CDF uploads are
+        // queued on `stream` and reference the pinned host memory owned by
+        // `hdr_data.data`. cudaFreeHost runs synchronously and does NOT wait for
+        // in-flight async copies — freeing pinned memory before the DMAs land is
+        // undefined behavior (intermittent garbage in the env texture).
+        stream->synchronize();
     }
 
     // Non-copyable, moveable

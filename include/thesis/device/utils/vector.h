@@ -14,7 +14,7 @@ template <typename T, size_t Capacity>
 struct StaticStorage {
     T data_[Capacity];
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ T* data() { return data_; }
     __device__ __forceinline__ const T* data() const { return data_; }
     __device__ __forceinline__ size_t capacity() const { return Capacity; }
@@ -35,7 +35,7 @@ struct DynamicStorage {
     DynamicStorage& operator=(DynamicStorage&&) = default;
     DynamicStorage(DynamicStorage&&) = default;
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ T* data() { return data_; }
     __device__ __forceinline__ const T* data() const { return data_; }
     __device__ __forceinline__ size_t capacity() const { return capacity_; }
@@ -48,7 +48,7 @@ class VectorBase : private Storage {
     size_t size_ = 0;
 
    public:
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     using Storage::capacity;
     using Storage::data;
 #endif  // DEVICE
@@ -60,7 +60,7 @@ class VectorBase : private Storage {
         : Storage(ptr, size),
           size_(size) {}
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ size_t size() const { return size_; }
     __device__ __forceinline__ bool empty() const { return size_ == 0; }
     __device__ __forceinline__ bool full() const { return size_ == capacity(); }

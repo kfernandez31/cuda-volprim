@@ -19,7 +19,7 @@ struct BitVector {
     uint64_t bits_[NUM_WORDS];
     size_t size_;  // Cached size (avoids recomputing popcnt)
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ BitVector()
         : size_(0) {
 #pragma unroll

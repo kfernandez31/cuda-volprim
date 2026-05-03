@@ -42,13 +42,17 @@ class Renderer {
 
     optix::SphereGAS gas_;
     optix::IAS ias_;
-    cuda::AsyncBuffer<OptixInstance> instances_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;
     host::params::Camera camera_;
     cuda::AsyncBuffer<device::params::Primitive> primitives_;
     cuda::AsyncBuffer<prim_idx_t> camera_active_prims_;
+    // Device-only buffer for the kernel; the host-side mirror lives next to it
+    // as a plain struct to avoid burning a 4 KB pinned page on a single
+    // ~few-hundred-byte object. Uploads are stream-ordered cudaMemcpyAsync
+    // from pageable memory (CUDA stages internally for sub-MB transfers).
     cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
+    common::params::LaunchParams launch_params_host_{};
 
     optix::Module module_;
     optix::Module builtin_is_module_;

@@ -37,9 +37,13 @@ struct AsyncBufferPolicy {
         return device_ptr_type(static_cast<T*>(raw), {stream});
     }
 
-    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam) {
+    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam,
+                                                  HostHint hint = HostHint::Cacheable) {
         void* raw = nullptr;
-        CUDA_CHECK(cudaHostAlloc(&raw, count * sizeof(T), cudaHostAllocDefault));
+        const unsigned int flags = (hint == HostHint::WriteCombined)
+                                       ? cudaHostAllocWriteCombined
+                                       : cudaHostAllocDefault;
+        CUDA_CHECK(cudaHostAlloc(&raw, count * sizeof(T), flags));
         return host_ptr_type(static_cast<T*>(raw));
     }
 
@@ -74,12 +78,12 @@ class AsyncBuffer : public BufferBase<T, AsyncBufferPolicy<T>> {
     AsyncBuffer() = default;
 
     AsyncBuffer(size_t count, CUcontext ctx, std::shared_ptr<Stream> stream,
-                AllocType alloc = AllocType::OnBoth)
-        : Base(count, ctx, std::move(stream), alloc) {}
+                AllocType alloc = AllocType::OnBoth, HostHint host_hint = HostHint::Cacheable)
+        : Base(count, ctx, std::move(stream), alloc, host_hint) {}
 
     AsyncBuffer(std::span<const T> data, CUcontext ctx, std::shared_ptr<Stream> stream,
-                AllocType alloc = AllocType::OnBoth)
-        : Base(data, ctx, std::move(stream), alloc) {}
+                AllocType alloc = AllocType::OnBoth, HostHint host_hint = HostHint::Cacheable)
+        : Base(data, ctx, std::move(stream), alloc, host_hint) {}
 };
 
 }  // namespace thesis::host::cuda

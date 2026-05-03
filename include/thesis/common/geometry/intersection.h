@@ -13,7 +13,7 @@ class Primitive;
 }  // namespace device
 }  // namespace thesis
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
 #include "core/constants.cuh"
 
 #include "thesis/device/geometry/ray.h"
@@ -44,14 +44,18 @@ struct EllipsoidIntersection {
     }
 };
 
-// Check if point is inside ellipsoid
-THESIS_HOST_DEVICE THESIS_INLINE bool point_inside_ellipsoid(
+// Check if a world-space point lies inside the primitive's 1σ ellipsoid.
+//
+// NOTE: this tests the 1σ surface (length2(local) <= 1), not the 3σ BVH bound.
+// Reverted on 2026-05-03: the 3σ test interacted with other ongoing changes and
+// produced over-dense renders; needs deeper investigation before re-applying.
+THESIS_HOST_DEVICE THESIS_INLINE bool point_inside_bvh_bound(
     float3 point, const device::params::Primitive& prim) {
     const auto local = prim.transform_pos_local(point);
     return math::length2(local) <= 1.0f;
 }
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
 // Ray-ellipsoid intersection using numerically stable algorithm
 // Transforms ellipsoid to unit sphere in local space, then applies stable ray-sphere intersection
 __device__ __forceinline__ EllipsoidIntersection

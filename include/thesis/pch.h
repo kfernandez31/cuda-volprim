@@ -20,7 +20,6 @@
 #include <functional>
 #include <future>
 #include <ios>
-#include <iostream>
 #include <math.h>
 #include <memory>
 #include <span>
@@ -28,7 +27,6 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -44,10 +42,8 @@
 #include <optix_stubs.h>
 #include <optix_types.h>
 
-// 3rd Party
-#include <CLI11/CLI11.hpp>
-#include <happly/happly.h>
+// 3rd Party — heavy single-use headers (CLI11, tinyexr) are pulled in by their
+// one consumer (config.cpp, exr.cpp) instead of paying their parse cost in
+// every translation unit.
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
-#include <stb/stb_image.h>
-#include <tinyexr/tinyexr.h>

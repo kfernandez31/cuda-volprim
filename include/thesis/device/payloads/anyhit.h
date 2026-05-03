@@ -16,7 +16,7 @@ struct THESIS_ALIGNMENT AnyHit : public Base<AnyHit, Tag::AnyHit> {
     uint32_t buffer_ptr_low;   // Slot 1
     uint32_t buffer_ptr_high;  // Slot 2
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ void pack_impl(uint* out) const {
         out[0] = buffer_ptr_low;
         out[1] = buffer_ptr_high;

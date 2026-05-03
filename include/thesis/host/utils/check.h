@@ -75,6 +75,10 @@ void checkNotNull(const T* ptr, const char* expr, const char* file, int line,
 #define CHECK_NOT_NULL(ptr, ...) \
     thesis::host::utils::checkNotNull((ptr), #ptr, __FILE__, __LINE__, ##__VA_ARGS__)
 
+// Note: `log` and `log_size` are part of the macro's CONTRACT — every OptiX
+// create-with-log API takes `(char* logBuf, size_t* logSize, ...)`, and the
+// expression in `call` is expected to embed `log.data()` and `&log_size`. Do
+// not rename without updating every caller.
 #define OPTIX_CALL_LOGGED(call)                                                                  \
     do {                                                                                         \
         std::array<char, thesis::host::utils::MAX_LOG_SIZE> log = {};                            \

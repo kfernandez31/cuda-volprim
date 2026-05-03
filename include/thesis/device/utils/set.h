@@ -24,7 +24,7 @@ class THESIS_ALIGNMENT SetBase {
     size_t size_ = 0;
 
    public:
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     // basic query API
     __device__ __forceinline__ size_t size() const { return size_; }
     __device__ __forceinline__ constexpr size_t capacity() const { return Capacity; }
@@ -75,7 +75,7 @@ namespace detail {
 
 template <typename T, size_t Capacity>
 struct LinearSetPolicy {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     template <typename Base>
     __device__ static bool contains(const Base& s, const T& value) {
         for (size_t i = 0; i < s.size_; ++i) {
@@ -113,7 +113,7 @@ struct LinearSetPolicy {
 
 template <typename T, size_t Capacity>
 class BinarySetPolicy {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     template <typename Base>
     __device__ static int lower_bound(const Base& s, const T& value) {
         int lo = -1;

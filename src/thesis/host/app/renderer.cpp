@@ -17,6 +17,7 @@
 #include <cstring>
 #include <execution>
 #include <filesystem>
+#include <limits>
 #include <numeric>
 #include <ranges>
 #include <spdlog/spdlog.h>
@@ -41,15 +42,23 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
       streams_(),
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
-      instances_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::IAS], cuda::AllocType::OnBoth),
       env_map_(utils::io::async::loadHDR(config_.env_map_path_), cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, config_.denoise_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(camera.value_or(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_))),
-      primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth),
+      primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth, cuda::HostHint::WriteCombined),
       camera_active_prims_(),
-      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth),
+      launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnDeviceOnly),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
+
+    // Hard cap: prim_idx_t (uint16_t) caps the scene at 65,535 primitives. Wider
+    // index types are exposed in include/thesis/common/utils/types.h.
+    if (num_primitives_ > std::numeric_limits<prim_idx_t>::max()) {
+        spdlog::error("Scene has {} primitives but prim_idx_t caps at {}. Scene cannot render. "
+                      "Widen prim_idx_t in include/thesis/common/utils/types.h.",
+                      num_primitives_, std::numeric_limits<prim_idx_t>::max());
+        std::exit(1);
+    }
 
     if (num_primitives_ > device::consts::MAX_PRIMITIVES && device::consts::MAX_PRIMITIVES <= 256) {
         spdlog::error(
@@ -82,26 +91,56 @@ void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitiv
 
     /* ── 1.5. Sort primitives by Morton code for better cache locality ─── */
     if (num_primitives_ > 1) {
-        // Compute scene bounding box
         const auto [scene_min, scene_max] = utils::math::computeBounds(primitives);
 
-        // Sort primitives by Morton code (Z-order curve)
-        std::sort(
-            primitives.begin(), primitives.end(),
-            [&scene_min, &scene_max](const device::params::Primitive& a,
-                                     const device::params::Primitive& b) {
-                const uint32_t morton_a = utils::math::morton3D(a.center(), scene_min, scene_max);
-                const uint32_t morton_b = utils::math::morton3D(b.center(), scene_min, scene_max);
-                return morton_a < morton_b;
-            });
+        // Guard against degenerate axes (all centers coplanar): a 1e-30 floor keeps
+        // (pos - scene_min) * inv_extent finite — collapses to 0 along that axis.
+        const float3 extent = scene_max - scene_min;
+        const float3 inv_extent = make_float3(1.0f / std::max(extent.x, 1e-30f),
+                                              1.0f / std::max(extent.y, 1e-30f),
+                                              1.0f / std::max(extent.z, 1e-30f));
+
+        // Decorate-sort-undecorate: compute each Morton code once, sort small (key, index)
+        // pairs in parallel, then gather. Avoids ~log₂N redundant code recomputations per
+        // primitive and avoids moving full Primitive objects during swap.
+        std::vector<std::pair<uint32_t, uint32_t>> code_idx(num_primitives_);
+        auto indices = std::views::iota(uint32_t{0}, static_cast<uint32_t>(num_primitives_));
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](uint32_t i) {
+            code_idx[i] = {utils::math::morton3D(primitives[i].center(), scene_min, inv_extent),
+                           i};
+        });
+
+        std::sort(std::execution::par, code_idx.begin(), code_idx.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        std::vector<device::params::Primitive> sorted_prims(num_primitives_);
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](uint32_t i) {
+            sorted_prims[i] = primitives[code_idx[i].second];
+        });
+        primitives = std::move(sorted_prims);
 
         spdlog::debug("Sorted {} primitives by Morton code for cache locality", num_primitives_);
     }
 
     /* ── 2. Fill primitives_[] and OptixInstance[] (parallel) ────── */
+    // instances buffer is local: only needed by optixAccelBuild. Stream-ordered free
+    // on the IAS stream when this function returns reclaims ~80B/prim of pinned host
+    // and device memory that the IAS doesn't keep referenced post-build.
+    cuda::AsyncBuffer<OptixInstance> instances(num_primitives_, cuda_ctx_.get(),
+                                               streams_[cuda::StreamKind::IAS],
+                                               cuda::AllocType::OnBoth,
+                                               cuda::HostHint::WriteCombined);
+
     auto prim_indices = std::views::iota(size_t{0}, num_primitives_);
 
     const auto gas_handle = gas_.get();
+    // OptixInstance::transform is a row-major float[12]; Mat3x4 wraps the same
+    // layout. Catch any future drift in either definition at compile time so the
+    // raw memcpy below stays sound.
+    static_assert(sizeof(OptixInstance::transform) == 12 * sizeof(float),
+                  "OptixInstance::transform layout changed");
+    static_assert(sizeof(utils::math::Mat3x4) == 12 * sizeof(float),
+                  "Mat3x4 layout changed");
     std::for_each(std::execution::par, prim_indices.begin(), prim_indices.end(), [&](size_t i) {
         const auto& prim = primitives[i];
         primitives_[i] = prim;
@@ -116,20 +155,20 @@ void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitiv
         inst.sbtOffset = 0;
         inst.visibilityMask = 0xFF;
         inst.flags = OPTIX_INSTANCE_FLAG_NONE;
-        instances_[i] = inst;
+        instances[i] = inst;
     });
 
     primitives_.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::Prims);
 
-    instances_.upload();
+    instances.upload();
     streams_.addDependency(cuda::StreamKind::Main, cuda::StreamKind::IAS);
     streams_.addDependency(cuda::StreamKind::IAS, cuda::StreamKind::GAS);
 
     /* ── 3. Build IAS over instances ──────────────────────────────── */
     OptixBuildInput bi{};
     bi.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    bi.instanceArray.instances = instances_.cu_device_ptr();
+    bi.instanceArray.instances = instances.cu_device_ptr();
     bi.instanceArray.numInstances = static_cast<unsigned int>(num_primitives_);
 
     ias_.build(bi, cuda_ctx_.get(), optix_ctx_.get());
@@ -145,7 +184,7 @@ void Renderer::initStaticParams() {
 
     std::transform(std::execution::par, primitives_.begin(), primitives_.end(),
                    inside_flags.begin(), [camera_pos](const auto& prim) -> uint8_t {
-                       return common::geometry::point_inside_ellipsoid(camera_pos, prim) ? 1 : 0;
+                       return common::geometry::point_inside_bvh_bound(camera_pos, prim) ? 1 : 0;
                    });
 
     // Phase 2: sequential gather (deterministic order, no sorting needed)
@@ -158,12 +197,19 @@ void Renderer::initStaticParams() {
 
     // Allocate and upload camera active prims (only if non-empty)
     if (!camera_active.empty()) {
+        // WriteCombined: host writes are upload-only (the device-side IS code
+        // is the only reader). Kept OnBoth so the pinned host buffer outlives
+        // the stream-ordered upload — converting to OnDeviceOnly here would
+        // require the std::vector source to outlive cudaMemcpyAsync from
+        // pageable memory, which CUDA does not guarantee.
         camera_active_prims_ = cuda::AsyncBuffer<prim_idx_t>(camera_active, cuda_ctx_.get(),
-                                                             streams_[cuda::StreamKind::Main]);
+                                                             streams_[cuda::StreamKind::Main],
+                                                             cuda::AllocType::OnBoth,
+                                                             cuda::HostHint::WriteCombined);
     }  // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
 
     // Initialize static launch parameters (never change during rendering)
-    auto& par = launch_params_[0];
+    auto& par = launch_params_host_;
     par.seed_ = config_.seed_;
     par.ias_handle_ = ias_.get();
     par.camera_ = camera_.device_camera();
@@ -176,14 +222,20 @@ void Renderer::initStaticParams() {
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();
 
-    launch_params_.upload();
+    launch_params_.upload(&launch_params_host_);
+
+    // Pinned host copy of primitives_ is no longer read past this point — render() only uses
+    // the device side via launch_params_. Sync the Prims stream so the upload DMA is done,
+    // then drop the pinned host allocation (~sizeof(Primitive)/prim).
+    streams_[cuda::StreamKind::Prims]->synchronize();
+    primitives_.release_host();
 }
 
 void Renderer::updateDynamicParams() {
     // Update only dynamic parameters that change between batches
     // Currently only image_ changes (batch_offset, batch_size)
-    launch_params_[0].image_ = image_.device_image();
-    launch_params_.upload();
+    launch_params_host_.image_ = image_.device_image();
+    launch_params_.upload(&launch_params_host_);
 }
 
 void Renderer::createPipeline(
@@ -282,8 +334,10 @@ void Renderer::render() {
                          image_.height(),
                          1);  // Z=1, batching handled in raygen kernel
 
-        // Synchronize to ensure this batch completes before next batch reads accumulator
-        streams_[cuda::StreamKind::Main]->synchronize();
+        // No per-batch synchronize: next iteration's launch_params upload + launch
+        // are queued on the same Main stream and serialize naturally. Batches now
+        // back-to-back, eliminating the kernel-launch idle gap between them. The
+        // image normalize/save below explicitly syncs before reading host pixels.
     }
 
     spdlog::info("All batches complete, saving image...");

@@ -249,18 +249,6 @@ __device__ __forceinline__ float mis_balance(float pdf_a, float pdf_b) {
     return (sum > 0.0f) ? pdf_a / sum : 0.0f;
 }
 
-__forceinline__ __device__ float3 integrate_primitives(const geometry::Ray& ray,
-                                                       const PrimsSet& prims, float t0) {
-    float3 result = make_float3(0.0f);
-
-    for (auto idx : prims) {
-        const auto& prim = launch_params.primitives_[idx];
-        result += prim.density_integral(ray, t0);
-    }
-
-    return result;
-}
-
 __device__ __forceinline__ float3 evaluate_albedo(float3 pos, const PrimsSet& prims) {
     auto accum_albedo = make_float3(0.0f);
     auto accum_weight = 0.0f;
@@ -388,7 +376,7 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
 
     for (size_t i = 0; i < num_primitives; ++i) {
         const auto& prim = launch_params.primitives_[i];
-        if (common::geometry::point_inside_ellipsoid(ray.origin_, prim)) {
+        if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
             (void) active_prims.insert(static_cast<prim_idx_t>(i));
         }
     }
@@ -491,20 +479,6 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     event.direction_ = phase::sample(ray.direction_, rng).wo;
 
     return true;
-}
-
-__device__ float3 compute_optical_depth_along_ray(const geometry::Ray& ray,
-                                                  const PrimsSet& active_prims) {
-    // Simple approach: integrate all active primitives from ray origin to infinity
-    // active_prims already contains the correct set from sample_scattering_event
-    auto acc_optical_depth = make_float3(0.0f);
-
-    for (auto prim_idx : active_prims) {
-        const auto& prim = launch_params.primitives_[prim_idx];
-        acc_optical_depth += prim.density_integral(ray, 0.0f);
-    }
-
-    return acc_optical_depth;
 }
 
 // Compute scalar transmittance exp(-τ) along a shadow ray from `origin` in `direction`.

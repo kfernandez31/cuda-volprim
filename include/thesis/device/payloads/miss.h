@@ -17,7 +17,7 @@ struct THESIS_ALIGNMENT Miss : public Base<Miss, Tag::Miss> {
     Miss() = default;
     Miss(const Miss&) = default;
     Miss& operator=(const Miss&) = default;
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     __device__ __forceinline__ Miss(float _r, float _g, float _b)
         : r(_r),
           g(_g),

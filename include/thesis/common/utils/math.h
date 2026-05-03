@@ -5,7 +5,6 @@
 #include <vector_functions.h>
 #include <vector_types.h>
 
-#include <bit>
 #include <cmath>
 
 // Vector convenience overloads in global namespace (where float3/float4 live)
@@ -142,7 +141,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float rcp(float x) noexcept {
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
     return (x != 0.0f) ? (1.0f / x) : 0.0f;
 #else
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return __frcp_rn(x);  // Fast reciprocal (round-to-nearest)
 #else
     return 1.0f / x;
@@ -242,7 +241,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float fma(float a, float b, float c) noexcept {
 
 // Standard C math wrappers (work on host and device)
 THESIS_HOST_DEVICE THESIS_INLINE float sqrt(float x) noexcept {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return __fsqrt_rn(x);  // Fast sqrt (round-to-nearest)
 #else
     return sqrtf(x);
@@ -252,7 +251,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 sqrt(float3 v) noexcept {
     return make_float3(sqrt(v.x), sqrt(v.y), sqrt(v.z));
 }
 THESIS_HOST_DEVICE THESIS_INLINE float exp(float x) noexcept {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return __expf(x);
 #else
     return expf(x);
@@ -262,21 +261,21 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 exp(float3 v) noexcept {
     return make_float3(exp(v.x), exp(v.y), exp(v.z));
 }
 THESIS_HOST_DEVICE THESIS_INLINE float log(float x) noexcept {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return __logf(x);
 #else
     return logf(x);
 #endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float sin(float x) noexcept {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return __sinf(x);
 #else
     return sinf(x);
 #endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float cos(float x) noexcept {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return __cosf(x);
 #else
     return cosf(x);
@@ -301,19 +300,16 @@ THESIS_HOST_DEVICE THESIS_INLINE float atan2(float y, float x) noexcept {
     return atan2f(y, x);
 }
 
-// Reciprocal square root
+// Reciprocal square root.
+// Host: plain 1/sqrt — modern x86 has hardware SQRTSS, and the Quake-trick
+// path that used to live here was *both* slower (more uops than div+sqrt) and
+// less accurate (~22 bits vs full 24-bit IEEE). It made sense in 1999 on FPUs
+// without hardware rsqrt; not anymore.
 THESIS_HOST_DEVICE THESIS_INLINE float rsqrt(float x) noexcept {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     return rsqrtf(x);
 #else
-    // Quake III fast inverse square root with Newton-Raphson refinement
-    // Use std::bit_cast to avoid strict-aliasing violations
-    const auto neg_xhalf = -0.5f * x;
-    auto i = std::bit_cast<int>(x);
-    i = 0x5f3759df - (i >> 1);
-    auto y = std::bit_cast<float>(i);
-    y *= fma(pow2(y), neg_xhalf, 1.5f);  // Newton-Raphson iteration
-    return y;
+    return 1.0f / std::sqrt(x);
 #endif
 }
 

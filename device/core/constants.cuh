@@ -3,6 +3,8 @@
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
 
+#include <limits>
+
 // Compile-time guards (define in CMakeLists.txt for debug/test builds):
 // - THESIS_ENABLE_NUMERICAL_GUARDS: Enable runtime checks for numerical edge cases
 //   (degenerate directions, invalid exit computations, etc.)
@@ -14,7 +16,7 @@ namespace device {
 namespace consts {
 
 // Ray tracing constants
-constexpr float INF_F = 1e20;
+constexpr float INF_F = 1e20f;
 constexpr uint VISIBILITY_ALL = 0xFF;
 
 // Total number of primitives in the scene.
@@ -22,6 +24,9 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 //   ≤256: BitVector<N>    — O(1) insert/erase, N/8 bytes, indexed by prim ID
 //   >256: CompactSet<N>   — O(k) insert/erase, 2*MAX_ACTIVE_PRIMS bytes, decoupled from scene size
 constexpr size_t MAX_PRIMITIVES = 1024;  // >256 → uses CompactSet (supports any scene size)
+static_assert(MAX_PRIMITIVES <= std::numeric_limits<prim_idx_t>::max(),
+              "MAX_PRIMITIVES exceeds prim_idx_t capacity — widen prim_idx_t in "
+              "include/thesis/common/utils/types.h");
 
 // Max primitives simultaneously overlapping at a single point along a ray.
 // Only used when MAX_PRIMITIVES > 256 (CompactSet mode).
@@ -29,7 +34,8 @@ constexpr size_t MAX_PRIMITIVES = 1024;  // >256 → uses CompactSet (supports a
 constexpr size_t MAX_ACTIVE_PRIMS = 64;
 
 // Hit buffer capacity: max entry hits stored per ray.
-// Overflow handled by optixTerminateRay() in anyhit → biased but safe.
+// On overflow the anyhit shader drops the excess hit but keeps traversing,
+// so the env-map miss still resolves correctly.
 constexpr size_t HIT_BUFFER_CAPACITY = 128;
 
 // Minimum ray segment length for optical depth integration
@@ -111,6 +117,11 @@ constexpr bool ENABLE_MIS = false;
 // Adaptive Sampling Constants
 // =============================================================================
 
+// Master gate. When false, variance buffer is not allocated and the kernel
+// skips Welford's M2 update — saves W·H·16B of device memory + a write per
+// sample. Flip to true when you actually want adaptive sampling.
+constexpr bool ENABLE_ADAPTIVE_SAMPLING = false;
+
 // Minimum samples before convergence testing begins
 // Central Limit Theorem requires sufficient samples for variance estimation
 // Typical range: 10-30 samples (lower = more aggressive, higher = more conservative)
@@ -120,7 +131,7 @@ constexpr size_t ADAPTIVE_MIN_SAMPLES = 32;
 // Relative error threshold for convergence (default: 1%)
 // Pixel converges when: max(std_dev / mean) across all channels < threshold
 // Lower threshold = higher quality but less speedup
-constexpr float ADAPTIVE_THRESHOLD = 0.0f;  // Disabled: 0 is unreachable → all pixels get full SPP
+constexpr float ADAPTIVE_THRESHOLD = 0.0f;  // Only consulted when ENABLE_ADAPTIVE_SAMPLING is true
 
 // Minimum luminance to avoid division by zero in relative error computation
 // Used when computing relative error for near-black pixels

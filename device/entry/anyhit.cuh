@@ -27,19 +27,14 @@ extern "C" __global__ void __anyhit__ah() {
 
     auto* hit_buffer = unpack_ptr<HitBuffer>(payload.buffer_ptr_low, payload.buffer_ptr_high);
 
-    // Collect entry hits (exits computed on-demand in argmin approach)
+    // Collect entry hits (exits computed on-demand in argmin approach).
+    // On overflow: drop the excess hit but keep traversing so the miss shader
+    // can still deliver the env-map background. Terminating the ray here would
+    // force a black background on top of the τ-truncation bias.
     if (hit_buffer->size() < consts::HIT_BUFFER_CAPACITY) {
         const float t = optixGetRayTmax();
         const prim_idx_t prim_idx = static_cast<prim_idx_t>(optixGetInstanceId());
-
-        // Note: is_exit = false for all hits from anyhit shader (entries only)
         hit_buffer->emplace_back(t, prim_idx, false);
-        optixIgnoreIntersection();
-    } else {
-        // Hit buffer capacity reached — terminate ray early.
-        // Write a zero-color Miss payload so trace_ch_collect reads valid data
-        // (the miss shader won't run after optixTerminateRay).
-        payloads::Miss(0.0f, 0.0f, 0.0f).packToOptix();
-        optixTerminateRay();
     }
+    optixIgnoreIntersection();
 }

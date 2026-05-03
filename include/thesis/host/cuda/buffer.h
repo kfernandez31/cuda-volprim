@@ -28,7 +28,10 @@ struct SyncBufferPolicy {
         return device_ptr_type(static_cast<T*>(raw), {});
     }
 
-    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam) {
+    [[nodiscard]] static host_ptr_type alloc_host(size_t count, ContextParam,
+                                                  HostHint = HostHint::Cacheable) {
+        // SyncBufferPolicy uses pageable host memory; HostHint is ignored here
+        // (the WriteCombined flag is a CUDA pinned-allocation attribute).
         return std::make_unique<T[]>(count);
     }
 

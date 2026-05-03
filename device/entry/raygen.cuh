@@ -30,26 +30,40 @@ extern "C" __global__ void __raygen__rg() {
     // Load Welford state once via read-only cache (written only at end of kernel, no aliasing)
     const auto prev_count = __ldg(&launch_params.image_.sample_counts_[pixel_linear_idx]);
     auto mean = make_float3(__ldg(&launch_params.image_.mean_[pixel_linear_idx]));
-    auto M2 = make_float3(__ldg(&launch_params.image_.variance_[pixel_linear_idx]));
+
+    // Variance (Welford M2) is only allocated when adaptive sampling is enabled.
+    // Skip the read entirely when disabled — pointer is null, dereference would UB.
+    auto M2 = make_float3(0.0f);
+    if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+        M2 = make_float3(__ldg(&launch_params.image_.variance_[pixel_linear_idx]));
+    }
+
     // AOV running means for the OptiX denoiser guide layers. Written only at bounce 0
-    // of each path; carried across batches via the same per-pixel buffers.
-    auto aov_albedo = make_float3(__ldg(&launch_params.image_.albedo_aov_[pixel_linear_idx]));
-    auto aov_normal = make_float3(__ldg(&launch_params.image_.normal_aov_[pixel_linear_idx]));
+    // of each path; carried across batches via the same per-pixel buffers. AOV buffers
+    // are only allocated when --denoise is on, so guard reads with a null-pointer check.
+    auto aov_albedo = make_float3(0.0f);
+    auto aov_normal = make_float3(0.0f);
+    if (launch_params.image_.albedo_aov_) {
+        aov_albedo = make_float3(__ldg(&launch_params.image_.albedo_aov_[pixel_linear_idx]));
+        aov_normal = make_float3(__ldg(&launch_params.image_.normal_aov_[pixel_linear_idx]));
+    }
 
-    // Adaptive sampling: check if pixel has already converged
-    // Requires sufficient samples for statistical validity
-    if (prev_count >= consts::ADAPTIVE_MIN_SAMPLES) {
-        const auto variance = M2 * math::rcp(static_cast<float>(prev_count - 1));
-        const auto std_dev = math::sqrt(variance);
+    // Adaptive sampling: check if pixel has already converged. Whole block is dead
+    // code when ENABLE_ADAPTIVE_SAMPLING is false (M2 stays zero, threshold unreachable).
+    if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+        if (prev_count >= consts::ADAPTIVE_MIN_SAMPLES) {
+            const auto variance = M2 * math::rcp(static_cast<float>(prev_count - 1));
+            const auto std_dev = math::sqrt(variance);
 
-        // Per-channel relative error to avoid one channel dominating the criterion
-        const auto safe_mean = make_float3(math::max(mean.x, consts::ADAPTIVE_MIN_LUMINANCE),
-                                           math::max(mean.y, consts::ADAPTIVE_MIN_LUMINANCE),
-                                           math::max(mean.z, consts::ADAPTIVE_MIN_LUMINANCE));
-        const auto per_channel_error = std_dev / safe_mean;
+            // Per-channel relative error to avoid one channel dominating the criterion
+            const auto safe_mean = make_float3(math::max(mean.x, consts::ADAPTIVE_MIN_LUMINANCE),
+                                               math::max(mean.y, consts::ADAPTIVE_MIN_LUMINANCE),
+                                               math::max(mean.z, consts::ADAPTIVE_MIN_LUMINANCE));
+            const auto per_channel_error = std_dev / safe_mean;
 
-        if (math::max(per_channel_error) < consts::ADAPTIVE_THRESHOLD) {
-            return;  // Pixel converged, skip sampling
+            if (math::max(per_channel_error) < consts::ADAPTIVE_THRESHOLD) {
+                return;  // Pixel converged, skip sampling
+            }
         }
     }
 
@@ -184,25 +198,35 @@ extern "C" __global__ void __raygen__rg() {
             ray = geometry::Ray::spawn_unchecked(event.position_, event.direction_);
         }
 
-        // Welford's online algorithm: numerically stable single-pass mean + M2
+        // Welford's online algorithm: numerically stable single-pass mean + M2.
+        // M2 update is dead when ENABLE_ADAPTIVE_SAMPLING is false (compiler
+        // strips it under the if constexpr below).
         const auto n_inv = math::rcp(static_cast<float>(prev_count + sample_in_batch + 1));
         const auto delta1 = radiance - mean;
         mean += delta1 * n_inv;
-        const auto delta2 = radiance - mean;
-        M2 += delta1 * delta2;
+        if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+            const auto delta2 = radiance - mean;
+            M2 += delta1 * delta2;
+        }
 
         // AOVs: running mean only — variance not needed by the denoiser.
-        aov_albedo += (sample_aov_albedo - aov_albedo) * n_inv;
-        aov_normal += (sample_aov_normal - aov_normal) * n_inv;
+        if (launch_params.image_.albedo_aov_) {
+            aov_albedo += (sample_aov_albedo - aov_albedo) * n_inv;
+            aov_normal += (sample_aov_normal - aov_normal) * n_inv;
+        }
     }  // End of batch loop
 
     // Write back Welford state
-    launch_params.image_.variance_[pixel_linear_idx] = make_float4(M2);
+    if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+        launch_params.image_.variance_[pixel_linear_idx] = make_float4(M2);
+    }
     launch_params.image_.mean_[pixel_linear_idx] = make_float4(mean);
-    launch_params.image_.sample_counts_[pixel_linear_idx] =
-        prev_count + launch_params.image_.batch_size_;
-    launch_params.image_.albedo_aov_[pixel_linear_idx] = make_float4(aov_albedo);
-    launch_params.image_.normal_aov_[pixel_linear_idx] = make_float4(aov_normal);
+    launch_params.image_.sample_counts_[pixel_linear_idx] = static_cast<uint16_t>(
+        prev_count + launch_params.image_.batch_size_);
+    if (launch_params.image_.albedo_aov_) {
+        launch_params.image_.albedo_aov_[pixel_linear_idx] = make_float4(aov_albedo);
+        launch_params.image_.normal_aov_[pixel_linear_idx] = make_float4(aov_normal);
+    }
 }
 
 }  // namespace device

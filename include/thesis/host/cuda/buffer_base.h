@@ -11,6 +11,15 @@ namespace thesis::host::cuda {
 
 enum class AllocType { OnBoth, OnDeviceOnly };
 
+// Host-memory hint for pinned allocations. WriteCombined skips the CPU cache:
+// host writes go straight to system memory via burst-combining write buffers,
+// the GPU reads via PCIe with no snoop traffic. ~2× faster for upload-only
+// staging buffers (camera-active prims, primitives, instances, env CDFs,
+// launch params) where the host never reads back. Catastrophically slow if
+// the host ever reads — every read becomes a full uncached fetch — so the
+// default stays Cacheable. Ignored by SyncBufferPolicy (uses pageable host).
+enum class HostHint { Cacheable, WriteCombined };
+
 template <typename T, typename Policy>
 class BufferBase {
    protected:
@@ -23,16 +32,19 @@ class BufferBase {
     BufferBase() = default;
 
     BufferBase(size_t count, CUcontext ctx, typename Policy::ContextParam context_param,
-               AllocType alloc_type = AllocType::OnBoth)
+               AllocType alloc_type = AllocType::OnBoth,
+               HostHint host_hint = HostHint::Cacheable)
         : count_(count),
           device_ptr_(Policy::alloc_device(count, ctx, context_param)),
-          host_ptr_(alloc_type == AllocType::OnBoth ? Policy::alloc_host(count, context_param)
-                                                    : nullptr),
+          host_ptr_(alloc_type == AllocType::OnBoth
+                        ? Policy::alloc_host(count, context_param, host_hint)
+                        : nullptr),
           context_param_(context_param) {}
 
     BufferBase(std::span<const T> data, CUcontext ctx, typename Policy::ContextParam context_param,
-               AllocType alloc_type = AllocType::OnBoth)
-        : BufferBase(data.size(), ctx, context_param, alloc_type) {
+               AllocType alloc_type = AllocType::OnBoth,
+               HostHint host_hint = HostHint::Cacheable)
+        : BufferBase(data.size(), ctx, context_param, alloc_type, host_hint) {
         if (alloc_type == AllocType::OnDeviceOnly) {
             upload(data.data());
         } else {
@@ -63,6 +75,11 @@ class BufferBase {
 
     void upload() { upload(host()); }
     void download() { download(host()); }
+
+    // Free the pinned host-side allocation while keeping the device buffer alive.
+    // Caller must ensure no in-flight DMA still references the host buffer (e.g. by
+    // synchronizing the upload stream). Use after the host copy is no longer read.
+    void release_host() { host_ptr_.reset(); }
 
     void upload(const T* src) { Policy::upload(device(), src, size_bytes(), context_param_); }
     void download(T* dst) { Policy::download(dst, device(), size_bytes(), context_param_); }

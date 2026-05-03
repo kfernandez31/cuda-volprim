@@ -4,7 +4,7 @@
 
 #include <vector_types.h>
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
 #include "thesis/common/utils/math.h"
 
 #include <optix.h>
@@ -15,7 +15,7 @@ namespace device {
 namespace geometry {
 
 class THESIS_ALIGNMENT Ray {
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     THESIS_HOST_DEVICE THESIS_INLINE Ray(float3 origin, float3 direction)
         : origin_(origin),
           direction_(direction) {}
@@ -32,7 +32,7 @@ class THESIS_ALIGNMENT Ray {
         COUNT = 1,
     };
 
-#ifdef DEVICE
+#ifdef __CUDA_ARCH__
     static __device__ __forceinline__ Ray spawn(float3 o, float3 d) {
         return spawn_unchecked(o, common::math::normalize(d));
     }

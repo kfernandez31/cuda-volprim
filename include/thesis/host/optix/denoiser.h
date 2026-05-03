@@ -112,9 +112,11 @@ class Denoiser {
                                         state_.size_bytes(), &guide, &layer, 1, 0, 0,
                                         scratch_.cu_device_ptr(), scratch_.size_bytes()));
 
-        stream_->synchronize();
-        spdlog::info("Denoising complete (guides: albedo={}, normal={})",
-                     albedo_aov ? "on" : "off", normal_aov ? "on" : "off");
+        // No synchronize: the immediate next operation in Image::denoise_and_save
+        // is download() on the same stream — already serialized. The "complete"
+        // log was misleading anyway since the work was just queued, not done.
+        spdlog::debug("Denoiser launch queued (guides: albedo={}, normal={})",
+                      albedo_aov ? "on" : "off", normal_aov ? "on" : "off");
     }
 
    private:
