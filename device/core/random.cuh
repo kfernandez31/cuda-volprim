@@ -26,6 +26,18 @@ struct PCG32 {
     }
 };
 
+// Mark Jarzynski's PCG hash ("Hash Functions for GPU Rendering", JCGT 2020).
+// Scrambles a 64-bit input into a well-distributed 64-bit output — used to
+// derive PCG init `sequence` from (pixel, sample) so neighbouring threads get
+// decorrelated streams instead of (seq<<1)|1 values clustered along a line.
+__device__ __forceinline__ uint64_t hash(uint64_t x) {
+    x = x * 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x = x * 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return x;
+}
+
 __device__ __forceinline__ PCG32 init(uint64_t seed, uint64_t sequence) {
     PCG32 rng;
     rng.state_ = 0;

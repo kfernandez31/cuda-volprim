@@ -72,8 +72,14 @@ extern "C" __global__ void __raygen__rg() {
          ++sample_in_batch) {
         // Compute global sample index for this sample
         const size_t global_sample_idx = launch_params.image_.batch_offset_ + sample_in_batch;
-        const size_t rng_seed = math::fma(
-            pixel_linear_idx, launch_params.image_.num_samples_per_pixel_, global_sample_idx);
+        // Integer multiply-add (NOT math::fma — that's fmaf, which silently
+        // converts to float32 and loses precision around pixel*SPP ≈ 2^24,
+        // causing distinct (pixel,sample) pairs to collide on the same
+        // rng_seed). Then hash-mix so adjacent (pixel,sample) seeds map to
+        // decorrelated PCG streams instead of (seq<<1)|1 clustered along a
+        // line.
+        const uint64_t rng_seed = random::hash(
+            pixel_linear_idx * launch_params.image_.num_samples_per_pixel_ + global_sample_idx);
 
         // RNG setup (unique per sample)
         auto rng = random::init(launch_params.seed_, rng_seed);
