@@ -115,21 +115,29 @@ extern "C" __global__ void __raygen__rg() {
                 }
             }
 
-            // no scattering - escaped medium
+            // no scattering - escaped medium.
+            //
+            // Analog free-flight (ADT per SDTracking §4.1): sample_scattering_event
+            // returns `false` with probability exp(-τ_total) — the transmittance is
+            // baked into the sampling, so the contribution on escape is just the
+            // env radiance (no extra exp(-τ) factor). Multiplying again was a
+            // double-count that produced exp(-2τ)·env in expectation, confirmed
+            // empirically against the single-Gaussian closed form
+            // (rmse_double / rmse_analog = 0.221 before this commit). Matches
+            // volprim_prb.py:174-187 which contributes β · emitter_val on escape.
+            //
+            // With NEE on, the env contribution from each scatter is already
+            // accumulated via shadow rays, so adding the escape for bounce >= 1
+            // would double-count differently (via NEE accounting). The bounce == 0
+            // escape (camera ray straight to env, no scatter) is not covered by
+            // NEE and must be added.
             if (!result) {
-                // With NEE on, the env contribution from each scatter is already
-                // accumulated via shadow rays, so adding the escape for bounce >= 1
-                // would double-count. The bounce == 0 escape (path traveled directly
-                // from camera to env without scattering) is not covered by NEE and
-                // must be added.
                 if constexpr (consts::ENABLE_NEE) {
                     if (bounce == 0) {
-                        const auto tau = event.escape_optical_depth_;
-                        radiance += (throughput * math::exp(-tau)) * miss.color();
+                        radiance += throughput * miss.color();
                     }
                 } else {
-                    const auto tau = event.escape_optical_depth_;
-                    radiance += (throughput * math::exp(-tau)) * miss.color();
+                    radiance += throughput * miss.color();
                 }
                 break;
             }

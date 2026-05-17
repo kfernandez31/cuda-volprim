@@ -301,70 +301,6 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
 #endif
 }
 
-// Compute optical depth along escape ray using segment-by-segment integration
-// Separated into __noinline__ to isolate EventBuffer + sort register pressure from scatter path
-__device__ __noinline__ float3 compute_escape_optical_depth(const geometry::Ray& ray,
-                                                            const PrimsSet& active_prims,
-                                                            const HitBuffer& hit_buffer) {
-    EventBuffer events;
-
-    // Build exit events for primitives containing the ray origin.
-    // Origin is inside the 3σ BVH bound for these primitives, so we use
-    // exit_from_inside (full quadratic) — `compute_exit_from_entry(ray, 0.0f, ...)`
-    // would only be correct if the origin sat exactly on the surface.
-    for (auto prim_idx : active_prims) {
-        const auto& prim = launch_params.primitives_[prim_idx];
-        const float t_exit = common::geometry::exit_from_inside(ray, prim);
-        if (t_exit > 0.0f && t_exit < consts::INF_F) {
-            events.emplace_back(t_exit, prim_idx, true);
-        }
-    }
-
-    // Build entry+exit events for ray-intersected primitives
-    for (const auto& hit : hit_buffer) {
-        const auto& prim = launch_params.primitives_[hit.prim_idx];
-
-        events.emplace_back(hit.t_hit, hit.prim_idx, false);
-
-        const auto w = prim.transform_dir_local(ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit =
-            common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
-
-        if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
-            events.emplace_back(t_exit, hit.prim_idx, true);
-        }
-    }
-
-    sort(events);
-
-    float t_prev = 0.0f;
-    PrimsSet current_active = active_prims;
-    float3 acc_optical_depth = make_float3(0.0f);
-
-    for (size_t i = 0; i < events.size(); ++i) {
-        const auto& ev = events[i];
-
-        if (ev.t_hit > t_prev) {
-            for (auto prim_idx : current_active) {
-                const auto& prim = launch_params.primitives_[prim_idx];
-                const auto tau = prim.optical_depth(ray, t_prev, ev.t_hit);
-                acc_optical_depth += make_float3(tau);
-            }
-        }
-
-        if (ev.is_exit) {
-            current_active.erase(ev.prim_idx);
-        } else {
-            (void) current_active.insert(ev.prim_idx);
-        }
-
-        t_prev = ev.t_hit;
-    }
-
-    return acc_optical_depth;
-}
-
 // Sample scattering event using argmin approach (no sorting!)
 // Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
 // The minimum of independent inverse CDFs gives the same distribution as sorting
@@ -385,8 +321,8 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     collect_hits(ray, hit_buffer, &miss);
 
     if (hit_buffer.empty() && active_prims.empty()) {
-        // No primitives in scene - set optical depth to zero (ray escapes freely)
-        event.escape_optical_depth_ = make_float3(0.0f);
+        // No primitives along the ray — escape with unit transmittance. Analog
+        // free-flight: the escape contribution is just env, no τ factor needed.
         return false;
     }
 
@@ -436,7 +372,9 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     }
 
     if (t_scatter_min >= consts::INF_F) {
-        event.escape_optical_depth_ = compute_escape_optical_depth(ray, active_prims, hit_buffer);
+        // Escape: no per-primitive free-flight resolved within its exit. ADT-min
+        // already accounts for the escape probability exp(-τ_total) — caller's
+        // contribution is just env. No need to integrate τ explicitly here.
         active_prims.clear();
         return false;
     }
