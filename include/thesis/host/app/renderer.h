@@ -46,7 +46,6 @@ class Renderer {
     host::params::Image image_;
     host::params::Camera camera_;
     cuda::AsyncBuffer<device::params::Primitive> primitives_;
-    cuda::AsyncBuffer<prim_idx_t> camera_active_prims_;
     // Device-only buffer for the kernel; the host-side mirror lives next to it
     // as a plain struct to avoid burning a 4 KB pinned page on a single
     // ~few-hundred-byte object. Uploads are stream-ordered cudaMemcpyAsync

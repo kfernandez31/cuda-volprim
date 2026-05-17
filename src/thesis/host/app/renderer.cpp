@@ -4,7 +4,6 @@
 
 #include "core/constants.cuh"
 
-#include "thesis/common/geometry/intersection.h"
 #include "thesis/common/utils/math.h"
 #include "thesis/device/utils/vector.h"
 #include "thesis/host/optix/logging.h"
@@ -46,7 +45,6 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
       image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, config_.denoise_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(camera.value_or(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_))),
       primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth, cuda::HostHint::WriteCombined),
-      camera_active_prims_(),
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnDeviceOnly),
       sbt_(cuda_ctx_.get(), streams_[cuda::StreamKind::SBT]) {
     // clang-format on
@@ -175,40 +173,10 @@ void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitiv
 }
 
 void Renderer::initStaticParams() {
-    // Compute which primitives contain camera (CPU side, done once at init)
-    // Phase 1: parallel flag computation (no synchronization needed)
-    // Note: uint8_t instead of bool to avoid std::vector<bool> bitpacking (unsafe for parallel
-    // writes)
-    const auto camera_pos = camera_.lookfrom();
-    std::vector<uint8_t> inside_flags(num_primitives_);
-
-    std::transform(std::execution::par, primitives_.begin(), primitives_.end(),
-                   inside_flags.begin(), [camera_pos](const auto& prim) -> uint8_t {
-                       return common::geometry::point_inside_bvh_bound(camera_pos, prim) ? 1 : 0;
-                   });
-
-    // Phase 2: sequential gather (deterministic order, no sorting needed)
-    std::vector<prim_idx_t> camera_active;
-    for (size_t i = 0; i < num_primitives_; ++i) {
-        if (inside_flags[i]) {
-            camera_active.push_back(static_cast<prim_idx_t>(i));
-        }
-    }
-
-    // Allocate and upload camera active prims (only if non-empty)
-    if (!camera_active.empty()) {
-        // WriteCombined: host writes are upload-only (the device-side IS code
-        // is the only reader). Kept OnBoth so the pinned host buffer outlives
-        // the stream-ordered upload — converting to OnDeviceOnly here would
-        // require the std::vector source to outlive cudaMemcpyAsync from
-        // pageable memory, which CUDA does not guarantee.
-        camera_active_prims_ = cuda::AsyncBuffer<prim_idx_t>(camera_active, cuda_ctx_.get(),
-                                                             streams_[cuda::StreamKind::Main],
-                                                             cuda::AllocType::OnBoth,
-                                                             cuda::HostHint::WriteCombined);
-    }  // else: leave camera_active_prims_ default-constructed (size 0, nullptr pointers)
-
-    // Initialize static launch parameters (never change during rendering)
+    // Initialize static launch parameters (never change during rendering).
+    // The per-bounce scan in sample_scattering_event populates active_prims
+    // from scratch on every call, including bounce 0, so no CPU-side
+    // camera-position pre-compute is needed here.
     auto& par = launch_params_host_;
     par.seed_ = config_.seed_;
     par.ias_handle_ = ias_.get();
@@ -216,8 +184,6 @@ void Renderer::initStaticParams() {
     par.env_map_ = env_map_.device_env_map();
     par.primitives_ = device::utils::DynamicVector<device::params::Primitive>(primitives_.device(),
                                                                               primitives_.size());
-    par.camera_active_prims_ = device::utils::DynamicVector<prim_idx_t>(
-        camera_active_prims_.device(), camera_active_prims_.size());
 
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();

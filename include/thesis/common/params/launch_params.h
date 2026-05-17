@@ -23,7 +23,6 @@ struct THESIS_ALIGNMENT LaunchParams {
     device::params::EnvironmentMap env_map_;
     device::params::Image image_;
     device::utils::DynamicVector<device::params::Primitive> primitives_;
-    device::utils::DynamicVector<prim_idx_t> camera_active_prims_;
     uint seed_;
 };
 
