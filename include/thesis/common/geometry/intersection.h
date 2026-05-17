@@ -44,15 +44,20 @@ struct EllipsoidIntersection {
     }
 };
 
-// Check if a world-space point lies inside the primitive's 1σ ellipsoid.
+// Check if a world-space point lies inside the primitive's BVH bound (3σ ellipsoid).
 //
-// NOTE: this tests the 1σ surface (length2(local) <= 1), not the 3σ BVH bound.
-// Reverted on 2026-05-03: the 3σ test interacted with other ongoing changes and
-// produced over-dense renders; needs deeper investigation before re-applying.
+// Matches what OptiX actually traverses: localToWorld() inflates scale by
+// GAUSSIAN_EXTENT_F (= 3), so the BVH wraps the 3σ surface. A 1σ test here
+// would miss primitives whose 3σ shell contains the origin but whose 1σ core
+// does not — and since OptiX 9's built-in sphere intersector only reports
+// front-face entries (no hit when origin is inside the sphere), such primitives
+// would also be absent from hit_buffer. Result: they would contribute zero to
+// optical depth and scatter sampling — the dominant systematic-review bug.
 THESIS_HOST_DEVICE THESIS_INLINE bool point_inside_bvh_bound(
     float3 point, const device::params::Primitive& prim) {
     const auto local = prim.transform_pos_local(point);
-    return math::length2(local) <= 1.0f;
+    constexpr float R2 = math::GAUSSIAN_EXTENT_F * math::GAUSSIAN_EXTENT_F;  // 3σ surface radius²
+    return math::length2(local) <= R2;
 }
 
 #ifdef __CUDA_ARCH__
@@ -95,17 +100,45 @@ intersect_ellipsoid(const device::geometry::Ray& ray, const device::params::Prim
     return {t_1, t_2, a};  // Cache a (w_len2) for potential exit recomputation
 }
 
+// Exit t for a ray whose ORIGIN lies inside the 3σ BVH bound (full quadratic).
+//
+// Used by sample_scattering_event / compute_escape_optical_depth /
+// compute_transmittance_to_env when iterating active_prims — those are the
+// primitives the ray origin is already inside, so OptiX reports no entry and
+// `compute_exit_from_entry(ray, 0.0f, ...)` would be wrong (its derivation
+// assumes the entry lies on the surface, |p|² = R²).
+//
+// Solving |p + t·w|² = R² with R² = GAUSSIAN_EXTENT_F² and origin inside:
+//   t²|w|² + 2t(p·w) + (|p|² - R²) = 0
+// |p|² < R² so the constant term is negative → discriminant strictly positive.
+// The positive root is the exit ahead of the ray.
+__device__ __forceinline__ float exit_from_inside(const device::geometry::Ray& ray,
+                                                  const device::params::Primitive& prim) {
+    const auto w = prim.transform_dir_local(ray.direction_);
+    const auto p = prim.transform_pos_local(ray.origin_);
+    const auto a = math::length2(w);
+    const auto b = math::dot(p, w);
+    constexpr float R2 = math::GAUSSIAN_EXTENT_F * math::GAUSSIAN_EXTENT_F;
+    const auto c = math::length2(p) - R2;
+    // Origin inside ⇒ c < 0 ⇒ disc = b² - a·c > 0; positive root is the exit.
+    const auto disc = math::fma(-a, c, b * b);
+    return (-b + math::sqrt(disc)) * math::rcp(a);
+}
+
 // Optimized exit computation from entry point (avoids full intersection solve)
 // Given entry t-value on ellipsoid surface, analytically computes exit t-value
 //
-// Derivation: For point p on unit sphere (|p|² = 1), solving |p + t·w|² = 1
-//             gives t = 0 (entry) or t = -2(p·w)/|w|² (exit)
+// Derivation: For point p on the 3σ surface (|p|² = R² with R = GAUSSIAN_EXTENT_F),
+//             solving |p + t·w|² = R² gives t = 0 (entry) or t = -2(p·w)/|w|² (exit)
 //
 // Key insight: The parameter t is invariant under affine transformation, so the
 //              exit distance computed in local space equals the exit distance in
 //              world space (no scaling needed).
 //
-// This eliminates: discriminant checks, epsilon offsets, and full quadratic solve
+// This eliminates: discriminant checks, epsilon offsets, and full quadratic solve.
+//
+// Precondition: t_entry must put the ray at a point ON the surface (|p_t_entry|² = R²).
+// Use `exit_from_inside` instead for ray origins already inside the BVH bound.
 __device__ __forceinline__ float compute_exit_from_entry(const device::geometry::Ray& ray,
                                                          float t_entry,
                                                          const device::params::Primitive& prim,

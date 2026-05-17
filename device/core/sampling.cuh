@@ -308,12 +308,13 @@ __device__ __noinline__ float3 compute_escape_optical_depth(const geometry::Ray&
                                                             const HitBuffer& hit_buffer) {
     EventBuffer events;
 
-    // Build exit events for primitives containing the ray origin
+    // Build exit events for primitives containing the ray origin.
+    // Origin is inside the 3σ BVH bound for these primitives, so we use
+    // exit_from_inside (full quadratic) — `compute_exit_from_entry(ray, 0.0f, ...)`
+    // would only be correct if the origin sat exactly on the surface.
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
-        const auto w = prim.transform_dir_local(ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        const float t_exit = common::geometry::exit_from_inside(ray, prim);
         if (t_exit > 0.0f && t_exit < consts::INF_F) {
             events.emplace_back(t_exit, prim_idx, true);
         }
@@ -394,9 +395,9 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
 
-        const auto w = prim.transform_dir_local(ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        // Ray origin is inside the primitive's 3σ BVH bound (active_prims invariant),
+        // so use exit_from_inside; compute_exit_from_entry assumes entry-on-surface.
+        const float t_exit = common::geometry::exit_from_inside(ray, prim);
 
         // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
         // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
@@ -443,12 +444,11 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     // Rebuild active_prims at the scatter point
     PrimsSet final_active_prims;
 
-    // Recompute exits for primitives containing the ray origin
+    // Recompute exits for primitives containing the ray origin.
+    // Origin-inside ⇒ exit_from_inside; compute_exit_from_entry assumes entry-on-surface.
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
-        const auto w = prim.transform_dir_local(ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit = common::geometry::compute_exit_from_entry(ray, 0.0f, prim, w_len2);
+        const float t_exit = common::geometry::exit_from_inside(ray, prim);
         if (t_scatter_min <= t_exit) {
             (void) final_active_prims.insert(prim_idx);
         }
@@ -494,13 +494,11 @@ __device__ __noinline__ float compute_transmittance_to_env(float3 origin, float3
 
     EventBuffer events;
 
-    // Exits for primitives that contain the scatter point
+    // Exits for primitives that contain the scatter point. Shadow ray origin is
+    // inside their 3σ BVH bound, so use exit_from_inside (full quadratic).
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
-        const auto w = prim.transform_dir_local(shadow_ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit =
-            common::geometry::compute_exit_from_entry(shadow_ray, 0.0f, prim, w_len2);
+        const float t_exit = common::geometry::exit_from_inside(shadow_ray, prim);
         if (t_exit > 0.0f && t_exit < consts::INF_F) {
             events.emplace_back(t_exit, prim_idx, true);
         }
