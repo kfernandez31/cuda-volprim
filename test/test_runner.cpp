@@ -2,6 +2,7 @@
 
 #include "scenes/cloud_validation.h"
 #include "scenes/geometric_validation.h"
+#include "scenes/single_gaussian.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/app/logging.h"
 #include "thesis/host/app/renderer.h"
@@ -314,6 +315,29 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
                 run_multiview_test(cloud_scene_result.value(), test_config);
+                return 0;
+            } catch (const std::exception& e) {
+                std::cerr << "✗ Exception: " << e.what() << "\n";
+                return 1;
+            } catch (...) {
+                std::cerr << "✗ Unknown exception occurred\n";
+                return 1;
+            }
+        }
+
+        // Special case: single-Gaussian closed-form verification scene.
+        // sigma_multiplier maps to the primitive's peak extinction; the python
+        // comparator at tools/refs/single_gaussian_analytic.py then diffs the
+        // rendered EXR against exp(-tau)·env and exp(-2·tau)·env.
+        if (test_config.scene_name == "single_gaussian_validation") {
+            try {
+                auto sg_result = single_gaussian_validation(test_config.sigma_multiplier);
+                if (!sg_result.has_value()) {
+                    std::cerr << "✗ Failed to build single_gaussian scene: "
+                              << sg_result.error().msg_ << "\n";
+                    return 1;
+                }
+                run_multiview_test(sg_result.value(), test_config);
                 return 0;
             } catch (const std::exception& e) {
                 std::cerr << "✗ Exception: " << e.what() << "\n";
