@@ -28,6 +28,11 @@ add_custom_command(
         --expt-relaxed-constexpr
         --expt-extended-lambda
         -DGLM_ENABLE_EXPERIMENTAL
+        # Couples with --use_fast_math below: gates the explicit hardware
+        # intrinsics in include/thesis/common/utils/math.h. OptiX-IR is always
+        # optimised, so always defined here. See cmake/Device.cmake for the
+        # device-library equivalent (Release/RelWithDebInfo only).
+        -DTHESIS_ENABLE_FAST_MATH
         -O3
         -arch=sm_${CUDA_ARCH}
         # Fast math flags for FMA and aggressive FP optimizations

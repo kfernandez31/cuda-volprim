@@ -239,10 +239,24 @@ THESIS_HOST_DEVICE THESIS_INLINE float fma(float a, float b, float c) noexcept {
     return fmaf(a, b, c);
 }
 
-// Standard C math wrappers (work on host and device)
+// Standard C math wrappers (work on host and device).
+//
+// On device, when THESIS_ENABLE_FAST_MATH is defined, the lower-precision
+// hardware intrinsics (__expf, __logf, __sinf, __cosf, __fsqrt_rn) are used —
+// ~22-bit mantissa, ~2-3x faster than the IEEE versions. When the macro is
+// NOT defined, the standard C functions (expf, logf, sinf, cosf, sqrtf) are
+// used, giving full single-precision IEEE accuracy.
+//
+// Note: nvcc's `--use_fast_math` flag (set in cmake/Device.cmake and
+// cmake/OptiX-IR.cmake) also auto-promotes expf/logf/sinf/cosf to their
+// intrinsic forms. The explicit intrinsic call here only matters when that
+// flag is OFF — e.g., a future precision-audit build that drops the flag and
+// undefines THESIS_ENABLE_FAST_MATH together.
 THESIS_HOST_DEVICE THESIS_INLINE float sqrt(float x) noexcept {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) && defined(THESIS_ENABLE_FAST_MATH)
     return __fsqrt_rn(x);  // Fast sqrt (round-to-nearest)
+#elif defined(__CUDA_ARCH__)
+    return sqrtf(x);
 #else
     return sqrtf(x);
 #endif
@@ -251,7 +265,7 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 sqrt(float3 v) noexcept {
     return make_float3(sqrt(v.x), sqrt(v.y), sqrt(v.z));
 }
 THESIS_HOST_DEVICE THESIS_INLINE float exp(float x) noexcept {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) && defined(THESIS_ENABLE_FAST_MATH)
     return __expf(x);
 #else
     return expf(x);
@@ -261,21 +275,21 @@ THESIS_HOST_DEVICE THESIS_INLINE float3 exp(float3 v) noexcept {
     return make_float3(exp(v.x), exp(v.y), exp(v.z));
 }
 THESIS_HOST_DEVICE THESIS_INLINE float log(float x) noexcept {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) && defined(THESIS_ENABLE_FAST_MATH)
     return __logf(x);
 #else
     return logf(x);
 #endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float sin(float x) noexcept {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) && defined(THESIS_ENABLE_FAST_MATH)
     return __sinf(x);
 #else
     return sinf(x);
 #endif
 }
 THESIS_HOST_DEVICE THESIS_INLINE float cos(float x) noexcept {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) && defined(THESIS_ENABLE_FAST_MATH)
     return __cosf(x);
 #else
     return cosf(x);

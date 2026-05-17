@@ -37,8 +37,13 @@ endif()
 # This enables faster but slightly less precise math operations
 # - Trades IEEE compliance for 2-3x faster transcendentals
 # - Safe for Monte Carlo path tracing (statistical noise tolerates minor precision loss)
+# The THESIS_ENABLE_FAST_MATH definition (PUBLIC so consumers like test_runner
+# see it through math.h) gates the explicit hardware-intrinsic call sites in
+# include/thesis/common/utils/math.h. Coupled with --use_fast_math so a future
+# precision-audit build can drop both together via a single CMake option.
 if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo")
     target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
+    target_compile_definitions(device PUBLIC THESIS_ENABLE_FAST_MATH)
     message(STATUS "Enabling fast math for ${CMAKE_BUILD_TYPE} build")
 else()
     message(STATUS "Fast math disabled for ${CMAKE_BUILD_TYPE} build (preserving precision for debugging)")
