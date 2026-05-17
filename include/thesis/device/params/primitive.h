@@ -129,21 +129,23 @@ class THESIS_ALIGNMENT Primitive {
         // The factor of 2 from the erfinv equation is absorbed into inv_cdf_factor_
         const auto K = w_inv_len * math::exp(-0.5f * diff) * inv_cdf_factor_;
 
-        auto erfinv_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
+        const auto raw_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         // Only check for NaN/Inf (actual numerical error)
-        // Out-of-range values are valid (ray sampling Gaussian tail) and will be clamped below
-        if (!isfinite(erfinv_arg)) {
+        if (!isfinite(raw_arg)) {
             printf("ERROR: inv_cdf erfinv_arg is NaN!\n");
             return -1.0f;  // Sentinel: numerical error detected
         }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-        // Clamp to erfinv domain [-1, 1] (always enabled - handles tail sampling gracefully)
-        // When ray samples Gaussian tail, K*chi can be large due to exponential growth (exp(0.5*diff))
-        // This is valid physics, not a bug - clamp prevents erfinv from receiving out-of-domain input
-        erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);
+        // Saturated above 1.0 ⇒ the primitive's remaining mass along the ray is less
+        // than the requested optical-depth threshold (chi). The primitive cannot
+        // produce a scatter on this sample — return +∞ so the ADT-min in the caller
+        // rejects it cleanly. Matches papers/jorge_python.py:43-45 which lets erfinv
+        // produce NaN and converts NaN → dr.inf for the same case.
+        if (raw_arg > 1.0f) return consts::INF_F;
+        const auto erfinv_arg = math::clamp(raw_arg, -1.0f, 1.0f);
 
         // Result is in whitened arc-length (t * |w|); divide by |w| to get world-space ray parameter t
         return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
@@ -181,18 +183,22 @@ class THESIS_ALIGNMENT Primitive {
 
         // Shift the erf reference from t=0 to t=t_offset.
         const auto wp_off = math::fma(t_offset, w_len, wp);
-        auto erfinv_arg = math::erf(wp_off * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
+        const auto raw_arg = math::erf(wp_off * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
-        if (!isfinite(erfinv_arg)) {
+        if (!isfinite(raw_arg)) {
             printf("ERROR: inv_cdf_segment erfinv_arg is NaN!\n");
             return -1.0f;
         }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-        // Saturated at 1.0 means tau exceeds the primitive's remaining mass —
-        // erfinv(1) = +∞ → t_scatter = +∞, which the caller rejects via t_exit check.
-        erfinv_arg = math::clamp(erfinv_arg, -1.0f, 1.0f);
+        // Saturated above 1.0 ⇒ the remaining segment mass < chi (the optical-depth
+        // threshold). No scatter possible from this primitive on this sample — return
+        // +∞ for an explicit ADT-min rejection. Matches papers/jorge_python.py:43-45
+        // (NaN → dr.inf). Previously this relied on erfinv(1.0f) ≈ FLT_MAX combined
+        // with the downstream `t_scatter <= t_exit` check, which worked by accident.
+        if (raw_arg > 1.0f) return consts::INF_F;
+        const auto erfinv_arg = math::clamp(raw_arg, -1.0f, 1.0f);
 
         return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
     }
