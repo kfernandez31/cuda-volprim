@@ -43,18 +43,14 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
     const auto& config = config_result.value();
     spdlog::info("Parsed {} cameras from Mitsuba config", config.cameras.size());
 
-    // TEMP: cap to first 5 cameras for fast iteration. Remove the limit to render all 24.
-    constexpr size_t MAX_CAMERAS = 5;
-    const size_t num_cams = std::min<size_t>(MAX_CAMERAS, config.cameras.size());
-    for (size_t i = 0; i < num_cams; ++i) {
+    for (size_t i = 0; i < config.cameras.size(); ++i) {
         const auto& cam_config = config.cameras[i];
         auto camera = thesis::host::utils::createOrthographicCamera(cam_config,
                                                                      config.orthographic_extent);
         scene.cameras.push_back({camera, cam_config.width, cam_config.height});
     }
 
-    spdlog::info("Created {} orthographic camera(s) (capped at {} for fast iteration)",
-                 scene.cameras.size(), MAX_CAMERAS);
+    spdlog::info("Created {} orthographic camera(s)", scene.cameras.size());
 
     scene.env_map_override = "assets/white_constant.hdr";
     return scene;
