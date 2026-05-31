@@ -104,13 +104,16 @@ Result<std::vector<thesis::device::params::Primitive>> loadPrimitivesFromPLY(
         auto albedo = use_albedo_override
                           ? albedo_override
                           : make_float3(row[IDX_ALB0], row[IDX_ALB1], row[IDX_ALB2]);
-        // Convert from Jorge's peak-extinction convention to DSYG unnormalized convention:
-        // Jorge:  σ(x) = sigmat * exp(-0.5 * |x_local|²)
-        // DSYG:   σ(x) = optical_thickness * (2π)^{-3/2} * ∏(1/s) * exp(-0.5 * |x_local|²)
-        // Match peaks: optical_thickness = sigmat * (2π)^{3/2} * ∏(s)
-        auto sigmat = row[IDX_SIGMA] * sigma_multiplier;  // linear (volprim convention)
-        auto optical_thickness =
-            sigmat * thesis::common::math::TWO_PI_POW_3_2_F * scale.x * scale.y * scale.z;
+        // Match Mitsuba's volprim_tomography convention (volumetric_primitives/
+        // volprim/integrators/common.py::GaussianKernel.density_integral):
+        // sigma_t in the PLY is the per-primitive *total integrated mass* M.
+        // The kernel evaluates τ(ray) = M · density_integral(ray) where
+        // density_integral already accounts for the scale via 1/(2π · sqrt(...)).
+        // No (2π)^{3/2}·∏s bridge — the PLY values were trained to Mitsuba's
+        // convention, so applying the bridge would scale them by the wrong factor
+        // and our render would never reach Mitsuba's optical density at the same
+        // numerical sigma_multiplier.
+        auto optical_thickness = row[IDX_SIGMA] * sigma_multiplier;
 
         result[i] = Primitive::from_forward_quat(center, quat, scale, albedo, optical_thickness);
     });

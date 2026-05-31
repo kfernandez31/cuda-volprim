@@ -104,8 +104,10 @@ def main() -> int:
         print(f"WARN: render is {w}x{h}, expected {WIDTH}x{HEIGHT}. "
               "Analytic mapping still uses pixel-centred viewport so RMSE is meaningful.")
 
-    # M = peak_sigma_t * (2*pi)^{3/2} * prod(scale)  with scale=(1,1,1) and prod=1
-    M = args.sigma * math.pow(2.0 * math.pi, 1.5)
+    # In the Mitsuba volprim_tomography convention used everywhere now, the
+    # per-primitive `sigma_t` IS the total integrated mass M. No (2π)^{3/2} bridge.
+    # See src/thesis/host/utils/io/ply.cpp and test/scenes/single_gaussian.cpp.
+    M = args.sigma
 
     d = perpendicular_distance_grid(w, h, ORTHO_HEIGHT)
     tau = analytic_tau(d, M)

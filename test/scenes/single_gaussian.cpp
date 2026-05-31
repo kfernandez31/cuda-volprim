@@ -13,8 +13,14 @@ namespace {
 
 constexpr size_t SINGLE_GAUSSIAN_WIDTH = 256;
 constexpr size_t SINGLE_GAUSSIAN_HEIGHT = 256;
-constexpr float SINGLE_GAUSSIAN_ORTHO_HEIGHT = 6.0f;  // viewport [-3, 3] in y
-constexpr float SINGLE_GAUSSIAN_CAMERA_DISTANCE = 5.0f;  // camera at z = -5
+// Isotropic Gaussian scale. Camera framing is derived proportionally so the
+// viewport always spans ±3σ regardless of scale. 1.0 = classic unit test
+// (matches tools/refs/single_gaussian_analytic.py, which assumes scale=1).
+// Set to a realistic cloud scale (~0.047) to exercise the scale-normalization
+// term the unit test is blind to.
+constexpr float SINGLE_GAUSSIAN_SCALE = 1.0f;
+constexpr float SINGLE_GAUSSIAN_ORTHO_HEIGHT = 6.0f * SINGLE_GAUSSIAN_SCALE;   // ±3σ
+constexpr float SINGLE_GAUSSIAN_CAMERA_DISTANCE = 5.0f * SINGLE_GAUSSIAN_SCALE;
 
 }  // namespace
 
@@ -30,13 +36,14 @@ Result<MultiViewTestScene> single_gaussian_validation(float sigma_multiplier) {
         "closed-form analytic verification of escape transmittance";
 
     // One isotropic primitive at origin, scale (1, 1, 1), albedo = 0.
-    // Peak extinction = sigma_multiplier; bridge to mass-normalised optical_thickness
-    // matches the convention used everywhere else (see src/.../io/ply.cpp).
+    // optical_thickness IS the per-primitive total integrated mass M, in
+    // Mitsuba's volprim_tomography convention (see src/.../io/ply.cpp).
+    // No (2π)^{3/2}·∏s bridge — see ply.cpp comment for why.
     const auto center = make_float3(0.0f, 0.0f, 0.0f);
-    const auto scale = make_float3(1.0f, 1.0f, 1.0f);
+    const auto scale = make_float3(SINGLE_GAUSSIAN_SCALE, SINGLE_GAUSSIAN_SCALE,
+                                   SINGLE_GAUSSIAN_SCALE);
     const auto albedo = make_float3(0.0f, 0.0f, 0.0f);
-    const auto optical_thickness =
-        sigma_multiplier * math::TWO_PI_POW_3_2_F * scale.x * scale.y * scale.z;
+    const auto optical_thickness = sigma_multiplier;
 
     scene.primitives.push_back(Primitive::from_forward_quat(
         center, UnitQuaternion::identity(), scale, albedo, optical_thickness));
