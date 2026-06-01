@@ -115,6 +115,34 @@ extern "C" __global__ void __raygen__rg() {
                 }
             }
 
+            // Rao-Blackwellized direct term: add the unscattered camera->env
+            // contribution deterministically as throughput · exp(-τ) · env, instead
+            // of the high-variance analog binary escape (env with prob exp(-τ)). This
+            // is the conditional expectation of the direct term — unbiased — and it
+            // collapses MC noise on the unscattered component (the whole image when
+            // albedo=0). Added once at bounce 0, regardless of escape vs scatter; the
+            // matching binary escape add below is suppressed under this flag.
+            if constexpr (consts::ENABLE_ANALYTIC_DIRECT) {
+                if (bounce == 0) {
+                    // The origin-inside set for the CAMERA must be computed fresh:
+                    // event.active_prims_ holds the scatter point's set after
+                    // sample_scattering_event returns (or is cleared on escape), not
+                    // the camera origin's. Feeding the wrong set makes
+                    // compute_transmittance_to_env run exit_from_inside on primitives
+                    // the camera isn't inside → spurious absorption in dense regions.
+                    PrimsSet origin_inside;
+                    for (size_t i = 0; i < launch_params.primitives_.size(); ++i) {
+                        if (common::geometry::point_inside_bvh_bound(
+                                ray.origin_, launch_params.primitives_[i])) {
+                            (void) origin_inside.insert(static_cast<prim_idx_t>(i));
+                        }
+                    }
+                    const auto T_dir = compute_transmittance_to_env(
+                        ray.origin_, ray.direction_, origin_inside, hit_buffer);
+                    radiance += throughput * T_dir * launch_params.env_map_.sample(ray.direction_);
+                }
+            }
+
             // no scattering - escaped medium.
             //
             // Analog free-flight (ADT per SDTracking §4.1): sample_scattering_event
@@ -133,11 +161,24 @@ extern "C" __global__ void __raygen__rg() {
             // NEE and must be added.
             if (!result) {
                 if constexpr (consts::ENABLE_NEE) {
-                    if (bounce == 0) {
-                        radiance += throughput * miss.color();
+                    // Bounce-0 direct env: added analytically above when
+                    // ENABLE_ANALYTIC_DIRECT, else via the analog binary escape here.
+                    // Bounce>0 escapes are already counted by NEE shadow rays.
+                    if constexpr (!consts::ENABLE_ANALYTIC_DIRECT) {
+                        if (bounce == 0) {
+                            radiance += throughput * miss.color();
+                        }
                     }
                 } else {
-                    radiance += throughput * miss.color();
+                    // NEE off: escape adds env at every bounce. Under analytic direct,
+                    // bounce-0 is handled above; bounce>0 (indirect) still added here.
+                    if constexpr (consts::ENABLE_ANALYTIC_DIRECT) {
+                        if (bounce > 0) {
+                            radiance += throughput * miss.color();
+                        }
+                    } else {
+                        radiance += throughput * miss.color();
+                    }
                 }
                 break;
             }

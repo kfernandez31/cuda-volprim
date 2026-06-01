@@ -113,6 +113,14 @@ constexpr bool ENABLE_NEE = true;
 // Requires ENABLE_NEE.
 constexpr bool ENABLE_MIS = false;
 
+// Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
+// bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
+// (via compute_transmittance_to_env) instead of the high-variance analog binary
+// escape (env with probability exp(-τ)). Unbiased — replaces the direct-term
+// estimator with its conditional expectation; scatter sampling/NEE untouched.
+// Collapses MC noise on the unscattered component (the entire image when albedo=0).
+constexpr bool ENABLE_ANALYTIC_DIRECT = true;
+
 // =============================================================================
 // Adaptive Sampling Constants
 // =============================================================================
