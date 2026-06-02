@@ -1,0 +1,5 @@
+mitsuba==3.8.0
+drjit==1.3.1
+numpy==2.4.5
+plyfile==1.1.3
+OpenEXR==3.4.11

@@ -35,4 +35,19 @@ namespace thesis::test::scenes {
 thesis::host::utils::Result<MultiViewTestScene> single_gaussian_validation(
     float sigma_multiplier);
 
+// Rung-2 distinct-position test: two isotropic Gaussians (scale=1, albedo=0) at
+// DISTINCT positions so a camera ray pierces both at different t_hit and different
+// perpendicular distances. Same camera as single_gaussian_validation. This is the
+// minimal scene with the cloud's defining property (per-ray accumulation across
+// primitives entered at different points) — coincident-stack tests collapse it away.
+thesis::host::utils::Result<MultiViewTestScene> two_gaussian_validation(
+    float sigma_multiplier);
+
+// Overlap-ladder clusters toward the cloud. Mode selected by env SG_CLUSTER_MODE
+// ∈ {n5, stress, traits}; "stress" reads SG_STRESS_K. Deterministic layouts,
+// mirrored in tools/refs/render_cluster_via_prb.py. sigma_multiplier is ignored
+// (per-mode masses are hardcoded so both sides match exactly).
+thesis::host::utils::Result<MultiViewTestScene> cluster_validation(
+    float sigma_multiplier);
+
 }  // namespace thesis::test::scenes

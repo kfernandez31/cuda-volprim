@@ -348,6 +348,44 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        if (test_config.scene_name == "two_gaussian_validation") {
+            try {
+                auto tg_result = two_gaussian_validation(test_config.sigma_multiplier);
+                if (!tg_result.has_value()) {
+                    std::cerr << "✗ Failed to build two_gaussian scene: "
+                              << tg_result.error().msg_ << "\n";
+                    return 1;
+                }
+                run_multiview_test(tg_result.value(), test_config);
+                return 0;
+            } catch (const std::exception& e) {
+                std::cerr << "✗ Exception: " << e.what() << "\n";
+                return 1;
+            } catch (...) {
+                std::cerr << "✗ Unknown exception occurred\n";
+                return 1;
+            }
+        }
+
+        if (test_config.scene_name == "cluster_validation") {
+            try {
+                auto cl_result = cluster_validation(test_config.sigma_multiplier);
+                if (!cl_result.has_value()) {
+                    std::cerr << "✗ Failed to build cluster scene: "
+                              << cl_result.error().msg_ << "\n";
+                    return 1;
+                }
+                run_multiview_test(cl_result.value(), test_config);
+                return 0;
+            } catch (const std::exception& e) {
+                std::cerr << "✗ Exception: " << e.what() << "\n";
+                return 1;
+            } catch (...) {
+                std::cerr << "✗ Unknown exception occurred\n";
+                return 1;
+            }
+        }
+
         // Find the requested scene
         auto it = std::find_if(scenes_to_run.begin(), scenes_to_run.end(),
             [&](const TestScene& s) { return s.name == test_config.scene_name; });
