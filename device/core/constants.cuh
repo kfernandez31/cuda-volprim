@@ -31,11 +31,25 @@ static_assert(MAX_PRIMITIVES <= std::numeric_limits<prim_idx_t>::max(),
 // Max primitives simultaneously overlapping at a single point along a ray.
 // Only used when MAX_PRIMITIVES > 256 (CompactSet mode).
 // Cloud scene (652 Gaussians): measured max overlap = 37 at 1σ, 45 at 2σ.
-constexpr size_t MAX_ACTIVE_PRIMS = 64;
+// NOTE (2026-06-01): proven via collinear stress test that CompactSet SILENTLY
+// DROPS overlapping prims past this cap → under-absorption (too bright). The cloud
+// (652 Gaussians) was verified to stay <64 (old-caps vs 256-caps renders are
+// BIT-IDENTICAL across all 24 cams), so this never affected the cloud. CompactSet
+// is cheap (2 bytes/entry), so raised 64→128 for headroom on denser scenes at
+// negligible cost. The expensive buffer is HIT_BUFFER_CAPACITY below; keep it
+// modest. Proper fix for pathological overlap is graceful overflow, not a bigger
+// cap — see SG_active_prims_cap_bug.png / SG_stress_trend.png.
+constexpr size_t MAX_ACTIVE_PRIMS = 128;
 
 // Hit buffer capacity: max entry hits stored per ray.
 // On overflow the anyhit shader drops the excess hit but keeps traversing,
 // so the env-map miss still resolves correctly.
+// NOTE (2026-06-01): this is the EXPENSIVE per-ray buffer (HitRecord storage +
+// EventBuffer is 2× this) — raising it to 256 made renders ~6× slower (local
+// memory blowup). The cloud was verified to need ≤128 entries/ray (old-caps vs
+// 256-caps cloud renders BIT-IDENTICAL), so kept at the validated 128. A ray
+// crossing >128 prim entries (very dense / collinear-stack scenes) will drop hits
+// → under-absorption; bump per-scene if needed, accepting the perf cost.
 constexpr size_t HIT_BUFFER_CAPACITY = 128;
 
 // Minimum ray segment length for optical depth integration
