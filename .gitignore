@@ -7,3 +7,15 @@ ignore/
 .claude/
 *.exr
 *.out
+
+# Render outputs and analysis artifacts (regenerable)
+renders/
+test_results/
+*.npy
+*.log
+*.jpeg
+
+# Python repro envs / caches under tools/refs
+**/.venv/
+**/.venv-volprim/
+**/__pycache__/

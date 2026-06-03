@@ -38,6 +38,7 @@ struct TestConfig {
     std::string output_file = "";
     float sigma_multiplier = 7.5f;  // Default sigma_t scaling factor
     bool denoise = false;
+    size_t seed = 42;  // RNG seed; vary to produce independent noise realizations
 };
 
 void list_scenes(const std::string& category = "all") {
@@ -79,6 +80,7 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     // Render settings
     app.add_option("--spp", config.spp, "Samples per pixel")->default_val(64)->check(CLI::PositiveNumber);
     app.add_option("--sigma-multiplier", config.sigma_multiplier, "Sigma_t scaling factor")->default_val(7.5f)->check(CLI::PositiveNumber);
+    app.add_option("--seed", config.seed, "RNG seed (vary for independent noise realizations)")->default_val(42);
     app.add_option("--width", config.width, "Image width")->default_val(1920)->check(CLI::PositiveNumber);
     app.add_option("--height", config.height, "Image height")->default_val(1080)->check(CLI::PositiveNumber);
 
@@ -123,7 +125,7 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.image_height_ = test_config.height;
     renderer_config.num_samples_per_pixel_ = test_config.spp;
     renderer_config.output_path_ = output_path;
-    renderer_config.seed_ = 42;  // Fixed seed for reproducibility
+    renderer_config.seed_ = test_config.seed;  // default 42; --seed for independent noise
     renderer_config.denoise_ = test_config.denoise;
 
     // Assume env map and module paths are in default locations
@@ -196,7 +198,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         renderer_config.image_height_ = cam_height;
         renderer_config.num_samples_per_pixel_ = test_config.spp;
         renderer_config.output_path_ = output_path.string();
-        renderer_config.seed_ = 42;
+        renderer_config.seed_ = test_config.seed;
         renderer_config.denoise_ = test_config.denoise;
 
         // Use override env map if specified, otherwise default

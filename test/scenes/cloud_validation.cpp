@@ -6,6 +6,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
+
 namespace thesis::test::scenes {
 
 using namespace thesis::host::utils;
@@ -43,11 +45,20 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
     const auto& config = config_result.value();
     spdlog::info("Parsed {} cameras from Mitsuba config", config.cameras.size());
 
+    // SG_CAM=<idx> restricts rendering to a single camera (fast iteration / parity
+    // with a single-cam Mitsuba reference). Unset = all cameras. The kept camera is
+    // emitted as 0000.exr (run_multiview names by vector position).
+    const char* sg_cam_env = std::getenv("SG_CAM");
+    const int only_cam = sg_cam_env ? std::atoi(sg_cam_env) : -1;
     for (size_t i = 0; i < config.cameras.size(); ++i) {
+        if (only_cam >= 0 && static_cast<int>(i) != only_cam) continue;
         const auto& cam_config = config.cameras[i];
         auto camera = thesis::host::utils::createOrthographicCamera(cam_config,
                                                                      config.orthographic_extent);
         scene.cameras.push_back({camera, cam_config.width, cam_config.height});
+    }
+    if (only_cam >= 0) {
+        spdlog::info("SG_CAM={}: rendering single camera only", only_cam);
     }
 
     spdlog::info("Created {} orthographic camera(s)", scene.cameras.size());

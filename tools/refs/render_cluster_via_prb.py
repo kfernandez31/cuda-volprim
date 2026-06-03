@@ -86,7 +86,11 @@ centers = mi.TensorXf(np.array(C, dtype=np.float32).ravel(), shape=(N, 3))
 scales = mi.TensorXf(np.array(S, dtype=np.float32).ravel(), shape=(N, 3))
 quaternions = mi.TensorXf(np.array(Q, dtype=np.float32).ravel(), shape=(N, 4))
 sigma_t = mi.TensorXf(np.array([[m] for m in Mass], dtype=np.float32).ravel(), shape=(N, 1))
-albedo = mi.TensorXf(np.zeros((N, 3), dtype=np.float32).ravel(), shape=(N, 3))
+# SG_ALBEDO drives the scattering campaign (mirrors test/scenes/single_gaussian.cpp).
+# use_nee stays False below (analog = the trustworthy, energy-conserving reference;
+# volprim_prb's NEE path fails the furnace test by +6.5% — see FINDINGS §8.1).
+ALBEDO = float(os.environ.get("SG_ALBEDO", "0.0"))
+albedo = mi.TensorXf(np.full((N, 3), ALBEDO, dtype=np.float32).ravel(), shape=(N, 3))
 
 cam_to_world = T().look_at(
     origin=[0, 0, -CAMERA_DISTANCE], target=[0, 0, 0], up=[0, 1, 0],
@@ -95,7 +99,9 @@ cam_to_world = T().look_at(
 scene_dict = {
     "type": "scene",
     "integrator": {
-        "type": "volprim_prb", "max_depth": 32, "kernel_type": "gaussian",
+        "type": "volprim_prb",
+        "max_depth": int(os.environ.get("SG_MAX_DEPTH", "32")),
+        "kernel_type": "gaussian",
         "solver_type": "bisection", "use_nee": False,
     },
     "primitive": {
@@ -123,7 +129,8 @@ dr.sync_thread()
 
 _kt = f"_K{os.environ.get('SG_STRESS_K','80')}" if MODE == "stress" else ""
 _st = f"_seed{SEED}" if SEED != 0 else ""
-out = os.path.join(OUT_DIR, f"mitsuba_cluster_{MODE}{_kt}_prb_spp{SPP}{_st}.exr")
+_at = f"_alb{ALBEDO:.2f}" if ALBEDO != 0.0 else ""
+out = os.path.join(OUT_DIR, f"mitsuba_cluster_{MODE}{_kt}{_at}_prb_spp{SPP}{_st}.exr")
 mi.Bitmap(img).write(out)
 arr = np.array(img).astype(np.float32)
 print(f"wrote {out}  mean={arr.mean():.4f}  min={arr.min():.4f}  max={arr.max():.4f}")

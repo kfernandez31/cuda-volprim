@@ -14,6 +14,14 @@ using namespace thesis::host::utils;
 
 namespace {
 
+// SG_ALBEDO drives the scattering campaign across all single-Gaussian-family
+// scenes. 0 (default) = pure absorber; >0 turns on in-scattering. Mirrored on
+// the Mitsuba side via the same env var. Helper so two_gaussian/cluster share it.
+[[nodiscard]] float scatter_albedo() {
+    const char* env = std::getenv("SG_ALBEDO");
+    return env ? static_cast<float>(std::atof(env)) : 0.0f;
+}
+
 constexpr size_t SINGLE_GAUSSIAN_WIDTH = 256;
 constexpr size_t SINGLE_GAUSSIAN_HEIGHT = 256;
 // Isotropic Gaussian scale. Camera framing is derived proportionally so the
@@ -38,13 +46,23 @@ Result<MultiViewTestScene> single_gaussian_validation(float sigma_multiplier) {
         "Single isotropic absorber Gaussian at origin, ortho view in [-3,3]^2 — "
         "closed-form analytic verification of escape transmittance";
 
-    // One primitive at origin, albedo = 0.
+    // One primitive at origin.
     // optical_thickness IS the per-primitive total integrated mass M, in
     // Mitsuba's volprim_tomography convention (see src/.../io/ply.cpp).
     // No (2π)^{3/2}·∏s bridge — see ply.cpp comment for why.
     const auto center = make_float3(0.0f, 0.0f, 0.0f);
-    const auto albedo = make_float3(0.0f, 0.0f, 0.0f);
     const auto optical_thickness = sigma_multiplier;
+
+    // SG_ALBEDO drives the scattering campaign. 0 (default) = pure absorber
+    // (the closed-form absorption test). >0 turns on in-scattering. Mirrored in
+    // tools/refs/render_single_gaussian_via_prb.py via the same env var.
+    //   albedo = 1.0  → FURNACE TEST: a conservative medium in a constant
+    //                   radiance field must reproduce that field exactly
+    //                   (L = L_env everywhere). The Gaussian must be invisible
+    //                   against the background — a reference-free energy-
+    //                   conservation check on the entire scatter/NEE/bounce path.
+    const float albedo_val = scatter_albedo();
+    const auto albedo = make_float3(albedo_val, albedo_val, albedo_val);
 
     // SG_TRANSFORMED=1 exercises the anisotropic-scale + rotation whitening path
     // (the transform math the isotropic identity test is blind to). Config is
@@ -107,7 +125,8 @@ Result<MultiViewTestScene> two_gaussian_validation(float sigma_multiplier) {
         "per-ray distinct-position accumulation test";
 
     const auto scale = make_float3(1.0f, 1.0f, 1.0f);
-    const auto albedo = make_float3(0.0f, 0.0f, 0.0f);
+    const float albedo_val = scatter_albedo();
+    const auto albedo = make_float3(albedo_val, albedo_val, albedo_val);
     const auto optical_thickness = sigma_multiplier;
 
     // Two Gaussians offset in x (distinct perpendicular distance per pixel) AND in z
@@ -159,7 +178,8 @@ Result<MultiViewTestScene> cluster_validation(float /*sigma_multiplier*/) {
     scene.name = "cluster_validation";
     scene.description = "Procedural overlap cluster (mode=" + mode + ")";
 
-    const auto albedo = make_float3(0.0f, 0.0f, 0.0f);
+    const float albedo_val = scatter_albedo();
+    const auto albedo = make_float3(albedo_val, albedo_val, albedo_val);
     const auto zrot = [](float deg) {
         const float h = 0.5f * deg * math::PI_F / 180.0f;
         return UnitQuaternion::from(std::cos(h), 0.0f, 0.0f, std::sin(h));

@@ -36,7 +36,7 @@ import math
 #   Mitsuba: tau = sigma_t · density_integral;  density_integral(0) = 1/(2π) for
 #            scale=1, |w|=1  ⇒  tau(0) = sigma_t/(2π)
 # So to match CUDA --sigma-multiplier S we feed Mitsuba sigma_t = S (NOT S·(2π)^{3/2}).
-SIGMA_MULTIPLIER_CUDA = 4.0
+SIGMA_MULTIPLIER_CUDA = float(os.environ.get("SG_SIGMA", "4.0"))
 SIGMA_T_MITSUBA = SIGMA_MULTIPLIER_CUDA
 SPP = int(os.environ.get("SG_SPP", "1024"))
 
@@ -69,7 +69,10 @@ quaternions = mi.TensorXf(np.array([_quat], dtype=np.float32).ravel(),
                           shape=(N, 4))
 sigma_t = mi.TensorXf(np.array([[SIGMA_T_MITSUBA]], dtype=np.float32).ravel(),
                       shape=(N, 1))
-albedo = mi.TensorXf(np.array([[0.0, 0.0, 0.0]], dtype=np.float32).ravel(),
+# SG_ALBEDO drives the scattering campaign (mirrors test/scenes/single_gaussian.cpp).
+# 0 = pure absorber; >0 turns on in-scattering. albedo=1 = furnace test.
+ALBEDO = float(os.environ.get("SG_ALBEDO", "0.0"))
+albedo = mi.TensorXf(np.array([[ALBEDO, ALBEDO, ALBEDO]], dtype=np.float32).ravel(),
                      shape=(N, 3))
 
 # Camera at (0, 0, -5) looking along +Z toward origin, ortho viewport 6x6.
@@ -86,10 +89,12 @@ scene_dict = {
     "type": "scene",
     "integrator": {
         "type": "volprim_prb",
-        "max_depth": 32,
+        "max_depth": int(os.environ.get("SG_MAX_DEPTH", "32")),
         "kernel_type": "gaussian",
         "solver_type": "bisection",
-        "use_nee": False,
+        # NEE on by default for the scattering reference (faster convergence;
+        # still unbiased). SG_NEE=0 forces it off.
+        "use_nee": os.environ.get("SG_NEE", "1") == "1",
     },
     "primitive": {
         # SG_SHAPE=ellipsoids -> exact analytic ray-ellipsoid intersection (like CUDA);
@@ -133,8 +138,9 @@ img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
 dr.sync_thread()
 
 _tag = "_transformed" if os.environ.get("SG_TRANSFORMED") == "1" else ""
+_albtag = f"_alb{ALBEDO:.2f}" if ALBEDO != 0.0 else ""
 _seedtag = f"_seed{SEED}" if SEED != 0 else ""
-out = os.path.join(OUT_DIR, f"mitsuba_volprim_prb{_tag}_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
+out = os.path.join(OUT_DIR, f"mitsuba_volprim_prb{_tag}{_albtag}_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
 mi.Bitmap(img).write(out)
 arr = np.array(img).astype(np.float32)
 print(f"wrote {out}  mean={arr.mean():.4f}  max={arr.max():.4f}")

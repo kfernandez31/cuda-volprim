@@ -60,8 +60,9 @@ quaternions = mi.TensorXf(np.array([[0.0, 0.0, 0.0, 1.0],
                           shape=(N, 4))
 sigma_t = mi.TensorXf(np.array([[SIGMA_T_MITSUBA], [SIGMA_T_MITSUBA]], dtype=np.float32).ravel(),
                       shape=(N, 1))
-albedo = mi.TensorXf(np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=np.float32).ravel(),
-                     shape=(N, 3))
+# SG_ALBEDO drives the scattering campaign. use_nee stays False (analog reference).
+ALBEDO = float(os.environ.get("SG_ALBEDO", "0.0"))
+albedo = mi.TensorXf(np.full((N, 3), ALBEDO, dtype=np.float32).ravel(), shape=(N, 3))
 
 cam_to_world = T().look_at(
     origin=[0, 0, -CAMERA_DISTANCE],
@@ -117,7 +118,8 @@ img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
 dr.sync_thread()
 
 _seedtag = f"_seed{SEED}" if SEED != 0 else ""
-out = os.path.join(OUT_DIR, f"mitsuba_two_gauss_prb_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
+_at = f"_alb{ALBEDO:.2f}" if ALBEDO != 0.0 else ""
+out = os.path.join(OUT_DIR, f"mitsuba_two_gauss_prb{_at}_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
 mi.Bitmap(img).write(out)
 arr = np.array(img).astype(np.float32)
 print(f"wrote {out}  mean={arr.mean():.4f}  max={arr.max():.4f}  min={arr.min():.4f}")

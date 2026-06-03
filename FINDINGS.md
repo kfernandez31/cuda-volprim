@@ -250,12 +250,183 @@ The central open problem of the project. Verdict: **CUDA was correct all along.*
 
 ---
 
-## 8. Known limitations & OPEN items
+## 8. Scattering validation (albedo > 0) — IN PROGRESS
 
-- **Scattering (albedo > 0) is UNVALIDATED.** The ADT argmin scatter sampling +
-  NEE/MIS/HG path has never been checked against Mitsuba. This is the next campaign:
-  climb the same ladder (single → cluster → cloud) at albedo>0 vs `volprim_prb`
-  (albedo 0.9). It is also how we reproduce Jorge's nuanced cloud *look*.
+The scattering campaign. Tools: `SG_ALBEDO` env var on both
+`test/scenes/single_gaussian.cpp` (CUDA) and
+`tools/refs/render_single_gaussian_via_prb.py` (Mitsuba). The Mitsuba script also
+gained `SG_NEE` (default 1), `SG_MAX_DEPTH` (default 32), `SG_SIGMA` (default 4).
+
+### 8.0 How to read these RMSE numbers (CRITICAL)
+RMSE between two **independent stochastic** renders is NOT a disagreement metric — it
+is dominated by Monte-Carlo noise. Decompose it: `RMSE² = systematic² + noise²`, where
+`systematic = |mean(diff)|` (the real, irreducible error) and `noise = std(diff)`
+(zero-mean, → 0 as 1/√spp). Measured across every albedo=0.9 rung (script: `/tmp/decomp.py`,
+mirror of `cmp_scatter.py`):
+
+| rung | RMSE | systematic | noise | systematic / RMSE |
+|---|---|---|---|---|
+| single Gaussian σ=4 | 0.00197 | **0.00000** | 0.00197 | 0.17% |
+| single dense σ=12 | 0.00274 | **0.00003** | 0.00274 | 0.99% |
+| n5 cluster | 0.00201 | **0.00000** | 0.00201 | 0.18% |
+| traits cluster | 0.00138 | **0.00004** | 0.00138 | 2.82% |
+
+⇒ RMSE is **~100% noise**; the real systematic is ≤ 4×10⁻⁵ everywhere (essentially exact).
+RMSE ~0.002 at 16k spp is the **noise floor**, not an error floor — two correct MC renders
+cannot beat `√(var_A+var_B)` at finite spp; it shrinks as 1/√spp (proven: traits RMSE
+0.00273→0.00138 with more spp while its systematic held flat). So judge correctness by the
+**systematic / per-bin / regional** numbers (which cancel noise), NOT by RMSE. RMSE actually
+*hides* the one real signal: traits' +0.0002 core residual sits ~35× below its own noise
+(§8.3). PSNR (10·log₁₀(1/MSE), peak=1): single≈54.1 dB, dense≈51.2 dB, n5≈53.9 dB,
+traits≈57.2 dB — all noise-floor-limited, so PSNR carries the same caveat as RMSE.
+
+### 8.1 Furnace test (reference-free energy-conservation invariant)
+A conservative medium (albedo = 1) embedded in a **constant** radiance field must
+reproduce that field exactly: `L = L_env` everywhere (RTE: dL/ds = −σ_t·L_env +
+σ_t·L_env = 0). The Gaussian must be **invisible** against the background. This is
+analytic and needs **no reference renderer** — it is a pure check on the entire
+scatter + NEE + multi-bounce machinery. Independent of kernel truncation, geometry,
+or bounce count.
+
+- **CUDA PASSES.** Single Gaussian, albedo=1, σ=4, constant env=1.0:
+  image mean = **1.00001** at 4096 spp; residual scales as MC noise (±12% at 256 spp
+  → ±3.3% at 4096 spp ≈ exact 1/√spp), image-mean SEM ≈ 6e-5 ⇒ **no detectable energy
+  bias**. CUDA's NEE path is energy-conserving.
+- **Mitsuba `volprim_prb` NEE path FAILS the furnace test by +6.5%.** With
+  `use_nee=True` the Gaussian center is rendered +6.5% **brighter** than background
+  (in-scatter overcounted); **identical at max_depth 32 and 256** (not truncation).
+  With `use_nee=False` (pure analog) Mitsuba is **exactly 1.00000 everywhere**.
+  ⇒ Mitsuba's NEE/MIS combination is not energy-conserving here; its **analog
+  (NEE-off) path is exact** and is the only trustworthy ground truth for scatter.
+  **CONSEQUENCE: all scatter references must be rendered with `SG_NEE=0`.**
+
+### 8.2 Rung 1 — single Gaussian, albedo = 0.9 (PASS)
+CUDA (NEE on, furnace-verified) vs Mitsuba **analog** (`SG_NEE=0`), both σ=4,
+albedo=0.9, analytic `ellipsoids` shape, **box** reconstruction filter, 16384 spp:
+- mean diff = **−0.00000**, RMSE = **0.00197**, maxabs = 0.0144
+- the RMSE equals the absorption noise floor (§7: box-AA jitter), **not** bias
+- **per-radiance-bin diff ≤ ±0.00006 across all 8 bins** — zero systematic structure
+- central densest region (most multiple-scatter): diff = +0.0000 at 96×96
+⇒ ADT argmin scatter sampling, phase function, albedo weighting, NEE, and the
+multi-bounce loop produce the correct converged image for a single Gaussian.
+
+### 8.3 Rung 2 — clusters, albedo = 0.9 (PASS, with one isolated overlap residual)
+All vs Mitsuba **analog** (`SG_NEE=0`), `ellipsoids`, box filter. `SG_ALBEDO`/`SG_NEE`/
+`SG_MAX_DEPTH`/`SG_SIGMA` env knobs added to the cluster + single-Gaussian scripts.
+
+- **n5 cluster (5 isotropic overlapping, M=2): PASS.** 16384 spp: mean diff −0.00000,
+  RMSE 0.00201, all 8 radiance bins ≤ ±0.00016, central 96×96 = −0.00005. Clean.
+- **traits cluster (8 anisotropic+rotated+varied-σ, overlap ~8): PASS with a small,
+  real, isolated residual.** CUDA furnace on this dense cluster (albedo=1) = mean
+  1.00003, flat — **CUDA conserves energy in dense overlap**. At albedo=0.9 vs
+  analog: RMSE 0.00138 (65535/49152 spp), mean +0.00004, but the **dense core is
+  systematically CUDA-brighter by ~+0.0002** (central 96×96 +0.00019 @ ~6 SEM; very
+  center 8×8 +0.0012; deepest radiance bin +0.0005).
+
+**Diagnosis of the traits core residual (each step a controlled experiment):**
+1. **Not energy** — CUDA furnace on traits is flat (mean 1.00003).
+2. **Half was Mitsuba max_depth=32 truncation.** Raising Mitsuba 32→128 (0.9¹²⁸≈1e-6,
+   so 128 ≈ unbounded) cut the core diff in half (96×96 +0.00035→+0.00017). Both
+   sides now run depth 128.
+3. **The remaining ~+0.0002 is NOT convergence.** CUDA 65535 / Mitsuba 49152 (both
+   d128): overall RMSE halved 0.00273→0.00138 (noise) but the **core systematic held
+   flat** (96×96 +0.00017→+0.00019). Convergence-stable ⇒ a genuine bias.
+4. **It is OVERLAP-specific, not density.** Single dense Gaussian σ=12 (deep core
+   T~0.85, heavy multiple-scatter, **no overlap**), albedo=0.9 vs analog d128:
+   mean −0.00003, all bins ≤±0.0002 with sign flips = pure noise, **zero systematic**.
+   Single σ=4 likewise clean (§8.2). So multiple-scatter depth alone does not trigger
+   it; simultaneous overlap does.
+5. **It is NOT the albedo blend.** All traits prims share albedo=0.9, so the
+   σ-weighted `evaluate_albedo` returns exactly 0.9 regardless of weights.
+6. **It is NOT the entering-ray transmittance.** Absorption traits (albedo=0) passed
+   exactly (mean −6.6e-6), so `compute_transmittance_to_env` is correct for rays
+   entering the overlap from outside.
+
+⇒ **Residual is localized to the scattering-specific overlap path** — most likely the
+NEE shadow-ray transmittance evaluated **from a scatter vertex INSIDE overlapping
+primitives** (uses `exit_from_inside` on several prims — a distinct path from camera
+rays entering from outside), or the ADT argmin scatter-distance distribution under
+overlap. CUDA-brighter sign ⇒ slight *over*-estimate of in-scattered light in overlap.
+Magnitude is tiny (0.03% core, ≤0.16% peak) but **convergence-stable and real**, and
+the cloud (overlap 37–45 ≫ traits' ~8) may compound it — so it matters for the cloud.
+**OPEN.** Candidate fix sites: `compute_transmittance_to_env` interior-start branch
+(sampling.cuh), `sample_scattering_event` argmin under overlap.
+
+Artifacts: `test_results/scatter/` (cuda_*), `test_results/single_gauss/mitsuba_*`.
+
+### 8.4 Cloud scattering — FULL RUNG PASS (cam 0)
+First scattering render of the full 652-Gaussian cloud. CUDA `cloud_asset_scattering`
+(albedo=0.9 default) vs Mitsuba `volprim_prb` **analog** (`SG_NEE=0`), both σ=7.5
+(Jorge's confirmed LINEAR cloud density scale — see [[reference_asset_density_scales]]),
+albedo=0.9, max_depth=128, box filter, cam_0000, 800×800. Tools: `SG_CAM` selector on
+the CUDA cloud scene (single-camera, 0000.exr); `SG_ALBEDO`/`SG_SIGMA`/`SG_MAX_DEPTH`
+on `render_cloud_prb_absorption.py` (ALBEDO>0 → `refs_prb_scattering/`).
+Resumable study: `tools/refs/cloud_scatter_study.sh` + `cloud_scatter_metrics.py`.
+
+**spp ladder (cross CUDA vs Mitsuba, same spp):**
+| spp | RMSE | PSNR | systematic | t_CUDA | t_Mitsuba |
+|----:|-----:|-----:|-----:|------:|------:|
+| 64 | 0.05976 | 24.5 | 0.00007 | 54s | 33s |
+| 128 | 0.04218 | 27.5 | 0.00000 | 114s | 65s |
+| 256 | 0.02980 | 30.5 | 0.00003 | 239s | 128s |
+| 512 | 0.02108 | 33.5 | 0.00001 | 479s | 253s |
+| 1024 | 0.01491 | 36.5 | 0.00004 | 956s | 496s |
+
+**The RMSE is 100% noise; the systematic error is below detection (~10⁻⁴).** Proven
+(no code) via a converged reference M* = mean of 9 Mitsuba seeds @512 (eff ~4600,
+residual noise 0.00358). CUDA(spp) vs M* fits `RMSE² = 0.1688/spp + 0.000013`:
+- slope ⇒ CUDA noise const **kC = 0.411** (matches independent self-conv estimate);
+- intercept floor (0.00354) **equals M*'s own noise (0.00358)** ⇒ systematic²
+  = floor² − M*noise² = 0 ⇒ **systematic ≈ 0** (regional means −4e-5; σ=16 blurred
+  diff flat, peak 0.001). Cross-RMSE tracks 1/√spp exactly (0.0598→0.0149 over 16×spp
+  = ratio 4.01 = √16) ⇒ **no error floor**.
+- **DIRECT MEASUREMENT (added: `--seed` flag + 16-seed CUDA* vs 8-seed M*, noise-free
+  diff — no extrapolation).** Each renderer's residual noise measured from systematic-
+  free seed-pair diffs (CUDA* 0.00454, M* 0.00380). Tool: `cloud_systematic_direct.py`.
+  - **global systematic = −1.6e-5 ± 8e-6** (2σ) — essentially zero, ~5 decimal places.
+  - Spatial structure seen at 8 seeds SHRANK at 16 (central 96² −1.1e-4→−2.1e-5;
+    192² −1.6e-4→−6.1e-5) ⇒ it was noise (a real bias would hold; noise shrinks √N).
+  - **BUT a real residual confirmed in the densest core:** with an INDEPENDENT mask
+    (dense defined from a separate render, so selection can't bias the noise) the broad
+    body (T<0.6) = −1.2e-5 [1.0σ]=0, but the deepest pixels **T<0.4 = +1.0e-4 [3.3σ]**,
+    CUDA-brighter — same sign as the §8.3 traits overlap residual (+0.0002), ~2× smaller,
+    confined to the most-overlapped pixels. (A self-mask gave a spurious +1.05e-4 "8.4σ"
+    = select-by-noisy-reference bias — do NOT mask by the noisy variable being compared.)
+  ⇒ So at cloud scale: agreement to ~10⁻⁵ globally; the overlap-scatter residual (§8.3)
+    DOES echo here as a tiny **+1e-4 in the densest core only**. RMSE is ~150–1000× the
+    true disagreement (0.015 vs 1e-5–1e-4) ⇒ overwhelmingly noise, now MEASURED not bounded.
+- Decomposition method (how noise vs bias is separated): noise ∝ 1/spp & zero-mean
+  (cancels under spp↑ and pixel/seed averaging); bias is spp-independent & survives
+  averaging. So `RMSE²(spp) = k²/spp + ⟨S²⟩`: slope=noise, intercept=systematic. Valid
+  ONLY because the estimator is unbiased MC+RR with NO denoise/clamp. Artifacts:
+  `renders/cloud_converge/cloud_systematic_proof.png`, `test_results/cloud_*_bundle/`.
+
+⇒ **CUDA cloud scattering is VALIDATED: same physics as Mitsuba to ~10⁻⁵ globally**
+(measured), with one tiny real residual (+1e-4 in the densest-overlap core = the §8.3
+effect echoing at cloud scale). No error floor; RMSE is ~99.9% noise. Remaining: more
+cameras (cam 0 only so far); the nuanced cloud *look* (albedo/σ choice).
+
+### 8.5 SPEED (cloud scattering, cam 0) — CUDA currently slower; algorithmic, fixable
+Equal-spp: CUDA **1.93×** slower (throughput 0.934 vs 0.484 s/spp). Equal-QUALITY (the
+fair metric): noise consts kC=0.411 vs kM=0.243 ⇒ CUDA **2.85× noisier per sample** ⇒
+equal-quality slowdown = 1.93 × 2.85 = **~5.5×** (to noise 0.01: CUDA ~1577s vs ~287s).
+ROOT CAUSE: Mitsuba `volprim_prb` is partially Rao-Blackwellized at EVERY bounce (folds
+analytic segment transmittance into throughput each step, β*=seg_tr); CUDA only does
+this at bounce 0 (`ENABLE_ANALYTIC_DIRECT`). That single difference = the entire 2.85×
+variance gap. Levers (correctness-preserving, never profiled): (a) **per-step RB** —
+extend analytic throughput-folding to all bounces (closes the 2.85× variance gap, lowers
+RMSE AND closes most of the speed gap); (b) **throughput** — NSight pass (128-deep
+HIT/Event per-ray buffers likely hurt occupancy). NB Mitsuba's *faster* NEE mode is
+energy-broken (+6.5% furnace, §8.1) so we benchmark its slower analog; CUDA NEE is correct.
+
+## 9. Known limitations & OPEN items
+
+- **Scattering at albedo>0 is VALIDATED end-to-end** (§8: furnace → single → clusters →
+  full cloud, all matching Mitsuba analog to ≤~10⁻⁴). Open: (a) the §8.3 traits overlap
+  residual (+0.0002, below detection at cloud scale); (b) CUDA is ~5.5× slower at equal
+  quality (§8.5) — fixable via per-step Rao-Blackwellization + profiling; (c) only cam 0
+  rendered for the cloud scattering rung; (d) the scattering "look" (albedo/σ) is now a
+  design choice, NOT constrained by refs/ (which are absorption — [[reference_asset_density_scales]]).
 - **Low-σ interior absorption check (cheap, recommended next).** Current cloud
   interior agreement is partly trivial because both renders clamp to black there.
   Re-render at lower σ (≈1.5–2.5) so the interior is gray → a non-saturated interior
@@ -271,7 +442,7 @@ The central open problem of the project. Verdict: **CUDA was correct all along.*
 
 ---
 
-## 9. Pointers to older notes
+## 10. Pointers to older notes
 
 - `tools/refs/CONCLUSIONS.md` — the voxel-reference pipeline (stalled; spatial
   convention unknowns). Superseded by the prb-reference approach above.

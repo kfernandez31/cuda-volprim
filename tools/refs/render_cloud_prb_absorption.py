@@ -26,10 +26,16 @@ CLOUD_DIR = '/home/kacper/thesis/assets/cloud'
 sys.path.insert(0, CLOUD_DIR)
 import __init__ as cloud_scene
 
-SIGMAT_SCALE = 7.5            # matches CUDA --sigma-multiplier 7.5
+SIGMAT_SCALE = float(os.environ.get('SG_SIGMA', '7.5'))   # matches CUDA --sigma-multiplier
 SPP = int(os.environ.get('SG_SPP', '64'))
 SEED = int(os.environ.get('SG_SEED', '0'))
 ONE_CAM = os.environ.get('SG_CAM')  # e.g. "0" to render only cam_0000
+# SG_ALBEDO>0 turns this into the SCATTERING reference (overrides PLY albedo≈0).
+# use_nee stays False (analog = trustworthy; prb's NEE fails the furnace test +6.5%).
+# SG_MAX_DEPTH default 128 to match CUDA MAX_BOUNCES (depth matters in deep media —
+# at depth 32 the dense cloud loses multiply-scattered energy; see FINDINGS §8.3).
+ALBEDO = float(os.environ.get('SG_ALBEDO', '0.0'))
+MAX_DEPTH = int(os.environ.get('SG_MAX_DEPTH', '128'))
 
 scene_dict = {'type': 'scene'}
 scene_dict.update(cloud_scene.OBJECTS)
@@ -40,18 +46,19 @@ prim = scene_dict.get('primitives_pyr0', {})
 if 'extent_adaptive_clamping' in prim:
     del prim['extent_adaptive_clamping']
 scene_dict['primitives_pyr0']['filename'] = join(CLOUD_DIR, 'data/root.primitives_pyr0.ply')
-# Force absorption path-tracer behavior (no NEE; albedo stays at PLY≈0).
-scene_dict['integrator'] = {'type': 'volprim_prb', 'max_depth': 32,
+# Analog path tracer (no NEE — the trustworthy energy-conserving reference).
+scene_dict['integrator'] = {'type': 'volprim_prb', 'max_depth': MAX_DEPTH,
                             'kernel_type': 'gaussian', 'solver_type': 'bisection',
                             'use_nee': False}
 
-out_dir = join(CLOUD_DIR, 'refs_prb_absorption')
+out_dir = join(CLOUD_DIR, 'refs_prb_scattering' if ALBEDO > 0.0 else 'refs_prb_absorption')
 os.makedirs(out_dir, exist_ok=True)
 
 cams = sorted(k for k in cloud_scene.SENSORS if k.startswith('cam_'))
 if ONE_CAM is not None:
     cams = [f'cam_{int(ONE_CAM):04d}']
-print(f"prb absorption ref: sigmat_scale={SIGMAT_SCALE} albedo=PLY(≈0) spp={SPP} shape="
+_mode = f"SCATTERING albedo={ALBEDO}" if ALBEDO > 0.0 else "absorption albedo=PLY(≈0)"
+print(f"prb {_mode} ref: sigmat_scale={SIGMAT_SCALE} max_depth={MAX_DEPTH} spp={SPP} shape="
       f"{scene_dict['primitives_pyr0']['type']}  cams={len(cams)}")
 
 for i, cam_name in enumerate(cams):
@@ -67,7 +74,9 @@ for i, cam_name in enumerate(cams):
     scene = mi.load_dict(d)
     params = mi.traverse(scene)
     params['primitives_pyr0.sigma_t'] = params['primitives_pyr0.sigma_t'] * SIGMAT_SCALE
-    # NO albedo override — keep PLY albedo (≈0) for pure absorption.
+    if ALBEDO > 0.0:
+        # Override per-prim albedo to a uniform constant (×0+c preserves dtype/shape).
+        params['primitives_pyr0.albedo'] = params['primitives_pyr0.albedo'] * 0.0 + ALBEDO
     params.update()
     cam_idx = int(cam_name.split('_')[1])
     img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
