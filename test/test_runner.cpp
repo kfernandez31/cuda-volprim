@@ -388,6 +388,24 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        if (test_config.scene_name == "asset_validation") {
+            try {
+                auto a_result = asset_validation(test_config.sigma_multiplier);
+                if (!a_result.has_value()) {
+                    std::cerr << "✗ Failed to build asset scene: " << a_result.error().msg_ << "\n";
+                    return 1;
+                }
+                run_multiview_test(a_result.value(), test_config);
+                return 0;
+            } catch (const std::exception& e) {
+                std::cerr << "✗ Exception: " << e.what() << "\n";
+                return 1;
+            } catch (...) {
+                std::cerr << "✗ Unknown exception occurred\n";
+                return 1;
+            }
+        }
+
         // Find the requested scene
         auto it = std::find_if(scenes_to_run.begin(), scenes_to_run.end(),
             [&](const TestScene& s) { return s.name == test_config.scene_name; });

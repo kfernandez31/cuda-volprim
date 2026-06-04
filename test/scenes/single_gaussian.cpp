@@ -22,6 +22,31 @@ namespace {
     return env ? static_cast<float>(std::atof(env)) : 0.0f;
 }
 
+// SG_ENV selects the environment map. Default = white_constant (the energy/furnace
+// and absorption tests). SG_ENV=meadow → the real 4k HDR, which is the FIRST real
+// exercise of the env_is importance sampler. Mirrored on the Mitsuba side via an
+// `envmap` emitter with a calibrated to_world (see render_*_via_prb.py).
+[[nodiscard]] std::string env_map_path() {
+    const char* env = std::getenv("SG_ENV");
+    const std::string sel = env ? env : "white_constant";
+    if (sel == "meadow") return "assets/meadow_2_4k.hdr";
+    return "assets/white_constant.hdr";
+}
+
+// SG_PERSP=1 switches the single-Gaussian scene to a PERSPECTIVE camera. An ortho
+// camera makes all background rays parallel → the env background collapses to a
+// single direction (flat), useless for orientation calibration. Perspective shows
+// the whole env cone. SG_FOV (deg, default 90) controls the field of view.
+[[nodiscard]] bool use_perspective() {
+    const char* env = std::getenv("SG_PERSP");
+    return env && std::string_view(env) == "1";
+}
+
+[[nodiscard]] float perspective_fov() {
+    const char* env = std::getenv("SG_FOV");
+    return env ? static_cast<float>(std::atof(env)) : 90.0f;
+}
+
 constexpr size_t SINGLE_GAUSSIAN_WIDTH = 256;
 constexpr size_t SINGLE_GAUSSIAN_HEIGHT = 256;
 // Isotropic Gaussian scale. Camera framing is derived proportionally so the
@@ -32,6 +57,28 @@ constexpr size_t SINGLE_GAUSSIAN_HEIGHT = 256;
 constexpr float SINGLE_GAUSSIAN_SCALE = 1.0f;
 constexpr float SINGLE_GAUSSIAN_ORTHO_HEIGHT = 6.0f * SINGLE_GAUSSIAN_SCALE;   // ±3σ
 constexpr float SINGLE_GAUSSIAN_CAMERA_DISTANCE = 5.0f * SINGLE_GAUSSIAN_SCALE;
+
+// SG_VIEW selects the camera viewing AXIS for full-sphere env-orientation
+// calibration (WS0 was only validated along +Z, which is on the equator y=0 —
+// invariant under a vertical flip, so it could not detect a y-flip mismatch).
+// Returns {origin, target, up}; origin is CAMERA_DISTANCE back along the axis.
+struct ViewConfig { float3 origin, target, up; };
+[[nodiscard]] ViewConfig view_config() {
+    const char* env = std::getenv("SG_VIEW");
+    const std::string v = env ? env : "posz";
+    const float D = SINGLE_GAUSSIAN_CAMERA_DISTANCE;
+    const auto O = make_float3(0.0f, 0.0f, 0.0f);
+    if (v == "negz") return {make_float3(0, 0, D), O, make_float3(0, 1, 0)};
+    if (v == "posx") return {make_float3(-D, 0, 0), O, make_float3(0, 1, 0)};
+    if (v == "negx") return {make_float3(D, 0, 0), O, make_float3(0, 1, 0)};
+    if (v == "posy") return {make_float3(0, -D, 0), O, make_float3(0, 0, 1)};  // look up (+Y)
+    if (v == "negy") return {make_float3(0, D, 0), O, make_float3(0, 0, 1)};   // look down (-Y)
+    if (v == "sun") {  // meadow sun dir (0.7197,0.4530,0.5261); look ALONG it from -dir
+        const auto s = make_float3(0.7197f, 0.4530f, 0.5261f);
+        return {make_float3(-D * s.x, -D * s.y, -D * s.z), O, make_float3(0, 1, 0)};
+    }
+    return {make_float3(0, 0, -D), O, make_float3(0, 1, 0)};                   // posz (default)
+}
 
 }  // namespace
 
@@ -95,21 +142,26 @@ Result<MultiViewTestScene> single_gaussian_validation(float sigma_multiplier) {
 
     // Orthographic camera looking along +Z from z = -5. Viewport spans
     // [-3, 3] x [-3, 3] world units (3σ envelope fits cleanly).
-    const auto cam_origin =
-        make_float3(0.0f, 0.0f, -SINGLE_GAUSSIAN_CAMERA_DISTANCE);
-    const auto cam_target = make_float3(0.0f, 0.0f, 0.0f);
-    const auto cam_up = make_float3(0.0f, 1.0f, 0.0f);
+    const auto vc = view_config();
+    const auto cam_origin = vc.origin;
+    const auto cam_target = vc.target;
+    const auto cam_up = vc.up;
 
-    auto camera = thesis::host::params::Camera::createOrthographic(
-        SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT, cam_origin, cam_target, cam_up,
-        SINGLE_GAUSSIAN_ORTHO_HEIGHT);
+    auto camera = use_perspective()
+        ? thesis::host::params::Camera::createPerspective(
+              SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT, cam_origin, cam_target, cam_up,
+              perspective_fov())
+        : thesis::host::params::Camera::createOrthographic(
+              SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT, cam_origin, cam_target, cam_up,
+              SINGLE_GAUSSIAN_ORTHO_HEIGHT);
 
     scene.cameras.push_back({camera, SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT});
 
-    scene.env_map_override = "assets/white_constant.hdr";
+    scene.env_map_override = env_map_path();
 
-    spdlog::info("single_gaussian_validation: sigma_multiplier={}, optical_thickness={:.4f}",
-                 sigma_multiplier, optical_thickness);
+    spdlog::info("single_gaussian_validation: sigma_multiplier={}, optical_thickness={:.4f}, "
+                 "env={}, perspective={}",
+                 sigma_multiplier, optical_thickness, env_map_path(), use_perspective());
 
     return scene;
 }

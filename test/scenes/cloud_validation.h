@@ -36,4 +36,8 @@ thesis::host::utils::Result<MultiViewTestScene> cloud_asset_validation(float sig
 thesis::host::utils::Result<MultiViewTestScene> cloud_asset_scattering(float sigma_multiplier = 60.0f,
                                                                        float albedo = 0.9f);
 
+// Generic Gaussian-asset scene (bunny etc.) — loads SG_PLY with a single framed perspective
+// camera. Used for asset-generalization validation beyond the cloud.
+thesis::host::utils::Result<MultiViewTestScene> asset_validation(float sigma_multiplier = 1.0f);
+
 }  // namespace thesis::test::scenes

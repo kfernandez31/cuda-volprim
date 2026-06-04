@@ -42,16 +42,40 @@ scene_dict.update(cloud_scene.OBJECTS)
 scene_dict.update(cloud_scene.EMITTERS)
 if 'resources' in scene_dict:
     del scene_dict['resources']
+
+# WS1/WS4: SG_ENV=meadow swaps the constant emitter for the real 4k HDR. The env
+# is in WORLD space and both renderers apply it in world space, so the roty90
+# orientation calibration (FINDINGS §8.6) carries over unchanged to the cloud's
+# 24 world-frame cameras.
+SG_ENV = os.environ.get('SG_ENV', 'white_constant')
+SG_ENV_ROTY = float(os.environ.get('SG_ENV_ROTY', '90'))
+if SG_ENV == 'meadow':
+    from mitsuba import ScalarTransform4f as T
+    scene_dict['environment'] = {
+        'type': 'envmap',
+        'filename': '/home/kacper/thesis/assets/meadow_2_4k.hdr',
+        'to_world': T().rotate(axis=[0, 1, 0], angle=SG_ENV_ROTY),
+    }
 prim = scene_dict.get('primitives_pyr0', {})
 if 'extent_adaptive_clamping' in prim:
     del prim['extent_adaptive_clamping']
 scene_dict['primitives_pyr0']['filename'] = join(CLOUD_DIR, 'data/root.primitives_pyr0.ply')
-# Analog path tracer (no NEE — the trustworthy energy-conserving reference).
+# SG_NEE=1 turns ON Mitsuba's own NEE/MIS (its importance-sampled path — fast but energy-biased,
+# fails the furnace by +6.5%, FINDINGS §8.1). Default 0 = analog (the trustworthy reference).
+# Used to benchmark CUDA-MIS against Mitsuba's *own* MIS apples-to-apples.
+USE_NEE = os.environ.get('SG_NEE', '0') == '1'
 scene_dict['integrator'] = {'type': 'volprim_prb', 'max_depth': MAX_DEPTH,
                             'kernel_type': 'gaussian', 'solver_type': 'bisection',
-                            'use_nee': False}
+                            'use_nee': USE_NEE}
+# WS2/WS4: SG_HG_G≠0 swaps the isotropic default for Henyey-Greenstein (mirrors CUDA HG_G).
+_hg = os.environ.get('SG_HG_G')
+if _hg and float(_hg) != 0.0:
+    scene_dict['integrator']['phasefunction'] = {'type': 'hg', 'g': float(_hg)}
 
-out_dir = join(CLOUD_DIR, 'refs_prb_scattering' if ALBEDO > 0.0 else 'refs_prb_absorption')
+_envtag = '_meadow' if SG_ENV == 'meadow' else ''
+_hgtag = f'_hg{float(_hg):.2f}' if (_hg and float(_hg) != 0.0) else ''
+_neetag = '_nee' if USE_NEE else ''
+out_dir = join(CLOUD_DIR, ('refs_prb_scattering' if ALBEDO > 0.0 else 'refs_prb_absorption') + _envtag + _hgtag + _neetag)
 os.makedirs(out_dir, exist_ok=True)
 
 cams = sorted(k for k in cloud_scene.SENSORS if k.startswith('cam_'))

@@ -121,6 +121,21 @@ class Camera {
         return cam;
     }
 
+    // Factory method for perspective camera (env-orientation calibration + meadow
+    // single-Gaussian env test). vertical_fov is in degrees. The renderer already
+    // supports the perspective path via buildPerspective().
+    static Camera createPerspective(size_t width, size_t height, float3 origin, float3 target,
+                                    float3 up, float vertical_fov_deg) noexcept {
+        Camera cam;
+        cam.is_orthographic_ = false;
+        cam.lookfrom_ = origin;
+        cam.lookat_ = target;
+        cam.vup_ = up;
+        cam.vertical_fov_ = vertical_fov_deg;
+        cam.build(width, height);
+        return cam;
+    }
+
     // Factory method for orthographic camera
     static Camera createOrthographic(size_t width, size_t height, float3 origin, float3 target,
                                      float3 up, float ortho_height) noexcept {

@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <string_view>
 
 namespace thesis::test::scenes {
 
@@ -63,7 +64,13 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
 
     spdlog::info("Created {} orthographic camera(s)", scene.cameras.size());
 
-    scene.env_map_override = "assets/white_constant.hdr";
+    // SG_ENV=meadow swaps the constant env for the real 4k HDR (orientation
+    // calibrated in FINDINGS §8.6; mirrored on the Mitsuba side via
+    // render_cloud_prb_absorption.py). Default keeps the constant env.
+    const char* sg_env = std::getenv("SG_ENV");
+    scene.env_map_override = (sg_env && std::string_view(sg_env) == "meadow")
+                                 ? "assets/meadow_2_4k.hdr"
+                                 : "assets/white_constant.hdr";
     return scene;
 }
 
@@ -76,6 +83,53 @@ Result<MultiViewTestScene> cloud_asset_validation(float sigma_multiplier) {
         "cloud_asset_validation",
         "Jorge's cloud asset (pure absorber, PLY albedo ≈ 0) — 652 Gaussians, 24 ortho views",
         sigma_multiplier, make_float3(-1.0f));
+}
+
+// Generic Gaussian-asset loader (bunny etc.). SG_PLY = path (default bunny pyr0); a single
+// framed perspective camera (SG_DIST / SG_FOV / SG_RES); SG_ALBEDO override; SG_ENV env.
+// Assets are centered in ~[-1,1]³ so a perspective cam at ~3.5 looking at origin frames them.
+Result<MultiViewTestScene> asset_validation(float sigma_multiplier) {
+    auto envf = [](const char* k, double d) {
+        const char* v = std::getenv(k); return v ? std::atof(v) : d;
+    };
+    const char* ply_env = std::getenv("SG_PLY");
+    const std::string ply = ply_env ? ply_env : "assets/bunny/bunny_pyr0.ply";
+    const float alb = static_cast<float>(envf("SG_ALBEDO", 0.0));
+    const float3 albedo_override = alb > 0.0f ? make_float3(alb, alb, alb) : make_float3(-1.0f);
+
+    MultiViewTestScene scene;
+    scene.name = "asset_validation";
+    scene.description = "Generic Gaussian asset: " + ply;
+
+    spdlog::info("Loading asset PLY: {}", ply);
+    auto fut = thesis::host::utils::io::async::loadPrimitives(ply, sigma_multiplier, albedo_override);
+    auto res = fut.get();
+    if (!res.has_value()) return make_error("Failed to load asset '{}': {}", ply, res.error());
+    scene.primitives = std::move(res.value());
+    spdlog::info("Loaded {} asset primitives", scene.primitives.size());
+
+    const auto dist = static_cast<float>(envf("SG_DIST", 3.5));
+    const auto fov = static_cast<float>(envf("SG_FOV", 40.0));
+    const auto res_ = static_cast<size_t>(envf("SG_RES", 512));
+    const char* view_env = std::getenv("SG_VIEW");
+    const std::string view = view_env ? view_env : "negz";
+    float3 origin, up = make_float3(0.0f, 1.0f, 0.0f);
+    if (view == "posz") origin = make_float3(0, 0, dist);
+    else if (view == "posx") origin = make_float3(dist, 0, 0);
+    else if (view == "negx") origin = make_float3(-dist, 0, 0);
+    else if (view == "posy") { origin = make_float3(0, dist, 0); up = make_float3(0, 0, 1); }
+    else if (view == "negy") { origin = make_float3(0, -dist, 0); up = make_float3(0, 0, 1); }
+    else if (view == "diag") origin = make_float3(dist * 0.6f, dist * 0.5f, -dist * 0.6f);
+    else origin = make_float3(0, 0, -dist);  // negz default
+    auto camera = thesis::host::params::Camera::createPerspective(
+        res_, res_, origin, make_float3(0.0f, 0.0f, 0.0f), up, fov);
+    scene.cameras.push_back({camera, res_, res_});
+
+    const char* sg_env = std::getenv("SG_ENV");
+    scene.env_map_override = (sg_env && std::string_view(sg_env) == "meadow")
+                                 ? "assets/meadow_2_4k.hdr"
+                                 : "assets/white_constant.hdr";
+    return scene;
 }
 
 Result<MultiViewTestScene> cloud_asset_scattering(float sigma_multiplier, float albedo) {

@@ -85,6 +85,82 @@ cam_to_world = T().look_at(
     up=[0, 1, 0],
 ) @ T().scale([ORTHO_HEIGHT / 2.0] * 3)
 
+# ── WS0/WS1: environment + camera selection (mirror test/scenes/single_gaussian.cpp) ──
+# SG_ENV=meadow swaps the constant emitter for the real 4k HDR via an `envmap`.
+# SG_PERSP=1 swaps the ortho sensor for a perspective one (needed to *see* the env
+# background for orientation calibration; ortho collapses the background to 1 dir).
+SG_ENV = os.environ.get("SG_ENV", "white_constant")
+SG_PERSP = os.environ.get("SG_PERSP") == "1"
+SG_FOV = float(os.environ.get("SG_FOV", "90"))
+# SG_VIEW selects the camera viewing axis for full-sphere env calibration (mirror
+# of test/scenes/single_gaussian.cpp view_config()).
+_D = CAMERA_DISTANCE
+_VIEWS = {
+    "posz": ([0, 0, -_D], [0, 0, 0], [0, 1, 0]),
+    "negz": ([0, 0, _D], [0, 0, 0], [0, 1, 0]),
+    "posx": ([-_D, 0, 0], [0, 0, 0], [0, 1, 0]),
+    "negx": ([_D, 0, 0], [0, 0, 0], [0, 1, 0]),
+    "posy": ([0, -_D, 0], [0, 0, 0], [0, 0, 1]),
+    "negy": ([0, _D, 0], [0, 0, 0], [0, 0, 1]),
+}
+SG_VIEW = os.environ.get("SG_VIEW", "posz")
+_vo, _vt, _vu = _VIEWS.get(SG_VIEW, _VIEWS["posz"])
+# Calibration DOF: rotation (deg) about +Y applied to the envmap to_world, plus an
+# optional X flip, to match CUDA's u=atan2(z,x)/2π+0.5, v=acos(y)/π convention.
+# Analytic prediction: ROTY=90 aligns azimuth; sweep to confirm empirically.
+SG_ENV_ROTY = float(os.environ.get("SG_ENV_ROTY", "90"))
+SG_ENV_FLIPX = os.environ.get("SG_ENV_FLIPX") == "1"
+
+if SG_ENV == "meadow":
+    env_to_world = T().rotate(axis=[0, 1, 0], angle=SG_ENV_ROTY)
+    if SG_ENV_FLIPX:
+        env_to_world = env_to_world @ T().scale([-1, 1, 1])
+    environment_block = {
+        "type": "envmap",
+        "filename": os.path.join(THESIS_ROOT, "assets/meadow_2_4k.hdr"),
+        "to_world": env_to_world,
+    }
+else:
+    environment_block = {
+        "type": "constant",
+        "radiance": {"type": "uniform", "value": 1.0},
+    }
+
+if SG_PERSP:
+    sensor_block = {
+        "type": "perspective",
+        "fov": SG_FOV,
+        "fov_axis": "y",
+        "near_clip": 0.01,
+        "far_clip": 1000.0,
+        "to_world": T().look_at(origin=_vo, target=_vt, up=_vu),
+        "film": {
+            "type": "hdrfilm",
+            "width": WIDTH,
+            "height": HEIGHT,
+            "pixel_format": "rgb",
+            "component_format": "float32",
+            "filter": {"type": os.environ.get("SG_RFILTER", "gaussian")},
+        },
+        "sampler": {"type": "independent"},
+    }
+else:
+    sensor_block = {
+        "type": "orthographic",
+        "near_clip": 0.01,
+        "far_clip": 100.0,
+        "film": {
+            "type": "hdrfilm",
+            "width": WIDTH,
+            "height": HEIGHT,
+            "pixel_format": "rgb",
+            "component_format": "float32",
+            "filter": {"type": os.environ.get("SG_RFILTER", "gaussian")},
+        },
+        "sampler": {"type": "independent"},
+        "to_world": cam_to_world,
+    }
+
 scene_dict = {
     "type": "scene",
     "integrator": {
@@ -95,6 +171,11 @@ scene_dict = {
         # NEE on by default for the scattering reference (faster convergence;
         # still unbiased). SG_NEE=0 forces it off.
         "use_nee": os.environ.get("SG_NEE", "1") == "1",
+        # WS2: SG_HG_G≠0 switches the isotropic default to a Henyey-Greenstein
+        # phase function (mirrors CUDA HG_G). volprim_prb reads 'phasefunction'.
+        **({"phasefunction": {"type": "hg", "g": float(os.environ["SG_HG_G"])}}
+           if os.environ.get("SG_HG_G") and float(os.environ.get("SG_HG_G", "0")) != 0.0
+           else {}),
     },
     "primitive": {
         # SG_SHAPE=ellipsoids -> exact analytic ray-ellipsoid intersection (like CUDA);
@@ -109,25 +190,8 @@ scene_dict = {
         "albedo": albedo,
         "extent": 3.0,
     },
-    "environment": {
-        "type": "constant",
-        "radiance": {"type": "uniform", "value": 1.0},
-    },
-    "sensor": {
-        "type": "orthographic",
-        "near_clip": 0.01,
-        "far_clip": 100.0,
-        "film": {
-            "type": "hdrfilm",
-            "width": WIDTH,
-            "height": HEIGHT,
-            "pixel_format": "rgb",
-            "component_format": "float32",
-            "filter": {"type": os.environ.get("SG_RFILTER", "gaussian")},
-        },
-        "sampler": {"type": "independent"},
-        "to_world": cam_to_world,
-    },
+    "environment": environment_block,
+    "sensor": sensor_block,
 }
 
 scene = mi.load_dict(scene_dict)
@@ -140,7 +204,14 @@ dr.sync_thread()
 _tag = "_transformed" if os.environ.get("SG_TRANSFORMED") == "1" else ""
 _albtag = f"_alb{ALBEDO:.2f}" if ALBEDO != 0.0 else ""
 _seedtag = f"_seed{SEED}" if SEED != 0 else ""
-out = os.path.join(OUT_DIR, f"mitsuba_volprim_prb{_tag}{_albtag}_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
+_envtag = "_meadow" if SG_ENV == "meadow" else ""
+_perstag = "_persp" if SG_PERSP else ""
+_viewtag = f"_{SG_VIEW}" if SG_VIEW != "posz" else ""
+_rottag = f"_roty{SG_ENV_ROTY:.0f}" if (SG_ENV == "meadow" and SG_ENV_ROTY != 0.0) else ""
+_fliptag = "_flipx" if (SG_ENV == "meadow" and SG_ENV_FLIPX) else ""
+_hg_env = os.environ.get("SG_HG_G")
+_hgtag = f"_hg{float(_hg_env):.2f}" if (_hg_env and float(_hg_env) != 0.0) else ""
+out = os.path.join(OUT_DIR, f"mitsuba_volprim_prb{_tag}{_envtag}{_perstag}{_viewtag}{_rottag}{_fliptag}{_hgtag}{_albtag}_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
 mi.Bitmap(img).write(out)
 arr = np.array(img).astype(np.float32)
 print(f"wrote {out}  mean={arr.mean():.4f}  max={arr.max():.4f}")
