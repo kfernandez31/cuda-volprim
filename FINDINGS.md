@@ -486,7 +486,7 @@ NEE+`env_is` converges to the unbiased analog image.
   magnitude/normalization and NEE, NOT vertical env orientation. Orientation is validated
   separately (§8.6 full-sphere probe) and at the cloud (§8.8).
 
-### 8.8 Real HDR env (meadow) — full cloud (WS1 cloud rung) — IN PROGRESS
+### 8.8 Real HDR env (meadow) — full cloud (WS1 cloud rung) — PASS (orientation bug fixed)
 The cloud is the first test sensitive to env **orientation** (652 spatially-distinct primitives ⇒
 the directional light distribution matters). Comparing the fixed CUDA build vs Mitsuba-analog,
 cam 0, σ_t=7.5, albedo=0.9.
@@ -562,10 +562,110 @@ continuation both use `phase::sample` only (where the phase value cancels via `p
   texel-center directions (no within-texel jitter) — fine at 4k; jitter was tried and reverted (it
   added a pole-division NaN hazard on coarse envs without changing the bias, which was the sign bug).
 
+### 8.11 Money shot (WS4) — cloud + meadow + HG g=0.85 + MIS — PASS, and match-and-beat
+The combined "nuanced look" (cloud, real HDR env, forward scattering, MIS) validated vs Mitsuba in
+one render (cam 0, σ_t=7.5, albedo=0.9, g=0.85, 256 spp). Artifacts: `renders/bundle_2026-06-04/`
+(`RESULTS.md`, `figures/`). **CUDA-MIS is the validated-correct reference here** (its energy is the
+furnace/NEE-validated value from §8.1/§8.10).
+- **Energy / correctness (mean radiance):** CUDA-MIS **0.3215** vs Mitsuba-analog **0.3242 (+0.9%)**
+  — match (the +0.9% is Mitsuba-analog's unconverged firefly tail, same story as §8.8/§8.10, not a
+  CUDA bias). Mitsuba-**NEE** = 0.8200 (**+155%**) — its NEE is grossly over-bright in this
+  scattering+meadow scene, the amplified cousin of its +6.5% furnace failure (§8.1). So **analog is
+  the only trustworthy Mitsuba mode**; its NEE/MIS is not ground truth.
+- **Firefly proof (single frame):** CUDA-MIS max **3.1**, p99.9 2.18, **0%** pixels >5. Mitsuba-analog
+  max **317.9**, p99.9 57.13, **0.56%** >5. Mitsuba-NEE max 7.8, 0.96% >5. CUDA-MIS converges
+  **firefly-free**; Mitsuba spikes the same energy.
+- **Equal-quality speed** (cost = k·t, k = noise const, t = s/spp; lower = better):
+  CUDA-MIS k=2.255, t=1.808 → cost **4.08**. Mitsuba-analog k=4108, t=0.625 → cost 2568 ⇒
+  **CUDA ~630× faster vs Mitsuba's UNBIASED path**. Mitsuba-NEE/MIS k=3.04, t=2.01 → cost 6.10 ⇒
+  **CUDA ~1.5× faster vs Mitsuba's BIASED path** (and CUDA is the correct one). Heavy-tailed
+  fireflies converge slower than 1/√spp, so k·t *understates* CUDA's edge vs analog.
+- **Honest framing (scene-dependent).** This is the env-map regime where MIS + analytic-direct +
+  clean sampling win big. On the *constant-env absorption* cloud (§8.5, no MIS benefit) CUDA is
+  ~5.5× *slower* per equal quality. The durable per-spp gap (CUDA ~2.85× noisier, §8.5) is the
+  target of the Rao-Blackwellization work (TODO A1); MIS already closes the env-scene case.
+
+### 8.12 Path-control robustness sweeps (P1) — PASS, all knobs unbiased
+Proving the termination knobs change only variance/speed, **not** the converged mean (invariance =
+unbiasedness). All three are compile-time `constexpr` → each value is a rebuild. Metric:
+multi-seed `sg_systematic.py`, config vs baseline (same build otherwise). Renders in `renders/p1/`.
+- **single Gaussian** (albedo 0.99 → deep multiple scattering, 4 seeds × 4096 spp; SEM ≈ 7e-6):
+  every swept value lands at **|Δ| ≤ 1e-6, 0.0–0.1σ**:
+  - `RR_DEPTH` {off(9999), 1, 5*, 10} → 0.0σ ⇒ Russian roulette **unbiased**.
+  - `MAX_BOUNCES` {32, 64, 128*, 256} → 0.0σ.
+  - `MIN_THROUGHPUT` {1e-3, 1e-4*, 1e-5, 0} → <1e-6 ⇒ the throughput cull adds **no measurable bias**.
+- **cloud cam 0** (albedo 0.9, σ_t=7.5, 256 spp — the depth-stressing scene): `RR` {off/1/10} and
+  `MAX_BOUNCES` {64/256} all agree with baseline to **≤1.3e-5**; **`MAX_BOUNCES=32` darkens by
+  −0.00109 (~100× the noise floor)**. This truncation is the *reassuring* result: it shows the test
+  can **detect** under-bouncing (deep multiple scattering cut off in dense media), so the "no bias"
+  verdicts above are sensitivity-confirmed, not blindness — and the shipped default **128 is
+  converged** (64/256 agree to noise; the single Gaussian's short mean path means 32 already
+  suffices *there*, but the dense cloud needs ≥64).
+- (*) = committed baseline. Caveat: cloud rows have 1 config seed vs 3 baseline seeds so `sg_systematic`
+  reports `nan` SEM; the magnitude (MB32 ~100× everything else) is unambiguous regardless.
+
+### 8.13 Coverage: more cameras + low-σ interior (P2) — DONE (view-independent PASS; low-σ surfaces a tiny interior residual)
+Closing two §9 gaps: (a) cloud meadow+scattering validated on **more than cam 0**, (b) a **low-σ
+interior** check (σ=7.5 clamps the dense interior to black on both sides, making that match partly
+trivial). CUDA-MIS vs Mitsuba-analog, 512 spp × 3 seeds, box filter, g=0.85. Renders in `renders/p2/`.
+- **View-independence (cam 6, cam 12 done):** bulk image matches Mitsuba to **~0.9%** (cam12 medians
+  0.389 vs 0.386; p99s align). Unclipped energy Δ: cam6 **−0.0009 (0.7σ)**, cam12 **+0.0036 (2.8σ)**
+  — small; the cam12 2.8σ is the same firefly-tail-noise effect as §8.8/8.11 (only 3 seeds), median
+  flat. **Re-confirms firefly-free MIS off-axis:** CUDA max **0.7** vs Mitsuba-analog max **95.2**.
+- **Metric caveat (important):** the `clipped(<2)` diff looks large (+0.07) **only as an artifact** —
+  clipping strips Mitsuba-analog's real-but-spiky firefly energy (~0.07 of its mean lives in the
+  tail), making the clipped comparison unfair to the noisy reference. The honest, energy-conserving
+  metric is the **unclipped global / median**, which agree. Do NOT read clipped diffs as CUDA bias here.
+- **cam 18 (done):** global **−0.0011 (0.8σ)** → PASS. View-independence now holds across cam
+  **0/6/12/18** — the "cherry-picked view" objection is closed.
+- **Low-σ interior (σ=2, const env, done):** global **+0.000179**, median|diff| 0.0035. Magnitude
+  is tiny (~1.8e-4, <0.1% relative) but **21σ** — a *small but statistically real* systematic that
+  the saturated σ=7.5 interior hid (gray interior, no fireflies → tiny SEM → small bias becomes
+  visible). This is exactly what the low-σ test was for. **Not a blocker**; candidate causes: the
+  σ-scaling/optical-depth normalization convention, or a small multiple-scatter difference. Left as
+  an OPEN item (§9). Renders in `renders/p2/*lowsig*`.
+
+### 8.14 Colored (per-channel RGB) albedo — tint correct; small channel-dependent residual
+First test of a *tinted* medium (albedo R≠G≠B). Single Gaussian albedo=(0.9,0.5,0.2), σ=4, 2048 spp
+× 3 seeds, CUDA vs Mitsuba-analog. Per-channel `SG_ALBEDO="r,g,b"` parsing added both sides
+(`single_gaussian.cpp` `scatter_albedo3`, `render_single_gaussian_via_prb.py`). Renders in
+`renders/rgb_albedo/`.
+- **Tint is correct:** both renderers give R>G>B (CUDA 0.9894/0.9502/0.9238; Mitsuba
+  0.9904/0.9479/0.9192) — the float3 albedo path works, no channel swap/collapse.
+- **But a real channel-dependent systematic:** global +0.0020; per-channel R −0.0010, G +0.0023,
+  **B +0.0046** — grows with absorption (B = lowest albedo = worst). Statistically huge (100–476σ)
+  but small in magnitude (~0.1–0.5%). **Above** the ≤1e-4 we hold for grey albedo.
+- **Likely cause:** termination-threshold coupling — Mitsuba culls paths at `β<0.005`, we cull at
+  `max(throughput)<1e-4` (`MIN_THROUGHPUT`); under colored albedo the per-channel throughputs
+  diverge so the two cull schedules differ (RR uses `max(β)` on both sides). A threshold-alignment
+  experiment would confirm. OPEN item; the feature is functional, the residual is sub-percent.
+
+### 8.15 Variance attribution — WHERE CUDA's noise actually is (redirects the A1 optimization)
+Measured per-seed noise (std across seeds) CUDA vs Mitsuba-analog from existing seed sets, to test
+the §8.5 "per-step RB" hypothesis BEFORE rewriting the core estimator. **Decisive — and it kills A1
+as a priority:**
+- **Env + MIS (the showcase, cloud meadow, 512spp×3):** CUDA per-seed noise **0.025** vs
+  Mitsuba **0.165 unclipped / 0.024 clipped**. CUDA is **~6× cleaner on total noise** (firefly-free);
+  on the bulk (clipped) the two are within ~5%. **MIS already closed the variance gap here.**
+- **Constant env (low-σ cloud, σ=2, no env-IS benefit):** CUDA **0.0125** vs Mitsuba **0.0041** →
+  CUDA **~3× noisier** — the §8.5 gap, now confirmed *clean* (no fireflies, clipped==unclipped).
+- **Conclusion:** the 2.85×/3× variance disadvantage exists **only in flat/constant lighting**,
+  where env-IS has nothing to importance-sample. In the env-map regime that the renderer actually
+  showcases, **MIS already wins** (6× cleaner total, firefly-free; faster per-spp than Mitsuba-MIS,
+  §8.11). So **per-step RB (A1) would help only the non-showcase flat-lit case (~3×) and add ~5% to
+  the showcase** — a poor trade for a risky rewrite of the validated core estimator (`sampling.cuh`
+  `sample_scattering_event` + `raygen.cuh`). NB both our argmin free-flight and Jorge's
+  `volprim_prb` segment sampler are **analog**, so the §8.5 "Mitsuba folds transmittance every
+  bounce" root-cause was a guess; the true flat-lit source (argmin overlap vs MIS-in-constant-env
+  overhead vs shadow-ray variance) is being isolated on the `feature/a1-per-step-rb` branch.
+
 ## 9. Known limitations & OPEN items
 
-- **Feature validation (this session, §8.6–8.10) — summary.** Real HDR env (meadow), HG
-  anisotropy, AND MIS are now all VALIDATED vs Mitsuba. **Three real CUDA bugs found and fixed**,
+- **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
+  anisotropy, AND MIS are now all VALIDATED vs Mitsuba; the combined money shot matches and
+  *beats* Mitsuba on the env scene (§8.11: ~630× vs analog / 1.5× vs its biased NEE, firefly-free);
+  path-control knobs (RR / bounces / min-throughput) proven **unbiased** (§8.12); view-independence
+  + low-σ coverage underway (§8.13). **Three real CUDA bugs found and fixed**,
   each latent because earlier tests couldn't see it: (1) env map rendered **upside-down**
   (`hdr.cpp flip_vertical`, §8.6) — hidden by constant env / equatorial camera / isotropic
   single-scatter; (2) **HG anisotropy sign** flipped vs Mitsuba (§8.9, `phase::sample` g_eff=−HG_G)
@@ -577,13 +677,14 @@ continuation both use `phase::sample` only (where the phase value cancels via `p
 - **Scattering at albedo>0 is VALIDATED end-to-end** (§8: furnace → single → clusters →
   full cloud, all matching Mitsuba analog to ≤~10⁻⁴). Open: (a) the §8.3 traits overlap
   residual (+0.0002, below detection at cloud scale); (b) CUDA is ~5.5× slower at equal
-  quality (§8.5) — fixable via per-step Rao-Blackwellization + profiling; (c) only cam 0
-  rendered for the cloud scattering rung; (d) the scattering "look" (albedo/σ) is now a
+  quality **on the constant-env absorption cloud** (§8.5) — but ~630×/1.5× *faster* on the
+  env-map MIS scene (§8.11); the per-spp gap is fixable via per-step Rao-Blackwellization +
+  profiling; (c) cloud scattering now validated on cam 0/6/12 (cam 18 + low-σ pending, §8.13),
+  no longer cam-0-only; (d) the scattering "look" (albedo/σ) is now a
   design choice, NOT constrained by refs/ (which are absorption — [[reference_asset_density_scales]]).
-- **Low-σ interior absorption check (cheap, recommended next).** Current cloud
-  interior agreement is partly trivial because both renders clamp to black there.
-  Re-render at lower σ (≈1.5–2.5) so the interior is gray → a non-saturated interior
-  transmittance comparison.
+- **Low-σ interior check — IN PROGRESS (§8.13, P2).** σ=7.5 clamps the dense interior to black on
+  both sides, so that match is partly trivial; the σ=2 re-render (gray interior → non-saturated
+  transmittance comparison) is running in the P2 batch.
 - **uint16 spp ceiling.** `Image::sample_counts_` is `uint16_t` → Welford count wraps
   at 65536 spp; RMSE floors there. Fix = widen to uint32. Not yet done; renders
   ≤65535 spp are valid.
