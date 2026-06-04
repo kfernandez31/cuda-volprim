@@ -419,8 +419,161 @@ RMSE AND closes most of the speed gap); (b) **throughput** — NSight pass (128-
 HIT/Event per-ray buffers likely hurt occupancy). NB Mitsuba's *faster* NEE mode is
 energy-broken (+6.5% furnace, §8.1) so we benchmark its slower analog; CUDA NEE is correct.
 
+### 8.6 Env-map orientation parity (WS0 — feature-validation prerequisite)
+The scattering ladder (§8.0–8.5) ran under a **constant white** env. To validate the real
+HDR (meadow) path, CUDA and Mitsuba must sample the **same env direction → pixel**, else any
+meadow comparison is meaningless. CUDA's equirect convention (`device/params/environment_map.h`,
+`device/core/sampling.cuh` env_is): `u = atan2(z,x)/(2π)+0.5`, `v = acos(y)/π`. Mitsuba's
+`envmap` uses `atan2(x,−z)` azimuth → differs by a 90° rotation about +Y (derived analytically,
+then confirmed empirically).
+- **Method:** perspective camera (ortho collapses the background to one direction — useless),
+  near-transparent Gaussian (σ→0) so the background env dominates; render the env directly on
+  both sides; sweep Mitsuba `envmap to_world = rotate(+Y, β)`.
+- **Azimuth:** β = **90°**. Sharp minimum: RGB RMSE(CUDA vs Mitsuba) = **0.014 at 90°** vs 0.136
+  symmetric at ±2° and 0.42 at the next 90° bucket. (A 90° azimuth offset is a convention choice,
+  not a bug — the env can be spun freely about the vertical axis; we adopt CUDA's convention and
+  rotate Mitsuba to match.)
+- **⚠ VERTICAL FLIP BUG (found+fixed).** The β-sweep above only used a **+Z-facing** camera,
+  whose view directions lie near the **equator (y=0)** — the fixed line of a y-flip — so it
+  could NOT detect a vertical flip, and initially (wrongly) reported "no flip". A proper
+  **full-sphere** probe (center pixel = env(exact axis), immune to camera image-flips; CUDA
+  knob `SG_VIEW`∈{±x,±y,±z}) found all four equatorial axes match (d≤0.003) but the **poles
+  were swapped**: CUDA(+Y)=ground [0.065,0.084,0.026] = Mitsuba(−Y), CUDA(−Y)=sky
+  [0.086,0.162,0.313] = Mitsuba(+Y). Since `to_world=rotate(+Y,·)` can't touch the poles,
+  Mitsuba's native +Y=sky is physically correct ⇒ **CUDA was rendering the env upside-down.**
+  - **Root cause:** `src/thesis/host/utils/io/hdr.cpp` `flip_vertical=true` (kept only to
+    "preserve prior stb-with-flip behavior") put the file's bottom (ground) at texture row 0,
+    while `env_map.sample` maps y=+1→v=0→row 0, which should be sky. Fixed → `flip_vertical=false`
+    (corrects the texture lookup, the `buildCdf` sin θ weighting, and `env_is` consistently — they
+    all read the same buffer).
+  - **Why no prior test caught it:** constant env (uniform), equatorial +Z camera (flip's fixed
+    line), and the isotropic single Gaussian whose in-scatter integral is orientation-invariant
+    (§8.7). The **structured cloud under a real directional HDR** is the first test that can see
+    it — WS1's cloud rung (§8.8) is exactly what surfaced it.
+  - **After fix:** all 6 axes match to ≤0.002 (noise floor). Full-sphere env parity achieved.
+- **`env_is` convention check (analytic):** `env_is::sample` reconstructs directions as the
+  exact inverse of `env_is::pdf` / `env_map.sample` (azimuth `2π·u_norm−π ↔ atan2(z,x)`, polar
+  `π·v_norm ↔ acos(y)`); the solid-angle Jacobian `2π²·sinθ` normalizes the pdf to integrate
+  to 1 over the sphere. Minor approximation: `sample` returns texel-**center** directions (no
+  within-texel jitter) → sub-texel angular bias, negligible at 4k; WS1's NEE-vs-analog match
+  is the empirical confirmation of `env_is` on a real HDR.
+- **Baked in:** `tools/refs/render_single_gaussian_via_prb.py` `SG_ENV_ROTY` defaults to 90.
+  CUDA knobs: `SG_ENV=meadow`, `SG_PERSP=1`, `SG_FOV`. Artifact:
+  `test_results/single_gauss/WS0_orientation_calib.png`.
+
+### 8.7 Real HDR env (meadow) — single Gaussian (WS1, PASS)
+First validation under a **real** environment map (4k meadow), exercising the env path +
+`env_is` importance sampler (its first real exercise — degenerates to uniform on a constant
+env) + NEE under real lighting. Config: single isotropic Gaussian, σ_t=4 (3σ footprint fills
+the ortho frame), albedo=0.9, meadow env (roty90, §8.6). CUDA runs NEE-on (default build);
+the reference is Mitsuba **analog** (`use_nee=False`) — so this directly tests whether CUDA's
+NEE+`env_is` converges to the unbiased analog image.
+- **Result (24 CUDA seeds vs 23 Mitsuba seeds, 2048 spp each):** global systematic
+  **+0.00011 ± 0.00082 → 0.1σ → statistically zero**; per-channel R/G/B all ≤0.1σ. CUDA\*
+  mean 0.09367 vs Mitsuba\* 0.09355 (agree to 0.13%).
+- **Firefly note:** the meadow sun makes single-seed renders heavy-tailed (NEE p99.9≈7/max≈140
+  vs analog p99.9≈16/max≈86 — the NEE-vs-analog finite-sample tail difference). A single-seed
+  1024-spp diff reads +2–3%, *entirely* finite-sample noise — it averages to zero over seeds.
+  Robust cross-checks (median|diff|=6e-4; clipped means) confirm no systematic. The multi-seed
+  diff-of-means is the unbiased estimator and is the number to trust.
+- **Tooling:** `tools/refs/sg_systematic.py` (general multi-seed diff-of-averages, honest SEM
+  from seed-pair stds — inflates correctly under fireflies). Seeds in `renders/sg_meadow/`.
+- **Conclusion:** `env_is` is correct on a real HDR; the no-within-texel-jitter approximation
+  (§8.6) is empirically negligible at 4k.
+- **Orientation-blind (important caveat).** This single-Gaussian result was obtained with an
+  equatorial +Z ortho camera AND an isotropic scatterer, so it is **invariant to the §8.6
+  vertical-flip bug** — it passed identically before and after the fix. It validates `env_is`
+  magnitude/normalization and NEE, NOT vertical env orientation. Orientation is validated
+  separately (§8.6 full-sphere probe) and at the cloud (§8.8).
+
+### 8.8 Real HDR env (meadow) — full cloud (WS1 cloud rung) — IN PROGRESS
+The cloud is the first test sensitive to env **orientation** (652 spatially-distinct primitives ⇒
+the directional light distribution matters). Comparing the fixed CUDA build vs Mitsuba-analog,
+cam 0, σ_t=7.5, albedo=0.9.
+- **It caught the §8.6 vertical-flip bug.** Pre-fix 8-seed systematic: global **−0.0109 (7.4σ)**,
+  green worst (−0.016); localized to the **background** (CUDA bg [0.082,0.103,0.027] vs Mitsuba
+  [0.158,0.193,0.103] — CUDA sampling ground where Mitsuba sampled sky). This is the failure that
+  drove the full-sphere probe and the fix.
+- **Post-fix (8 CUDA seeds vs 8 Mitsuba seeds, 256 spp):** backgrounds match exactly;
+  **median|diff| = 0.0011** (45× better than pre-fix 0.0496 — the bulk image matches to 0.1%);
+  global systematic **−0.0029 ± 0.0013 (2.2σ)**, per-channel R/G/B all ≤1.5σ. The blurred diff
+  map (`renders/cloud_meadow_FIXED_diff.png`) is salt-and-pepper red/blue over the body + silhouette
+  — **no coherent colored region**, i.e. firefly + sub-pixel edge noise, not a structural bias.
+- **The −0.0029 is firefly-limited, not a confirmed bias.** Mitsuba's analog has a heavy firefly
+  tail (top-1% body pixels avg 11.6 vs CUDA 0.55 — deep scatter paths hitting the meadow sun) that
+  8×256 spp has not fully converged, so the global *mean* is pulled around while the *median* is
+  flat. The precise env_is number comes from the firefly-light single Gaussian (§8.7, ≤1e-4); the
+  cloud's role is to confirm **orientation + scaling + no structural bias**, all of which hold.
+- **VERDICT: PASS.** Orientation bug fixed; cloud-meadow bulk matches Mitsuba-analog; residual is
+  MC noise. (Tightening the global mean to ≤1e-4 would need more seeds/spp — optional, not required
+  for the claim; `cloud_meadow_seeds.sh` is idempotent so it can be extended.)
+
+### 8.9 HG anisotropy g≠0 (WS2) — sign bug found+fixed, then PASS
+Validating forward scattering (g=0.85) vs Mitsuba's `hg` phase function. HG is **invisible under
+a constant env** (the phase integrates out for single scatter — same blindness class as §8.6),
+so the test uses the meadow. Single Gaussian, σ_t=4, albedo=0.9, CUDA(NEE) vs Mitsuba-analog.
+- **Furnace-HG gate (energy):** g=0.85, albedo=1, constant env → flat (bias 5e-5). Forward
+  scattering is energy-conserving in CUDA (holds before and after the fix below).
+- **⚠ HG SIGN BUG (found+fixed).** Same-sign CUDA(g=0.85) vs Mitsuba(g=0.85) gave global
+  **−0.0081 (18.7σ)**, CUDA ~17% dimmer — a genuine bias (clipped≈unclipped, no firefly
+  confound). Sign-flip test was decisive: **CUDA(g=+0.85) ≡ Mitsuba(g=−0.85)** (global −0.0007,
+  1.4σ; median 0.00026). So CUDA's HG anisotropy entered with the **opposite sign** to Mitsuba's
+  (and the standard PBRT/Mitsuba convention where g>0 = forward).
+  - **Root cause:** all call sites pass `wi = ray.direction_` (incoming propagation) to
+    `phase::sample`/`eval`; with that convention, matching Mitsuba requires the formula to use
+    **−HG_G**. Both the NEE (`raygen.cuh`) and continuation (`sample_scattering_event`,
+    `sampling.cuh:417`) use the *same* `wi`, so one internal sign flip fixes both consistently.
+  - **Fix:** `device/core/sampling.cuh` phase namespace — `g_eff = −consts::HG_G` in `eval_hg`
+    and `sample` (keeps sample↔eval↔pdf consistent; furnace still passes). Now user-facing HG_G
+    follows the standard convention (HG_G>0 = forward, what clouds need).
+- **Post-fix (24 seeds, same sign HG_G=0.85 vs g=0.85):** median|diff| **0.00024**; **clipped(<2)
+  global diff = −3e-5** (resolved image matches to 3e-5 once the firefly tail is removed). Global
+  +0.0012 (2.4σ) is a small firefly-tail variance difference (forward NEE peak toward the sun),
+  not an image bias. **PASS.** Seeds in `renders/sg_meadow_hg085/`.
+- **Continuation/multiple-scatter** uses the same fixed phase call; validated end-to-end at the
+  cloud in WS4 (money shot). NB the only g≠0 test before this session was none — HG had never
+  been exercised, so the sign bug was latent.
+
+### 8.10 MIS (WS3) — phase::eval sign bug found+fixed, then PASS
+`ENABLE_MIS` combines phase-IS (Strategy A) and env-IS (Strategy B) at scatter vertices. It is
+the **first real consumer of `phase::eval` and `env_is::sample`** — phase-IS NEE and the
+continuation both use `phase::sample` only (where the phase value cancels via `phase/pdf=1`), so
+`phase::eval` had never been exercised. It's also the path the plan flagged as highest-risk.
+- **Initial: BROKEN.** Furnace-MIS −6.8%; meadow CUDA(MIS+HG) vs Mitsuba-analog **−52% too dark**
+  (−0.0252, 97σ). Tell-tale: CUDA-MIS noise ~0.0005 vs ~0.13 without — the sampler reduces variance
+  ~250× but converged to a *biased* mean ⇒ a weight/normalization error, not sampling.
+- **Root cause (`phase::eval` ⇄ `phase::sample` sign mismatch).** Isolating the two strategies
+  (forcing w_a=0,w_b=1) showed **env-IS alone is biased −23% even on a uniform white env**, identical
+  across R/G/B ⇒ data-independent estimator-math bug. env-IS is the unbiased estimator of
+  ∫phase·env·T *only if `phase::eval` equals the distribution `phase::sample` actually draws*. They
+  don't match: the PBRT-style sampling inversion and `eval_hg` encode cosθ with **opposite signs**
+  of the 2g·cosθ term. Empirically `phase::sample(g_eff=−HG_G)` draws cosθ with mean **+HG_G**
+  (forward, validated §8.9) while `eval_hg(g_eff=−HG_G)` peaks at cosθ=**−1** (backward) — verified
+  in Python: `sample(−HG_G)` matches `eval_hg(+HG_G)` (RMS log-ratio 0.056) and is the mirror of
+  `eval_hg(−HG_G)` (2.53). So env-IS scattered NEE light per a *backward* phase → lost energy. The
+  WS2 `g_eff=−HG_G` `replace_all` had wrongly flipped `eval_hg` too (it was originally correct).
+- **Fix:** `eval_hg` uses **+consts::HG_G**; `sample` keeps **−consts::HG_G** (`device/core/sampling.cuh`,
+  with a comment on the opposite-convention requirement).
+- **Post-fix: PASS.** Furnace-MIS exact (mean 1.00011 at σ=4, also PASS at σ=6). MIS == the validated
+  phase-IS NEE estimator (CUDA-internal) to **+0.0003 (0.7σ)** — same image, **159× lower variance**.
+  vs Mitsuba-analog: +0.0015 (+3%), the *same* offset phase-IS NEE shows (§8.9) = Mitsuba-analog's
+  under-converged firefly tail, not MIS. Seeds: `renders/sg_meadow_mis/`.
+- **`ENABLE_MIS=true`** (validated; the big variance win for env-map scenes). Note env_is returns
+  texel-center directions (no within-texel jitter) — fine at 4k; jitter was tried and reverted (it
+  added a pole-division NaN hazard on coarse envs without changing the bias, which was the sign bug).
+
 ## 9. Known limitations & OPEN items
 
+- **Feature validation (this session, §8.6–8.10) — summary.** Real HDR env (meadow), HG
+  anisotropy, AND MIS are now all VALIDATED vs Mitsuba. **Three real CUDA bugs found and fixed**,
+  each latent because earlier tests couldn't see it: (1) env map rendered **upside-down**
+  (`hdr.cpp flip_vertical`, §8.6) — hidden by constant env / equatorial camera / isotropic
+  single-scatter; (2) **HG anisotropy sign** flipped vs Mitsuba (§8.9, `phase::sample` g_eff=−HG_G)
+  — HG never exercised before; (3) **`phase::eval` sign** inconsistent with `phase::sample` (§8.10)
+  — `eval` only used by MIS/env-IS, gave −52% energy until fixed to +HG_G. MIS now matches the
+  validated NEE estimator to 0.7σ with ~159× variance reduction. Current validated default build:
+  `HG_G=0.85` (forward), `ENABLE_MIS=true`, `ENABLE_NEE=true`, `ENABLE_ANALYTIC_DIRECT=true`.
+  NB the committed value of `HG_G` (0 vs 0.85) is a user choice — both are validated.
 - **Scattering at albedo>0 is VALIDATED end-to-end** (§8: furnace → single → clusters →
   full cloud, all matching Mitsuba analog to ≤~10⁻⁴). Open: (a) the §8.3 traits overlap
   residual (+0.0002, below detection at cloud scale); (b) CUDA is ~5.5× slower at equal

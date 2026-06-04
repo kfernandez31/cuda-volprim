@@ -34,8 +34,11 @@ Measured baseline (cloud cam0, σ=7.5 albedo=0.9, FINDINGS §8.5):
       full ladder — a variance-reduction bug that silently biases is exactly Mitsuba's
       NEE +6.5% trap. Files: device/core/sampling.cuh (sample_scattering_event,
       compute_transmittance_to_env), device/entry/raygen.cuh (bounce loop).
-- [ ] **A2 — MIS + env importance sampling** (ENABLE_MIS=false today). NO benefit on
-      constant env; real win only for a REAL env-map beauty shot. Defer to beauty stage.
+- [x] **A2 — MIS: FIXED & VALIDATED (2026-06-03).** Was −52% energy (phase::eval sign mismatch
+      with phase::sample); fixed (eval uses +HG_G). Now furnace-exact, matches NEE estimator to
+      0.7σ, **~159× variance reduction** on the meadow (FINDINGS §8.10). `ENABLE_MIS=true`.
+      Optional follow-ups: power heuristic (β=2) instead of balance; within-texel jitter in
+      env_is::sample (needs a pole-pdf guard — naive jitter NaNs on coarse envs).
 
 ## Open correctness item (tiny)
 - [ ] **Traits overlap residual** (FINDINGS §8.3): +0.0002 CUDA-brighter in dense overlap
