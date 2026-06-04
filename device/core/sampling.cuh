@@ -48,6 +48,16 @@ using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 
 namespace phase {
 
+// SIGN CONVENTION (WS2, FINDINGS §8.9): all call sites pass wi = ray.direction_ (the incoming
+// propagation direction) to sample()/eval(). With that fixed wi convention, matching Mitsuba's
+// `hg` phase function requires the anisotropy to enter the formula as **−HG_G**, not +HG_G:
+// empirically CUDA(g)≡Mitsuba(−g) at same wi (18.7σ mismatch same-sign vs 1.4σ match opposite-
+// sign). So eval_hg/sample use g_eff = −consts::HG_G, which makes the user-facing HG_G follow
+// the standard/Mitsuba convention (HG_G>0 = forward scattering, as clouds need). NEE (raygen)
+// and the continuation (sample_scattering_event) both use the same wi, so this single internal
+// sign flip corrects both consistently and keeps sample↔eval↔pdf mutually consistent.
+constexpr float HG_G_EFF = -consts::HG_G;
+
 struct Sample {
     float3 wo;  // Outgoing direction (world space, unit length)
     float pdf;  // For HG, pdf == phase value
@@ -60,6 +70,14 @@ __device__ __forceinline__ float eval_hg(float cos_theta) {
     if constexpr (consts::HG_G == 0.0f) {
         return consts::PHASE_VALUE;
     } else {
+        // eval uses +HG_G, NOT HG_G_EFF. The sampling inversion (sample(), below) and this
+        // eval formula encode cosθ with OPPOSITE signs of the 2g·cosθ term, so to describe the
+        // SAME physical HG (mean cosθ = +HG_G, forward), sample needs g_eff=−HG_G while eval
+        // needs +HG_G. Verified: sample(−HG_G) histogram matches eval(+HG_G) (RMS log-ratio
+        // 0.056) and is the mirror image of eval(−HG_G) (2.53). This mismatch was the MIS
+        // energy bug (FINDINGS §8.10): eval is only used by env-IS/MIS, so a backward eval
+        // scattered NEE light the wrong way and lost energy; phase-IS/continuation use sample
+        // only, so they were unaffected (and validated, §8.9).
         constexpr auto g = consts::HG_G;
         constexpr auto g2 = math::pow2(g);
         constexpr auto one_plus_g2 = 1.0f + g2;
@@ -89,7 +107,7 @@ __device__ __forceinline__ Sample sample(float3 wi, random::PCG32& rng) {
     if constexpr (consts::HG_G == 0.0f) {
         cos_theta = math::fma(-2.0f, u.x, 1.0f);  // uniform on [-1, 1]
     } else {
-        constexpr auto g = consts::HG_G;
+        constexpr auto g = HG_G_EFF;  // = −consts::HG_G (Mitsuba sign convention; see top of namespace)
         constexpr auto g2 = math::pow2(g);
         constexpr auto one_plus_g2 = 1.0f + g2;
         constexpr auto one_minus_g2 = 1.0f - g2;

@@ -197,9 +197,16 @@ Result<thesis::host::utils::io::HDRImageData> loadHDRImage(const std::filesystem
     const std::byte* p = raw.data() + pixel_offset;
     const std::byte* end = raw.data() + raw.size();
 
-    // env-map convention: flip vertically so row 0 of the texture is the bottom
-    // of the image (preserves prior stb-with-flip behavior).
-    constexpr bool flip_vertical = true;
+    // env-map convention: do NOT flip. A Radiance .hdr stores the TOP scanline
+    // (sky/zenith) first, and env_map.sample() uses v = acos(y)/π so that y=+1 (up)
+    // → v=0 → texture row 0. We therefore need row 0 to hold the FILE's first row
+    // (sky). The previous flip_vertical=true ("preserve prior stb-with-flip
+    // behavior") put the ground at row 0, rendering the environment upside-down.
+    // That was invisible to every prior test — constant env (uniform), equatorial
+    // +Z camera (the y-flip's fixed line), and an isotropic single Gaussian (whose
+    // in-scatter integral is orientation-invariant) — first exposed by the
+    // structured cloud under the real meadow HDR (FINDINGS §8.6/§8.7).
+    constexpr bool flip_vertical = false;
 
     for (size_t y = 0; y < height; ++y) {
         const size_t out_row = flip_vertical ? height - 1 - y : y;

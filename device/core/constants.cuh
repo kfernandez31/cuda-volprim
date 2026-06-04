@@ -110,7 +110,7 @@ constexpr float PHASE_VALUE = common::math::ONE_OVER_FOUR_PI_F;
 //   g > 0   → forward-scattering (clouds typically use ~0.85)
 //   g < 0   → back-scattering
 // Default 0 keeps behavior identical to the prior isotropic implementation.
-constexpr float HG_G = 0.0f;
+constexpr float HG_G = 0.85f;
 
 // |g| below this threshold uses the isotropic branch (avoids 1/g in the inversion).
 constexpr float HG_ISOTROPIC_EPS = 1e-3f;
@@ -125,7 +125,10 @@ constexpr bool ENABLE_NEE = true;
 // degenerate to uniform sphere). Real benefit appears with HG_G != 0 OR a non-uniform
 // HDR environment map. Costs 2× shadow rays per scatter, so disable on simple scenes.
 // Requires ENABLE_NEE.
-constexpr bool ENABLE_MIS = false;
+// VALIDATED 2026-06-03 (FINDINGS §8.10): furnace-energy exact, matches the phase-IS NEE
+// estimator to 0.7σ, ~159× variance reduction on the meadow. (The prior energy bug was a
+// phase::eval sign inconsistency, now fixed.) On for env-map scenes; no-op cost on constant env.
+constexpr bool ENABLE_MIS = true;
 
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
