@@ -4,7 +4,6 @@
 #include "core/hit_record.cuh"
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
-#include "core/sorting.cuh"
 #include "core/trace.cuh"
 
 #include "thesis/common/geometry/intersection.h"
@@ -294,8 +293,6 @@ __device__ __forceinline__ float3 evaluate_albedo(float3 pos, const PrimsSet& pr
     }
     return accum_albedo * math::rcp(accum_weight);
 }
-
-using EventBuffer = utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY>;
 
 // Helper: Collect ray-primitive entry hits (exits computed lazily)
 // Clears and fills the provided hit buffer. Also returns Miss payload if provided.

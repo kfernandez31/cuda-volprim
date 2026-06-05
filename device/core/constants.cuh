@@ -44,9 +44,9 @@ constexpr size_t MAX_ACTIVE_PRIMS = 128;
 // Hit buffer capacity: max entry hits stored per ray.
 // On overflow the anyhit shader drops the excess hit but keeps traversing,
 // so the env-map miss still resolves correctly.
-// NOTE (2026-06-01): this is the EXPENSIVE per-ray buffer (HitRecord storage +
-// EventBuffer is 2× this) — raising it to 256 made renders ~6× slower (local
-// memory blowup). The cloud was verified to need ≤128 entries/ray (old-caps vs
+// NOTE (2026-06-01): this is the EXPENSIVE per-ray buffer (HitRecord storage) —
+// raising it to 256 made renders ~6× slower (local memory blowup). The cloud was
+// verified to need ≤128 entries/ray (old-caps vs
 // 256-caps cloud renders BIT-IDENTICAL), so kept at the validated 128. A ray
 // crossing >128 prim entries (very dense / collinear-stack scenes) will drop hits
 // → under-absorption; bump per-scene if needed, accepting the perf cost.
