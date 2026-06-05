@@ -304,6 +304,26 @@ THESIS_HOST_DEVICE THESIS_INLINE float copysign(float x, float y) noexcept {
 THESIS_HOST_DEVICE THESIS_INLINE float erf(float x) noexcept {
     return erff(x);
 }
+// Fast approximate erf — Abramowitz & Stegun 7.1.26 (rational×exp). float32 max abs
+// error ~5e-7 (vs erff's full-accuracy ~46-instruction software impl), numerically
+// stable, summation error over ~40 overlapping prims stays ~3e-6 (≪ the 1e-4 validation
+// budget). Used in optical_depth's hot erf-difference; the device build uses __expf for
+// the exp. NOT for code that needs ULP-accurate erf.
+#ifdef __CUDA_ARCH__
+__device__ THESIS_INLINE float fast_erf(float x) noexcept {
+    const float ax = fabsf(x);
+    const float t = 1.0f / (1.0f + 0.3275911f * ax);
+    float poly = 1.061405429f;
+    poly = fmaf(poly, t, -1.453152027f);
+    poly = fmaf(poly, t, 1.421413741f);
+    poly = fmaf(poly, t, -0.284496736f);
+    poly = fmaf(poly, t, 0.254829592f);
+    poly *= t;
+    return copysignf(1.0f - poly * __expf(-ax * ax), x);
+}
+#else
+THESIS_HOST_DEVICE THESIS_INLINE float fast_erf(float x) noexcept { return erff(x); }
+#endif
 THESIS_HOST_DEVICE THESIS_INLINE float erfc(float x) noexcept {
     return erfcf(x);
 }
