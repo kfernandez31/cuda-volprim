@@ -767,6 +767,22 @@ COLLECT (primary/scatter, unchanged) vs TRANSMITTANCE mode — no host/SBT/pipel
   minimal (per CLAUDE.md "no premature optimization"). It IS a correct one-line add for optically
   thicker media (denser clouds / higher σ) if a future scene needs it.
 
+### 8.19 Bounce-0 origin-inside scan dedup — clean ~8% win (branch feature/dedup-bounce0-scan)
+A "remove work" lever flagged by §8.18's register-cap result. At bounce 0 the analytic-direct term
+(`raygen.cuh`) re-scanned ALL primitives with `point_inside_bvh_bound` to build the camera-origin-inside
+set — the **exact same O(N) scan** `sample_scattering_event` had just run for the same origin. So every
+primary ray did the full-scene point-inside test twice. Fix: `sample_scattering_event` hands its set back
+via an out-param (captured before the argmin path modifies it); raygen reuses it.
+- **Correctness: exact.** cloud cam0 128spp bit-identical to baseline (max|Δ| 3.4e-5, float-order only) —
+  the captured set is the same scan the old code re-ran.
+- **Speed: ~8% faster, rock-solid.** Tight-interleaved A/B (same binary, swap optixir; 64spp, 10 pairs):
+  ALL 10 pairs negative; steady-state dedup ~23.10s vs predup ~25.11s = **−8.0%** (low variance, every
+  pair −7.7…−8.9%). Bigger than the fusion's 3% — the removed scan is 652 point-inside tests × every
+  primary ray × spp, and bounce 0 is the most-travelled bounce.
+- **Takeaway:** confirms the §8.18 corollary hard — *removing work* is the lever on this latency-bound,
+  erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
+  dedup 8%).
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

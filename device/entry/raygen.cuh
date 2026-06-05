@@ -103,7 +103,12 @@ extern "C" __global__ void __raygen__rg() {
         // query the deleted CPU pre-compute used to do.
 
         for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
-            const auto result = sample_scattering_event(ray, rng, event, miss, hit_buffer);
+            // At bounce 0, capture the camera-origin-inside set that sample_scattering_event
+            // already builds, so the analytic-direct term below can reuse it instead of
+            // re-scanning all primitives (was a duplicate O(N) point-inside scan per ray).
+            PrimsSet camera_origin_inside;
+            const auto result = sample_scattering_event(
+                ray, rng, event, miss, hit_buffer, bounce == 0 ? &camera_origin_inside : nullptr);
 
             // First-bounce AOV capture. Normal: -ray.direction (camera-facing pseudo-normal,
             // standard for media without true geometry). Albedo: scatter-point albedo on
@@ -124,22 +129,14 @@ extern "C" __global__ void __raygen__rg() {
             // matching binary escape add below is suppressed under this flag.
             if constexpr (consts::ENABLE_ANALYTIC_DIRECT) {
                 if (bounce == 0) {
-                    // The origin-inside set for the CAMERA must be computed fresh:
-                    // event.active_prims_ holds the scatter point's set after
-                    // sample_scattering_event returns (or is cleared on escape), not
-                    // the camera origin's. Feeding the wrong set makes
-                    // compute_transmittance_to_env run exit_from_inside on primitives
-                    // the camera isn't inside → spurious absorption in dense regions.
-                    PrimsSet origin_inside;
-                    for (size_t i = 0; i < launch_params.primitives_.size(); ++i) {
-                        if (common::geometry::point_inside_bvh_bound(
-                                ray.origin_, launch_params.primitives_[i])) {
-                            if (!origin_inside.insert(static_cast<prim_idx_t>(i)))
-                                report_overflow();
-                        }
-                    }
+                    // Reuse the camera-origin-inside set captured from sample_scattering_event
+                    // above. It must be the CAMERA origin's set (not event.active_prims_, which
+                    // holds the scatter point's set / is cleared on escape) — feeding the wrong
+                    // set would run exit_from_inside on primitives the camera isn't inside →
+                    // spurious absorption in dense regions. The capture is taken before the
+                    // argmin path modifies active_prims, so it is exactly that set.
                     const auto T_dir = compute_transmittance_to_env(
-                        ray.origin_, ray.direction_, origin_inside);
+                        ray.origin_, ray.direction_, camera_origin_inside);
                     radiance += throughput * T_dir * launch_params.env_map_.sample(ray.direction_);
                 }
             }
