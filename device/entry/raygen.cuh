@@ -249,6 +249,20 @@ extern "C" __global__ void __raygen__rg() {
             ray = geometry::Ray::spawn_unchecked(event.position_, event.direction_);
         }
 
+        // Optional firefly suppression (beauty/robustness, OFF by default). Hue-preserving
+        // per-sample luminance clamp: if this sample's luminance exceeds the threshold,
+        // scale RGB down to the threshold (kills low-probability high-weight spikes while
+        // keeping color). BIASED (removes energy from clamped pixels) → opt-in, never for
+        // validation. NB the MIS showcase is already firefly-free (§8.15); this is for
+        // robustness on other configs / pathological samples. Compile-time gated so it is
+        // a true no-op (bit-identical) when the threshold is 0.
+        if constexpr (consts::FIREFLY_CLAMP_LUMINANCE > 0.0f) {
+            const float lum = math::dot(radiance, make_float3(0.2126f, 0.7152f, 0.0722f));
+            if (lum > consts::FIREFLY_CLAMP_LUMINANCE) {
+                radiance *= consts::FIREFLY_CLAMP_LUMINANCE * math::rcp(lum);
+            }
+        }
+
         // Welford's online algorithm: numerically stable single-pass mean + M2.
         // M2 update is dead when ENABLE_ADAPTIVE_SAMPLING is false (compiler
         // strips it under the if constexpr below).

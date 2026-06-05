@@ -93,6 +93,14 @@ constexpr size_t MAX_BOUNCES =
 // Minimum throughput before path termination (prevents numerical underflow)
 constexpr float MIN_THROUGHPUT = 1e-4f;
 
+// Optional firefly suppression: per-sample luminance clamp threshold (Rec.709 luma).
+// 0 = DISABLED (default; bit-identical, unbiased — required for validation). When >0,
+// any sample whose luminance exceeds this is scaled down to it (hue-preserving), killing
+// low-probability high-weight spikes. BIASED (energy loss on clamped pixels) → beauty /
+// robustness only, never for the Mitsuba comparison. Pick well above legit content
+// luminance (sky ~1-2) so only true outliers clamp — e.g. 10-50 for the meadow.
+constexpr float FIREFLY_CLAMP_LUMINANCE = 0.0f;
+
 // Depth at which Russian roulette path termination begins
 // Volumetric media with high albedo needs higher values than surface rendering
 // Mitsuba surface rendering: 5-8, volumetric rendering may benefit from similar or higher
