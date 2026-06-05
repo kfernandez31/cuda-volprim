@@ -134,7 +134,8 @@ extern "C" __global__ void __raygen__rg() {
                     for (size_t i = 0; i < launch_params.primitives_.size(); ++i) {
                         if (common::geometry::point_inside_bvh_bound(
                                 ray.origin_, launch_params.primitives_[i])) {
-                            (void) origin_inside.insert(static_cast<prim_idx_t>(i));
+                            if (!origin_inside.insert(static_cast<prim_idx_t>(i)))
+                                report_overflow();
                         }
                     }
                     const auto T_dir = compute_transmittance_to_env(

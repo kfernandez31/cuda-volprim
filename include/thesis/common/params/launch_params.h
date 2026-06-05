@@ -24,6 +24,13 @@ struct THESIS_ALIGNMENT LaunchParams {
     device::params::Image image_;
     device::utils::DynamicVector<device::params::Primitive> primitives_;
     uint seed_;
+
+    // Device-side atomic counter for cap-overflow events (CompactSet active-prims or
+    // the primary-ray HitBuffer dropping an entry). Bumped from device code, read back
+    // by the host after the render to WARN that dense-overlap regions may be biased
+    // (under-absorption) — turning the previously SILENT overflow into a visible signal.
+    // Single element; null-guarded on device.
+    unsigned long long* overflow_counter_ = nullptr;
 };
 
 }  // namespace params

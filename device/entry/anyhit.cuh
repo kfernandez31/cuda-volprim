@@ -62,6 +62,10 @@ extern "C" __global__ void __anyhit__ah() {
         const float t = optixGetRayTmax();
         const prim_idx_t prim_idx = static_cast<prim_idx_t>(optixGetInstanceId());
         hit_buffer->emplace_back(t, prim_idx, false);
+    } else {
+        // Buffer full: this entry is dropped → primary ray under-samples this dense
+        // region. Record the overflow so the host can warn (was previously silent).
+        report_overflow();
     }
     optixIgnoreIntersection();
 }

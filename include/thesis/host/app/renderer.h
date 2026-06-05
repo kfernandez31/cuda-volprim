@@ -53,6 +53,10 @@ class Renderer {
     cuda::AsyncBuffer<common::params::LaunchParams> launch_params_;
     common::params::LaunchParams launch_params_host_{};
 
+    // Single-element device counter for cap-overflow events (active-prims / hit-buffer
+    // drops). Read back after the render to warn about silently-biased dense regions.
+    cuda::AsyncBuffer<unsigned long long> overflow_counter_;
+
     optix::Module module_;
     optix::Module builtin_is_module_;
     optix::ProgramGroup raygen_pg_;

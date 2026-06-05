@@ -329,7 +329,8 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     for (size_t i = 0; i < num_primitives; ++i) {
         const auto& prim = launch_params.primitives_[i];
         if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
-            (void) active_prims.insert(static_cast<prim_idx_t>(i));
+            if (!active_prims.insert(static_cast<prim_idx_t>(i)))
+                report_overflow();
         }
     }
 
@@ -403,7 +404,8 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         const auto& prim = launch_params.primitives_[prim_idx];
         const float t_exit = common::geometry::exit_from_inside(ray, prim);
         if (t_scatter_min <= t_exit) {
-            (void) final_active_prims.insert(prim_idx);
+            if (!final_active_prims.insert(prim_idx))
+                report_overflow();
         }
     }
 
@@ -418,7 +420,8 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
             common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
 
         if (t_scatter_min <= t_exit) {
-            (void) final_active_prims.insert(hit.prim_idx);
+            if (!final_active_prims.insert(hit.prim_idx))
+                report_overflow();
         }
     }
 

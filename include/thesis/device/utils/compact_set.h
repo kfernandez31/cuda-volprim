@@ -27,10 +27,16 @@ struct CompactSet {
 
     __device__ __forceinline__ void clear() { size_ = 0; }
 
-    __device__ __forceinline__ void insert(unsigned int idx) {
-        if (size_ >= Capacity || contains(idx))
-            return;
+    // Returns true if the element is present after the call (inserted or already there),
+    // false if it was DROPPED because the set is at capacity — the caller can surface
+    // this as an overflow rather than silently under-counting.
+    __device__ __forceinline__ bool insert(unsigned int idx) {
+        if (contains(idx))
+            return true;
+        if (size_ >= Capacity)
+            return false;
         data_[size_++] = static_cast<T>(idx);
+        return true;
     }
 
     __device__ __forceinline__ bool contains(unsigned int idx) const {
