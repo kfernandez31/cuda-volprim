@@ -750,6 +750,23 @@ COLLECT (primary/scatter, unchanged) vs TRANSMITTANCE mode — no host/SBT/pipel
   to drop the `HitBuffer` from the frame entirely is to also fuse the PRIMARY ray (argmin is a min, not
   a sum — wavefront-scale work, not a v1).
 
+#### Adjacent levers tested alongside the fusion — both NEGATIVE (don't re-try)
+- **`maxRegisterCount` sweep (occupancy lever) — NO EFFECT.** The main module already caps at 96
+  (`module.h:33`); the linked pipeline still profiles ~114 regs. Round-robin sweep {64, 80, 96, 128,
+  0=unlimited} × 3 cycles on cloud cam0 64 spp: per-cap means 30.05 / 30.11 / 30.28 / 32.45* / 30.04 s
+  (*one thermal-spike outlier) — a <1% spread, far inside the ±15% thermal noise. **Register/occupancy
+  tuning is not a lever here**: the kernel is latency-bound on **dependency chains (the erf arithmetic)**,
+  not occupancy-starved, so adding warps doesn't help. Corollary: the productive levers REMOVE work
+  (this fusion, the bounce-0 double-scan dedup) or REDUCE variance (low-discrepancy sampling), not add
+  occupancy. module.h left at 96.
+- **Shadow-ray τ-saturation early-out (`optixTerminateRay` when τ≥`MAX_OPTICAL_DEPTH`) — NEUTRAL on the
+  cloud.** Implemented exactly (correctness-exact: mean Δ 2.3e-10 vs main), A/B vs plain fusion over 10
+  tight pairs: mean +0.2%/−0.2%, scatter around zero. The cloud at σ-mult 7.5 rarely accumulates τ≥88
+  along a shadow ray (env-facing rays exit before saturating), so the early-out almost never fires.
+  Exact + zero-cost, but no gain on the validated workload → **left OUT** to keep the merged change
+  minimal (per CLAUDE.md "no premature optimization"). It IS a correct one-line add for optically
+  thicker media (denser clouds / higher σ) if a future scene needs it.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
