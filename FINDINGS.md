@@ -697,6 +697,27 @@ on the primary ray.
   ~30%). Eliminating it for shadow rays should lift occupancy → a further speedup on top of the 15×.
   Moderate change (new shadow-ray payload + anyhit accumulation), validated against the current result.
 
+### 8.17 Post-optimization benchmark vs Mitsuba (cloud + meadow + HG, equal quality)
+Re-ran the equal-quality benchmark after the §8.16 optimization (now merged to main). Methodology =
+§8.5: equal-quality time ∝ k·t, k = (per-seed std)²·spp from the seed sets, t = measured s/spp.
+cloud cam0, RTX 3090.
+
+| renderer | s/spp | noise k | cost k·t | mean | correct? |
+|---|---|---|---|---|---|
+| **CUDA-MIS (optimized)** | **0.147** | 2.25 | **0.33** | 0.3215 | ✅ |
+| Mitsuba-MIS (NEE on) | 2.66 | 3.04 | 8.08 | 0.820 | ❌ **+155% biased** |
+| Mitsuba-analog | 0.667 | 4108 | 2740 | 0.3242 | ✅ (brute-force, firefly-heavy) |
+
+- **Apples-to-apples (CUDA-MIS vs Mitsuba-MIS): CUDA is 24× faster AND correct**, while Mitsuba's own
+  variance-reduced path converges to a **2.5× too-bright** image (the +6.5% furnace NEE bug §8.1,
+  amplified to +155% in this volumetric+meadow scene). Mitsuba's *fast* path is *wrong* here.
+- vs Mitsuba-analog (its only **unbiased** path): ~8260× (k·t; inflated by Mitsuba's firefly k=4108;
+  fireflies converge slower than 1/√spp, so this *understates* the edge).
+- **Per-spp throughput: CUDA is now 4.5× faster than Mitsuba-analog, 18× faster than Mitsuba-MIS** — a
+  flip from ~1.93× *slower* per-spp pre-optimization (§8.5). The optimization moved CUDA from "slower
+  per-spp, wins only via MIS variance reduction" to "**faster per-spp AND lower-variance AND correct**."
+- CUDA-MIS k=2.25 is even below Mitsuba-MIS k=3.04 — CUDA is the cleaner estimator too.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
