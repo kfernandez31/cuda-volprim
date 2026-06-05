@@ -678,9 +678,24 @@ on the primary ray.
   equal-quality on flat env. With a ~15× kernel speedup CUDA is now **~7× faster per-spp than
   Mitsuba-analog**, i.e. **faster at equal quality essentially everywhere** (even the 2.85× flat-env
   noise penalty is now outweighed), and the env-map showcase win balloons. A clean equal-quality
-  re-benchmark vs Mitsuba is the confirming TODO. Also incidentally removed the EventBuffer/sort from
-  the shadow path (lower register pressure). NB this is the win the wavefront was chasing — obtained
-  algorithmically, no kernel split needed.
+  re-benchmark vs Mitsuba is the confirming TODO. NB this is the win the wavefront was chasing —
+  obtained algorithmically, no kernel split needed.
+- **Equivalence proof.** Total optical depth `τ = ∫ Σ_p σ_p = Σ_p ∫ σ_p` (linearity); per primitive
+  the old per-segment sub-integrals telescope (shared erf endpoints cancel) to the full-span integral.
+  Holds for every overlap config — geometry never enters. Empirically confirmed opt-vs-baseline:
+  nested (small-in-big), partial/Venn, and disjoint overlap all reproduce to float-summation noise
+  (mean Δ=0, mean abs ~1e-7; isolated ~1e-2 pixels are AA silhouette edges), plus cloud (max overlap
+  ~40) at 3e-8 and furnace 1.00011.
+- **Dead code removed** (commit after the opt): the rewrite orphaned the event list + the entire sort
+  machinery. Deleted `EventBuffer` typedef, `device/core/sorting.cuh` (warp-shuffle/insertion/bitonic
+  — the argmin primary path is sort-free, so the shadow path was its only caller), and the unused
+  `include/thesis/device/optix/hit_event.h`. Build clean, render bit-identical (diff 0.0).
+- **NEXT opportunity (unlocked by this).** The shadow integration is now an *order-independent* sum,
+  so it no longer needs the stored hit list: the `anyhit` shader (`anyhit.cuh`) could **accumulate
+  `optical_depth` into the ray payload during traversal** and never fill the 128-deep `HitBuffer` —
+  which `constants.cuh` calls out as "the EXPENSIVE per-ray buffer" (LMEM blowup capping occupancy at
+  ~30%). Eliminating it for shadow rays should lift occupancy → a further speedup on top of the 15×.
+  Moderate change (new shadow-ray payload + anyhit accumulation), validated against the current result.
 
 ## 9. Known limitations & OPEN items
 
