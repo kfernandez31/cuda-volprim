@@ -659,6 +659,29 @@ as a priority:**
   bounce" root-cause was a guess; the true flat-lit source (argmin overlap vs MIS-in-constant-env
   overhead vs shadow-ray variance) is being isolated on the `feature/a1-per-step-rb` branch.
 
+### 8.16 Shadow-ray transmittance optimization — ~12–15× kernel speedup (branch feature/shadow-transmittance-opt)
+Profiling the wavefront question (WAVEFRONT_PLAN.md) showed **~85% of frame time was the NEE/MIS
+shadow-ray optical-depth integration** in `compute_transmittance_to_env`, running latency-bound at
+30% occupancy. Root cause was algorithmic, not occupancy: it mirrored the primary-ray escape path —
+build an event list, sort, march segment-by-segment summing `optical_depth` over all active prims per
+segment = **O(events × active_prims) ≈ O(A²)** erf evals. But a shadow ray needs only the TOTAL
+optical depth, and optical depth is **additive** across primitives, so each prim is integrated **once
+over its full [entry, exit] span = O(A)**. Segmentation is only needed for scatter-DISTANCE sampling
+on the primary ray.
+- **Fix:** rewrote `compute_transmittance_to_env` to direct per-prim integration (no EventBuffer/sort).
+- **Speed:** cloud cam0 scatter **98.7s → 6.5s (~15×)** const-env; meadow showcase **~83s → 6.6s
+  (~12.5×)** (48 spp). Per-spp 2.06s → 0.135s.
+- **Correctness:** identical to the pre-opt baseline — global mean diff **0**, mean abs diff **3e-8**,
+  max **1.2e-3** (float summation order); **furnace 1.00011** (energy conserved). Since it matches the
+  baseline that was validated ≤1e-4 vs Mitsuba (§8.4/8.8), it inherits that validation.
+- **Implication:** this flips the performance story. Old §8.5: CUDA ~1.93× slower per-spp / ~5.5×
+  equal-quality on flat env. With a ~15× kernel speedup CUDA is now **~7× faster per-spp than
+  Mitsuba-analog**, i.e. **faster at equal quality essentially everywhere** (even the 2.85× flat-env
+  noise penalty is now outweighed), and the env-map showcase win balloons. A clean equal-quality
+  re-benchmark vs Mitsuba is the confirming TODO. Also incidentally removed the EventBuffer/sort from
+  the shadow path (lower register pressure). NB this is the win the wavefront was chasing — obtained
+  algorithmically, no kernel split needed.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
