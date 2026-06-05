@@ -319,9 +319,14 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
 // Sample scattering event using argmin approach (no sorting!)
 // Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
 // The minimum of independent inverse CDFs gives the same distribution as sorting
+// `out_origin_inside` (optional): if non-null, receives the ray-origin-inside primitive
+// set built by the initial scan below, BEFORE it is consumed/rebuilt for the scatter
+// point. The caller (raygen, bounce 0) reuses it for the analytic-direct transmittance
+// instead of re-running the same O(N) point-inside scan over all primitives.
 __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, random::PCG32& rng,
                                                      optix::ScatteringEvent<PrimsSet>& event,
-                                                     payloads::Miss& miss, HitBuffer& hit_buffer) {
+                                                     payloads::Miss& miss, HitBuffer& hit_buffer,
+                                                     PrimsSet* out_origin_inside = nullptr) {
     auto& active_prims = event.active_prims_;
 
     const size_t num_primitives = launch_params.primitives_.size();
@@ -332,6 +337,13 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
             if (!active_prims.insert(static_cast<prim_idx_t>(i)))
                 report_overflow();
         }
+    }
+
+    // Hand the origin-inside set to the caller before it is modified below (the argmin
+    // path clears it on escape and rebuilds it at the scatter point). Lets the caller
+    // skip a duplicate full-scene scan for the same origin.
+    if (out_origin_inside != nullptr) {
+        *out_origin_inside = active_prims;
     }
 
     collect_hits(ray, hit_buffer, &miss);
