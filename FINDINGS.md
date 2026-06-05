@@ -783,6 +783,31 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
+### 8.23 Skip per-bounce origin-inside scan — ~16%, the biggest win this session (branch feature/incremental-active-prims)
+(NB §8.20–8.22 live on sibling branches feature/findings-sobol-rgb / fast-erf / denoiser; merge order
+fills the gap.) `sample_scattering_event` scanned all 652 primitives with `point_inside_bvh_bound` at
+EVERY bounce to find the origin-inside set (prims the ray STARTS inside — OptiX backface-culls these so
+they're never reported as entry hits, hence the scan). Insight: after a scatter, `event.active_prims_`
+already holds the scatter point's active set, and the next bounce starts AT that scatter point, so its
+origin-inside set is IDENTICAL. Any prim the new origin is inside was crossed by the previous ray (it
+passes through that point) ⇒ already captured. So scan only at bounce 0 (camera ray); bounce>0 inherits
+the set for free via a `first_bounce` flag.
+- **Speed: ~16%, the largest single win of the session.** Tight A/B (cloud cam0 64spp, 10 pairs):
+  10/10 faster, steady-state −16.1% (−16…−19%). Stacks with the §8.19 bounce-0 dedup (orthogonal —
+  that removed raygen's *duplicate* bounce-0 scan; this removes the *per-bounce* scans).
+- **Correctness: UNBIASED but NOT bit-exact** (the only such opt this session). furnace PASS (1.00008);
+  meanD vs baseline +3.9e-7 (≈0, no bias); meadow-vs-Mitsuba systematic UNCHANGED (global +0.001543).
+  But max|Δ| = 0.177 at isolated pixels: at a grazing 3σ boundary the exit-distance test that builds
+  `final_active_prims` and the containment test the scan uses can disagree by ε, flipping one prim and
+  diverging that MC path. Zero-mean (no bias), and the 3σ cutoff is itself an arbitrary truncation
+  (drops 0.3% of mass) so neither membership answer is "more correct"; the divergence averages out with
+  spp. Merge decision is a judgment call vs the bit-exact fusion/dedup — but it's the biggest win and
+  passes every correctness gate.
+- **Cumulative throughput this session** (compounding, independent paths): fusion 3% × dedup 8% × erf
+  1.5% × this 16% ≈ **~1.35× more throughput**, extrapolating §8.17 to **~6× per-spp vs Mitsuba-analog**
+  and **~32× equal-quality vs Mitsuba-MIS** (still correct where Mitsuba-MIS is +155% biased). A fresh
+  equal-quality benchmark would replace the extrapolation with a measured figure.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
