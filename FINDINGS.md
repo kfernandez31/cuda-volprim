@@ -783,6 +783,27 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
+### 8.20 Owen-scrambled Sobol AA — measured, NO win, reverted (was branch feature/sobol-sampling)
+Measure-first test of low-discrepancy sampling (the §8.15 prediction was that it would be marginal).
+Implemented Owen-scrambled Sobol' (Burley 2020 hash-based scramble) for the **camera AA jitter** — the
+ONE path dimension consumed with a fixed, deterministic index per (pixel, sample). The variable-count
+argmin free-flight + post-it NEE directions can't be Sobol-stratified (data-dependent dimension count),
+so they stayed on PCG. The PCG jitter draw was kept (and discarded) when Sobol was on, so the downstream
+rng stream was IDENTICAL between the two builds — isolating purely the AA-stratification effect.
+- **Equal-quality A/B** (meadow showcase, cloud cam0, vs a 1024spp reference, same seed so scatter noise
+  is shared and cancels): RMSE reduction Sobol-vs-PCG = **−0.1% @16spp, −0.1% @32spp, +0.8% @64spp** —
+  i.e. **zero within noise**. Region split @32spp: bright/env −0.2%, dark/cloud +0.2%. No win even on the
+  high-frequency env background.
+- **Why:** confirms §8.15 exactly. The image variance is dominated by the **scattering MC** (argmin
+  free-flight + NEE), which is identical between the two builds; AA jitter is a negligible slice, so
+  stratifying it moves nothing at these spp. Sobol can only help the dimensions QMC can stratify, and on
+  this estimator that's just AA — which isn't where the noise is.
+- **Verdict: REVERTED.** Per the measure-first rule ("keep only if it measurably beats PCG"), the code
+  was removed (sobol.cuh + flag + raygen hook). The real variance lever would be reducing the
+  scattering-MC noise, which QMC can't reach here — and MIS already makes the showcase variance-
+  competitive (§8.11/§8.15). Don't re-attempt Sobol without first changing the estimator's
+  sample-consumption structure to a fixed low dimension.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
