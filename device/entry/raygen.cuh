@@ -84,8 +84,17 @@ extern "C" __global__ void __raygen__rg() {
         // RNG setup (unique per sample)
         auto rng = random::init(launch_params.seed_, rng_seed);
 
-        // Ray setup with jittering
-        const auto jitter = random::sample_uniform_2d(rng, 0.5f);
+        // Ray setup with sub-pixel jittering = the pixel reconstruction filter.
+        // Default (PIXEL_FILTER_STDDEV==0): uniform [-0.5,0.5] = exact box (validation).
+        // >0: Gaussian filter via importance sampling (offset drawn from the kernel,
+        // accumulated weight-1 → softer AA for beauty). Compile-time gated → box is a true
+        // no-op path.
+        float2 jitter;
+        if constexpr (consts::PIXEL_FILTER_STDDEV > 0.0f) {
+            jitter = random::sample_gaussian_2d(rng, consts::PIXEL_FILTER_STDDEV);
+        } else {
+            jitter = random::sample_uniform_2d(rng, 0.5f);
+        }
         auto ray = launch_params.camera_.jittered_ray(pixel_idx, jitter);
 
         auto throughput = make_float3(1.0f);
