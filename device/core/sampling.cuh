@@ -435,13 +435,13 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
 }
 
 // Compute scalar transmittance exp(-τ) along a shadow ray from `origin` in `direction`.
-// `active_prims` are the primitives the scatter point is inside; their exits and any
-// further entries are integrated segment-by-segment, exactly mirroring the escape path.
-// `hit_buffer` is reused as scratch — its prior contents are overwritten.
+// `active_prims` are the primitives the scatter point is inside; their exits are
+// integrated here (those prims report no forward entry hit, so the anyhit cannot
+// see them). Every primitive the shadow ray ENTERS is integrated inline by the
+// transmittance-mode anyhit during a single GAS descent (no HitBuffer needed).
 // Marked __noinline__ to keep its register footprint out of the scatter path.
 __device__ __noinline__ float compute_transmittance_to_env(float3 origin, float3 direction,
-                                                            const PrimsSet& active_prims,
-                                                            HitBuffer& hit_buffer) {
+                                                            const PrimsSet& active_prims) {
     const auto shadow_ray = geometry::Ray::spawn_unchecked(origin, direction);
 
     // Transmittance needs only the TOTAL optical depth along the ray. Optical depth is
@@ -467,19 +467,12 @@ __device__ __noinline__ float compute_transmittance_to_env(float3 origin, float3
         }
     }
 
-    // Primitives the shadow ray enters: integrate over [entry, exit].
-    collect_hits(shadow_ray, hit_buffer);
-    for (const auto& hit : hit_buffer) {
-        const auto& prim = launch_params.primitives_[hit.prim_idx];
-        const auto w = prim.transform_dir_local(shadow_ray.direction_);
-        const auto w_len2 = math::length2(w);
-        const float t_exit =
-            common::geometry::compute_exit_from_entry(shadow_ray, hit.t_hit, prim, w_len2);
-        if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
-            acc_tau += prim.optical_depth(shadow_ray, hit.t_hit, t_exit);
-            if (acc_tau >= consts::MAX_OPTICAL_DEPTH) return 0.0f;
-        }
-    }
+    // Primitives the shadow ray ENTERS: integrated inline by the transmittance-mode
+    // anyhit during a single GAS descent (fused — no HitBuffer round-trip). Optical
+    // depth is additive across primitives, so the inline accumulation order is
+    // irrelevant and the result is identical to the buffered loop up to float
+    // summation order.
+    acc_tau += trace_transmittance(shadow_ray, 0.0f, consts::INF_F);
 
     return math::exp(-acc_tau);
 }

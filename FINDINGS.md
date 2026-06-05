@@ -697,6 +697,76 @@ on the primary ray.
   ~30%). Eliminating it for shadow rays should lift occupancy → a further speedup on top of the 15×.
   Moderate change (new shadow-ray payload + anyhit accumulation), validated against the current result.
 
+### 8.17 Post-optimization benchmark vs Mitsuba (cloud + meadow + HG, equal quality)
+Re-ran the equal-quality benchmark after the §8.16 optimization (now merged to main). Methodology =
+§8.5: equal-quality time ∝ k·t, k = (per-seed std)²·spp from the seed sets, t = measured s/spp.
+cloud cam0, RTX 3090.
+
+| renderer | s/spp | noise k | cost k·t | mean | correct? |
+|---|---|---|---|---|---|
+| **CUDA-MIS (optimized)** | **0.147** | 2.25 | **0.33** | 0.3215 | ✅ |
+| Mitsuba-MIS (NEE on) | 2.66 | 3.04 | 8.08 | 0.820 | ❌ **+155% biased** |
+| Mitsuba-analog | 0.667 | 4108 | 2740 | 0.3242 | ✅ (brute-force, firefly-heavy) |
+
+- **Apples-to-apples (CUDA-MIS vs Mitsuba-MIS): CUDA is 24× faster AND correct**, while Mitsuba's own
+  variance-reduced path converges to a **2.5× too-bright** image (the +6.5% furnace NEE bug §8.1,
+  amplified to +155% in this volumetric+meadow scene). Mitsuba's *fast* path is *wrong* here.
+- vs Mitsuba-analog (its only **unbiased** path): ~8260× (k·t; inflated by Mitsuba's firefly k=4108;
+  fireflies converge slower than 1/√spp, so this *understates* the edge).
+- **Per-spp throughput: CUDA is now 4.5× faster than Mitsuba-analog, 18× faster than Mitsuba-MIS** — a
+  flip from ~1.93× *slower* per-spp pre-optimization (§8.5). The optimization moved CUDA from "slower
+  per-spp, wins only via MIS variance reduction" to "**faster per-spp AND lower-variance AND correct**."
+- CUDA-MIS k=2.25 is even below Mitsuba-MIS k=3.04 — CUDA is the cleaner estimator too.
+
+### 8.18 Anyhit-transmittance fusion — small real win ~3% (branch feature/anyhit-transmittance-fusion)
+Follow-up to the §8.16 "NEXT opportunity": fuse the shadow-ray `optical_depth` integration **into
+traversal** so the 128-deep `HitBuffer` is never filled for shadow rays. A transmittance-mode `anyhit`
+integrates each entered primitive over its [entry, exit] span and accumulates τ in a local-memory
+scalar during the single GAS descent (`optixIgnoreIntersection` continues). One payload slot selects
+COLLECT (primary/scatter, unchanged) vs TRANSMITTANCE mode — no host/SBT/pipeline changes.
+- **Correctness: exact.** cloud cam0 128 spp seed0 vs `main`: global mean Δ **+2.8e-10**, mean|Δ|
+  **2.6e-8**, max **3.4e-5**, RMSE **1.7e-7** (float summation order only; tighter than §8.16 itself).
+  Furnace PASS (1.00004 thin / 1.00008 thick — energy conserved). Optical depth is additive, so
+  order-independent inline accumulation = the buffered loop.
+- **Speed: ~3% faster, small but real.** Thermally-controlled tight-interleaved A/B (fusion vs main,
+  same `test_runner` binary, swapping only `device_program.optixir`, 64 spp, no cooldown so paired runs
+  are ~30 s apart = matched thermal state). The four steady-state pairs (both builds at a settled ~27 s)
+  were unambiguous: **−3.4 / −3.1 / −3.0 / −3.3 %**; all-12-pair median −3 %. Warmup/re-throttle pairs
+  are noisy (±12 %) and discarded — the absolute times drift 27→36 s across the session, which is why
+  only *paired* deltas are trustworthy.
+- **Why only ~3% (and not the occupancy jump §8.16 speculated):** occupancy here is **register-limited**
+  (linked pipeline ~114 regs), NOT local-memory-limited. The `HitBuffer` is LMEM, which does not gate
+  register-limited occupancy — and it must stay declared for the primary-ray argmin regardless. So the
+  fusion can't lift occupancy. The 3% comes from **removing the shadow path's LMEM writes
+  (`collect_hits` emplace_back) + the re-read loop** — less local-memory traffic and fewer instructions
+  in a latency-bound kernel. The §8.16 "lift occupancy by dropping the buffer" framing was wrong: the
+  buffer was never the occupancy gate.
+- **A dead end that wasn't:** moving the `HitBuffer` into the `__noinline__` `sample_scattering_event`
+  frame (to keep it out of raygen's) **regressed ~15%** — OptiX penalizes a large local in a noinline
+  continuation frame. Reverted. Left the buffer in raygen.
+- **Verdict: KEEP.** Correctness-exact + ~3% faster + the shadow path no longer touches the 128-deep
+  buffer (cleaner data flow), for the cost of one payload slot and a mode branch in the anyhit. Merge is
+  user-gated. NB the real remaining lever is NOT here — see §9 / the register-limited note: the only way
+  to drop the `HitBuffer` from the frame entirely is to also fuse the PRIMARY ray (argmin is a min, not
+  a sum — wavefront-scale work, not a v1).
+
+#### Adjacent levers tested alongside the fusion — both NEGATIVE (don't re-try)
+- **`maxRegisterCount` sweep (occupancy lever) — NO EFFECT.** The main module already caps at 96
+  (`module.h:33`); the linked pipeline still profiles ~114 regs. Round-robin sweep {64, 80, 96, 128,
+  0=unlimited} × 3 cycles on cloud cam0 64 spp: per-cap means 30.05 / 30.11 / 30.28 / 32.45* / 30.04 s
+  (*one thermal-spike outlier) — a <1% spread, far inside the ±15% thermal noise. **Register/occupancy
+  tuning is not a lever here**: the kernel is latency-bound on **dependency chains (the erf arithmetic)**,
+  not occupancy-starved, so adding warps doesn't help. Corollary: the productive levers REMOVE work
+  (this fusion, the bounce-0 double-scan dedup) or REDUCE variance (low-discrepancy sampling), not add
+  occupancy. module.h left at 96.
+- **Shadow-ray τ-saturation early-out (`optixTerminateRay` when τ≥`MAX_OPTICAL_DEPTH`) — NEUTRAL on the
+  cloud.** Implemented exactly (correctness-exact: mean Δ 2.3e-10 vs main), A/B vs plain fusion over 10
+  tight pairs: mean +0.2%/−0.2%, scatter around zero. The cloud at σ-mult 7.5 rarely accumulates τ≥88
+  along a shadow ray (env-facing rays exit before saturating), so the early-out almost never fires.
+  Exact + zero-cost, but no gain on the validated workload → **left OUT** to keep the merged change
+  minimal (per CLAUDE.md "no premature optimization"). It IS a correct one-line add for optically
+  thicker media (denser clouds / higher σ) if a future scene needs it.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

@@ -138,7 +138,7 @@ extern "C" __global__ void __raygen__rg() {
                         }
                     }
                     const auto T_dir = compute_transmittance_to_env(
-                        ray.origin_, ray.direction_, origin_inside, hit_buffer);
+                        ray.origin_, ray.direction_, origin_inside);
                     radiance += throughput * T_dir * launch_params.env_map_.sample(ray.direction_);
                 }
             }
@@ -197,8 +197,7 @@ extern "C" __global__ void __raygen__rg() {
                     const auto w_a = mis_balance(a.pdf, pdf_b_at_a);
                     const auto env_a = launch_params.env_map_.sample(a.wo);
                     const auto T_a = compute_transmittance_to_env(event.position_, a.wo,
-                                                                    event.active_prims_,
-                                                                    hit_buffer);
+                                                                    event.active_prims_);
                     // f / pdf_phase = phase * env * T / phase = env * T
                     radiance += base * env_a * T_a * w_a;
 
@@ -208,8 +207,7 @@ extern "C" __global__ void __raygen__rg() {
                     const auto w_b = mis_balance(b.pdf, phase_at_b);
                     const auto env_b = launch_params.env_map_.sample(b.wo);
                     const auto T_b = compute_transmittance_to_env(event.position_, b.wo,
-                                                                    event.active_prims_,
-                                                                    hit_buffer);
+                                                                    event.active_prims_);
                     // f / pdf_env = phase * env * T / pdf_env
                     radiance += base * env_b * T_b * w_b * phase_at_b * math::rcp(b.pdf);
                 } else {
@@ -218,7 +216,7 @@ extern "C" __global__ void __raygen__rg() {
                     const auto sample = phase::sample(wi, rng);
                     const auto env = launch_params.env_map_.sample(sample.wo);
                     const auto T = compute_transmittance_to_env(event.position_, sample.wo,
-                                                                 event.active_prims_, hit_buffer);
+                                                                 event.active_prims_);
                     radiance += base * env * T;
                 }
             } else {
