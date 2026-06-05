@@ -15,8 +15,8 @@ namespace params {
 struct THESIS_ALIGNMENT Image {
     float4* variance_ = nullptr;  // Welford M2; null when adaptive sampling is disabled (skip writes)
     float4* mean_ = nullptr;      // Running mean for Welford's algorithm
-    uint16_t* sample_counts_ =
-        nullptr;  // Per-pixel sample count (max 65535 spp; widen if you ever need more)
+    uint32_t* sample_counts_ =
+        nullptr;  // Per-pixel sample count (uint32 → up to ~4.29e9 spp; no practical ceiling)
 
     // Auxiliary outputs ("AOVs") for the OptiX denoiser as guide layers.
     // Both are running per-pixel means across SPP (no Welford M2 needed — we just need

@@ -793,12 +793,17 @@ COLLECT (primary/scatter, unchanged) vs TRANSMITTANCE mode — no host/SBT/pipel
 - **Low-σ interior check — IN PROGRESS (§8.13, P2).** σ=7.5 clamps the dense interior to black on
   both sides, so that match is partly trivial; the σ=2 re-render (gray interior → non-saturated
   transmittance comparison) is running in the P2 batch.
-- **uint16 spp ceiling.** `Image::sample_counts_` is `uint16_t` → Welford count wraps
-  at 65536 spp; RMSE floors there. Fix = widen to uint32. Not yet done; renders
-  ≤65535 spp are valid.
-- **Cap overflow is silent.** `MAX_ACTIVE_PRIMS`/`HIT_BUFFER_CAPACITY` drop excess on
-  overflow without warning. Current values (128/128) cover the cloud; denser scenes
-  need graceful handling or per-scene tuning (accepting the perf cost).
+- ~~**uint16 spp ceiling.**~~ RESOLVED (branch `feature/robustness-fixes`): `Image::sample_counts_`
+  widened `uint16_t`→`uint32_t` (device POD + host AsyncBuffer + raygen write cast). Welford count no
+  longer wraps at 65536 spp; bit-identical ≤65535 spp, furnace PASS. Cost +2 B/pixel.
+- ~~**Cap overflow is silent.**~~ PARTIALLY RESOLVED (branch `feature/robustness-fixes`): overflow is
+  now DETECTED, not silent. `CompactSet`/`BitVector` `insert()` return a bool; the active-prims and
+  primary-ray hit-buffer drop sites bump a device atomic (`report_overflow`) in `LaunchParams`, and the
+  host reads it back and WARNS (count + which cap to raise). Verified end-to-end (cap→1 ⇒ ~4.7e7 events
+  + warning; cap 128 ⇒ zero on the cloud). NB the fused shadow-ray path is already buffer-free (handles
+  unbounded overlap), so only the primary/scatter ray is capped. Still OPEN: true *graceful* unbounded
+  overlap for the primary ray (would need argmin without the fixed HitBuffer — wavefront-scale); for now
+  the cure remains raising `MAX_ACTIVE_PRIMS`/`HIT_BUFFER_CAPACITY`, but it is no longer silent.
 - **AA-floor attribution** (§7) could be nailed by forcing identical pixel filters
   (box on both) or rendering at 2× and downsampling.
 

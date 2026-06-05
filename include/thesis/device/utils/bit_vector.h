@@ -36,9 +36,13 @@ struct BitVector {
         size_ = 0;
     }
 
-    __device__ __forceinline__ void insert(uint idx) {
+    // Returns true if the element is present after the call. A BitVector is indexed by
+    // primitive ID and spans the full scene (N = MAX_PRIMITIVES rounded up), so it never
+    // overflows; the bool return exists only to match CompactSet's overflow-reporting
+    // interface (out-of-range idx returns false, but that cannot happen for valid IDs).
+    __device__ __forceinline__ bool insert(uint idx) {
         if (idx >= N)
-            return;
+            return false;
         const uint word = idx >> 6;  // Divide by 64
         const uint bit = idx & 63;   // Modulo 64
         const uint64_t mask = 1ULL << bit;
@@ -48,6 +52,7 @@ struct BitVector {
             bits_[word] |= mask;
             ++size_;
         }
+        return true;
     }
 
     __device__ __forceinline__ bool contains(uint idx) const {

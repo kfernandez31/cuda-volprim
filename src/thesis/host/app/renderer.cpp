@@ -188,6 +188,13 @@ void Renderer::initStaticParams() {
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();
 
+    // Single-element device counter for cap-overflow events (active-prims / hit-buffer
+    // drops). Zeroed here, read back after the render to warn about biased dense regions.
+    overflow_counter_ = cuda::AsyncBuffer<unsigned long long>(
+        1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
+    overflow_counter_.memset_device(0);
+    par.overflow_counter_ = overflow_counter_.device();
+
     launch_params_.upload(&launch_params_host_);
 
     // Pinned host copy of primitives_ is no longer read past this point — render() only uses
@@ -304,6 +311,20 @@ void Renderer::render() {
         // are queued on the same Main stream and serialize naturally. Batches now
         // back-to-back, eliminating the kernel-launch idle gap between them. The
         // image normalize/save below explicitly syncs before reading host pixels.
+    }
+
+    // Surface any cap-overflow events (previously silent under-absorption in
+    // dense-overlap regions). Sync the Main stream so all counter writes are visible,
+    // then read back the single counter.
+    streams_[cuda::StreamKind::Main]->synchronize();
+    overflow_counter_.download();                      // async copy on the Main stream …
+    streams_[cuda::StreamKind::Main]->synchronize();   // … so sync again before reading host
+    if (const auto overflows = overflow_counter_.host()[0]; overflows > 0) {
+        spdlog::warn(
+            "Cap overflow: {} dropped active-prim/hit-buffer entries — dense-overlap "
+            "regions may be under-absorbed (too bright). Raise MAX_ACTIVE_PRIMS / "
+            "HIT_BUFFER_CAPACITY in device/core/constants.cuh for this scene.",
+            overflows);
     }
 
     spdlog::info("All batches complete, saving image...");
