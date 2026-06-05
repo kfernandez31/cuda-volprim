@@ -274,7 +274,7 @@ extern "C" __global__ void __raygen__rg() {
         launch_params.image_.variance_[pixel_linear_idx] = make_float4(M2);
     }
     launch_params.image_.mean_[pixel_linear_idx] = make_float4(mean);
-    launch_params.image_.sample_counts_[pixel_linear_idx] = static_cast<uint16_t>(
+    launch_params.image_.sample_counts_[pixel_linear_idx] = static_cast<uint32_t>(
         prev_count + launch_params.image_.batch_size_);
     if (launch_params.image_.albedo_aov_) {
         launch_params.image_.albedo_aov_[pixel_linear_idx] = make_float4(aov_albedo);

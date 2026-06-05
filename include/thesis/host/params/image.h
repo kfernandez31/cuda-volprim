@@ -28,7 +28,7 @@ class Image {
    private:
     cuda::AsyncBuffer<float4> variance_managed_;         // Welford M2 (only allocated when ENABLE_ADAPTIVE_SAMPLING)
     cuda::AsyncBuffer<float4> mean_managed_;             // Running mean for Welford's algorithm
-    cuda::AsyncBuffer<uint16_t> sample_counts_managed_;  // Per-pixel sample counts (max 65535 spp)
+    cuda::AsyncBuffer<uint32_t> sample_counts_managed_;  // Per-pixel sample counts (uint32 → no practical spp ceiling)
     cuda::AsyncBuffer<float4> averaged_pixels_managed_;  // Final output (RGBA, W unused)
     cuda::AsyncBuffer<float4> albedo_aov_managed_;       // Denoiser albedo guide (only when denoising)
     cuda::AsyncBuffer<float4> normal_aov_managed_;       // Denoiser normal guide (only when denoising)
@@ -78,7 +78,7 @@ class Image {
         }
 
         device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
-        device_image_.sample_counts_ = const_cast<uint16_t*>(sample_counts_managed_.device());
+        device_image_.sample_counts_ = const_cast<uint32_t*>(sample_counts_managed_.device());
         device_image_.width_ = static_cast<uint32_t>(width);
         device_image_.height_ = static_cast<uint32_t>(height);
         device_image_.num_samples_per_pixel_ = static_cast<uint32_t>(num_samples_per_pixel);
