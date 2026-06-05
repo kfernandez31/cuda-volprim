@@ -783,6 +783,22 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
+### 8.22 OptiX denoiser — evaluated, ~30× effective speedup (already implemented; branch feature/denoiser)
+The denoiser was already fully built (host `optix/denoiser.h` + `--denoise` flag + albedo/normal AOV
+guide layers captured at bounce 0 in raygen + `denoise_and_save`); this was an *evaluation* of it, no
+new code. Run on cloud cam0 + meadow:
+- 16 spp raw render = 5.2 s, visibly grainy. `--denoise` (OptiX HDR denoiser, albedo+normal guides)
+  produces a smooth, clean image in the same launch.
+- **Quality:** raw-16spp vs a 512spp reference RMSE = 0.384; **denoised-16spp vs 512spp RMSE = 0.070**
+  → 5.5× lower error. Since raw noise ~1/√spp, matching the denoised error with raw samples would need
+  ~486 spp → **~30× effective speedup** (16spp looks like ~486spp).
+- **Caveat (thesis framing):** the denoiser is an *approximation* — it slightly over-smooths the fine
+  wisp texture and is not the converged truth. Show it as a fast preview ALONGSIDE the converged render,
+  not as a ground-truth result. The 0.070 RMSE includes denoiser bias, not just removed noise.
+- **Status:** functional and a strong showcase differentiator (Mitsuba's reference path has no equivalent
+  integrated denoise). Possible follow-ups: resolve the `denoiseAlpha` API TODO in denoiser.h; a denoised
+  showcase bundle; temporal/multi-frame denoising is out of scope (single-frame renderer).
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
