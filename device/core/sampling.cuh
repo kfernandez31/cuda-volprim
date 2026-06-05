@@ -323,21 +323,35 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
 // set built by the initial scan below, BEFORE it is consumed/rebuilt for the scatter
 // point. The caller (raygen, bounce 0) reuses it for the analytic-direct transmittance
 // instead of re-running the same O(N) point-inside scan over all primitives.
+// `first_bounce`: when true, the origin-inside primitive set is built fresh by an O(N)
+// point-in-bound scan over all primitives (needed for the camera ray). When false, the
+// caller guarantees `event.active_prims_` ALREADY holds the origin-inside set — because
+// the previous bounce left it equal to the scatter point's active set, and the new ray
+// starts AT that scatter point, so its origin-inside set is identical (any prim the new
+// origin is inside was, by construction, active at the previous scatter). Skipping the
+// scan for bounce>0 removes the dominant repeated O(N) cost. See FINDINGS.
 __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, random::PCG32& rng,
                                                      optix::ScatteringEvent<PrimsSet>& event,
                                                      payloads::Miss& miss, HitBuffer& hit_buffer,
+                                                     bool first_bounce,
                                                      PrimsSet* out_origin_inside = nullptr) {
     auto& active_prims = event.active_prims_;
 
     const size_t num_primitives = launch_params.primitives_.size();
 
-    for (size_t i = 0; i < num_primitives; ++i) {
-        const auto& prim = launch_params.primitives_[i];
-        if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
-            if (!active_prims.insert(static_cast<prim_idx_t>(i)))
-                report_overflow();
+    if (first_bounce) {
+        // Camera ray: no prior active set to inherit — scan all primitives.
+        active_prims.clear();
+        for (size_t i = 0; i < num_primitives; ++i) {
+            const auto& prim = launch_params.primitives_[i];
+            if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
+                if (!active_prims.insert(static_cast<prim_idx_t>(i)))
+                    report_overflow();
+            }
         }
     }
+    // else: active_prims already == origin-inside set (inherited from the previous bounce's
+    // scatter-point active set). No scan needed — this is the whole point of the optimization.
 
     // Hand the origin-inside set to the caller before it is modified below (the argmin
     // path clears it on escape and rebuilds it at the scatter point). Lets the caller
