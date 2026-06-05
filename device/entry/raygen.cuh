@@ -3,6 +3,7 @@
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
 #include "core/sampling.cuh"
+#include "core/sobol.cuh"
 
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
@@ -84,8 +85,18 @@ extern "C" __global__ void __raygen__rg() {
         // RNG setup (unique per sample)
         auto rng = random::init(launch_params.seed_, rng_seed);
 
-        // Ray setup with jittering
-        const auto jitter = random::sample_uniform_2d(rng, 0.5f);
+        // Ray setup with jittering. Always draw the PCG jitter first so the rng stream
+        // that feeds the rest of the path (argmin free-flight, NEE/MIS) is IDENTICAL
+        // whether or not Sobol AA is on — this isolates the AA-stratification effect for
+        // the measure-first comparison. With ENABLE_SOBOL_AA the jitter value itself is
+        // replaced by an Owen-scrambled Sobol' 2D point (stratified along spp, per-pixel
+        // decorrelated); the discarded PCG draw just advances the stream.
+        float2 jitter = random::sample_uniform_2d(rng, 0.5f);  // ∈ [-0.5, 0.5]²
+        if constexpr (consts::ENABLE_SOBOL_AA) {
+            const auto u = sobol::sample_2d(static_cast<uint32_t>(global_sample_idx),
+                                            static_cast<uint32_t>(pixel_linear_idx));
+            jitter = make_float2(u.x - 0.5f, u.y - 0.5f);
+        }
         auto ray = launch_params.camera_.jittered_ray(pixel_idx, jitter);
 
         auto throughput = make_float3(1.0f);

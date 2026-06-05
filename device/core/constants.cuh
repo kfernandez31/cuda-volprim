@@ -138,6 +138,14 @@ constexpr bool ENABLE_MIS = true;
 // Collapses MC noise on the unscattered component (the entire image when albedo=0).
 constexpr bool ENABLE_ANALYTIC_DIRECT = true;
 
+// Owen-scrambled Sobol' low-discrepancy sampling for the CAMERA anti-aliasing jitter
+// (sobol.cuh). Stratifies the one fixed-index dimension of the path (pixel AA) along the
+// spp axis → lower AA variance per sample, especially at low/moderate spp. The rest of
+// the path (variable-count argmin free-flight + NEE directions) stays on PCG: its
+// dimension count is data-dependent and not Sobol-stratifiable. MEASURE-FIRST experiment
+// (FINDINGS §8.20): on by default only if it measurably beats PCG at equal quality.
+constexpr bool ENABLE_SOBOL_AA = false;
+
 // =============================================================================
 // Adaptive Sampling Constants
 // =============================================================================
