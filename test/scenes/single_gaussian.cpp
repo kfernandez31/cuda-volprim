@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <cstdio>
 #include <cmath>
 
 namespace thesis::test::scenes {
@@ -17,9 +18,18 @@ namespace {
 // SG_ALBEDO drives the scattering campaign across all single-Gaussian-family
 // scenes. 0 (default) = pure absorber; >0 turns on in-scattering. Mirrored on
 // the Mitsuba side via the same env var. Helper so two_gaussian/cluster share it.
-[[nodiscard]] float scatter_albedo() {
+// Per-channel albedo. SG_ALBEDO accepts either a scalar ("0.9" → grey, all the
+// existing tests) OR a comma-separated RGB triple ("0.9,0.5,0.2" → a *tinted*
+// medium) to validate wavelength-dependent scattering vs Mitsuba's per-prim RGB
+// albedo tensor. There is no cross-channel coupling in the path (throughput is a
+// per-channel Hadamard multiply), so this just exercises the float3 read path.
+[[nodiscard]] float3 scatter_albedo3() {
     const char* env = std::getenv("SG_ALBEDO");
-    return env ? static_cast<float>(std::atof(env)) : 0.0f;
+    if (!env) return make_float3(0.0f, 0.0f, 0.0f);
+    float r = 0.0f, g = 0.0f, b = 0.0f;
+    const int n = std::sscanf(env, "%f,%f,%f", &r, &g, &b);
+    if (n >= 3) return make_float3(r, g, b);
+    return make_float3(r, r, r);  // scalar → grey broadcast (back-compat)
 }
 
 // SG_ENV selects the environment map. Default = white_constant (the energy/furnace
@@ -108,8 +118,7 @@ Result<MultiViewTestScene> single_gaussian_validation(float sigma_multiplier) {
     //                   (L = L_env everywhere). The Gaussian must be invisible
     //                   against the background — a reference-free energy-
     //                   conservation check on the entire scatter/NEE/bounce path.
-    const float albedo_val = scatter_albedo();
-    const auto albedo = make_float3(albedo_val, albedo_val, albedo_val);
+    const auto albedo = scatter_albedo3();  // scalar → grey; "r,g,b" → tinted medium
 
     // SG_TRANSFORMED=1 exercises the anisotropic-scale + rotation whitening path
     // (the transform math the isotropic identity test is blind to). Config is
@@ -177,8 +186,7 @@ Result<MultiViewTestScene> two_gaussian_validation(float sigma_multiplier) {
         "per-ray distinct-position accumulation test";
 
     const auto scale = make_float3(1.0f, 1.0f, 1.0f);
-    const float albedo_val = scatter_albedo();
-    const auto albedo = make_float3(albedo_val, albedo_val, albedo_val);
+    const auto albedo = scatter_albedo3();  // scalar → grey; "r,g,b" → tinted medium
     const auto optical_thickness = sigma_multiplier;
 
     // Two Gaussians offset in x (distinct perpendicular distance per pixel) AND in z
@@ -230,8 +238,7 @@ Result<MultiViewTestScene> cluster_validation(float /*sigma_multiplier*/) {
     scene.name = "cluster_validation";
     scene.description = "Procedural overlap cluster (mode=" + mode + ")";
 
-    const float albedo_val = scatter_albedo();
-    const auto albedo = make_float3(albedo_val, albedo_val, albedo_val);
+    const auto albedo = scatter_albedo3();  // scalar → grey; "r,g,b" → tinted medium
     const auto zrot = [](float deg) {
         const float h = 0.5f * deg * math::PI_F / 180.0f;
         return UnitQuaternion::from(std::cos(h), 0.0f, 0.0f, std::sin(h));

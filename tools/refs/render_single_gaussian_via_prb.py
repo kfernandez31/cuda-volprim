@@ -71,9 +71,11 @@ sigma_t = mi.TensorXf(np.array([[SIGMA_T_MITSUBA]], dtype=np.float32).ravel(),
                       shape=(N, 1))
 # SG_ALBEDO drives the scattering campaign (mirrors test/scenes/single_gaussian.cpp).
 # 0 = pure absorber; >0 turns on in-scattering. albedo=1 = furnace test.
-ALBEDO = float(os.environ.get("SG_ALBEDO", "0.0"))
-albedo = mi.TensorXf(np.array([[ALBEDO, ALBEDO, ALBEDO]], dtype=np.float32).ravel(),
-                     shape=(N, 3))
+# Accepts a scalar ("0.9" → grey) OR a comma-separated RGB triple ("0.9,0.5,0.2"
+# → a tinted medium) to validate wavelength-dependent scattering per-channel.
+_alb = [float(x) for x in os.environ.get("SG_ALBEDO", "0.0").split(",")]
+RGB = _alb if len(_alb) >= 3 else _alb * 3            # scalar → grey broadcast
+albedo = mi.TensorXf(np.array([RGB[:3]], dtype=np.float32).ravel(), shape=(N, 3))
 
 # Camera at (0, 0, -5) looking along +Z toward origin, ortho viewport 6x6.
 # Mitsuba's orthographic camera with no scale on look_at sees [-1,1] in
@@ -202,7 +204,10 @@ img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
 dr.sync_thread()
 
 _tag = "_transformed" if os.environ.get("SG_TRANSFORMED") == "1" else ""
-_albtag = f"_alb{ALBEDO:.2f}" if ALBEDO != 0.0 else ""
+if all(v == RGB[0] for v in RGB):  # scalar grey → keep the original filename format
+    _albtag = f"_alb{RGB[0]:.2f}" if RGB[0] != 0.0 else ""
+else:                              # tinted RGB → distinct tag
+    _albtag = "_alb" + "-".join(f"{v:.2f}" for v in RGB)
 _seedtag = f"_seed{SEED}" if SEED != 0 else ""
 _envtag = "_meadow" if SG_ENV == "meadow" else ""
 _perstag = "_persp" if SG_PERSP else ""

@@ -4,7 +4,6 @@
 #include "core/hit_record.cuh"
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
-#include "core/sorting.cuh"
 #include "core/trace.cuh"
 
 #include "thesis/common/geometry/intersection.h"
@@ -295,8 +294,6 @@ __device__ __forceinline__ float3 evaluate_albedo(float3 pos, const PrimsSet& pr
     return accum_albedo * math::rcp(accum_weight);
 }
 
-using EventBuffer = utils::StaticVector<HitRecord, 2 * consts::HIT_BUFFER_CAPACITY>;
-
 // Helper: Collect ray-primitive entry hits (exits computed lazily)
 // Clears and fills the provided hit buffer. Also returns Miss payload if provided.
 __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
@@ -446,64 +443,42 @@ __device__ __noinline__ float compute_transmittance_to_env(float3 origin, float3
                                                             const PrimsSet& active_prims,
                                                             HitBuffer& hit_buffer) {
     const auto shadow_ray = geometry::Ray::spawn_unchecked(origin, direction);
-    collect_hits(shadow_ray, hit_buffer);
 
-    EventBuffer events;
+    // Transmittance needs only the TOTAL optical depth along the ray. Optical depth is
+    // ADDITIVE across primitives (densities sum in overlaps), so each primitive can be
+    // integrated ONCE over its full [entry, exit] span. The previous implementation
+    // mirrored the primary-ray escape path: build an event list, sort it, and march
+    // segment-by-segment summing optical_depth over all active prims per segment — that
+    // is O(events × active_prims) ≈ O(A²) erf evaluations and was ~85% of the whole frame
+    // (NEE fires this per scatter, ×2 under MIS). The segmentation is only needed to find
+    // a scatter DISTANCE on the primary ray; for a shadow ray it is pure waste. This is
+    // O(A): one optical_depth per primitive. Result is identical up to float summation
+    // order. (See WAVEFRONT_PLAN.md time-split / FINDINGS.)
+    float acc_tau = 0.0f;
 
-    // Exits for primitives that contain the scatter point. Shadow ray origin is
-    // inside their 3σ BVH bound, so use exit_from_inside (full quadratic).
+    // Primitives containing the origin: integrate from 0 to their exit (origin is inside
+    // the 3σ bound, so exit_from_inside — the full quadratic).
     for (auto prim_idx : active_prims) {
         const auto& prim = launch_params.primitives_[prim_idx];
         const float t_exit = common::geometry::exit_from_inside(shadow_ray, prim);
         if (t_exit > 0.0f && t_exit < consts::INF_F) {
-            events.emplace_back(t_exit, prim_idx, true);
+            acc_tau += prim.optical_depth(shadow_ray, 0.0f, t_exit);
+            if (acc_tau >= consts::MAX_OPTICAL_DEPTH) return 0.0f;  // exp(-τ) underflows
         }
     }
 
-    // Entry + exit for primitives the shadow ray intersects
+    // Primitives the shadow ray enters: integrate over [entry, exit].
+    collect_hits(shadow_ray, hit_buffer);
     for (const auto& hit : hit_buffer) {
         const auto& prim = launch_params.primitives_[hit.prim_idx];
-        events.emplace_back(hit.t_hit, hit.prim_idx, false);
-
         const auto w = prim.transform_dir_local(shadow_ray.direction_);
         const auto w_len2 = math::length2(w);
         const float t_exit =
             common::geometry::compute_exit_from_entry(shadow_ray, hit.t_hit, prim, w_len2);
         if (t_exit > hit.t_hit && t_exit < consts::INF_F) {
-            events.emplace_back(t_exit, hit.prim_idx, true);
+            acc_tau += prim.optical_depth(shadow_ray, hit.t_hit, t_exit);
+            if (acc_tau >= consts::MAX_OPTICAL_DEPTH) return 0.0f;
         }
-    }
-
-    if (events.empty()) {
-        return 1.0f;  // Free path to env
-    }
-
-    sort(events);
-
-    float t_prev = 0.0f;
-    PrimsSet current_active = active_prims;
-    float acc_tau = 0.0f;
-
-    for (size_t i = 0; i < events.size(); ++i) {
-        const auto& ev = events[i];
-
-        if (ev.t_hit > t_prev) {
-            for (auto prim_idx : current_active) {
-                const auto& prim = launch_params.primitives_[prim_idx];
-                acc_tau += prim.optical_depth(shadow_ray, t_prev, ev.t_hit);
-            }
-            if (acc_tau >= consts::MAX_OPTICAL_DEPTH) {
-                return 0.0f;  // Fully opaque, exp(-τ) underflows
-            }
-        }
-
-        if (ev.is_exit) {
-            current_active.erase(ev.prim_idx);
-        } else {
-            (void) current_active.insert(ev.prim_idx);
-        }
-
-        t_prev = ev.t_hit;
     }
 
     return math::exp(-acc_tau);
