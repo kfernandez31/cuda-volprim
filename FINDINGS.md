@@ -718,6 +718,38 @@ cloud cam0, RTX 3090.
   per-spp, wins only via MIS variance reduction" to "**faster per-spp AND lower-variance AND correct**."
 - CUDA-MIS k=2.25 is even below Mitsuba-MIS k=3.04 — CUDA is the cleaner estimator too.
 
+### 8.18 Anyhit-transmittance fusion — small real win ~3% (branch feature/anyhit-transmittance-fusion)
+Follow-up to the §8.16 "NEXT opportunity": fuse the shadow-ray `optical_depth` integration **into
+traversal** so the 128-deep `HitBuffer` is never filled for shadow rays. A transmittance-mode `anyhit`
+integrates each entered primitive over its [entry, exit] span and accumulates τ in a local-memory
+scalar during the single GAS descent (`optixIgnoreIntersection` continues). One payload slot selects
+COLLECT (primary/scatter, unchanged) vs TRANSMITTANCE mode — no host/SBT/pipeline changes.
+- **Correctness: exact.** cloud cam0 128 spp seed0 vs `main`: global mean Δ **+2.8e-10**, mean|Δ|
+  **2.6e-8**, max **3.4e-5**, RMSE **1.7e-7** (float summation order only; tighter than §8.16 itself).
+  Furnace PASS (1.00004 thin / 1.00008 thick — energy conserved). Optical depth is additive, so
+  order-independent inline accumulation = the buffered loop.
+- **Speed: ~3% faster, small but real.** Thermally-controlled tight-interleaved A/B (fusion vs main,
+  same `test_runner` binary, swapping only `device_program.optixir`, 64 spp, no cooldown so paired runs
+  are ~30 s apart = matched thermal state). The four steady-state pairs (both builds at a settled ~27 s)
+  were unambiguous: **−3.4 / −3.1 / −3.0 / −3.3 %**; all-12-pair median −3 %. Warmup/re-throttle pairs
+  are noisy (±12 %) and discarded — the absolute times drift 27→36 s across the session, which is why
+  only *paired* deltas are trustworthy.
+- **Why only ~3% (and not the occupancy jump §8.16 speculated):** occupancy here is **register-limited**
+  (linked pipeline ~114 regs), NOT local-memory-limited. The `HitBuffer` is LMEM, which does not gate
+  register-limited occupancy — and it must stay declared for the primary-ray argmin regardless. So the
+  fusion can't lift occupancy. The 3% comes from **removing the shadow path's LMEM writes
+  (`collect_hits` emplace_back) + the re-read loop** — less local-memory traffic and fewer instructions
+  in a latency-bound kernel. The §8.16 "lift occupancy by dropping the buffer" framing was wrong: the
+  buffer was never the occupancy gate.
+- **A dead end that wasn't:** moving the `HitBuffer` into the `__noinline__` `sample_scattering_event`
+  frame (to keep it out of raygen's) **regressed ~15%** — OptiX penalizes a large local in a noinline
+  continuation frame. Reverted. Left the buffer in raygen.
+- **Verdict: KEEP.** Correctness-exact + ~3% faster + the shadow path no longer touches the 128-deep
+  buffer (cleaner data flow), for the cost of one payload slot and a mode branch in the anyhit. Merge is
+  user-gated. NB the real remaining lever is NOT here — see §9 / the register-limited note: the only way
+  to drop the `HitBuffer` from the frame entirely is to also fuse the PRIMARY ray (argmin is a min, not
+  a sum — wavefront-scale work, not a v1).
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
