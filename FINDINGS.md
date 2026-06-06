@@ -635,10 +635,22 @@ First test of a *tinted* medium (albedo R≠G≠B). Single Gaussian albedo=(0.9,
 - **But a real channel-dependent systematic:** global +0.0020; per-channel R −0.0010, G +0.0023,
   **B +0.0046** — grows with absorption (B = lowest albedo = worst). Statistically huge (100–476σ)
   but small in magnitude (~0.1–0.5%). **Above** the ≤1e-4 we hold for grey albedo.
-- **Likely cause:** termination-threshold coupling — Mitsuba culls paths at `β<0.005`, we cull at
-  `max(throughput)<1e-4` (`MIN_THROUGHPUT`); under colored albedo the per-channel throughputs
-  diverge so the two cull schedules differ (RR uses `max(β)` on both sides). A threshold-alignment
-  experiment would confirm. OPEN item; the feature is functional, the residual is sub-percent.
+- **~~Likely cause: termination-threshold coupling~~ — RULED OUT (2026-06-05 investigation).** The
+  §8.14 guess (Mitsuba cull `max(β)<0.005` + RR-off + `max_depth=32` vs CUDA `1e-4` + RR@5 + 128) was
+  tested directly: rebuilt CUDA with Mitsuba's exact termination (`MAX_BOUNCES=32`, RR disabled,
+  `MIN_THROUGHPUT=0.005`) and re-ran the 3-seed comparison. The residual was **byte-identical to 6
+  digits** (R −0.000958 / G +0.002320 / B +0.004550 unchanged). Reason: a single Gaussian (σ=4) has
+  short paths that escape the medium long before *any* termination threshold fires, so max_depth/RR/cull
+  cannot be the cause. (Confirmed Mitsuba's scheme in `volprim_prb.py`: RR defaults OFF, cull
+  `any(β>0.005)`, `max_depth=32`.)
+- **Real cause is an estimator × colored-albedo interaction (narrowed, still OPEN).** Flipping CUDA to
+  pure analog (NEE/MIS/analytic-direct all OFF) *changed* the residual dramatically — to **+0.057
+  global, R-worst** (R +0.095 / G +0.052 / B +0.024), 28× larger and opposite channel order. So the
+  validated default (MIS+NEE+RB on) matches Mitsuba-analog far better (+0.002) than CUDA's own pure-
+  analog path does (+0.057). The residual lives in the colored-albedo handling of the analog/continuation
+  path, not in termination. Next diagnostic: isolate whether the pure-analog +0.057 is a CUDA analog
+  colored bug or a reference-estimator mismatch (what `mits_seed` actually integrates). Feature remains
+  functional; the shipped MIS config residual is sub-percent (~0.1–0.5%).
 
 ### 8.15 Variance attribution — WHERE CUDA's noise actually is (redirects the A1 optimization)
 Measured per-seed noise (std across seeds) CUDA vs Mitsuba-analog from existing seed sets, to test
@@ -783,6 +795,27 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
+### 8.20 Owen-scrambled Sobol AA — measured, NO win, reverted (was branch feature/sobol-sampling)
+Measure-first test of low-discrepancy sampling (the §8.15 prediction was that it would be marginal).
+Implemented Owen-scrambled Sobol' (Burley 2020 hash-based scramble) for the **camera AA jitter** — the
+ONE path dimension consumed with a fixed, deterministic index per (pixel, sample). The variable-count
+argmin free-flight + post-it NEE directions can't be Sobol-stratified (data-dependent dimension count),
+so they stayed on PCG. The PCG jitter draw was kept (and discarded) when Sobol was on, so the downstream
+rng stream was IDENTICAL between the two builds — isolating purely the AA-stratification effect.
+- **Equal-quality A/B** (meadow showcase, cloud cam0, vs a 1024spp reference, same seed so scatter noise
+  is shared and cancels): RMSE reduction Sobol-vs-PCG = **−0.1% @16spp, −0.1% @32spp, +0.8% @64spp** —
+  i.e. **zero within noise**. Region split @32spp: bright/env −0.2%, dark/cloud +0.2%. No win even on the
+  high-frequency env background.
+- **Why:** confirms §8.15 exactly. The image variance is dominated by the **scattering MC** (argmin
+  free-flight + NEE), which is identical between the two builds; AA jitter is a negligible slice, so
+  stratifying it moves nothing at these spp. Sobol can only help the dimensions QMC can stratify, and on
+  this estimator that's just AA — which isn't where the noise is.
+- **Verdict: REVERTED.** Per the measure-first rule ("keep only if it measurably beats PCG"), the code
+  was removed (sobol.cuh + flag + raygen hook). The real variance lever would be reducing the
+  scattering-MC noise, which QMC can't reach here — and MIS already makes the showcase variance-
+  competitive (§8.11/§8.15). Don't re-attempt Sobol without first changing the estimator's
+  sample-consumption structure to a fixed low dimension.
+
 ### 8.21 Fast transcendentals in the hot path — fast_erf KEPT (~1.5%), fast_acos REVERTED
 Attacked the dominant arithmetic (`optical_depth` ≈ 85% of frame). **Context that shapes the result:
 the Release/optixir build already uses `-use_fast_math --ftz=true --prec-div=false --prec-sqrt=false`
@@ -806,6 +839,22 @@ forms — this caps the headroom for hand-rolled approximations.**
 - **Takeaway:** with fast-math already on, library transcendentals are hard to beat; only the heaviest
   with accuracy slack (erf) gave a small safe win. Env-map lookups are bias-sensitive on a high-freq
   HDR — approximate them only at near-exact accuracy, and there's no speed there anyway.
+
+### 8.22 OptiX denoiser — evaluated, ~30× effective speedup (already implemented; branch feature/denoiser)
+The denoiser was already fully built (host `optix/denoiser.h` + `--denoise` flag + albedo/normal AOV
+guide layers captured at bounce 0 in raygen + `denoise_and_save`); this was an *evaluation* of it, no
+new code. Run on cloud cam0 + meadow:
+- 16 spp raw render = 5.2 s, visibly grainy. `--denoise` (OptiX HDR denoiser, albedo+normal guides)
+  produces a smooth, clean image in the same launch.
+- **Quality:** raw-16spp vs a 512spp reference RMSE = 0.384; **denoised-16spp vs 512spp RMSE = 0.070**
+  → 5.5× lower error. Since raw noise ~1/√spp, matching the denoised error with raw samples would need
+  ~486 spp → **~30× effective speedup** (16spp looks like ~486spp).
+- **Caveat (thesis framing):** the denoiser is an *approximation* — it slightly over-smooths the fine
+  wisp texture and is not the converged truth. Show it as a fast preview ALONGSIDE the converged render,
+  not as a ground-truth result. The 0.070 RMSE includes denoiser bias, not just removed noise.
+- **Status:** functional and a strong showcase differentiator (Mitsuba's reference path has no equivalent
+  integrated denoise). Possible follow-ups: resolve the `denoiseAlpha` API TODO in denoiser.h; a denoised
+  showcase bundle; temporal/multi-frame denoising is out of scope (single-frame renderer).
 
 ### 8.23 Skip per-bounce origin-inside scan — ~16%, the biggest win this session (branch feature/incremental-active-prims)
 (NB §8.20–8.22 live on sibling branches feature/findings-sobol-rgb / fast-erf / denoiser; merge order
@@ -857,9 +906,63 @@ validation build.
   so the Gaussian filter matters mainly for the *non-denoised* beauty mode (and for figures where the
   denoiser's approximation is unwanted).
 
+### 8.25 Generalization benchmark vs Jorge's volprim_prb on DSYG paper assets (WDAS Disney cloud + embergen)
+First head-to-head on the DSYG paper's OWN benchmark assets (not our 652-G toy cloud). Of the 24
+downloaded zips (full taxonomy: `ASSET_TAXONOMY.md`), only the `_gauss` variants are pure-Gaussian
+fits we can render (16k–25k Gaussians); the rest are Gabor fits (Gabor is NOT in DSYG — separate
+follow-up). Rendered two: **wdas8_gauss** (WDAS Disney cloud ⅛-res, 24,576 G — the paper's Fig.1 hero)
+and **embergen_gauss** (combustion plume, 24,576 G).
+
+**Pipeline.** CUDA side: `tools/refs/npy_asset_to_ply.py` converts the asset's `npy_data` → our PLY
+(scale=log, quat xyzw→wxyz, sigma_t=opacity). Mitsuba side (new `tools/refs/render_asset_via_prb.py`):
+loads the NATIVE PLY as volprim `ellipsoids` with a custom perspective sensor matching our
+`asset_validation` camera; the native PLY's density property `opacities_0` is renamed→`sigma_t_0`
+(header-only; this volprim build's `volprim_prb` requires a `sigma_t` attribute). Both renderers thus
+render the SAME Gaussians, same camera.
+**Config (matched):** 512², 64 spp, seed 0, constant white env, albedo 0.9, HG g=0.85, max_depth 128,
+density scale wdas=10 / embergen=20 (per `reference_asset_density_scales`). RTX 3090. CUDA built at
+`MAX_ACTIVE_PRIMS=HIT_BUFFER_CAPACITY=512` (see cap finding below). Two Mitsuba variants per the
+request: ANALOG (`use_nee=0`, the trustworthy reference) and NEE (`use_nee=1`).
+
+**Results (per-spp, 64 spp):**
+
+| asset | CUDA | Mits-ANALOG | Mits-NEE | CUDA/analog energy | RMSE CUDA vs analog |
+|-------|------|-------------|----------|--------------------|---------------------|
+| wdas8_gauss (Disney) | **59.0 s** | 57.2 s | 193.5 s | **0.9999** (✓) | 0.028 (noise-limited) |
+| embergen_gauss | 59.5 s* | 93.6 s | 551.3 s | n/a (invalid*) | n/a* |
+
+\* embergen CUDA render is INVALID for quality: at caps=512 it STILL drops 63.5M cap entries
+(under-absorption bias) AND has 0.34% NaN pixels (degenerate grazing Gaussians). Perf only.
+
+**Findings:**
+1. **Correctness — we generalize to the paper's hero asset.** On the WDAS Disney cloud, CUDA matches
+   Mitsuba-ANALOG energy to **0.01%** (ratio 0.9999); residual RMSE 0.028 is MC noise at 64 spp (both
+   estimators noisy). The renderer is correct beyond the toy cloud.
+2. **Mitsuba-NEE is energy-biased +1.2% brighter** than analog on wdas8 (same class as the +6.5%
+   furnace bias on the toy cloud) — confirms analog as the reference, and that our analog+RB estimator
+   is unbiased where Mitsuba-NEE is not.
+3. **Per-ray cap scaling is the real limit.** The 128-caps tuned for the 652-G toy cloud (max overlap
+   ~45) overflow CATASTROPHICALLY on dense real assets: at 128 caps wdas8 drops 300M entries, embergen
+   741M → heavily biased (too bright). Overflow vs caps: wdas8 {128:300M, 256:2.6M, 512:0}; embergen
+   {128:741M, 512:16M, still>0}. So WDAS needs caps≥512; embergen needs >512. **Raising caps is ~free
+   here** (~14 s/16spp at 128/256/512) — these assets are traversal-bound, NOT the ~6× buffer penalty
+   the old sparse-cloud note predicted. The proper fix remains graceful overflow (#63), not bigger caps.
+4. **Perf regime shifts with density.** On the dense WDAS cloud CUDA only TIES Mitsuba-analog per-spp
+   (59.0 vs 57.2 s; ~2× faster on the toy cloud) — deep overlap (≤512 prims/point) erases the BVH
+   traversal edge; both do the same heavy erf integration over hundreds of overlapping Gaussians. But
+   CUDA is **3.3× faster than Mitsuba-NEE** (wdas8) and **9.3×** (embergen) — NEE is the variant you'd
+   use for clean images. Equal-quality (not per-spp) should favor CUDA MORE, since our NEE+MIS+analytic-
+   direct is lower-variance than analog at equal spp — NOT yet quantified (needs a multi-seed pass).
+5. **Bugs surfaced:** the `asset_validation` perspective camera is VERTICALLY FLIPPED (CUDA-flipped
+   aligns with Mitsuba at RMSE 0.028 vs 0.199 direct) — confirms the known Phase-2 flip bug. embergen
+   shows 0.34% NaN (degenerate Gaussians; Phase-2 NaN class — fixed in §8.26).
+
+**Caveats / not-yet-done:** constant white env only (no env-map orientation matching for assets);
+equal-quality (variance-matched) speedup not measured; embergen needs caps>512 + the NaN fix for a
+valid quality comparison; perf is single-camera (negz), not the asset's 32-cam rig.
+
 ### 8.26 Dense-asset NaN — root cause + fix (branch fix/asset-nan)
-(§8.25, the asset benchmark that surfaced this, lives on branch feature/asset-benchmark — merge
-order fills the gap.) The dense DSYG assets (WDAS cloud, embergen — 24k Gaussians, deep overlap)
+The dense DSYG assets (WDAS cloud, embergen — 24k Gaussians, deep overlap)
 produced NaN pixels (embergen 8 px at caps=128, 2658 at caps=512; sampling-dependent — 0 at 1 spp,
 appears at 64 spp; grows with overlap depth). Instrumented per-radiance-term probes pinned it: the
 scatter **position was ±inf**, so `base = throughput·albedo(inf_pos)` was NaN and every downstream
@@ -879,6 +982,43 @@ NEE term inherited it.
   rejects degenerates that never occur on validated scenes); bunny NaN-free across configs (its
   documented σ=7.5 NaN did not reproduce at meadow/0.9 even pre-fix, so no A/B there). NOT NaN-bias:
   the guard removes spurious events, it does not drop real ones.
+
+### 8.27 Flat-env variance gap = collision vs track-length estimator (A1 re-opened & corrected; branch feature/analog-indirect-diagnostic)
+Re-investigated WHY CUDA is noisier than Mitsuba-analog on flat/constant-env high-albedo media (the
+old "A1" question; §8.5 measured ~2.85× per-sample, §8.13/§8.15). Added two diagnostic compile flags
+(`ANALOG_ESCAPE_ONLY`, `ANALOG_ABSORPTION`, default OFF — on branch) + a max-depth sweep. **Both my
+initial hypotheses were measured WRONG**, which is the point of measuring:
+- Per-seed noise, single-G const-env (σ=2, albedo 0.9, 6 seeds), by max depth:
+
+  | depth | CUDA-NEE | CUDA weighted-analog | CUDA analog-absorb | Mitsuba-analog |
+  |------:|---------:|---------------------:|-------------------:|---------------:|
+  |   1   | 0.00599  | 0.00002              | 0.00002            | 0.00377        |
+  |   2   | 0.00639  | 0.00581              | 0.00615            | 0.00096        |
+  |   4   | 0.00643  | 0.00592              | 0.00630            | 0.00041        |
+  |   8   | 0.00643  | 0.00592              | 0.00630            | 0.00041        |
+
+  All CUDA variants are FLAT with depth (~0.006); only **Mitsuba-analog DROPS** (0.0038→0.0004).
+  Means matched across all (unbiased — my analog paths are correct, the hypotheses were just wrong):
+  neither the continuation-escape nor true analog absorption recovers the self-averaging.
+- **Root cause (from reading Jorge's volprim_prb, NOT guessing):** Mitsuba folds the **analytic**
+  segment transmittance into throughput every segment — `β *= seg_tr` (`volprim_prb.py:554`) — a
+  **track-length / expected-value estimator** (every path contributes a smoothly exp(−τ)-weighted
+  escape). CUDA's ADT/argmin design is a **collision estimator** (binary scatter-vs-escape coin; the
+  transmittance is consumed by the decision, never folded into β). Track-length beats collision for
+  transmittance-weighted estimands (textbook) → Mitsuba's variance vanishes with depth in the
+  conservative limit; CUDA's stays flat.
+- **This OVERTURNS the prior A1 conclusion** (A1_INVESTIGATION.md: "both estimators are analog, no
+  difference") — that reading mistook `β *= seg_tr` for a mere free-flight accumulator. The ORIGINAL
+  §8.5 premise (Mitsuba folds analytic transmittance every bounce; CUDA only at bounce 0 via
+  ENABLE_ANALYTIC_DIRECT) was RIGHT. Confirms via the table: CUDA depth-1 ≈ 0 noise *because*
+  bounce-0 analytic-direct already folds it; the gap opens once the binary continuation takes over.
+- **Verdict: real lever, NOT implemented.** Recovering it means giving CUDA track-length throughput —
+  a core-estimator rewrite that undoes the sort-free ADT/argmin novelty — and it only helps the
+  flat/constant-env regime; the actual showcase (cloud + meadow + MIS) already beats Mitsuba (§8.11,
+  §8.25). Documented as a characterized trade-off; a hybrid (keep argmin traversal but fold analytic
+  transmittance into β, generalizing the bounce-0 analytic-direct to all bounces) is the open
+  thesis-worthy direction if the flat-env gap is ever worth closing. Diagnostic flags + depth-sweep
+  scripts live on branch feature/analog-indirect-diagnostic for reproduction.
 
 ## 9. Known limitations & OPEN items
 
