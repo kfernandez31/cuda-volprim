@@ -635,10 +635,22 @@ First test of a *tinted* medium (albedo R≠G≠B). Single Gaussian albedo=(0.9,
 - **But a real channel-dependent systematic:** global +0.0020; per-channel R −0.0010, G +0.0023,
   **B +0.0046** — grows with absorption (B = lowest albedo = worst). Statistically huge (100–476σ)
   but small in magnitude (~0.1–0.5%). **Above** the ≤1e-4 we hold for grey albedo.
-- **Likely cause:** termination-threshold coupling — Mitsuba culls paths at `β<0.005`, we cull at
-  `max(throughput)<1e-4` (`MIN_THROUGHPUT`); under colored albedo the per-channel throughputs
-  diverge so the two cull schedules differ (RR uses `max(β)` on both sides). A threshold-alignment
-  experiment would confirm. OPEN item; the feature is functional, the residual is sub-percent.
+- **~~Likely cause: termination-threshold coupling~~ — RULED OUT (2026-06-05 investigation).** The
+  §8.14 guess (Mitsuba cull `max(β)<0.005` + RR-off + `max_depth=32` vs CUDA `1e-4` + RR@5 + 128) was
+  tested directly: rebuilt CUDA with Mitsuba's exact termination (`MAX_BOUNCES=32`, RR disabled,
+  `MIN_THROUGHPUT=0.005`) and re-ran the 3-seed comparison. The residual was **byte-identical to 6
+  digits** (R −0.000958 / G +0.002320 / B +0.004550 unchanged). Reason: a single Gaussian (σ=4) has
+  short paths that escape the medium long before *any* termination threshold fires, so max_depth/RR/cull
+  cannot be the cause. (Confirmed Mitsuba's scheme in `volprim_prb.py`: RR defaults OFF, cull
+  `any(β>0.005)`, `max_depth=32`.)
+- **Real cause is an estimator × colored-albedo interaction (narrowed, still OPEN).** Flipping CUDA to
+  pure analog (NEE/MIS/analytic-direct all OFF) *changed* the residual dramatically — to **+0.057
+  global, R-worst** (R +0.095 / G +0.052 / B +0.024), 28× larger and opposite channel order. So the
+  validated default (MIS+NEE+RB on) matches Mitsuba-analog far better (+0.002) than CUDA's own pure-
+  analog path does (+0.057). The residual lives in the colored-albedo handling of the analog/continuation
+  path, not in termination. Next diagnostic: isolate whether the pure-analog +0.057 is a CUDA analog
+  colored bug or a reference-estimator mismatch (what `mits_seed` actually integrates). Feature remains
+  functional; the shipped MIS config residual is sub-percent (~0.1–0.5%).
 
 ### 8.15 Variance attribution — WHERE CUDA's noise actually is (redirects the A1 optimization)
 Measured per-seed noise (std across seeds) CUDA vs Mitsuba-analog from existing seed sets, to test
@@ -782,6 +794,27 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
 - **Takeaway:** confirms the §8.18 corollary hard — *removing work* is the lever on this latency-bound,
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
+
+### 8.20 Owen-scrambled Sobol AA — measured, NO win, reverted (was branch feature/sobol-sampling)
+Measure-first test of low-discrepancy sampling (the §8.15 prediction was that it would be marginal).
+Implemented Owen-scrambled Sobol' (Burley 2020 hash-based scramble) for the **camera AA jitter** — the
+ONE path dimension consumed with a fixed, deterministic index per (pixel, sample). The variable-count
+argmin free-flight + post-it NEE directions can't be Sobol-stratified (data-dependent dimension count),
+so they stayed on PCG. The PCG jitter draw was kept (and discarded) when Sobol was on, so the downstream
+rng stream was IDENTICAL between the two builds — isolating purely the AA-stratification effect.
+- **Equal-quality A/B** (meadow showcase, cloud cam0, vs a 1024spp reference, same seed so scatter noise
+  is shared and cancels): RMSE reduction Sobol-vs-PCG = **−0.1% @16spp, −0.1% @32spp, +0.8% @64spp** —
+  i.e. **zero within noise**. Region split @32spp: bright/env −0.2%, dark/cloud +0.2%. No win even on the
+  high-frequency env background.
+- **Why:** confirms §8.15 exactly. The image variance is dominated by the **scattering MC** (argmin
+  free-flight + NEE), which is identical between the two builds; AA jitter is a negligible slice, so
+  stratifying it moves nothing at these spp. Sobol can only help the dimensions QMC can stratify, and on
+  this estimator that's just AA — which isn't where the noise is.
+- **Verdict: REVERTED.** Per the measure-first rule ("keep only if it measurably beats PCG"), the code
+  was removed (sobol.cuh + flag + raygen hook). The real variance lever would be reducing the
+  scattering-MC noise, which QMC can't reach here — and MIS already makes the showcase variance-
+  competitive (§8.11/§8.15). Don't re-attempt Sobol without first changing the estimator's
+  sample-consumption structure to a fixed low dimension.
 
 ### 8.21 Fast transcendentals in the hot path — fast_erf KEPT (~1.5%), fast_acos REVERTED
 Attacked the dominant arithmetic (`optical_depth` ≈ 85% of frame). **Context that shapes the result:
