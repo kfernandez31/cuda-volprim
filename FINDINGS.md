@@ -983,6 +983,43 @@ NEE term inherited it.
   documented σ=7.5 NaN did not reproduce at meadow/0.9 even pre-fix, so no A/B there). NOT NaN-bias:
   the guard removes spurious events, it does not drop real ones.
 
+### 8.27 Flat-env variance gap = collision vs track-length estimator (A1 re-opened & corrected; branch feature/analog-indirect-diagnostic)
+Re-investigated WHY CUDA is noisier than Mitsuba-analog on flat/constant-env high-albedo media (the
+old "A1" question; §8.5 measured ~2.85× per-sample, §8.13/§8.15). Added two diagnostic compile flags
+(`ANALOG_ESCAPE_ONLY`, `ANALOG_ABSORPTION`, default OFF — on branch) + a max-depth sweep. **Both my
+initial hypotheses were measured WRONG**, which is the point of measuring:
+- Per-seed noise, single-G const-env (σ=2, albedo 0.9, 6 seeds), by max depth:
+
+  | depth | CUDA-NEE | CUDA weighted-analog | CUDA analog-absorb | Mitsuba-analog |
+  |------:|---------:|---------------------:|-------------------:|---------------:|
+  |   1   | 0.00599  | 0.00002              | 0.00002            | 0.00377        |
+  |   2   | 0.00639  | 0.00581              | 0.00615            | 0.00096        |
+  |   4   | 0.00643  | 0.00592              | 0.00630            | 0.00041        |
+  |   8   | 0.00643  | 0.00592              | 0.00630            | 0.00041        |
+
+  All CUDA variants are FLAT with depth (~0.006); only **Mitsuba-analog DROPS** (0.0038→0.0004).
+  Means matched across all (unbiased — my analog paths are correct, the hypotheses were just wrong):
+  neither the continuation-escape nor true analog absorption recovers the self-averaging.
+- **Root cause (from reading Jorge's volprim_prb, NOT guessing):** Mitsuba folds the **analytic**
+  segment transmittance into throughput every segment — `β *= seg_tr` (`volprim_prb.py:554`) — a
+  **track-length / expected-value estimator** (every path contributes a smoothly exp(−τ)-weighted
+  escape). CUDA's ADT/argmin design is a **collision estimator** (binary scatter-vs-escape coin; the
+  transmittance is consumed by the decision, never folded into β). Track-length beats collision for
+  transmittance-weighted estimands (textbook) → Mitsuba's variance vanishes with depth in the
+  conservative limit; CUDA's stays flat.
+- **This OVERTURNS the prior A1 conclusion** (A1_INVESTIGATION.md: "both estimators are analog, no
+  difference") — that reading mistook `β *= seg_tr` for a mere free-flight accumulator. The ORIGINAL
+  §8.5 premise (Mitsuba folds analytic transmittance every bounce; CUDA only at bounce 0 via
+  ENABLE_ANALYTIC_DIRECT) was RIGHT. Confirms via the table: CUDA depth-1 ≈ 0 noise *because*
+  bounce-0 analytic-direct already folds it; the gap opens once the binary continuation takes over.
+- **Verdict: real lever, NOT implemented.** Recovering it means giving CUDA track-length throughput —
+  a core-estimator rewrite that undoes the sort-free ADT/argmin novelty — and it only helps the
+  flat/constant-env regime; the actual showcase (cloud + meadow + MIS) already beats Mitsuba (§8.11,
+  §8.25). Documented as a characterized trade-off; a hybrid (keep argmin traversal but fold analytic
+  transmittance into β, generalizing the bounce-0 analytic-direct to all bounces) is the open
+  thesis-worthy direction if the flat-env gap is ever worth closing. Diagnostic flags + depth-sweep
+  scripts live on branch feature/analog-indirect-diagnostic for reproduction.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
