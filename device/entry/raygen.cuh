@@ -117,7 +117,8 @@ extern "C" __global__ void __raygen__rg() {
             // re-scanning all primitives (was a duplicate O(N) point-inside scan per ray).
             PrimsSet camera_origin_inside;
             const auto result = sample_scattering_event(
-                ray, rng, event, miss, hit_buffer, bounce == 0 ? &camera_origin_inside : nullptr);
+                ray, rng, event, miss, hit_buffer, /*first_bounce=*/bounce == 0,
+                bounce == 0 ? &camera_origin_inside : nullptr);
 
             // First-bounce AOV capture. Normal: -ray.direction (camera-facing pseudo-normal,
             // standard for media without true geometry). Albedo: scatter-point albedo on
