@@ -795,7 +795,6 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
-<<<<<<< HEAD
 ### 8.20 Owen-scrambled Sobol AA — measured, NO win, reverted (was branch feature/sobol-sampling)
 Measure-first test of low-discrepancy sampling (the §8.15 prediction was that it would be marginal).
 Implemented Owen-scrambled Sobol' (Burley 2020 hash-based scramble) for the **camera AA jitter** — the
@@ -907,9 +906,63 @@ validation build.
   so the Gaussian filter matters mainly for the *non-denoised* beauty mode (and for figures where the
   denoiser's approximation is unwanted).
 
+### 8.25 Generalization benchmark vs Jorge's volprim_prb on DSYG paper assets (WDAS Disney cloud + embergen)
+First head-to-head on the DSYG paper's OWN benchmark assets (not our 652-G toy cloud). Of the 24
+downloaded zips (full taxonomy: `ASSET_TAXONOMY.md`), only the `_gauss` variants are pure-Gaussian
+fits we can render (16k–25k Gaussians); the rest are Gabor fits (Gabor is NOT in DSYG — separate
+follow-up). Rendered two: **wdas8_gauss** (WDAS Disney cloud ⅛-res, 24,576 G — the paper's Fig.1 hero)
+and **embergen_gauss** (combustion plume, 24,576 G).
+
+**Pipeline.** CUDA side: `tools/refs/npy_asset_to_ply.py` converts the asset's `npy_data` → our PLY
+(scale=log, quat xyzw→wxyz, sigma_t=opacity). Mitsuba side (new `tools/refs/render_asset_via_prb.py`):
+loads the NATIVE PLY as volprim `ellipsoids` with a custom perspective sensor matching our
+`asset_validation` camera; the native PLY's density property `opacities_0` is renamed→`sigma_t_0`
+(header-only; this volprim build's `volprim_prb` requires a `sigma_t` attribute). Both renderers thus
+render the SAME Gaussians, same camera.
+**Config (matched):** 512², 64 spp, seed 0, constant white env, albedo 0.9, HG g=0.85, max_depth 128,
+density scale wdas=10 / embergen=20 (per `reference_asset_density_scales`). RTX 3090. CUDA built at
+`MAX_ACTIVE_PRIMS=HIT_BUFFER_CAPACITY=512` (see cap finding below). Two Mitsuba variants per the
+request: ANALOG (`use_nee=0`, the trustworthy reference) and NEE (`use_nee=1`).
+
+**Results (per-spp, 64 spp):**
+
+| asset | CUDA | Mits-ANALOG | Mits-NEE | CUDA/analog energy | RMSE CUDA vs analog |
+|-------|------|-------------|----------|--------------------|---------------------|
+| wdas8_gauss (Disney) | **59.0 s** | 57.2 s | 193.5 s | **0.9999** (✓) | 0.028 (noise-limited) |
+| embergen_gauss | 59.5 s* | 93.6 s | 551.3 s | n/a (invalid*) | n/a* |
+
+\* embergen CUDA render is INVALID for quality: at caps=512 it STILL drops 63.5M cap entries
+(under-absorption bias) AND has 0.34% NaN pixels (degenerate grazing Gaussians). Perf only.
+
+**Findings:**
+1. **Correctness — we generalize to the paper's hero asset.** On the WDAS Disney cloud, CUDA matches
+   Mitsuba-ANALOG energy to **0.01%** (ratio 0.9999); residual RMSE 0.028 is MC noise at 64 spp (both
+   estimators noisy). The renderer is correct beyond the toy cloud.
+2. **Mitsuba-NEE is energy-biased +1.2% brighter** than analog on wdas8 (same class as the +6.5%
+   furnace bias on the toy cloud) — confirms analog as the reference, and that our analog+RB estimator
+   is unbiased where Mitsuba-NEE is not.
+3. **Per-ray cap scaling is the real limit.** The 128-caps tuned for the 652-G toy cloud (max overlap
+   ~45) overflow CATASTROPHICALLY on dense real assets: at 128 caps wdas8 drops 300M entries, embergen
+   741M → heavily biased (too bright). Overflow vs caps: wdas8 {128:300M, 256:2.6M, 512:0}; embergen
+   {128:741M, 512:16M, still>0}. So WDAS needs caps≥512; embergen needs >512. **Raising caps is ~free
+   here** (~14 s/16spp at 128/256/512) — these assets are traversal-bound, NOT the ~6× buffer penalty
+   the old sparse-cloud note predicted. The proper fix remains graceful overflow (#63), not bigger caps.
+4. **Perf regime shifts with density.** On the dense WDAS cloud CUDA only TIES Mitsuba-analog per-spp
+   (59.0 vs 57.2 s; ~2× faster on the toy cloud) — deep overlap (≤512 prims/point) erases the BVH
+   traversal edge; both do the same heavy erf integration over hundreds of overlapping Gaussians. But
+   CUDA is **3.3× faster than Mitsuba-NEE** (wdas8) and **9.3×** (embergen) — NEE is the variant you'd
+   use for clean images. Equal-quality (not per-spp) should favor CUDA MORE, since our NEE+MIS+analytic-
+   direct is lower-variance than analog at equal spp — NOT yet quantified (needs a multi-seed pass).
+5. **Bugs surfaced:** the `asset_validation` perspective camera is VERTICALLY FLIPPED (CUDA-flipped
+   aligns with Mitsuba at RMSE 0.028 vs 0.199 direct) — confirms the known Phase-2 flip bug. embergen
+   shows 0.34% NaN (degenerate Gaussians; Phase-2 NaN class — fixed in §8.26).
+
+**Caveats / not-yet-done:** constant white env only (no env-map orientation matching for assets);
+equal-quality (variance-matched) speedup not measured; embergen needs caps>512 + the NaN fix for a
+valid quality comparison; perf is single-camera (negz), not the asset's 32-cam rig.
+
 ### 8.26 Dense-asset NaN — root cause + fix (branch fix/asset-nan)
-(§8.25, the asset benchmark that surfaced this, lives on branch feature/asset-benchmark — merge
-order fills the gap.) The dense DSYG assets (WDAS cloud, embergen — 24k Gaussians, deep overlap)
+The dense DSYG assets (WDAS cloud, embergen — 24k Gaussians, deep overlap)
 produced NaN pixels (embergen 8 px at caps=128, 2658 at caps=512; sampling-dependent — 0 at 1 spp,
 appears at 64 spp; grows with overlap depth). Instrumented per-radiance-term probes pinned it: the
 scatter **position was ±inf**, so `base = throughput·albedo(inf_pos)` was NaN and every downstream
