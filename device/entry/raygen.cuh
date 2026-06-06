@@ -274,6 +274,17 @@ extern "C" __global__ void __raygen__rg() {
             }
         }
 
+        // Non-finite sample rejection (production safety net). Degenerate Gaussians in dense
+        // real-world assets (e.g. WDAS/embergen, deep overlap) can leak a NaN/Inf through an
+        // NEE / transmittance / phase term that the per-bounce throughput check above does not
+        // catch (it guards throughput, not the accumulated radiance). Such a sample is a
+        // numerical failure, not a real contribution — zero it so it can't poison the pixel.
+        // FINITE samples are unchanged, so validation scenes stay bit-identical (no-op there);
+        // the cost is one isfinite per sample. Standard PBRT/Mitsuba practice.
+        if (!isfinite(math::sum(radiance))) {
+            radiance = make_float3(0.0f);
+        }
+
         // Welford's online algorithm: numerically stable single-pass mean + M2.
         // M2 update is dead when ENABLE_ADAPTIVE_SAMPLING is false (compiler
         // strips it under the if constexpr below).

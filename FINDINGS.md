@@ -857,6 +857,29 @@ validation build.
   so the Gaussian filter matters mainly for the *non-denoised* beauty mode (and for figures where the
   denoiser's approximation is unwanted).
 
+### 8.26 Dense-asset NaN — root cause + fix (branch fix/asset-nan)
+(§8.25, the asset benchmark that surfaced this, lives on branch feature/asset-benchmark — merge
+order fills the gap.) The dense DSYG assets (WDAS cloud, embergen — 24k Gaussians, deep overlap)
+produced NaN pixels (embergen 8 px at caps=128, 2658 at caps=512; sampling-dependent — 0 at 1 spp,
+appears at 64 spp; grows with overlap depth). Instrumented per-radiance-term probes pinned it: the
+scatter **position was ±inf**, so `base = throughput·albedo(inf_pos)` was NaN and every downstream
+NEE term inherited it.
+- **Root cause:** the hit-buffer free-flight loop in `sample_scattering_event` (`sampling.cuh`)
+  checked only `t_scatter < t_scatter_min`, **missing the `t_scatter >= 0` guard the active-prims
+  loop directly above it already has**. A degenerate primitive makes `inv_cdf_segment` saturate
+  `erfinv(±1) → -inf`; that `-inf` passed `-inf < t_scatter_min` and then `-inf <= t_exit`, so
+  `t_scatter_min = -inf` → `position = ray.at(-inf) = ±inf` → NaN albedo/radiance.
+- **Fix (2 layers):** (1) ROOT — add `t_scatter >= 0.0f` to the hit-buffer loop (mirrors the
+  active-prims loop; rejects negative, -inf, NaN; +inf already rejected by `< t_scatter_min`). An
+  invalid free-flight distance is correctly "no scatter" — unbiased. (2) DEFENSE-IN-DEPTH — reject
+  non-finite per-sample `radiance` before the Welford accumulate (the existing check guarded
+  throughput, not radiance). Standard PBRT/Mitsuba non-finite rejection.
+- **Verified:** embergen 64 spp NaN **8 → 0** with the safety net firing **0 times** (the root fix
+  handles it alone, not masked); validation cloud **BIT-IDENTICAL** (max|Δ|=0 — the guard only
+  rejects degenerates that never occur on validated scenes); bunny NaN-free across configs (its
+  documented σ=7.5 NaN did not reproduce at meadow/0.9 even pre-fix, so no A/B there). NOT NaN-bias:
+  the guard removes spurious events, it does not drop real ones.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

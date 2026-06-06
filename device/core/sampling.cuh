@@ -390,7 +390,13 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         // which was biased — rejected samples were dropped rather than re-rolled.
         const float t_scatter = prim.inv_cdf_segment(ray, hit.t_hit, tau_j);
 
-        if (t_scatter < t_scatter_min) {
+        // Guard t_scatter >= 0 (mirrors the active-prims loop above). A degenerate primitive
+        // can make inv_cdf_segment saturate erfinv(±1) → ±inf / negative; without this guard a
+        // -inf t_scatter passes (-inf < t_scatter_min) and then (-inf <= t_exit), setting
+        // t_scatter_min = -inf → scatter position = ray.at(-inf) = ±inf → NaN albedo/radiance
+        // (the dense-asset NaN, FINDINGS §8.x). `>= 0` rejects negative, -inf AND NaN cleanly;
+        // +inf is already rejected by `< t_scatter_min`. An invalid distance is correctly no scatter.
+        if (t_scatter >= 0.0f && t_scatter < t_scatter_min) {
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
             const float t_exit =
