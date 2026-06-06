@@ -90,8 +90,8 @@ extern "C" __global__ void __raygen__rg() {
         // accumulated weight-1 → softer AA for beauty). Compile-time gated → box is a true
         // no-op path.
         float2 jitter;
-        if constexpr (consts::PIXEL_FILTER_STDDEV > 0.0f) {
-            jitter = random::sample_gaussian_2d(rng, consts::PIXEL_FILTER_STDDEV);
+        if (launch_params.render_.pixel_filter_stddev_ > 0.0f) {
+            jitter = random::sample_gaussian_2d(rng, launch_params.render_.pixel_filter_stddev_);
         } else {
             jitter = random::sample_uniform_2d(rng, 0.5f);
         }
@@ -111,7 +111,7 @@ extern "C" __global__ void __raygen__rg() {
         // (sampling.cuh). The bounce-0 entry already covers the same camera-position
         // query the deleted CPU pre-compute used to do.
 
-        for (size_t bounce = 0; bounce < consts::MAX_BOUNCES; ++bounce) {
+        for (size_t bounce = 0; bounce < launch_params.render_.max_bounces_; ++bounce) {
             // At bounce 0, capture the camera-origin-inside set that sample_scattering_event
             // already builds, so the analytic-direct term below can reuse it instead of
             // re-scanning all primitives (was a duplicate O(N) point-inside scan per ray).
@@ -237,8 +237,9 @@ extern "C" __global__ void __raygen__rg() {
             throughput *= albedo;
 
             // Russian Roulette
-            if (bounce >= consts::RR_DEPTH) {
-                auto p_survive = math::min(consts::RR_MAX_SURVIVAL, math::max(throughput));
+            if (bounce >= launch_params.render_.rr_depth_) {
+                auto p_survive =
+                    math::min(launch_params.render_.rr_max_survival_, math::max(throughput));
                 if (random::sample_uniform(rng) > p_survive) {
                     break;
                 }
@@ -264,12 +265,12 @@ extern "C" __global__ void __raygen__rg() {
         // scale RGB down to the threshold (kills low-probability high-weight spikes while
         // keeping color). BIASED (removes energy from clamped pixels) → opt-in, never for
         // validation. NB the MIS showcase is already firefly-free (§8.15); this is for
-        // robustness on other configs / pathological samples. Compile-time gated so it is
-        // a true no-op (bit-identical) when the threshold is 0.
-        if constexpr (consts::FIREFLY_CLAMP_LUMINANCE > 0.0f) {
+        // robustness on other configs / pathological samples. Runtime-gated so it is a true
+        // no-op (bit-identical) when the threshold is 0 (the validation default).
+        if (launch_params.render_.firefly_clamp_luminance_ > 0.0f) {
             const float lum = math::dot(radiance, make_float3(0.2126f, 0.7152f, 0.0722f));
-            if (lum > consts::FIREFLY_CLAMP_LUMINANCE) {
-                radiance *= consts::FIREFLY_CLAMP_LUMINANCE * math::rcp(lum);
+            if (lum > launch_params.render_.firefly_clamp_luminance_) {
+                radiance *= launch_params.render_.firefly_clamp_luminance_ * math::rcp(lum);
             }
         }
 

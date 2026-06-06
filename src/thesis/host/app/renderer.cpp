@@ -195,6 +195,42 @@ void Renderer::initStaticParams() {
     overflow_counter_.memset_device(0);
     par.overflow_counter_ = overflow_counter_.device();
 
+    // Runtime render params (promoted from constants.cuh). Defaults mirror the constants;
+    // a default config reproduces the prior compile-time path's math (unbiased, but not
+    // bit-exact under fast-math — see RenderParams note in launch_params.h).
+    auto& rp = par.render_;
+    rp.max_bounces_ = config_.max_bounces_;
+    rp.rr_depth_ = config_.rr_depth_;
+    rp.rr_max_survival_ = config_.rr_max_survival_;
+    rp.firefly_clamp_luminance_ = config_.firefly_clamp_luminance_;
+    rp.pixel_filter_stddev_ = config_.pixel_filter_stddev_;
+
+    // Pre-fold the Henyey-Greenstein constants exactly as the device constexpr did, so the
+    // per-sample arithmetic (and thus the render) is bit-identical for a given g. eval uses
+    // +g; sample uses g_eff = -g (sign convention in device/core/sampling.cuh).
+    const float g = config_.hg_g_;
+    const float abs_g = g < 0.0f ? -g : g;
+    rp.hg_isotropic_ = abs_g < device::consts::HG_ISOTROPIC_EPS;
+    rp.hg_g_ = g;
+    rp.hg_g_eff_ = -g;
+    rp.hg_g2_ = g * g;
+    rp.hg_one_plus_g2_ = 1.0f + rp.hg_g2_;
+    rp.hg_one_minus_g2_ = 1.0f - rp.hg_g2_;
+    rp.hg_neg_inv_2g_ = rp.hg_isotropic_ ? 0.0f : (-0.5f / rp.hg_g_eff_);
+    // Single-multiply phase coefficient (see RenderParams::hg_phase_coeff_): the constexpr
+    // eval_hg folded PHASE_VALUE·(1-g²) at compile time, so reproduce that fold on the host.
+    rp.hg_phase_coeff_ = device::consts::PHASE_VALUE * rp.hg_one_minus_g2_;
+
+    // Render-header log: self-documenting record of the active config so a beauty render
+    // can never be mistaken for a validation number (and vice-versa).
+    spdlog::info(
+        "Render params: max_depth={} rr_depth={} rr_max_survival={:.3f} "
+        "hg_g={:.3f}{} firefly_clamp={:.3g} filter_stddev={:.3g}{} seed={} denoise={}",
+        rp.max_bounces_, rp.rr_depth_, rp.rr_max_survival_, rp.hg_g_,
+        rp.hg_isotropic_ ? " (isotropic)" : "", rp.firefly_clamp_luminance_,
+        rp.pixel_filter_stddev_, rp.pixel_filter_stddev_ > 0.0f ? " (gaussian)" : " (box)",
+        config_.seed_, config_.denoise_);
+
     launch_params_.upload(&launch_params_host_);
 
     // Pinned host copy of primitives_ is no longer read past this point — render() only uses
