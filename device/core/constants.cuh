@@ -158,6 +158,14 @@ constexpr bool ENABLE_MIS = true;
 // env maps). Mutually exclusive with the normal NEE/MIS direct path. Default OFF.
 constexpr bool ANALOG_ESCAPE_ONLY = false;
 
+// DIAGNOSTIC sub-mode (only meaningful with ANALOG_ESCAPE_ONLY): use TRUE analog
+// absorption — stochastically kill the path with probability (1 - max(albedo)) instead of
+// weighting throughput by albedo. This is the ingredient that gives Mitsuba-analog its
+// depth-dropping zero-variance self-averaging in conservative constant-env media (every
+// surviving path carries throughput 1, so escaped paths contribute exactly L_env with no
+// albedo^k weight variance). Default OFF (weighted absorption).
+constexpr bool ANALOG_ABSORPTION = false;
+
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
 // (via compute_transmittance_to_env) instead of the high-variance analog binary

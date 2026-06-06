@@ -250,7 +250,18 @@ extern "C" __global__ void __raygen__rg() {
                 const auto env = launch_params.env_map_.sample(event.direction_);
                 radiance += throughput * albedo * env;
             }
-            throughput *= albedo;
+            if constexpr (consts::ANALOG_ESCAPE_ONLY && consts::ANALOG_ABSORPTION) {
+                // True analog absorption: kill w.p. (1 - p_scatter); survivors keep
+                // throughput (albedo/p_scatter == 1 for gray albedo). Removes the albedo^k
+                // weight variance → recovers the conservative-medium self-averaging.
+                const float p_scatter = math::max(albedo);
+                if (random::sample_uniform(rng) >= p_scatter) {
+                    break;
+                }
+                throughput *= albedo * math::rcp(p_scatter);
+            } else {
+                throughput *= albedo;
+            }
 
             // Russian Roulette
             if (bounce >= consts::RR_DEPTH) {
