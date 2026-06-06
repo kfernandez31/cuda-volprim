@@ -783,6 +783,30 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
+### 8.21 Fast transcendentals in the hot path — fast_erf KEPT (~1.5%), fast_acos REVERTED
+Attacked the dominant arithmetic (`optical_depth` ≈ 85% of frame). **Context that shapes the result:
+the Release/optixir build already uses `-use_fast_math --ftz=true --prec-div=false --prec-sqrt=false`
+(cmake/OptiX-IR.cmake), so `erff`/`acosf`/`expf` are ALREADY their fast-math (leaner, lower-precision)
+forms — this caps the headroom for hand-rolled approximations.**
+- **fast_erf — KEPT but OPT-IN (cmake `THESIS_ENABLE_FAST_ERF`, default OFF), ~1.5%.** Default build
+  uses exact `erff` so the validation path / Mitsuba comparison is unaffected; enabling the flag swaps
+  in the approximation (gates `math::fast_erf`). `optical_depth` calls erf twice; we need only ~1e-4.
+  Replaced with Abramowitz-Stegun 7.1.26 (rational × `__expf`): float32 max abs err ~5e-7, summation
+  over ~40 prims ~3e-6 (≪ 1e-4 budget). A *pure polynomial* was rejected — degree-15 for 1e-6 in
+  float64, and float32 Horner is unstable (1.3e-3) on the high powers. Even fast-math `erff` is ~46 SASS
+  ops; A&S ~2× lighter. Validation: cloud-meadow self-diff meanD 3e-8 / max 3.4e-5; furnace PASS;
+  single-Gaussian **meadow-vs-Mitsuba systematic UNCHANGED** (global +0.001543, median 0.0074 — no
+  regression). Speed: tight A/B 10/10 pairs faster, steady-state ~1.5%. Small because the kernel is
+  latency-bound (memory/traversal), not ALU-bound, and A&S still keeps one exp.
+- **fast_acos — REVERTED (measured on both axes).** Eberly sqrt-based acos for the env-map polar angle
+  (`sample()` ~530M calls/frame). Speed A/B (erf+acos vs erf-only): **~0%** (mean −0.3%, scatters
+  −2.1…+1.9% — `acosf` is already cheap under fast-math, nothing to trade). Correctness: float32 angle
+  err ~6.8e-5 rad (~0.04 texels) but the high-freq meadow turned it into a **+3.5e-4 systematic bias**
+  (above the 1e-4 budget) via the sky→ground gradient. Zero speed + correctness cost → reverted.
+- **Takeaway:** with fast-math already on, library transcendentals are hard to beat; only the heaviest
+  with accuracy slack (erf) gave a small safe win. Env-map lookups are bias-sensitive on a high-freq
+  HDR — approximate them only at near-exact accuracy, and there's no speed there anyway.
+
 ### 8.23 Skip per-bounce origin-inside scan — ~16%, the biggest win this session (branch feature/incremental-active-prims)
 (NB §8.20–8.22 live on sibling branches feature/findings-sobol-rgb / fast-erf / denoiser; merge order
 fills the gap.) `sample_scattering_event` scanned all 652 primitives with `point_inside_bvh_bound` at
