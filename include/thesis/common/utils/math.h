@@ -309,7 +309,12 @@ THESIS_HOST_DEVICE THESIS_INLINE float erf(float x) noexcept {
 // stable, summation error over ~40 overlapping prims stays ~3e-6 (≪ the 1e-4 validation
 // budget). Used in optical_depth's hot erf-difference; the device build uses __expf for
 // the exp. NOT for code that needs ULP-accurate erf.
-#ifdef __CUDA_ARCH__
+//
+// OPT-IN: gated behind THESIS_ENABLE_FAST_ERF (default OFF → exact erff, so the validation
+// path and the Mitsuba comparison are unaffected). Define the flag (cmake option
+// THESIS_ENABLE_FAST_ERF) on the device build to trade the documented ~5e-7 accuracy for
+// the ~1.5% speedup (FINDINGS §8.21). Host builds always use exact erff.
+#if defined(__CUDA_ARCH__) && defined(THESIS_ENABLE_FAST_ERF)
 __device__ THESIS_INLINE float fast_erf(float x) noexcept {
     const float ax = fabsf(x);
     const float t = 1.0f / (1.0f + 0.3275911f * ax);

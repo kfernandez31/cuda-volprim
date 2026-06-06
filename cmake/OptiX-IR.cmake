@@ -6,6 +6,17 @@
 set(DEVICE_ENTRY "${DEVICE_DIR}/device_program.cu")
 set(OPTIXIR_OUTPUT "${CMAKE_BINARY_DIR}/device_program.optixir")
 
+# Opt-in: fast approximate erf (Abramowitz & Stegun 7.1.26) in optical_depth's hot path.
+# OFF by default → exact erff (validation/Mitsuba-comparison path unaffected). ON trades a
+# documented ~5e-7 erf accuracy for ~1.5% throughput (FINDINGS §8.21). Gates math::fast_erf.
+option(THESIS_ENABLE_FAST_ERF "Use fast approximate erf in the device hot path (~1.5%, ~5e-7 error)" OFF)
+if(THESIS_ENABLE_FAST_ERF)
+    set(THESIS_FAST_ERF_DEF -DTHESIS_ENABLE_FAST_ERF)
+    message(STATUS "THESIS_ENABLE_FAST_ERF=ON — device build uses approximate erf (~1.5% faster)")
+else()
+    set(THESIS_FAST_ERF_DEF "")
+endif()
+
 # Track all device headers so changes trigger rebuild
 file(GLOB_RECURSE DEVICE_HEADERS
     "${DEVICE_DIR}/*.cuh"
@@ -33,6 +44,8 @@ add_custom_command(
         # optimised, so always defined here. See cmake/Device.cmake for the
         # device-library equivalent (Release/RelWithDebInfo only).
         -DTHESIS_ENABLE_FAST_MATH
+        # Opt-in approximate erf (empty unless -DTHESIS_ENABLE_FAST_ERF=ON at configure).
+        ${THESIS_FAST_ERF_DEF}
         -O3
         -arch=sm_${CUDA_ARCH}
         # Fast math flags for FMA and aggressive FP optimizations
