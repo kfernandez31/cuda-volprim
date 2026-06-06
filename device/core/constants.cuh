@@ -148,6 +148,16 @@ constexpr bool ENABLE_NEE = true;
 // phase::eval sign inconsistency, now fixed.) On for env-map scenes; no-op cost on constant env.
 constexpr bool ENABLE_MIS = true;
 
+// DIAGNOSTIC (FINDINGS A1 follow-up): escape-only weighted-analog indirect estimator.
+// When true, scatter vertices contribute NO direct term (no NEE shadow rays, no unoccluded
+// single-scatter); the path just random-walks (throughput *= albedo) and collects env via
+// the analog escape (throughput · env) at every bounce > 0. Bounce 0 stays analytic-direct.
+// This is the clean weighted-analog the A1 investigation never measured — used to test
+// whether CUDA recovers Mitsuba-analog's depth-dropping self-averaging in conservative,
+// constant-env media. NOT a production mode (it ignores the occlusion/NEE benefit on real
+// env maps). Mutually exclusive with the normal NEE/MIS direct path. Default OFF.
+constexpr bool ANALOG_ESCAPE_ONLY = false;
+
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
 // (via compute_transmittance_to_env) instead of the high-variance analog binary

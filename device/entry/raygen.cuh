@@ -168,7 +168,18 @@ extern "C" __global__ void __raygen__rg() {
             // escape (camera ray straight to env, no scatter) is not covered by
             // NEE and must be added.
             if (!result) {
-                if constexpr (consts::ENABLE_NEE) {
+                if constexpr (consts::ANALOG_ESCAPE_ONLY) {
+                    // Weighted-analog diagnostic: env collected purely on escape. Bounce 0 is
+                    // already covered by the analytic-direct add above (RB, zero-variance); add
+                    // the analog escape for the indirect (bounce > 0) walk.
+                    if constexpr (consts::ENABLE_ANALYTIC_DIRECT) {
+                        if (bounce > 0) {
+                            radiance += throughput * miss.color();
+                        }
+                    } else {
+                        radiance += throughput * miss.color();
+                    }
+                } else if constexpr (consts::ENABLE_NEE) {
                     // Bounce-0 direct env: added analytically above when
                     // ENABLE_ANALYTIC_DIRECT, else via the analog binary escape here.
                     // Bounce>0 escapes are already counted by NEE shadow rays.
@@ -194,7 +205,12 @@ extern "C" __global__ void __raygen__rg() {
             // Evaluate albedo at the scatter point
             const auto albedo = evaluate_albedo(event.position_, event.active_prims_);
 
-            if constexpr (consts::ENABLE_NEE) {
+            // Weighted-analog diagnostic skips ALL per-vertex direct contribution; env is
+            // collected only on escape (above). The random walk (throughput *= albedo) and
+            // RR/termination below are unchanged.
+            if constexpr (consts::ANALOG_ESCAPE_ONLY) {
+                // no direct term
+            } else if constexpr (consts::ENABLE_NEE) {
                 const auto wi = ray.direction_;
                 const auto base = throughput * albedo;
 
