@@ -788,7 +788,9 @@ Attacked the dominant arithmetic (`optical_depth` ≈ 85% of frame). **Context t
 the Release/optixir build already uses `-use_fast_math --ftz=true --prec-div=false --prec-sqrt=false`
 (cmake/OptiX-IR.cmake), so `erff`/`acosf`/`expf` are ALREADY their fast-math (leaner, lower-precision)
 forms — this caps the headroom for hand-rolled approximations.**
-- **fast_erf — KEPT, ~1.5%, exact-equivalent.** `optical_depth` calls erf twice; we need only ~1e-4.
+- **fast_erf — KEPT but OPT-IN (cmake `THESIS_ENABLE_FAST_ERF`, default OFF), ~1.5%.** Default build
+  uses exact `erff` so the validation path / Mitsuba comparison is unaffected; enabling the flag swaps
+  in the approximation (gates `math::fast_erf`). `optical_depth` calls erf twice; we need only ~1e-4.
   Replaced with Abramowitz-Stegun 7.1.26 (rational × `__expf`): float32 max abs err ~5e-7, summation
   over ~40 prims ~3e-6 (≪ 1e-4 budget). A *pure polynomial* was rejected — degree-15 for 1e-6 in
   float64, and float32 Horner is unstable (1.3e-3) on the high powers. Even fast-math `erff` is ~46 SASS
@@ -804,6 +806,56 @@ forms — this caps the headroom for hand-rolled approximations.**
 - **Takeaway:** with fast-math already on, library transcendentals are hard to beat; only the heaviest
   with accuracy slack (erf) gave a small safe win. Env-map lookups are bias-sensitive on a high-freq
   HDR — approximate them only at near-exact accuracy, and there's no speed there anyway.
+
+### 8.23 Skip per-bounce origin-inside scan — ~16%, the biggest win this session (branch feature/incremental-active-prims)
+(NB §8.20–8.22 live on sibling branches feature/findings-sobol-rgb / fast-erf / denoiser; merge order
+fills the gap.) `sample_scattering_event` scanned all 652 primitives with `point_inside_bvh_bound` at
+EVERY bounce to find the origin-inside set (prims the ray STARTS inside — OptiX backface-culls these so
+they're never reported as entry hits, hence the scan). Insight: after a scatter, `event.active_prims_`
+already holds the scatter point's active set, and the next bounce starts AT that scatter point, so its
+origin-inside set is IDENTICAL. Any prim the new origin is inside was crossed by the previous ray (it
+passes through that point) ⇒ already captured. So scan only at bounce 0 (camera ray); bounce>0 inherits
+the set for free via a `first_bounce` flag.
+- **Speed: ~16%, the largest single win of the session.** Tight A/B (cloud cam0 64spp, 10 pairs):
+  10/10 faster, steady-state −16.1% (−16…−19%). Stacks with the §8.19 bounce-0 dedup (orthogonal —
+  that removed raygen's *duplicate* bounce-0 scan; this removes the *per-bounce* scans).
+- **Correctness: UNBIASED but NOT bit-exact** (the only such opt this session). furnace PASS (1.00008);
+  meanD vs baseline +3.9e-7 (≈0, no bias); meadow-vs-Mitsuba systematic UNCHANGED (global +0.001543).
+  But max|Δ| = 0.177 at isolated pixels: at a grazing 3σ boundary the exit-distance test that builds
+  `final_active_prims` and the containment test the scan uses can disagree by ε, flipping one prim and
+  diverging that MC path. Zero-mean (no bias), and the 3σ cutoff is itself an arbitrary truncation
+  (drops 0.3% of mass) so neither membership answer is "more correct"; the divergence averages out with
+  spp. Merge decision is a judgment call vs the bit-exact fusion/dedup — but it's the biggest win and
+  passes every correctness gate.
+- **Cumulative throughput this session** (compounding, independent paths): fusion 3% × dedup 8% × erf
+  1.5% × this 16% ≈ **~1.35× more throughput**, extrapolating §8.17 to **~6× per-spp vs Mitsuba-analog**
+  and **~32× equal-quality vs Mitsuba-MIS** (still correct where Mitsuba-MIS is +155% biased). A fresh
+  equal-quality benchmark would replace the extrapolation with a measured figure.
+
+### 8.24 Showcase-quality options — firefly clamp + Gaussian filter (branch feature/showcase-quality)
+Two opt-in beauty/robustness knobs, both DEFAULT-OFF so the validation path (and the Mitsuba
+comparison) is bit-identical and unbiased. Motivated by reporting results in TWO modes — with and
+without the denoiser — so the *non-denoised* showcase needs nicer AA / firefly safety than the raw
+validation build.
+- **Firefly clamp (`FIREFLY_CLAMP_LUMINANCE`, default 0).** Hue-preserving per-sample Rec.709-luminance
+  clamp before accumulation. Compile-gated → 0 is a true no-op (bit-identical, meanD 2.8e-10). At
+  threshold 2.0, max output luminance dropped to 1.36 (all per-sample spikes capped). BIASED (energy
+  loss on clamped pixels) → beauty/robustness only. The MIS showcase is already firefly-free (§8.15),
+  so this is insurance for other configs / pathological samples.
+- **Gaussian reconstruction filter (`PIXEL_FILTER_STDDEV`, default 0 = box).** The earlier decision kept
+  BOX because it's the validation-exact reconstruction (matches Mitsuba `rfilter=box`) — but that was a
+  *validation* choice; for beauty the note always said "Gaussian/Mitchell if beauty needed." Implemented
+  via **filter importance sampling (gather, not splat)**: when stddev>0 the camera sub-pixel jitter is
+  drawn from the Gaussian kernel (Box-Muller, support ±2px) and accumulated weight-1, so adjacent pixels
+  gather overlapping regions = softer edges — **no atomics, no accumulation restructure**, only the
+  jitter distribution changes. (My initial "needs splatting" claim was wrong; FIS-gather avoids it.)
+  Validation: box default bit-identical (meanD 2.8e-10); stddev=0.5 (Mitsuba-like) gives meanD +1.4e-4
+  (≈0, energy preserved), meanAbs 6.9e-2 edge-localized softening, furnace PASS (1.00008, flat field
+  stays flat). Box stays the Mitsuba-comparison default; Gaussian is for the beauty / non-denoised
+  showcase mode.
+- **Note on the denoiser overlap:** the denoiser (§8.22) subsumes most reconstruction-filter smoothing,
+  so the Gaussian filter matters mainly for the *non-denoised* beauty mode (and for figures where the
+  denoiser's approximation is unwanted).
 
 ## 9. Known limitations & OPEN items
 
