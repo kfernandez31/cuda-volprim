@@ -85,8 +85,14 @@ constexpr float INTERSECTION_MIN_SEGMENT_LENGTH = 1e-8f;
 // Path Tracing Constants
 // =============================================================================
 // Path tracing parameters (tune experimentally for your scenes)
+//
+// RUNTIME-PROMOTED (Phase 1): MAX_BOUNCES, RR_DEPTH, RR_MAX_SURVIVAL, FIREFLY_CLAMP_LUMINANCE,
+// PIXEL_FILTER_STDDEV and HG_G are now runtime params in common::params::RenderParams, set via
+// CLI flags (--max-depth/--rr-depth/--rr-max-survival/--firefly-clamp/--filter-stddev/--hg-g).
+// The constants below are the DEFAULTS (kept in sync with host Config defaults); they are no
+// longer read on the device. HG_ISOTROPIC_EPS and PHASE_VALUE ARE still used (host-side HG fold).
 
-// Maximum path depth before forced termination
+// Maximum path depth before forced termination (default; runtime: --max-depth)
 constexpr size_t MAX_BOUNCES =
     128;  // Mitsuba production: 64-128
 

@@ -39,6 +39,15 @@ struct TestConfig {
     float sigma_multiplier = 7.5f;  // Default sigma_t scaling factor
     bool denoise = false;
     size_t seed = 42;  // RNG seed; vary to produce independent noise realizations
+
+    // Runtime render params (were compile-time in constants.cuh) — no rebuild needed to change
+    // these; defaults mirror constants.cuh.
+    size_t max_depth = 128;
+    size_t rr_depth = 5;
+    float rr_max_survival = 0.99f;
+    float firefly_clamp = 0.0f;
+    float filter_stddev = 0.0f;
+    float hg_g = 0.85f;
 };
 
 void list_scenes(const std::string& category = "all") {
@@ -89,6 +98,14 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     app.add_option("--output-dir", config.output_dir, "Output directory (for --all)")->default_val("test_results");
     app.add_flag("--denoise", config.denoise, "Apply OptiX AI denoiser");
 
+    // Render parameters (promoted from constants.cuh — no rebuild needed to change these).
+    app.add_option("--max-depth", config.max_depth, "Maximum path depth")->default_val(128)->check(CLI::PositiveNumber);
+    app.add_option("--hg-g", config.hg_g, "Henyey-Greenstein anisotropy g in (-1,1)")->default_val(0.85f)->check(CLI::Range(-0.999f, 0.999f));
+    app.add_option("--rr-depth", config.rr_depth, "Depth at which Russian roulette begins")->default_val(5);
+    app.add_option("--rr-max-survival", config.rr_max_survival, "Russian roulette max survival probability")->default_val(0.99f)->check(CLI::Range(0.0f, 1.0f));
+    app.add_option("--firefly-clamp", config.firefly_clamp, "Per-sample luminance clamp (0=off; BIASED when >0)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
+    app.add_option("--filter-stddev", config.filter_stddev, "Gaussian pixel filter stddev in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
+
     argv = app.ensure_utf8(argv);
     try {
         app.parse(argc, argv);
@@ -127,6 +144,14 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.output_path_ = output_path;
     renderer_config.seed_ = test_config.seed;  // default 42; --seed for independent noise
     renderer_config.denoise_ = test_config.denoise;
+
+    // Runtime render params (defaults mirror constants.cuh; unbiased, not bit-exact under fast-math).
+    renderer_config.max_bounces_ = test_config.max_depth;
+    renderer_config.rr_depth_ = test_config.rr_depth;
+    renderer_config.rr_max_survival_ = test_config.rr_max_survival;
+    renderer_config.firefly_clamp_luminance_ = test_config.firefly_clamp;
+    renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
+    renderer_config.hg_g_ = test_config.hg_g;
 
     // Assume env map and module paths are in default locations
     renderer_config.env_map_path_ = "assets/meadow_2_4k.hdr";
@@ -200,6 +225,14 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         renderer_config.output_path_ = output_path.string();
         renderer_config.seed_ = test_config.seed;
         renderer_config.denoise_ = test_config.denoise;
+
+        // Runtime render params (defaults mirror constants.cuh; unbiased, not bit-exact under fast-math).
+        renderer_config.max_bounces_ = test_config.max_depth;
+        renderer_config.rr_depth_ = test_config.rr_depth;
+        renderer_config.rr_max_survival_ = test_config.rr_max_survival;
+        renderer_config.firefly_clamp_luminance_ = test_config.firefly_clamp;
+        renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
+        renderer_config.hg_g_ = test_config.hg_g;
 
         // Use override env map if specified, otherwise default
         renderer_config.env_map_path_ =

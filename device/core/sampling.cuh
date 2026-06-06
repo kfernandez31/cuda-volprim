@@ -55,38 +55,34 @@ namespace phase {
 // the standard/Mitsuba convention (HG_G>0 = forward scattering, as clouds need). NEE (raygen)
 // and the continuation (sample_scattering_event) both use the same wi, so this single internal
 // sign flip corrects both consistently and keeps sample↔eval↔pdf mutually consistent.
-constexpr float HG_G_EFF = -consts::HG_G;
-
 struct Sample {
     float3 wo;  // Outgoing direction (world space, unit length)
     float pdf;  // For HG, pdf == phase value
 };
 
-// HG phase value at cos_θ = wi · wo. Returns 1/(4π) when g is compile-time isotropic.
+// HG phase value at cos_θ = wi · wo. Returns 1/(4π) when g is (runtime) isotropic.
 // For g != 0: avoids a division by computing (1/denom)^(3/2) via rsqrt — single hardware
 // instruction on NVIDIA, saves ~25 cycles vs the natural denom * sqrt(denom) form.
+//
+// g is now a RUNTIME parameter (launch_params.render_.hg_g_); the HG constants are pre-folded
+// on the host (one±g², etc.) so this is the same FMA sequence the prior constexpr code used
+// (unbiased, though not bit-exact under fast-math — see launch_params.h RenderParams note).
+// eval uses +g (hg_g_), NOT g_eff. The sampling
+// inversion (sample(), below) and this eval formula encode cosθ with OPPOSITE signs of the
+// 2g·cosθ term, so to describe the SAME physical HG (mean cosθ = +g, forward), sample needs
+// g_eff=−g while eval needs +g (FINDINGS §8.9/§8.10 — the MIS energy bug was a backward eval).
 __device__ __forceinline__ float eval_hg(float cos_theta) {
-    if constexpr (consts::HG_G == 0.0f) {
+    const auto& rp = launch_params.render_;
+    if (rp.hg_isotropic_) {
         return consts::PHASE_VALUE;
-    } else {
-        // eval uses +HG_G, NOT HG_G_EFF. The sampling inversion (sample(), below) and this
-        // eval formula encode cosθ with OPPOSITE signs of the 2g·cosθ term, so to describe the
-        // SAME physical HG (mean cosθ = +HG_G, forward), sample needs g_eff=−HG_G while eval
-        // needs +HG_G. Verified: sample(−HG_G) histogram matches eval(+HG_G) (RMS log-ratio
-        // 0.056) and is the mirror image of eval(−HG_G) (2.53). This mismatch was the MIS
-        // energy bug (FINDINGS §8.10): eval is only used by env-IS/MIS, so a backward eval
-        // scattered NEE light the wrong way and lost energy; phase-IS/continuation use sample
-        // only, so they were unaffected (and validated, §8.9).
-        constexpr auto g = consts::HG_G;
-        constexpr auto g2 = math::pow2(g);
-        constexpr auto one_plus_g2 = 1.0f + g2;
-        constexpr auto one_minus_g2 = 1.0f - g2;
-        // denom = (1 + g²) - 2g·cos_θ — single FMA after constexpr folding
-        const auto denom = math::fma(-2.0f * g, cos_theta, one_plus_g2);
-        const auto inv_sqrt = math::rsqrt(denom);
-        const auto inv_denom_3_2 = inv_sqrt * inv_sqrt * inv_sqrt;
-        return consts::PHASE_VALUE * one_minus_g2 * inv_denom_3_2;
     }
+    // denom = (1 + g²) - 2g·cos_θ — single FMA (−2g·cos is exact: ×2 only shifts the exponent)
+    const auto denom = math::fma(-2.0f * rp.hg_g_, cos_theta, rp.hg_one_plus_g2_);
+    const auto inv_sqrt = math::rsqrt(denom);
+    const auto inv_denom_3_2 = inv_sqrt * inv_sqrt * inv_sqrt;
+    // hg_phase_coeff_ = PHASE_VALUE·(1-g²) pre-folded → single multiply (matches the old
+    // constexpr fold; a micro-opt — not enough for full bit-exactness, see RenderParams note).
+    return rp.hg_phase_coeff_ * inv_denom_3_2;
 }
 
 // Branchless stable orthonormal basis (Duff et al. 2017, "Building an ONB, Revisited").
@@ -101,26 +97,19 @@ __device__ __forceinline__ void onb_from_normal(float3 n, float3& tx, float3& ty
 // Importance-sample HG phase. Returns wo with pdf = phase(wi · wo).
 __device__ __forceinline__ Sample sample(float3 wi, random::PCG32& rng) {
     const auto u = random::sample_uniform_2d(rng);
+    const auto& rp = launch_params.render_;
 
     float cos_theta;
-    if constexpr (consts::HG_G == 0.0f) {
+    if (rp.hg_isotropic_) {
         cos_theta = math::fma(-2.0f, u.x, 1.0f);  // uniform on [-1, 1]
     } else {
-        constexpr auto g = HG_G_EFF;  // = −consts::HG_G (Mitsuba sign convention; see top of namespace)
-        constexpr auto g2 = math::pow2(g);
-        constexpr auto one_plus_g2 = 1.0f + g2;
-        constexpr auto one_minus_g2 = 1.0f - g2;
-        constexpr auto neg_inv_2g = -0.5f / g;  // replaces a runtime div with a constexpr mul
-
-        // 1 - 2u and 1 + g(1 - 2u) — both single-FMA after constexpr folding
+        const auto g = rp.hg_g_eff_;  // = −g (Mitsuba sign convention; see top of namespace)
+        // 1 - 2u and 1 + g(1 - 2u) — both single-FMA; HG constants pre-folded on the host
         const auto inner = math::fma(-2.0f, u.x, 1.0f);
         const auto denom = math::fma(g, inner, 1.0f);
-        const auto sqr_term = one_minus_g2 * math::rcp(denom);
-        // (1 + g²) - sqr², then * (-1/(2g))
-        // The (g == 0) branch is taken above; neg_inv_2g is constexpr nonzero.
-#pragma nv_diag_suppress 39
-        cos_theta = neg_inv_2g * math::fma(-sqr_term, sqr_term, one_plus_g2);
-#pragma nv_diag_default 39
+        const auto sqr_term = rp.hg_one_minus_g2_ * math::rcp(denom);
+        // (1 + g²) - sqr², then * (-1/(2g)) — hg_neg_inv_2g_ is nonzero in this branch.
+        cos_theta = rp.hg_neg_inv_2g_ * math::fma(-sqr_term, sqr_term, rp.hg_one_plus_g2_);
     }
 
     const auto sin_theta = math::sqrt(math::max(0.0f, 1.0f - cos_theta * cos_theta));

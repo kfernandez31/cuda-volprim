@@ -37,6 +37,15 @@ utils::Result<Config> Config::parse(int argc, char* argv[]) noexcept {
     auto* runtime_group = app.add_option_group("Runtime tweaks");
     runtime_group->add_option("--seed", config.seed_, "Random seed");
     runtime_group->add_flag("--denoise", config.denoise_, "Apply OptiX AI denoiser to final image");
+
+    // -- Option group: Render parameters (was compile-time in constants.cuh)
+    auto* render_group = app.add_option_group("Render parameters");
+    render_group->add_option("--max-depth", config.max_bounces_, "Maximum path depth (bounces)")->check(CLI::PositiveNumber);
+    render_group->add_option("--rr-depth", config.rr_depth_, "Depth at which Russian roulette begins");
+    render_group->add_option("--rr-max-survival", config.rr_max_survival_, "Russian roulette max survival probability")->check(CLI::Range(0.0f, 1.0f));
+    render_group->add_option("--firefly-clamp", config.firefly_clamp_luminance_, "Per-sample luminance clamp (0=off; BIASED when >0)")->check(CLI::NonNegativeNumber);
+    render_group->add_option("--filter-stddev", config.pixel_filter_stddev_, "Gaussian pixel filter stddev in px (0=box)")->check(CLI::NonNegativeNumber);
+    render_group->add_option("--hg-g", config.hg_g_, "Henyey-Greenstein anisotropy g in (-1,1)")->check(CLI::Range(-0.999f, 0.999f));
     // clang-format on
 
     argv = app.ensure_utf8(argv);
