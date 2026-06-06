@@ -93,6 +93,24 @@ constexpr size_t MAX_BOUNCES =
 // Minimum throughput before path termination (prevents numerical underflow)
 constexpr float MIN_THROUGHPUT = 1e-4f;
 
+// Optional firefly suppression: per-sample luminance clamp threshold (Rec.709 luma).
+// 0 = DISABLED (default; bit-identical, unbiased — required for validation). When >0,
+// any sample whose luminance exceeds this is scaled down to it (hue-preserving), killing
+// low-probability high-weight spikes. BIASED (energy loss on clamped pixels) → beauty /
+// robustness only, never for the Mitsuba comparison. Pick well above legit content
+// luminance (sky ~1-2) so only true outliers clamp — e.g. 10-50 for the meadow.
+constexpr float FIREFLY_CLAMP_LUMINANCE = 0.0f;
+
+// Pixel reconstruction filter. 0 = BOX (default): uniform [-0.5,0.5] sub-pixel jitter =
+// exact pixel-area average, the validation-exact reconstruction (matches Mitsuba run with
+// rfilter=box). >0 = GAUSSIAN with this stddev (px), via filter importance sampling: the
+// sub-pixel offset is drawn from the Gaussian kernel (support clamped to ±2px) and
+// accumulated weight-1, so adjacent pixels gather overlapping regions → softer, less
+// aliased edges (Mitsuba's hdrfilm default is gaussian stddev≈0.5). NO splatting/atomics —
+// only the jitter distribution changes. Use for BEAUTY (esp. non-denoised shots); keep 0
+// for the Mitsuba comparison. A flat field stays flat (energy preserved → furnace exact).
+constexpr float PIXEL_FILTER_STDDEV = 0.0f;
+
 // Depth at which Russian roulette path termination begins
 // Volumetric media with high albedo needs higher values than surface rendering
 // Mitsuba surface rendering: 5-8, volumetric rendering may benefit from similar or higher

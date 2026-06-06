@@ -808,6 +808,31 @@ the set for free via a `first_bounce` flag.
   and **~32× equal-quality vs Mitsuba-MIS** (still correct where Mitsuba-MIS is +155% biased). A fresh
   equal-quality benchmark would replace the extrapolation with a measured figure.
 
+### 8.24 Showcase-quality options — firefly clamp + Gaussian filter (branch feature/showcase-quality)
+Two opt-in beauty/robustness knobs, both DEFAULT-OFF so the validation path (and the Mitsuba
+comparison) is bit-identical and unbiased. Motivated by reporting results in TWO modes — with and
+without the denoiser — so the *non-denoised* showcase needs nicer AA / firefly safety than the raw
+validation build.
+- **Firefly clamp (`FIREFLY_CLAMP_LUMINANCE`, default 0).** Hue-preserving per-sample Rec.709-luminance
+  clamp before accumulation. Compile-gated → 0 is a true no-op (bit-identical, meanD 2.8e-10). At
+  threshold 2.0, max output luminance dropped to 1.36 (all per-sample spikes capped). BIASED (energy
+  loss on clamped pixels) → beauty/robustness only. The MIS showcase is already firefly-free (§8.15),
+  so this is insurance for other configs / pathological samples.
+- **Gaussian reconstruction filter (`PIXEL_FILTER_STDDEV`, default 0 = box).** The earlier decision kept
+  BOX because it's the validation-exact reconstruction (matches Mitsuba `rfilter=box`) — but that was a
+  *validation* choice; for beauty the note always said "Gaussian/Mitchell if beauty needed." Implemented
+  via **filter importance sampling (gather, not splat)**: when stddev>0 the camera sub-pixel jitter is
+  drawn from the Gaussian kernel (Box-Muller, support ±2px) and accumulated weight-1, so adjacent pixels
+  gather overlapping regions = softer edges — **no atomics, no accumulation restructure**, only the
+  jitter distribution changes. (My initial "needs splatting" claim was wrong; FIS-gather avoids it.)
+  Validation: box default bit-identical (meanD 2.8e-10); stddev=0.5 (Mitsuba-like) gives meanD +1.4e-4
+  (≈0, energy preserved), meanAbs 6.9e-2 edge-localized softening, furnace PASS (1.00008, flat field
+  stays flat). Box stays the Mitsuba-comparison default; Gaussian is for the beauty / non-denoised
+  showcase mode.
+- **Note on the denoiser overlap:** the denoiser (§8.22) subsumes most reconstruction-filter smoothing,
+  so the Gaussian filter matters mainly for the *non-denoised* beauty mode (and for figures where the
+  denoiser's approximation is unwanted).
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

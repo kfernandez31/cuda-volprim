@@ -57,6 +57,20 @@ __device__ __forceinline__ float2 sample_uniform_2d(PCG32& rng, float offset = 0
     return u - offset;
 }
 
+// 2D Gaussian offset (Box-Muller) scaled by stddev, each component clamped to ±2 px to
+// bound the reconstruction-filter support. Used for the Gaussian pixel filter (filter
+// importance sampling): the camera jitter is drawn from the filter kernel so a weight-1
+// average reconstructs the Gaussian-filtered pixel — no splatting needed.
+__device__ __forceinline__ float2 sample_gaussian_2d(PCG32& rng, float stddev) {
+    const float u1 = ::thesis::common::math::max(sample_uniform(rng), 1e-7f);
+    const float u2 = sample_uniform(rng);
+    const float r = stddev * sqrtf(-2.0f * logf(u1));
+    const float theta = ::thesis::common::math::TWO_PI_F * u2;
+    constexpr float lim = 2.0f;  // clamp support to ±2 px
+    return make_float2(::thesis::common::math::clamp(r * cosf(theta), -lim, lim),
+                       ::thesis::common::math::clamp(r * sinf(theta), -lim, lim));
+}
+
 }  // namespace random
 }  // namespace device
 }  // namespace thesis
