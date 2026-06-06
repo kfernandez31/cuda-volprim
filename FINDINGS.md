@@ -795,6 +795,7 @@ via an out-param (captured before the argmin path modifies it); raygen reuses it
   erf-dependency-chain-limited kernel, not occupancy. Two work-removal wins now stack (fusion 3% +
   dedup 8%).
 
+<<<<<<< HEAD
 ### 8.20 Owen-scrambled Sobol AA — measured, NO win, reverted (was branch feature/sobol-sampling)
 Measure-first test of low-discrepancy sampling (the §8.15 prediction was that it would be marginal).
 Implemented Owen-scrambled Sobol' (Burley 2020 hash-based scramble) for the **camera AA jitter** — the
@@ -839,6 +840,22 @@ forms — this caps the headroom for hand-rolled approximations.**
 - **Takeaway:** with fast-math already on, library transcendentals are hard to beat; only the heaviest
   with accuracy slack (erf) gave a small safe win. Env-map lookups are bias-sensitive on a high-freq
   HDR — approximate them only at near-exact accuracy, and there's no speed there anyway.
+
+### 8.22 OptiX denoiser — evaluated, ~30× effective speedup (already implemented; branch feature/denoiser)
+The denoiser was already fully built (host `optix/denoiser.h` + `--denoise` flag + albedo/normal AOV
+guide layers captured at bounce 0 in raygen + `denoise_and_save`); this was an *evaluation* of it, no
+new code. Run on cloud cam0 + meadow:
+- 16 spp raw render = 5.2 s, visibly grainy. `--denoise` (OptiX HDR denoiser, albedo+normal guides)
+  produces a smooth, clean image in the same launch.
+- **Quality:** raw-16spp vs a 512spp reference RMSE = 0.384; **denoised-16spp vs 512spp RMSE = 0.070**
+  → 5.5× lower error. Since raw noise ~1/√spp, matching the denoised error with raw samples would need
+  ~486 spp → **~30× effective speedup** (16spp looks like ~486spp).
+- **Caveat (thesis framing):** the denoiser is an *approximation* — it slightly over-smooths the fine
+  wisp texture and is not the converged truth. Show it as a fast preview ALONGSIDE the converged render,
+  not as a ground-truth result. The 0.070 RMSE includes denoiser bias, not just removed noise.
+- **Status:** functional and a strong showcase differentiator (Mitsuba's reference path has no equivalent
+  integrated denoise). Possible follow-ups: resolve the `denoiseAlpha` API TODO in denoiser.h; a denoised
+  showcase bundle; temporal/multi-frame denoising is out of scope (single-frame renderer).
 
 ### 8.23 Skip per-bounce origin-inside scan — ~16%, the biggest win this session (branch feature/incremental-active-prims)
 (NB §8.20–8.22 live on sibling branches feature/findings-sobol-rgb / fast-erf / denoiser; merge order
