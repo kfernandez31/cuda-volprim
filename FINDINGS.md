@@ -1245,6 +1245,66 @@ real levers are unchanged: occupancy (wavefront) for throughput, and variance re
 §8.27, path guiding, adjoint RR) for the equal-quality gap — NOT work-removal micro-ops. Cull code
 reverted; only this note + the exr_diff/exr_rmse comparison tools are kept.
 
+### 8.32 Track-length × argmin combine — investigated, NOT needed (env transmittance is already analytic); confirmed 3 ways
+Re-opened the track-length estimator (Mitsuba's `volprim_prb` β*=seg_tr) as a variance lever for the
+collision-vs-track-length gap (§8.27). First corrected an earlier overstatement: track-length and our
+ADT/argmin are **NOT architecturally exclusive**. SDTracking Thm 1 makes the per-primitive free-flight
+**argmin** distribute identically to a combined-medium free-flight, i.e. argmin and Mitsuba's
+segment-march are two implementations of the *same* scatter-distance sampling — you can keep argmin and
+still apply track-length throughput weighting on top (Jorge's code couples track-length with
+segment-marching + a Newton solver, but that coupling is a choice, not a requirement).
+
+**Why we nonetheless don't need it.** Track-length's entire purpose is a *low-variance transmittance*
+estimate — necessary for Mitsuba because it **delta-tracks** (stochastic, noisy transmittance). **We
+compute transmittance analytically with erf — exact, zero-variance.** So the prize track-length buys is
+already ours. Concretely, the combined estimator = Rao-Blackwellizing the binary scatter/escape with the
+analytic transmittance — which **is A1** ([[project_a1_dead_end]]), and the env contribution is **already
+fully RB'd at every vertex** in the showcase: both NEE+MIS strategies use `compute_transmittance_to_env`
+(analytic erf), and bounce-0 direct uses `ENABLE_ANALYTIC_DIRECT`. Verified in code (raygen.cuh:207–227).
+There is no escape/transmittance variance left for track-length to remove.
+
+**Empirical confirmation (the decisive test).** Toggled the one RB-escape we have — `ENABLE_ANALYTIC_DIRECT`
+ON vs OFF — on the cloud (256 spp, RMSE vs uniform-2048 GT): **ON 0.02361 / 67 s, OFF 0.02277 / 62 s.**
+RB-escape gives **no measurable noise reduction** (within single-seed noise, even marginally worse) and
+costs ~8 % time. If the track-length mechanism mattered here it would show a clear win; it doesn't —
+because this dense, high-albedo cloud's noise is dominated by **multiple scattering**, not by the
+get-through (transmittance) term that track-length sharpens. (Analytic-direct still helps *thin/absorption*
+scenes where the direct term dominates, so it stays default-on; it's just a non-factor for the thick cloud.)
+
+**Verdict: track-length is a dead end for the scattering showcase, confirmed three independent ways**
+(§8.27 measurement · the code proof that env transmittance is already analytic · this ON/OFF toggle). The
+surviving variance is multiple-scattering / path-length, whose lever is RR/splitting (§8.33), not
+track-length. No code change; A1 stays bounce-0-only as it is.
+
+### 8.33 Russian-roulette depth tuning — FREE ~11% efficiency win on the cloud (default 5→12); splitting deferred
+Having localized the surviving variance to multiple-scattering / path-length (§8.32), tested the cheap
+lever first: the **existing runtime `--rr-depth`** (depth at which RR starts). RR is unbiased, so this is
+pure efficiency tuning — no rebuild needed to sweep. Cloud cam0 (σ=7.5, albedo 0.9, 256 spp, warmup
+render then timed; RMSE vs uniform-2048 GT; efficiency = RMSE²·time, lower = better quality/sec):
+
+| rr_depth | time | RMSE | RMSE²·time |
+|---|---|---|---|
+| 5 (old default) | 29 s | 0.0236 | 0.01616 |
+| **12** | 33 s | 0.0209 | **0.01446 ← optimum** |
+| 16 | 37 s | 0.0201 | 0.01489 |
+| 24 | 46 s | 0.0192 | 0.01699 |
+| 32 | 55 s | 0.0189 | 0.01972 |
+
+RMSE falls monotonically with depth (physically guaranteed — less early termination = less RR variance on
+the multiple-scattering tail), while time rises, so efficiency peaks at **rr_depth ≈ 12: ~11% better
+quality-per-second than the old default 5** (≈11% fewer spp / less time for equal quality). The default-5
+was killing high-albedo paths a touch too early. **Changed the default 5→12** across the four sync'd
+sites (constants.cuh RR_DEPTH, RenderParams, host Config, test-runner) + CLI default. **Unbiased —
+furnace PASS at σ=2 and σ=6** (energy flat). Neutral on thin/low-albedo scenes (paths rarely reach depth
+5 there, so the change is a no-op); high-albedo volumetrics get the gain. Matches PBRT/Mitsuba practice of
+deeper RR for volumes. Caveat: single-seed RMSE, but the *direction* is physical and 12/16 both beat 5
+clearly; tunable per-scene via --rr-depth.
+
+**Splitting NOT implemented (deferred).** True splitting (spawn N continuations at high-value vertices)
+needs a per-path stack/queue the single-path megakernel loop doesn't have — it's wavefront/queue
+territory (same structural wall as adaptive §8.30). RR-depth tuning already captured a meaningful slice of
+the path-length variance for free, so splitting is parked until/unless the wavefront architecture lands.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

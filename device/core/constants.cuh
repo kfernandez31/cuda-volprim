@@ -120,7 +120,9 @@ constexpr float PIXEL_FILTER_STDDEV = 0.0f;
 // Depth at which Russian roulette path termination begins
 // Volumetric media with high albedo needs higher values than surface rendering
 // Mitsuba surface rendering: 5-8, volumetric rendering may benefit from similar or higher
-constexpr size_t RR_DEPTH = 5;  // Increased from 3 for proper volumetric path lengths
+constexpr size_t RR_DEPTH = 12;  // 3→5→12: high-albedo volumetrics need deep paths; depth-12 is the
+                                 // measured efficiency optimum on the σ=7.5/albedo-0.9 cloud (~11% better
+                                 // quality/sec than 5; FINDINGS §8.33). Unbiased; neutral on thin scenes.
 
 // Maximum survival probability for Russian roulette (maintains unbiasedness)
 constexpr float RR_MAX_SURVIVAL = 0.99f;  // Standard production value (Mitsuba, PBRT)
