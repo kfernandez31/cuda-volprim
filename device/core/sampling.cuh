@@ -32,7 +32,7 @@ namespace math = ::thesis::common::math;
 using PrimsSet = std::conditional_t<(consts::MAX_PRIMITIVES <= 256),
                                     utils::BitVector<((consts::MAX_PRIMITIVES + 63) & ~size_t{63})>,
                                     utils::CompactSet<prim_idx_t, consts::MAX_ACTIVE_PRIMS> >;
-using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
+using HitBuffer = HitBufferSoA<consts::HIT_BUFFER_CAPACITY>;
 
 // =============================================================================
 // Phase function (Henyey-Greenstein, isotropic when consts::HG_G = 0)
@@ -377,18 +377,19 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         }
     }
 
-    for (const auto& hit : hit_buffer) {
-        const auto& prim = launch_params.primitives_[hit.prim_idx];
+    for (size_t j = 0; j < hit_buffer.size(); ++j) {
+        const float hit_t = hit_buffer.t_hit_[j];
+        const auto& prim = launch_params.primitives_[hit_buffer.prim_idx_[j]];
 
         // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
         // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
         const float chi_j = random::sample_uniform(rng);
         const float tau_j = -math::log(math::max(1.0f - chi_j, 1e-10f));
 
-        // Segment-restricted CDF: solves optical_depth(ray, hit.t_hit, t_scatter) = tau_j.
+        // Segment-restricted CDF: solves optical_depth(ray, hit_t, t_scatter) = tau_j.
         // Replaces the prior full-Gaussian inv_cdf + reject (t_scatter >= hit.t_hit),
         // which was biased — rejected samples were dropped rather than re-rolled.
-        const float t_scatter = prim.inv_cdf_segment(ray, hit.t_hit, tau_j);
+        const float t_scatter = prim.inv_cdf_segment(ray, hit_t, tau_j);
 
         // Guard t_scatter >= 0 (mirrors the active-prims loop above). A degenerate primitive
         // can make inv_cdf_segment saturate erfinv(±1) → ±inf / negative; without this guard a
@@ -400,7 +401,7 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
             const auto w = prim.transform_dir_local(ray.direction_);
             const auto w_len2 = math::length2(w);
             const float t_exit =
-                common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
+                common::geometry::compute_exit_from_entry(ray, hit_t, prim, w_len2);
 
             if (t_scatter <= t_exit) {
                 t_scatter_min = t_scatter;
@@ -430,18 +431,20 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         }
     }
 
-    for (const auto& hit : hit_buffer) {
-        if (hit.t_hit > t_scatter_min)
+    for (size_t j = 0; j < hit_buffer.size(); ++j) {
+        const float hit_t = hit_buffer.t_hit_[j];
+        if (hit_t > t_scatter_min)
             continue;  // Skip hits after scatter point
 
-        const auto& prim = launch_params.primitives_[hit.prim_idx];
+        const auto hit_prim_idx = hit_buffer.prim_idx_[j];
+        const auto& prim = launch_params.primitives_[hit_prim_idx];
         const auto w = prim.transform_dir_local(ray.direction_);
         const auto w_len2 = math::length2(w);
         const float t_exit =
-            common::geometry::compute_exit_from_entry(ray, hit.t_hit, prim, w_len2);
+            common::geometry::compute_exit_from_entry(ray, hit_t, prim, w_len2);
 
         if (t_scatter_min <= t_exit) {
-            if (!final_active_prims.insert(hit.prim_idx))
+            if (!final_active_prims.insert(hit_prim_idx))
                 report_overflow();
         }
     }

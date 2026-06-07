@@ -21,7 +21,7 @@ namespace device {
 template <size_t N>
 __device__ __forceinline__ payloads::Miss trace_ch_collect(
     const geometry::Ray& ray, float t_min, float t_max,
-    utils::StaticVector<HitRecord, N>& hit_buffer) {
+    HitBufferSoA<N>& hit_buffer) {
     // Pack buffer pointer into AnyHit payload
     payloads::AnyHit payload;
     pack_ptr(&hit_buffer, payload.buffer_ptr_low, payload.buffer_ptr_high);

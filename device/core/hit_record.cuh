@@ -7,29 +7,45 @@
 namespace thesis {
 namespace device {
 
-// Unified structure for ray-primitive intersections (entries and exits)
-// Used for:
-// 1. Hit collection during ray tracing (is_exit = false, from anyhit shader)
-// 2. Event processing in escape case (is_exit distinguishes entries/exits)
-// 3. Cached exits in argmin loop (is_exit = true)
+// SoA entry-hit buffer for the primary/scatter argmin path.
 //
-// Memory layout: float (4B) + prim_idx_t (2B) + bitfield (within prim_idx_t word) = 8 bytes
-struct HitRecord {
-    float t_hit;            // 4 bytes - distance along ray
-    prim_idx_t prim_idx;    // 2 bytes - primitive index
-    prim_idx_t is_exit : 1; // 1 bit   - false for entry, true for exit
+// The argmin estimator stores ONLY entry hits (anyhit COLLECT mode), never sorts
+// them (the min is order-independent), and never distinguishes entries from exits.
+// So the old AoS `HitRecord { float; prim_idx_t; prim_idx_t is_exit:1; }` carried a
+// whole 2-byte word for a 1-bit flag that was always false and never read, and the
+// embedded float forced the struct to 8 bytes (4-byte alignment + padding).
+//
+// Splitting into parallel arrays drops the dead exit word and the alignment padding,
+// shrinking per-entry storage 8B → 6B (float 4B + prim_idx_t 2B) — a 25% cut on the
+// dominant per-ray local-memory buffer (HIT_BUFFER_CAPACITY entries). This is the
+// per-ray-state footprint reduction the §8.28 ncu profile pointed at: smaller local
+// footprint → better L1 residency → fewer long_scoreboard (memory-latency) stalls.
+// Bit-identical: only the storage layout changes; the stored (t, prim_idx) values and
+// their iteration order are unchanged.
+template <size_t Capacity>
+struct HitBufferSoA {
+    float t_hit_[Capacity];          // 4B/entry — distance along ray
+    prim_idx_t prim_idx_[Capacity];  // 2B/entry — primitive index
+    size_t size_ = 0;
 
-    // Comparison for sorting by t-value (with deterministic tie-breaking)
-    __device__ __forceinline__ bool operator<(const HitRecord& other) const {
-        if (t_hit < other.t_hit)
-            return true;
-        if (t_hit > other.t_hit)
+#ifdef __CUDA_ARCH__
+    __device__ __forceinline__ void clear() { size_ = 0; }
+    __device__ __forceinline__ size_t size() const { return size_; }
+    __device__ __forceinline__ bool empty() const { return size_ == 0; }
+    __device__ __forceinline__ bool full() const { return size_ == Capacity; }
+    static constexpr size_t capacity() { return Capacity; }
+
+    // Append an entry hit. Returns false (dropping it) if at capacity, mirroring the
+    // old StaticVector::emplace_back contract so the anyhit's overflow path is unchanged.
+    __device__ __forceinline__ bool push(float t, prim_idx_t idx) {
+        if (size_ >= Capacity)
             return false;
-        // Tie-breaker: entries before exits at same t, then by primitive index
-        if (is_exit != other.is_exit)
-            return !is_exit;  // Entries (false) before exits (true)
-        return prim_idx < other.prim_idx;
+        t_hit_[size_] = t;
+        prim_idx_[size_] = idx;
+        ++size_;
+        return true;
     }
+#endif  // DEVICE
 };
 
 }  // namespace device

@@ -1069,6 +1069,53 @@ graceful-overflow (#63) to simultaneously fix the dense-asset cap-overflow (§8.
 plateaus AND occupancy is still the wall is the full wavefront rewrite justified BY DATA (it wasn't
 before). Profiles saved: /tmp/ncu_prof256.txt (+ the stall-metric query in this session's transcript).
 
+### 8.29 Megakernel footprint-reduction tested — it is NOT the lever; bottleneck is global Primitive-load latency (corrects §8.28's recommendation)
+Acting on §8.28's "reduce per-ray-state footprint FIRST," I implemented the two cleanest footprint
+cuts and measured each (ncu @ bunny `asset_validation` SG_RES=256, 16 spp; wall-clock on the cloud
+cam0 σ=7.5 albedo=0.9 256 spp). **Both are bit-identical** (0/1.62M px differ vs baseline) and kept on
+main as hygiene, but **neither moved wall-clock** — and the profile shows why §8.28's premise was wrong.
+
+**Change 1 — SoA HitBuffer (drop the dead `is_exit`).** The argmin path stores only entry hits, never
+sorts, never reads `is_exit`; the AoS `HitRecord` (float+uint16+`uint16 is_exit:1`, padded to 8 B)
+wasted a 2-byte word on a flag always-false-never-read. Split into parallel `float t_hit_[]` +
+`prim_idx_t prim_idx_[]` → 8 B → 6 B/entry (25% off the dominant per-ray *local* buffer).
+**Result: BIT-IDENTICAL, zero speedup (70 s → 69 s, noise).**
+
+**Why it can't help — the smoking gun.** ncu of the megakernel: **global loads 12.5 BILLION instr vs
+local ld+st 0.15 B — local is ~1.2% of memory traffic.** The dominant stall (long_scoreboard) is driven
+by **scattered *global* loads of the `Primitive` structs** (read repeatedly in the
+`inv_cdf`/`inv_cdf_segment`/`optical_depth`/`pdf` loops), NOT the local HitBuffer/CompactSet that §8.28
+assumed. Shrinking local state was always bounded by ~1% — confirmed. **§8.28's "footprint is the lever"
+recommendation is empirically refuted as a perf lever** (it remains valid as cleanup / future-RayState prep).
+
+**Change 2 — `Primitive` hot/cold field reorder.** `sizeof(Primitive)=80 B` (alignas 16). Every device
+hot-path method reads exactly 64 B (center, rot_quat, rcp_scale, density_norm_factor, inv_cdf_factor,
+albedo, optical_thickness) but **never `scale_`** (transforms use `rcp_scale_`; `scale_` is host-only,
+BVH `localToWorld`/export). It sat at offset 28 — mid-hot-fields — so every device load dragged its
+cache sectors. Moved `scale_` to the **last** data member (offset 64, verified; `static_assert offsetof
+≥ 64` pins it) so the hot 64 B occupy the first two 32 B L2 sectors and the device never fetches the third.
+**Result: BIT-IDENTICAL.** ncu before→after (same config): **L1 sector hit 81.6% → 83.8% (+2.2 pt),
+long_scoreboard 3.65 → 3.43 (−6%)**, global_ld instr unchanged (12.518B→12.509B; same # loads, fewer
+sectors/load), occupancy 23.4% → 22.7% (noise). **Mechanically correct (better L1 residency, fewer memory
+stalls) but small — below cloud wall-clock noise (~70 s → ~69 s).**
+
+**Consolidated verdict (3 experiments incl. the §8.18 anyhit fusion — all point the same way):** the
+megakernel is **occupancy-limited (114 regs → ~22%) and global-Primitive-load-latency bound.** Per-ray
+*footprint/layout* micro-opts shave the latency a few % but **cannot overcome 22% occupancy** — at this
+occupancy the SM can't hide the remaining global-load latency no matter how tidy each warp is. The L1 hit
+is already 82–84% and L2 98.7%, so the data largely *resides* in cache; the wall is **latency exposure
+under low occupancy**, hideable only by **more warps**. Raising occupancy needs a genuinely smaller live
+register set, which the megakernel can't do (the 2026-06-05 maxregcount cap just spills → wash, §8.28).
+The only structural path to more warps is the **wavefront split** (separate high-occupancy integration
+kernel) — with its known tradeoff (adds global RayState traffic on this same dominant axis). **So the
+wavefront premise stands as the only big lever, but its core risk — global-memory traffic — is now
+confirmed to be exactly where we are already bound, which is precisely why §8.28 called it double-edged
+and why a Stage-2a prototype must MEASURE the net before committing to the full rewrite.** A remaining
+non-rewrite option not yet tested: cut the global-load *instruction count* (the `Primitive` is re-read
+~4–5× per scatter — argmin / rebuild-exit / evaluate_albedo / NEE×2); caching exits or fusing reads could
+drop the 12.5B, but it touches the validated estimator (bias risk) and is still bounded by the 22%
+occupancy ceiling. (Profiles this session: /tmp/mk_exp/ncu_soa.txt, ncu_stalls.txt, ncu_reorder.txt.)
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

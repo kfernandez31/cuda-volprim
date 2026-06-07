@@ -6,6 +6,8 @@
 
 #include <vector_types.h>
 
+#include <cstddef>  // offsetof (hot/cold layout static_assert)
+
 #ifdef __CUDA_ARCH__
 #include "core/constants.cuh"
 
@@ -23,20 +25,36 @@ namespace params {
 // Device-side POD struct for primitive (no RAII, same size on host and device)
 // Note: rot_quat_ stores the CONJUGATE of the rotation for efficient world-to-local transforms
 class THESIS_ALIGNMENT Primitive {
+    // FIELD ORDER IS PERF-CRITICAL (do not reorder casually). The renderer is
+    // global-load-latency bound on scattered Primitive reads (FINDINGS §8.29: ncu
+    // long_scoreboard 3.65, 12.5B global loads vs 0.15B local). Every device hot-path
+    // method (transform_*_local, pdf, inv_cdf[_segment], optical_depth, evaluate_albedo)
+    // reads center_, rot_quat_, rcp_scale_, density_norm_factor_, inv_cdf_factor_,
+    // albedo_, optical_thickness_ — exactly 64 B — but NEVER scale_ (transforms use
+    // rcp_scale_; scale_ is host-only, for the BVH localToWorld / PLY export). So the hot
+    // fields are packed into the first 64 B (two 32 B L2 sectors) and the cold scale_ is
+    // isolated in the third sector, which the device never fetches: ~33% fewer sectors per
+    // primitive load on the dominant axis. sizeof stays 80 B (alignas(16)); a static_assert
+    // below pins scale_ ≥ 64 so an accidental reorder that re-pollutes the hot sectors fails
+    // to compile. Bit-identical to the old layout (POD, same values).
    private:
-    float3 center_;
-    common::geometry::UnitQuaternion rot_quat_;  // Conjugate for world-to-local
-    float3 scale_;
-    float3 rcp_scale_;  // 1/scale, precomputed to avoid per-call rcp()
+    float3 center_;                              // [ 0, 12) hot
+    common::geometry::UnitQuaternion rot_quat_;  // [12, 28) hot — conjugate for world->local
+    float3 rcp_scale_;                           // [28, 40) hot — 1/scale, avoids per-call rcp()
 
     // Precomputed values for performance
-    float density_norm_factor_;
-    float inv_cdf_factor_;
+    float density_norm_factor_;                  // [40, 44) hot
+    float inv_cdf_factor_;                        // [44, 48) hot
 
    public:
     // Material properties (accessed directly in device code)
-    float3 albedo_;
-    float optical_thickness_;
+    float3 albedo_;             // [48, 60) hot
+    float optical_thickness_;   // [60, 64) hot
+
+    // COLD: device-unused (host-only BVH build / export). Kept as the LAST data member so it
+    // is isolated in the third 32 B sector that the device hot path never fetches. Public only
+    // so the offsetof layout static_assert below can see it; access it via scale()/localToWorld().
+    float3 scale_;              // [64, 76) cold
 
     // Default constructor
     Primitive() = default;
@@ -52,14 +70,17 @@ class THESIS_ALIGNMENT Primitive {
         float3 albedo,
         float optical_thickness
     )
+        // Init order MUST match the (perf-tuned) declaration order above: density_norm_factor_
+        // reads rcp_scale_, inv_cdf_factor_ reads density_norm_factor_, so those members must be
+        // initialized first. scale_ (cold) is initialized last.
         : center_(center),
           rot_quat_(rot_quat),
-          scale_(scale),
           rcp_scale_(common::math::rcp(scale)),
           density_norm_factor_(common::math::ONE_OVER_TWO_PI_POW_3_2_F * common::math::prod(rcp_scale_)),
           inv_cdf_factor_(optical_thickness * density_norm_factor_ * common::math::ROOT_HALF_PI_F),
           albedo_(albedo),
-          optical_thickness_(optical_thickness) {}
+          optical_thickness_(optical_thickness),
+          scale_(scale) {}
 
     // Getters for introspection
     [[nodiscard]] THESIS_HOST_DEVICE float3 center() const { return center_; }
@@ -288,6 +309,14 @@ class THESIS_ALIGNMENT Primitive {
     }
 #endif  // DEVICE
 };
+
+// Pin the hot/cold split (see the field-order note above). The device hot path reads the
+// first 64 B (two 32 B L2 sectors) and must never pull scale_'s sector — so scale_ must start
+// at byte ≥ 64. If a future edit reorders fields and drags scale_ back into the hot sectors,
+// this fails to compile rather than silently regressing the dominant global-load axis.
+static_assert(offsetof(Primitive, scale_) >= 64,
+              "scale_ (device-cold) must stay in the last 32B sector; see field-order note");
+static_assert(sizeof(Primitive) == 80, "Primitive layout changed unexpectedly");
 
 }  // namespace params
 }  // namespace device
