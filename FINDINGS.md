@@ -1305,6 +1305,75 @@ needs a per-path stack/queue the single-path megakernel loop doesn't have — it
 territory (same structural wall as adaptive §8.30). RR-depth tuning already captured a meaningful slice of
 the path-length variance for free, so splitting is parked until/unless the wavefront architecture lands.
 
+### 8.34 Wavefront Phase 1 — implemented, validated CORRECT, but a measured DEAD END (megakernel is the right architecture)
+
+Executed WAVEFRONT_PLAN.md **Phase 1** (the cheap go/no-go gate): converted the in-raygen bounce
+loop into a host-driven wavefront — global `RayState[N]` (N = W·H·spp-batch), one `optixLaunch` per
+bounce, a CUDA finalize kernel folding the batch's samples into the per-pixel Welford mean. NO kernel
+split, NO compaction (those are Phases 2–5, gated behind this). Built behind a `THESIS_WAVEFRONT`
+CMake option (default **OFF** → the megakernel remains the shippable path). Per-ray bounce index +
+liveness live in `RayState::bounce_` (with a `WF_RAY_DEAD` sentinel), so launch params upload **once
+per batch** and the same launch is re-issued per bounce.
+
+**Correctness: PASS.** Wavefront vs megakernel, single-gaussian 64 spp: **RMSE 7.3e-4, relRMSE 9e-4**,
+signed-mean −6.6e-4 — i.e. identical within the documented fast-math/FMA-reassociation tolerance (same
+~1-ULP class as the runtime-RenderParams change). The implementation is *right*; the finding is purely
+about performance.
+
+**Performance: catastrophic — fails the gate by 100–1400× (plan's STOP criterion: ≥1.5×).**
+
+| case | megakernel | wavefront |
+|---|---|---|
+| single-gaussian (1 prim), 64 spp | 0.021 s | **29.6 s** (correct, ~1400×) |
+| asset_validation (25.6 k prims), 8 spp | 0.68 s | **timed out >120 s** |
+
+**Root cause — two compounding per-launch costs, both paid 128×/batch by the wavefront vs 1×/batch by
+the megakernel:**
+
+1. **RayState global-memory traffic — the dominant, fundamental cost (this is plan risk R1, now
+   confirmed fatal).** spp sweep on the *1-primitive* scene (isolates the RayState effect — no scene
+   complexity, no instance overhead), full depth 128:
+
+   | spp | rays in flight | RayState working set | time |
+   |---|---|---|---|
+   | 1 | 65 K | 23 MB (**fits 40 MB L2**) | 27 ms |
+   | 4 | 262 K | 92 MB | 439 ms |
+   | 16 | 1 M | 369 MB | 7.4 s |
+
+   16× more rays → **272× more time** (super-linear). The knee is the L2 cliff: at spp=1 the working
+   set fits L2 → fast; at realistic ray counts (≥1 M rays, needed to fill the GPU) it spills to DRAM
+   and every bounce streams 352 B/ray **uncoalesced at 352 B stride** (264 B of that is the
+   `active_prims` CompactSet). The megakernel keeps that exact state in **registers across the whole
+   path — zero global round-trips.** Streaming per-ray state through global memory between stages is
+   the defining move of a wavefront, and here it manufactures the very memory-latency problem the
+   wavefront exists to hide.
+
+2. **Per-`optixLaunch` overhead (compounds on instance-heavy scenes).** A *no-op* raygen (early
+   `return`) launch costs **~65 ms** on the 25.6 k-instance asset IAS (512² grid; ~10 ms even at a
+   tiny 64² grid; ~0.17 ms on the 1-instance scene). Release build, OptiX validation confirmed **OFF**
+   — this is genuine per-launch cost scaling with grid × IAS size. The megakernel pays it once/batch;
+   the wavefront 128×.
+
+**Why this algorithm is a poor fit for wavefront (it's our strengths that lose):**
+- **Per-bounce work is deliberately light** — analytic / Rao-Blackwellized transmittance (§8.18,
+  §8.32) replaced segment marching with one `erf` sweep. Wavefront's premise is "expose more parallel
+  rays to hide memory latency behind compute," but we have little compute to hide behind, *and* the
+  latency it would expose (RayState streaming) is new latency the megakernel never had.
+- **Large per-ray state that must persist across bounces** — the argmin/ADT continuation inherits the
+  scatter-point overlapping-Gaussian active set into the next bounce. ~free in registers, ~264 B to
+  stream every bounce. Heavy persistent state is the worst case for wavefront.
+
+The hoped-for win (occupancy to hide the global `Primitive`-load latency, §8.28) is **more than
+cancelled** by the RayState-streaming latency the split introduces — it trades a small latency problem
+for a bigger one. Phase 2 (compaction) cannot rescue it: it shrinks the grid per launch but not the
+launch *count* (still ~max_bounces) nor the L2-cliff RayState traffic, which is ray-count-driven not
+grid-driven. **Decision: STOP at Phase 1.** The single-launch megakernel (114 reg, ~24 % occupancy,
+RR=12) is the architecturally correct, defensible final state — and already *beats* Mitsuba on quality
+(§8.11). Cost of the gate: <1 day vs the budgeted ~7 — exactly what the cheap probe was for.
+
+Code kept on `feature/wavefront-phase1` behind `THESIS_WAVEFRONT=OFF` as the reproducible artifact;
+the default build is unaffected. WAVEFRONT_PLAN.md Phases 2–5 are withdrawn.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
