@@ -1116,6 +1116,37 @@ non-rewrite option not yet tested: cut the global-load *instruction count* (the 
 drop the 12.5B, but it touches the validated estimator (bias risk) and is still bounded by the 22%
 occupancy ceiling. (Profiles this session: /tmp/mk_exp/ncu_soa.txt, ncu_stalls.txt, ncu_reorder.txt.)
 
+**Change 3 (tested, REVERTED) — route Primitive loads through the read-only cache (`__ldg`).** Loaded
+the hot 64 B per primitive via `__ldg` (LDG.CI) in the six hot loops (argmin active/hit, rebuild
+active/hit, evaluate_albedo, transmittance). **Bit-identical** (same bytes). ncu: long_scoreboard
+3.43 → 3.29 (−4%, cumulative −10% from the 3.65 baseline across all three changes), but **L1 sector hit
+ticked DOWN 83.8% → 83.3%** and **wall-clock flat (~71 s vs ~70 s baseline)**. Expected: the data is
+already L1/L2-resident (82–84% / 98.7%), so the read-only path has nothing to add. **Reverted** — it adds
+a non-obvious 80B-reinterpret `load_prim` helper (leaves `scale_` as garbage by design) for zero
+measurable wall-clock and a slightly worse L1 hit. NOT worth the fragility. Confirms the thesis a third
+way: per-load latency micro-opts can't convert to throughput while occupancy (22%) is the wall.
+
+**Host-side + SER audit (no code change, for completeness).** Pipeline prep is already near-optimal:
+`numPayloadValues=4` (min; AnyHit needs a 64-bit ptr+mode), `numAttributeValues=0`, module
+`maxRegisterCount=96` (already capped; sweep-confirmed tapped out), `optLevel=LEVEL_3`/`debug=NONE`,
+`maxTraceDepth=1`. Only untapped host lever is pipeline **bound-value specialization** (bake launch
+constants → save a few regs/branches), but that would undo the Phase-1 runtime flags for negligible
+gain. **OptiX SER** (`optixReorder`, the hardware fix for our exact divergence — 20.5/32 active
+threads/warp) is available in the SDK (OptiX 9.0) but **requires Ada (SM 8.9+); the 3090 is Ampere
+(SM 8.6) → SER is a no-op here.** Relevant only if final benchmarks move to a 40-series card, where SER
+could lift occupancy WITHOUT a wavefront rewrite (wavefront's compaction is the software substitute for
+the SER hardware we lack on Ampere). **Primitive-array SoA was also ruled out** (not implemented): our
+access reads ALL fields of a DIFFERENT scattered prim per thread → AoS is cache-optimal; SoA would
+scatter each prim across N arrays → strictly worse. The hot/cold reorder (Change 2) is the right AoS move.
+
+**Better-ROI direction than wavefront (algorithmic, no occupancy fight):** the §8.5 gap is
+~1.93× per-spp × ~2.85× per-sample variance. Megakernel/wavefront only attack the 1.93×. The larger
+2.85× variance is attacked by **finishing adaptive sampling (#56, scaffolded)** — stop sampling converged
+pixels (the cloud has large fast-converging regions) — and a **lower-variance estimator** (track-length,
+§8.27). These close equal-quality time with zero occupancy fight, and are cheaper/lower-risk than the
+5–7d wavefront rewrite. Work-removal in the erf loop (skip negligible-density prims) is the one lever
+that also cuts the dominant global loads, but it edits the validated estimator.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
