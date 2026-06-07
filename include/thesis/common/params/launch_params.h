@@ -6,6 +6,7 @@
 #include "thesis/device/params/environment_map.h"
 #include "thesis/device/params/image.h"
 #include "thesis/device/params/primitive.h"
+#include "thesis/device/params/ray_state.h"
 #include "thesis/device/utils/vector.h"
 
 #include <optix.h>
@@ -71,6 +72,14 @@ struct THESIS_ALIGNMENT LaunchParams {
     // (under-absorption) — turning the previously SILENT overflow into a visible signal.
     // Single element; null-guarded on device.
     unsigned long long* overflow_counter_ = nullptr;
+
+    // ── Wavefront path tracer (WAVEFRONT_PLAN.md Phase 1) ──────────────────────────────────
+    // Only used by the THESIS_WAVEFRONT build of __raygen__rg (device/entry/wavefront.cuh).
+    // ray_states_ is the global per-(pixel, sample) path state streamed each bounce. The bounce
+    // index and liveness are carried IN each RayState (RayState::bounce_), so launch params are
+    // uploaded once per batch and the same launch is re-issued per bounce — no per-bounce param
+    // traffic.
+    device::params::RayState* ray_states_ = nullptr;
 };
 
 }  // namespace params

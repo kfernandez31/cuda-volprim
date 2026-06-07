@@ -2,6 +2,7 @@
 
 #include "thesis/common/params/launch_params.h"
 #include "thesis/device/params/primitive.h"
+#include "thesis/device/params/ray_state.h"
 #include "thesis/host/app/config.h"
 #include "thesis/host/cuda/async_buffer.h"
 #include "thesis/host/cuda/context.h"
@@ -32,6 +33,12 @@ class Renderer {
     void updateDynamicParams();
     void createPrimitives();
     void createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future);
+#ifdef THESIS_WAVEFRONT
+    // Wavefront (WAVEFRONT_PLAN.md Phase 1): allocate the global RayState[N] / liveness buffers
+    // and run the host-driven per-bounce launch loop in place of the single megakernel launch.
+    void initWavefrontBuffers();
+    void renderWavefront();
+#endif
 
     app::Config config_;
     size_t num_primitives_;
@@ -56,6 +63,13 @@ class Renderer {
     // Single-element device counter for cap-overflow events (active-prims / hit-buffer
     // drops). Read back after the render to warn about silently-biased dense regions.
     cuda::AsyncBuffer<unsigned long long> overflow_counter_;
+
+#ifdef THESIS_WAVEFRONT
+    // Global per-(pixel, sample) path state, sized to width × height × BATCH_SIZE. Streamed every
+    // bounce by the wavefront kernel (the traffic Phase 1 measures). Bounce index + liveness live
+    // in RayState::bounce_, so no separate liveness buffer / per-bounce param upload is needed.
+    cuda::AsyncBuffer<device::params::RayState> ray_states_;
+#endif
 
     optix::Module module_;
     optix::Module builtin_is_module_;

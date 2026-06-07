@@ -23,6 +23,20 @@ set_target_properties(device PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
 
+# Opt-in: wavefront path tracer (WAVEFRONT_PLAN.md). OFF by default → the megakernel
+# (device/entry/raygen.cuh) is the shippable production path. ON swaps in the host-driven
+# per-bounce wavefront (device/entry/wavefront.cuh) for the Phase-1 global-RayState gate.
+# PUBLIC so host TUs (renderer.cpp) see it through linking the device target; the OptiX-IR
+# build (cmake/OptiX-IR.cmake) picks it up via THESIS_WAVEFRONT_DEF below.
+option(THESIS_WAVEFRONT "Build the wavefront path tracer instead of the megakernel" OFF)
+if(THESIS_WAVEFRONT)
+    target_compile_definitions(device PUBLIC THESIS_WAVEFRONT)
+    set(THESIS_WAVEFRONT_DEF -DTHESIS_WAVEFRONT)
+    message(STATUS "THESIS_WAVEFRONT=ON — building wavefront path tracer (Phase 1)")
+else()
+    set(THESIS_WAVEFRONT_DEF "")
+endif()
+
 # Enable numerical guards only for Debug/RelWithDebInfo builds
 # Adds 5-10% overhead but catches numerical issues early
 # Production (Release) builds should disable this for maximum performance

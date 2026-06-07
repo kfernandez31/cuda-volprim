@@ -11,6 +11,7 @@
 #include "thesis/common/utils/preprocessor.h"
 #include "thesis/common/utils/types.h"
 #include "thesis/device/optix/scattering_event.h"
+#include "thesis/device/params/prims_set.h"
 #include "thesis/device/payloads/miss.h"
 #include "thesis/device/utils/bit_vector.h"
 #include "thesis/device/utils/compact_set.h"
@@ -26,12 +27,8 @@ namespace device {
 
 namespace math = ::thesis::common::math;
 
-// PrimsSet: tracks which primitives are active (overlapping) at the current ray point.
-// For small scenes (≤256 prims): BitVector — O(1) ops, indexed by primitive ID.
-// For large scenes: CompactSet — O(k) ops, decoupled from scene size.
-using PrimsSet = std::conditional_t<(consts::MAX_PRIMITIVES <= 256),
-                                    utils::BitVector<((consts::MAX_PRIMITIVES + 63) & ~size_t{63})>,
-                                    utils::CompactSet<prim_idx_t, consts::MAX_ACTIVE_PRIMS> >;
+// PrimsSet now lives in thesis/device/params/prims_set.h (shared with the wavefront
+// RayState). HitBuffer stays here — it is a per-launch scratch buffer, never persisted.
 using HitBuffer = utils::StaticVector<HitRecord, consts::HIT_BUFFER_CAPACITY>;
 
 // =============================================================================

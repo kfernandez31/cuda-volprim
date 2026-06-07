@@ -46,6 +46,9 @@ add_custom_command(
         -DTHESIS_ENABLE_FAST_MATH
         # Opt-in approximate erf (empty unless -DTHESIS_ENABLE_FAST_ERF=ON at configure).
         ${THESIS_FAST_ERF_DEF}
+        # Opt-in wavefront path tracer (empty unless -DTHESIS_WAVEFRONT=ON at configure).
+        # Set in cmake/Device.cmake; selects __raygen__rg = wavefront one-bounce kernel.
+        ${THESIS_WAVEFRONT_DEF}
         -O3
         -arch=sm_${CUDA_ARCH}
         # Fast math flags for FMA and aggressive FP optimizations

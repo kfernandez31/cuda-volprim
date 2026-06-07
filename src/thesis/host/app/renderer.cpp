@@ -3,6 +3,9 @@
 #include "thesis/pch.h"
 
 #include "core/constants.cuh"
+#ifdef THESIS_WAVEFRONT
+#include "kernels/wavefront_finalize.h"
+#endif
 
 #include "thesis/common/utils/math.h"
 #include "thesis/device/utils/vector.h"
@@ -80,7 +83,31 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
                           static_cast<uint32_t>(image_.height()), cuda_ctx_.get(),
                           streams_[cuda::StreamKind::Main]);
     }
+
+#ifdef THESIS_WAVEFRONT
+    initWavefrontBuffers();
+#endif
 }
+
+#ifdef THESIS_WAVEFRONT
+void Renderer::initWavefrontBuffers() {
+    // Global RayState[N] / liveness, sized to width × height × BATCH_SIZE (the max samples
+    // in flight per batch). Streamed every bounce — this allocation IS the global-memory
+    // traffic the Phase-1 gate weighs (WAVEFRONT_PLAN.md R1).
+    const size_t num_pixels = image_.pixel_count();
+    const size_t n = num_pixels * image_.batch_size();
+
+    ray_states_ = cuda::AsyncBuffer<device::params::RayState>(
+        n, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnDeviceOnly);
+
+    launch_params_host_.ray_states_ = ray_states_.device();
+
+    const double state_mb =
+        static_cast<double>(n) * sizeof(device::params::RayState) / (1024.0 * 1024.0);
+    spdlog::info("Wavefront: RayState[{}] = {:.1f} MB ({} B/ray, incl. ~{} B active_prims)", n,
+                 state_mb, sizeof(device::params::RayState), sizeof(device::PrimsSet));
+}
+#endif
 
 void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitives) {
     /* ── 1. Build GAS with one unit sphere ───────────────────────── */
@@ -323,6 +350,9 @@ void Renderer::render() {
         "Launching OptiX pipeline - will render {} Gaussians in {} batches ({} spp total)...",
         num_primitives_, num_batches, total_spp);
 
+#ifdef THESIS_WAVEFRONT
+    renderWavefront();
+#else
     // Render in batches
     for (size_t batch = 0; batch < num_batches; ++batch) {
         const size_t batch_offset = batch * batch_size;
@@ -348,6 +378,7 @@ void Renderer::render() {
         // back-to-back, eliminating the kernel-launch idle gap between them. The
         // image normalize/save below explicitly syncs before reading host pixels.
     }
+#endif
 
     // Surface any cap-overflow events (previously silent under-absorption in
     // dense-overlap regions). Sync the Main stream so all counter writes are visible,
@@ -383,5 +414,62 @@ void Renderer::render() {
 
     spdlog::info("Rendering complete - Total time: {:.3f}s ({} ms)", duration_sec, duration_ms);
 }
+
+#ifdef THESIS_WAVEFRONT
+void Renderer::renderWavefront() {
+    // Host-driven bounce loop (WAVEFRONT_PLAN.md Phase 1). For each batch we launch the wavefront
+    // one-bounce kernel once per bounce over RayState[width × height × samples_in_batch], then a
+    // CUDA finalize kernel folds the batch's samples into the per-pixel Welford mean/M2. NO stream
+    // compaction yet: every ray's thread runs every bounce launch (dead rays early-out on the
+    // liveness byte). This intentionally pays the full no-compaction cost — Phase 2 is what turns
+    // it into a win; Phase 1 only measures whether the global-RayState traffic is affordable.
+    const size_t total_spp = image_.num_samples_per_pixel();
+    const size_t batch_size = image_.batch_size();
+    const size_t num_batches = common::math::ceil_div(total_spp, batch_size);
+    const size_t num_pixels = image_.pixel_count();
+    const size_t max_bounces = launch_params_host_.render_.max_bounces_;
+    const float firefly_clamp = launch_params_host_.render_.firefly_clamp_luminance_;
+
+    const auto main_stream = streams_[cuda::StreamKind::Main];
+    const auto& di = image_.device_image();  // stable device pointers (buffers allocated once)
+
+    for (size_t batch = 0; batch < num_batches; ++batch) {
+        const size_t batch_offset = batch * batch_size;
+        const size_t samples_in_batch = common::math::min(batch_size, total_spp - batch_offset);
+        const size_t rays_in_batch = num_pixels * samples_in_batch;
+
+        image_.set_batch_params(batch_offset, samples_in_batch);
+
+        // Reset RayState to 0 → every ray's bounce_ == 0 (needs init). The other zeroed fields are
+        // re-initialized in the bounce-0 path. memset runs on the buffer's (Main) stream, ordered
+        // before the launches below. Full-buffer memset (covers rays_in_batch ≤ capacity).
+        ray_states_.memset_device(0);
+
+        // Upload launch params ONCE per batch (image view + ray_states_ pointer). The bounce index
+        // and liveness live in RayState, so the same launch is re-issued each bounce — no
+        // per-bounce host→device param traffic (which stalled the GPU pipeline).
+        launch_params_host_.image_ = image_.device_image();
+        launch_params_.upload(&launch_params_host_);
+
+        spdlog::info("Rendering batch {}/{}: samples [{}, {}) — {} bounce launches × {} rays",
+                     batch + 1, num_batches, batch_offset, batch_offset + samples_in_batch,
+                     max_bounces, rays_in_batch);
+
+        // One optixLaunch per bounce. All rays advance in lockstep (every alive ray is at the same
+        // bounce), finished rays early-out on RayState::bounce_ == WF_RAY_DEAD. No compaction yet.
+        for (size_t bounce = 0; bounce < max_bounces; ++bounce) {
+            pipeline_.launch(main_stream->get(), launch_params_.cu_device_ptr(),
+                             sizeof(common::params::LaunchParams), sbt_.get(), image_.width(),
+                             image_.height(), samples_in_batch);
+        }
+
+        // Fold this batch's per-(pixel,sample) radiances into the per-pixel Welford running mean.
+        device::kernels::launch_wavefront_finalize_kernel(
+            di.mean_, di.variance_, di.sample_counts_, di.albedo_aov_, di.normal_aov_,
+            ray_states_.device(), num_pixels, static_cast<uint32_t>(samples_in_batch),
+            firefly_clamp, main_stream->get());
+    }
+}
+#endif
 
 }  // namespace thesis::host::app
