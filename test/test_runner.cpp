@@ -43,7 +43,7 @@ struct TestConfig {
     // Runtime render params (were compile-time in constants.cuh) — no rebuild needed to change
     // these; defaults mirror constants.cuh.
     size_t max_depth = 128;
-    size_t rr_depth = 5;
+    size_t rr_depth = 12;
     float rr_max_survival = 0.99f;
     float firefly_clamp = 0.0f;
     float filter_stddev = 0.0f;
@@ -101,7 +101,7 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     // Render parameters (promoted from constants.cuh — no rebuild needed to change these).
     app.add_option("--max-depth", config.max_depth, "Maximum path depth")->default_val(128)->check(CLI::PositiveNumber);
     app.add_option("--hg-g", config.hg_g, "Henyey-Greenstein anisotropy g in (-1,1)")->default_val(0.85f)->check(CLI::Range(-0.999f, 0.999f));
-    app.add_option("--rr-depth", config.rr_depth, "Depth at which Russian roulette begins")->default_val(5);
+    app.add_option("--rr-depth", config.rr_depth, "Depth at which Russian roulette begins")->default_val(12);
     app.add_option("--rr-max-survival", config.rr_max_survival, "Russian roulette max survival probability")->default_val(0.99f)->check(CLI::Range(0.0f, 1.0f));
     app.add_option("--firefly-clamp", config.firefly_clamp, "Per-sample luminance clamp (0=off; BIASED when >0)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
     app.add_option("--filter-stddev", config.filter_stddev, "Gaussian pixel filter stddev in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);

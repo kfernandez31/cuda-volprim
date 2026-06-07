@@ -36,7 +36,7 @@ namespace params {
 // namespace for the sign convention.
 struct RenderParams {
     size_t max_bounces_ = 128;            // was consts::MAX_BOUNCES
-    size_t rr_depth_ = 5;                 // was consts::RR_DEPTH
+    size_t rr_depth_ = 12;                // was consts::RR_DEPTH (5→12, FINDINGS §8.33 efficiency optimum)
     float rr_max_survival_ = 0.99f;       // was consts::RR_MAX_SURVIVAL
     float firefly_clamp_luminance_ = 0.0f;  // was consts::FIREFLY_CLAMP_LUMINANCE (0 = off)
     float pixel_filter_stddev_ = 0.0f;    // was consts::PIXEL_FILTER_STDDEV (0 = box)

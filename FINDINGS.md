@@ -1100,6 +1100,35 @@ scenes where the direct term dominates, so it stays default-on; it's just a non-
 surviving variance is multiple-scattering / path-length, whose lever is RR/splitting (§8.33), not
 track-length. No code change; A1 stays bounce-0-only as it is.
 
+### 8.33 Russian-roulette depth tuning — FREE ~11% efficiency win on the cloud (default 5→12); splitting deferred
+Having localized the surviving variance to multiple-scattering / path-length (§8.32), tested the cheap
+lever first: the **existing runtime `--rr-depth`** (depth at which RR starts). RR is unbiased, so this is
+pure efficiency tuning — no rebuild needed to sweep. Cloud cam0 (σ=7.5, albedo 0.9, 256 spp, warmup
+render then timed; RMSE vs uniform-2048 GT; efficiency = RMSE²·time, lower = better quality/sec):
+
+| rr_depth | time | RMSE | RMSE²·time |
+|---|---|---|---|
+| 5 (old default) | 29 s | 0.0236 | 0.01616 |
+| **12** | 33 s | 0.0209 | **0.01446 ← optimum** |
+| 16 | 37 s | 0.0201 | 0.01489 |
+| 24 | 46 s | 0.0192 | 0.01699 |
+| 32 | 55 s | 0.0189 | 0.01972 |
+
+RMSE falls monotonically with depth (physically guaranteed — less early termination = less RR variance on
+the multiple-scattering tail), while time rises, so efficiency peaks at **rr_depth ≈ 12: ~11% better
+quality-per-second than the old default 5** (≈11% fewer spp / less time for equal quality). The default-5
+was killing high-albedo paths a touch too early. **Changed the default 5→12** across the four sync'd
+sites (constants.cuh RR_DEPTH, RenderParams, host Config, test-runner) + CLI default. **Unbiased —
+furnace PASS at σ=2 and σ=6** (energy flat). Neutral on thin/low-albedo scenes (paths rarely reach depth
+5 there, so the change is a no-op); high-albedo volumetrics get the gain. Matches PBRT/Mitsuba practice of
+deeper RR for volumes. Caveat: single-seed RMSE, but the *direction* is physical and 12/16 both beat 5
+clearly; tunable per-scene via --rr-depth.
+
+**Splitting NOT implemented (deferred).** True splitting (spawn N continuations at high-value vertices)
+needs a per-path stack/queue the single-path megakernel loop doesn't have — it's wavefront/queue
+territory (same structural wall as adaptive §8.30). RR-depth tuning already captured a meaningful slice of
+the path-length variance for free, so splitting is parked until/unless the wavefront architecture lands.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
