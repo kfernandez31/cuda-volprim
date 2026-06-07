@@ -2,6 +2,12 @@
 
 **Branch:** `feature/a1-per-step-rb`  ·  **Date:** 2026-06-04  ·  **Verdict: not worth implementing.**
 
+> **Note (archived to main):** the headline framing below — "the flat-env gap is a NEE-vs-analog
+> tradeoff" — was subsequently *refined* in **FINDINGS §8.27** ("flat-env variance gap = collision
+> vs track-length estimator", whose title reads "corrects A1"). Read §8.27 for the corrected
+> conclusion; this document is kept for its detailed per-experiment evidence tables, which §8.27
+> summarizes but does not reproduce.
+
 ## Premise (what A1 was supposed to be)
 FINDINGS §8.5 measured CUDA ~2.85× noisier per sample than Mitsuba `volprim_prb` on the scattering
 cloud and hypothesized the fix as **per-step RB**: "Mitsuba folds analytic segment transmittance
