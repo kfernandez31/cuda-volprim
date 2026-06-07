@@ -1069,6 +1069,38 @@ graceful-overflow (#63) to simultaneously fix the dense-asset cap-overflow (§8.
 plateaus AND occupancy is still the wall is the full wavefront rewrite justified BY DATA (it wasn't
 before). Profiles saved: /tmp/ncu_prof256.txt (+ the stall-metric query in this session's transcript).
 
+### 8.31 Density-contribution culling tested — DEAD END (redundant with the BVH's 3σ bound); reverted
+Hypothesis (from the §8.29 bottleneck analysis): skip the exp + two erf() in optical_depth / inv_cdf /
+inv_cdf_segment for primitives the ray only grazes in their far tail (whitened closest-approach perp²
+large ⇒ exp(-0.5·perp²) negligible) — a true *work-removal* that should help at any occupancy, unlike the
+latency micro-ops (§8.29). Added a runtime-tunable cutoff DENSITY_CULL_PERP2 (early-out after the cheap
+perp² is computed) and swept it on the cloud (cam0, σ=7.5, albedo0.9, 256 spp; bias vs same-seed no-cull;
+quality vs uniform-2048 GT):
+
+| cutoff (≈σ, e_term) | time | vs no-cull | RMSE vs GT |
+|---|---|---|---|
+| OFF | 71 s | — | 0.0236 |
+| perp²≤18.4 (1e-4) | 74 s | **bit-identical (0 px)** | 0.0236 |
+| perp²≤13.8 (1e-3) | 75 s | **bit-identical (0 px)** | 0.0236 |
+| perp²≤9.2 (3σ, 1e-2) | 76 s | **bit-identical (0 px)** | 0.0236 |
+| perp²≤6.0 (2.45σ, 5%) | 76 s | 1.1M/1.6M px, **+0.9% mean** | 0.0261 (worse) |
+
+**Verdict: not a good addition — reverted.** Culling out to **3σ is bit-identical (zero pixels change)**,
+which proves the renderer **never evaluates a primitive whose closest approach exceeds 3σ**: the OptiX BVH
+already wraps each Gaussian's 3σ surface and the active-prims / hit-buffer sets only ever hold near
+primitives. So there is **no far-tail work to remove — the cull is redundant with the BVH's spatial
+culling** (and even adds a sliver of overhead: 71→74-76 s). The first cutoff that culls *anything*
+(perp²≤6 ≈ 2.45σ, where a Gaussian still carries ~5% density) immediately changes 68% of pixels with a
+**+0.9% brightening bias** (≫ the ≤1e-4 systematic gate) — because in a dense overlapping cloud those
+"tail" densities SUM into real optical depth (that overlap is literally what makes it dense). There is no
+operating window between "removes nothing" and "biases heavily."
+
+Broader takeaway (consistent with §8.29): the renderer's erf work is all on *genuinely-contributing*
+primitives — there is **no redundant per-primitive compute to trim** in the megakernel. The remaining
+real levers are unchanged: occupancy (wavefront) for throughput, and variance reduction (track-length
+§8.27, path guiding, adjoint RR) for the equal-quality gap — NOT work-removal micro-ops. Cull code
+reverted; only this note + the exr_diff/exr_rmse comparison tools are kept.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
