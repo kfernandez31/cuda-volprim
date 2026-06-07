@@ -1020,6 +1020,55 @@ initial hypotheses were measured WRONG**, which is the point of measuring:
   thesis-worthy direction if the flat-env gap is ever worth closing. Diagnostic flags + depth-sweep
   scripts live on branch feature/analog-indirect-diagnostic for reproduction.
 
+### 8.28 Wavefront re-examined via ncu — occupancy IS a lever (corrects earlier null); but wavefront is double-edged
+Clean Nsight Compute profile of the render kernel (`optixLaunch`, 114 regs/thread, block 128) to settle
+the long-standing wavefront question. **`ncu` invocation** (RTX 3090, render kernel only):
+`ncu --kernel-name "regex:optixLaunch" --launch-count 1 --section Occupancy/SchedulerStats/WarpStateStats/SpeedOfLight`
+on a representative scattering render (`asset_validation`, bunny PLY, meadow, albedo 0.9, σ=7.5, 16 spp).
+Resolution matters for the grid-fill: profile at **SG_RES=256** (512 blocks ≈ 6/SM — proper fill);
+128² is too small (tail artifact → 8% occ) and 512² made ncu error out (NaN/exit-9, multi-second kernel).
+
+**Numbers @256²:**
+- Compute (SM) 34.5%, **DRAM 1.1%** → pure **latency-bound** (neither ALU nor bandwidth saturated).
+- **Achieved occupancy 21.7%** (10.4 warps/SM) vs ~37% register-limited ceiling (114 regs).
+- **Eligible warps/scheduler 0.44; No-eligible 66%**; ~8.2 warp-cycles per issued instruction → scheduler starved.
+- **Stall breakdown** (avg warps stalled/reason): **long_scoreboard 4.10 (memory latency, DOMINANT)**,
+  **wait 1.99 (arith dependency)**, not_selected 0.28, no_instruction 0.15, lg_throttle 0.12,
+  mio 0.04, short_scoreboard 0.03, **math_pipe_throttle 0.03** (≈0), barrier 0.
+- Local-memory traffic: 882M local-ld + 548M local-st instr, 2.56B local-ld sectors (per-ray
+  HitBuffer/CompactSet + 114-reg spills), on top of global primitive-data loads.
+
+**Verdict — this REVERSES the prior "occupancy is NOT the lever" note.** That null came from a
+*confounded* maxregcount sweep (capping regs raised occupancy by SPILLING, which added the very memory
+latency it tried to hide → net null). The clean profile shows occupancy genuinely low (22%) and the
+scheduler genuinely starved (0.44 eligible, 66% no-eligible) → **more warps WOULD hide the latency.**
+The kernel is latency-bound, dominated by MEMORY latency (long_scoreboard), then arithmetic-dependency
+(wait); zero throughput-throttle. So occupancy is a real lever.
+
+**But wavefront is double-edged, NOT a slam-dunk:**
+- PRO: split megakernel → fewer regs/stage → genuinely higher occupancy (no spill) → hides latency.
+- CON: wavefront moves per-ray state (ray o/d, throughput, radiance, RNG, ScatteringEvent, ~100–200 B)
+  to **GLOBAL memory**, streamed read+write EVERY bounce — adding high-volume traffic on the EXACT axis
+  (memory latency) that is already our #1 stall. The megakernel keeps that state on-chip (zero global
+  round-trips). So wavefront trades register-pressure-limited-occupancy for global memory traffic, and
+  we're already memory-latency-bound. Plus: per-bounce stream-compaction overhead (most paths die by
+  RR depth 5) and N launches/frame.
+  NB (corrected): the in-raygen bounce loop is merely IDIOMATIC (the OptiX SDK optixPathTracer sample's
+  shape), NOT "the only natural OptiX shape" — OptiX 7+ explicitly supports wavefront usage (trace-only
+  raygen, path state in global, shade/compact in separate CUDA kernels, optixLaunch per bounce; many
+  production throughput renderers do this). So "fights OptiX's grain" is NOT a valid con — retracted.
+  Conversely, OptiX Shader Execution Reordering (the built-in megakernel-divergence fix) is Ada-only;
+  on this Ampere 3090 there's no SER, which if anything strengthens the wavefront load-balance case.
+
+**RECOMMENDATION (do this FIRST, before the 5–7 day wavefront rewrite):** reduce the **per-ray state
+footprint** — the 128-deep HitBuffer + CompactSet + 114-reg spills. It hits BOTH confirmed levers at
+once — raises occupancy AND cuts the dominant long_scoreboard stall — with NO added global traffic
+(strictly better on both axes; wavefront wins one, risks the other). It is also wavefront's own
+prescribed first step ("primary-ray HitBuffer fusion" in WAVEFRONT_PLAN.md) and pairs with
+graceful-overflow (#63) to simultaneously fix the dense-asset cap-overflow (§8.25). Only if that
+plateaus AND occupancy is still the wall is the full wavefront rewrite justified BY DATA (it wasn't
+before). Profiles saved: /tmp/ncu_prof256.txt (+ the stall-metric query in this session's transcript).
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
