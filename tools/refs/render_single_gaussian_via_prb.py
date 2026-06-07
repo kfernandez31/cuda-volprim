@@ -119,7 +119,7 @@ if SG_ENV == "meadow":
         env_to_world = env_to_world @ T().scale([-1, 1, 1])
     environment_block = {
         "type": "envmap",
-        "filename": os.path.join(THESIS_ROOT, "assets/meadow_2_4k.hdr"),
+        "filename": os.path.join(THESIS_ROOT, "assets/environment_maps/meadow_2_4k.hdr"),
         "to_world": env_to_world,
     }
 else:

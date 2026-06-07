@@ -6,7 +6,7 @@ not present in both sides.
 
 Run from project root:
     tools/refs/.venv/bin/python tools/refs/compare_renders.py \\
-        assets/cloud/refs_voxel_self/ \\
+        assets/models/cloud/refs_voxel_self/ \\
         test_results/cloud_asset_validation/
 """
 

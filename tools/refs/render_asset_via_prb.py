@@ -3,7 +3,7 @@
 with a CUSTOM perspective camera matching our CUDA `asset_validation` scene — so the two
 renderers can be diffed pixel-for-pixel (quality) and timed (perf).
 
-Unlike render_cloud_prb_absorption.py (hard-wired to assets/cloud/'s scene wrapper), this
+Unlike render_cloud_prb_absorption.py (hard-wired to assets/models/cloud/'s scene wrapper), this
 builds the volprim scene from scratch around any PLY, so it works on the raw downloaded
 assets (wdas8_gauss, embergen_gauss, ...).
 
@@ -80,7 +80,7 @@ scene_dict = {
 }
 if SG_ENV == "meadow":
     scene_dict["environment"] = {
-        "type": "envmap", "filename": "assets/meadow_2_4k.hdr",
+        "type": "envmap", "filename": "assets/environment_maps/meadow_2_4k.hdr",
         "to_world": T().rotate(axis=[0, 1, 0], angle=float(os.environ.get("SG_ENV_ROTY", "90"))),
     }
 else:

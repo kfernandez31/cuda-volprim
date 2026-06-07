@@ -27,7 +27,7 @@ mi.set_variant("cuda_ad_rgb")
 
 # Each entry is a single asset we can render. Add new ones as voxel grids land
 # locally (bunny, smoke, tornado, ...). Density scaler values come from Jorge's
-# table; cloud=7.5 also matches assets/cloud/args.json:sigmat_scale.
+# table; cloud=7.5 also matches assets/models/cloud/args.json:sigmat_scale.
 @dataclass(frozen=True)
 class AssetConfig:
     voxel_grid: Path           # .npy density grid
@@ -42,10 +42,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ASSETS: Dict[str, AssetConfig] = {
     "cloud": AssetConfig(
-        voxel_grid=REPO_ROOT / "assets/cloud/pyramid_level_0.npy",
-        ply=REPO_ROOT / "assets/cloud/root.primitives_pyr0.ply",
-        scene_module=REPO_ROOT / "assets/cloud/__init__.py",
-        output_dir=REPO_ROOT / "assets/cloud/refs_voxel_self",
+        voxel_grid=REPO_ROOT / "assets/models/cloud/pyramid_level_0.npy",
+        ply=REPO_ROOT / "assets/models/cloud/root.primitives_pyr0.ply",
+        scene_module=REPO_ROOT / "assets/models/cloud/__init__.py",
+        output_dir=REPO_ROOT / "assets/models/cloud/refs_voxel_self",
         density_scaler=7.5,
         albedo=0.0,
     ),
@@ -95,7 +95,7 @@ def to_world_mapping(min_corner: np.ndarray, max_corner: np.ndarray,
 
 
 def load_scene_module(path: Path):
-    """Load assets/cloud/__init__.py as a module so we can pull SENSORS, EMITTERS."""
+    """Load assets/models/cloud/__init__.py as a module so we can pull SENSORS, EMITTERS."""
     spec = importlib.util.spec_from_file_location("asset_scene", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

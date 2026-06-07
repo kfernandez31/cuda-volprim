@@ -25,7 +25,7 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
 
     spdlog::info("Loading cloud primitives from PLY...");
     auto primitives_future = thesis::host::utils::io::async::loadPrimitives(
-        "assets/cloud/root.primitives_pyr0.ply", sigma_multiplier, albedo_override);
+        "assets/models/cloud/root.primitives_pyr0.ply", sigma_multiplier, albedo_override);
     auto primitives_result = primitives_future.get();
 
     if (!primitives_result.has_value()) {
@@ -36,8 +36,8 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
     spdlog::info("Loaded {} cloud primitives", scene.primitives.size());
 
     spdlog::info("Parsing Mitsuba camera configuration...");
-    auto config_result = thesis::host::utils::parseMitsubaScene("assets/cloud/__init__.py",
-                                                                "assets/cloud/args.json");
+    auto config_result = thesis::host::utils::parseMitsubaScene("assets/models/cloud/__init__.py",
+                                                                "assets/models/cloud/args.json");
 
     if (!config_result.has_value()) {
         return make_error("Failed to parse Mitsuba config: {}", config_result.error());
@@ -69,8 +69,8 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
     // render_cloud_prb_absorption.py). Default keeps the constant env.
     const char* sg_env = std::getenv("SG_ENV");
     scene.env_map_override = (sg_env && std::string_view(sg_env) == "meadow")
-                                 ? "assets/meadow_2_4k.hdr"
-                                 : "assets/white_constant.hdr";
+                                 ? "assets/environment_maps/meadow_2_4k.hdr"
+                                 : "assets/environment_maps/white_constant.hdr";
     return scene;
 }
 
@@ -93,7 +93,7 @@ Result<MultiViewTestScene> asset_validation(float sigma_multiplier) {
         const char* v = std::getenv(k); return v ? std::atof(v) : d;
     };
     const char* ply_env = std::getenv("SG_PLY");
-    const std::string ply = ply_env ? ply_env : "assets/bunny/bunny_pyr0.ply";
+    const std::string ply = ply_env ? ply_env : "assets/models/bunny/bunny_pyr0.ply";
     const float alb = static_cast<float>(envf("SG_ALBEDO", 0.0));
     const float3 albedo_override = alb > 0.0f ? make_float3(alb, alb, alb) : make_float3(-1.0f);
 
@@ -127,8 +127,8 @@ Result<MultiViewTestScene> asset_validation(float sigma_multiplier) {
 
     const char* sg_env = std::getenv("SG_ENV");
     scene.env_map_override = (sg_env && std::string_view(sg_env) == "meadow")
-                                 ? "assets/meadow_2_4k.hdr"
-                                 : "assets/white_constant.hdr";
+                                 ? "assets/environment_maps/meadow_2_4k.hdr"
+                                 : "assets/environment_maps/white_constant.hdr";
     return scene;
 }
 

@@ -5,7 +5,7 @@ ABSORPTION config — albedo=0 (PLY values, ≈0), sigmat_scale=7.5 — using th
 cloud scene's native analytic 'ellipsoids' shape and the same 24 cameras.
 
 This is the apples-to-apples reference the old refs_prb_pyr0/ was NOT (those
-used albedo=0.9 scattering + sigmat 60). Renders to assets/cloud/refs_prb_absorption/.
+used albedo=0.9 scattering + sigmat 60). Renders to assets/models/cloud/refs_prb_absorption/.
 
 Run:
   source tools/refs/.venv/bin/activate
@@ -22,7 +22,7 @@ mi.set_variant('cuda_ad_rgb')
 import volprim.integrators.volprim_prb  # noqa: F401
 import numpy as np
 
-CLOUD_DIR = '/home/kacper/thesis/assets/cloud'
+CLOUD_DIR = '/home/kacper/thesis/assets/models/cloud'
 sys.path.insert(0, CLOUD_DIR)
 import __init__ as cloud_scene
 
@@ -53,7 +53,7 @@ if SG_ENV == 'meadow':
     from mitsuba import ScalarTransform4f as T
     scene_dict['environment'] = {
         'type': 'envmap',
-        'filename': '/home/kacper/thesis/assets/meadow_2_4k.hdr',
+        'filename': '/home/kacper/thesis/assets/environment_maps/meadow_2_4k.hdr',
         'to_world': T().rotate(axis=[0, 1, 0], angle=SG_ENV_ROTY),
     }
 prim = scene_dict.get('primitives_pyr0', {})

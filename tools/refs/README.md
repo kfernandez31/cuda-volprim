@@ -6,7 +6,7 @@ CMake build.
 
 ## Why
 
-The original `assets/cloud/refs_pyr0/` references were produced by an unknown
+The original `assets/models/cloud/refs_pyr0/` references were produced by an unknown
 script (Jorge says a voxel-grid renderer; the asset's `__init__.py` config
 points at a Gaussian-ellipsoid path tracer). To stop calibrating constants
 against a black-box reference, this tool regenerates references locally with
@@ -32,7 +32,7 @@ tools/refs/.venv/bin/python tools/refs/render_voxel_reference.py --asset cloud -
 
 # 3. Compare
 tools/refs/.venv/bin/python tools/refs/compare_renders.py \
-    assets/cloud/refs_voxel_self/ \
+    assets/models/cloud/refs_voxel_self/ \
     test_results/cloud_asset_validation/
 ```
 
@@ -47,10 +47,10 @@ When a new voxel grid lands locally, add an entry to `ASSETS` in
 
 ```python
 "bunny": AssetConfig(
-    voxel_grid=REPO_ROOT / "assets/bunny/<grid>.npy",
-    ply=REPO_ROOT / "assets/bunny/<primitives>.ply",
-    scene_module=REPO_ROOT / "assets/bunny/__init__.py",
-    output_dir=REPO_ROOT / "assets/bunny/refs_voxel_self",
+    voxel_grid=REPO_ROOT / "assets/models/bunny/<grid>.npy",
+    ply=REPO_ROOT / "assets/models/bunny/<primitives>.ply",
+    scene_module=REPO_ROOT / "assets/models/bunny/__init__.py",
+    output_dir=REPO_ROOT / "assets/models/bunny/refs_voxel_self",
     density_scaler=10.0,       # from Jorge's density-scaler table
     albedo=0.0,
 ),

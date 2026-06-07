@@ -11,7 +11,7 @@ namespace thesis::test::scenes {
 // One isotropic axis-aligned Gaussian at origin (scale = (1, 1, 1), albedo = 0,
 // optical_thickness chosen from sigma_multiplier). Orthographic camera at (0, 0, -5)
 // looking along +Z. Viewport spans [-3, 3] x [-3, 3] in world units so the 3σ
-// envelope fits cleanly. Constant white env (assets/white_constant.hdr).
+// envelope fits cleanly. Constant white env (assets/environment_maps/white_constant.hdr).
 //
 // Why this scene exists: the pure-absorber, single-primitive setup has a closed-form
 // per-pixel intensity:

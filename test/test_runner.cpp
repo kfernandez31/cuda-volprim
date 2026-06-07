@@ -154,7 +154,7 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.hg_g_ = test_config.hg_g;
 
     // Assume env map and module paths are in default locations
-    renderer_config.env_map_path_ = "assets/meadow_2_4k.hdr";
+    renderer_config.env_map_path_ = "assets/environment_maps/meadow_2_4k.hdr";
     renderer_config.module_blob_path_ = "build/device_program.optixir";
 
     try {
@@ -190,7 +190,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
 
     if (scene.primitives.empty()) {
         std::cerr << "✗ Multi-view test failed: No primitives loaded\n";
-        std::cerr << "  Check that assets/cloud/root.primitives.ply exists and is valid.\n";
+        std::cerr << "  Check that assets/models/cloud/root.primitives.ply exists and is valid.\n";
         throw std::runtime_error("No primitives to render");
     }
 
@@ -236,7 +236,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
 
         // Use override env map if specified, otherwise default
         renderer_config.env_map_path_ =
-            scene.env_map_override.value_or("assets/meadow_2_4k.hdr");
+            scene.env_map_override.value_or("assets/environment_maps/meadow_2_4k.hdr");
         renderer_config.module_blob_path_ = "build/device_program.optixir";
 
         try {

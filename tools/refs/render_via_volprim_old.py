@@ -11,7 +11,7 @@ mi.set_variant("cuda_ad_rgb")
 import volprim.integrators.volprim_prb  # noqa: F401
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CLOUD_DIR = REPO_ROOT / "assets/cloud"
+CLOUD_DIR = REPO_ROOT / "assets/models/cloud"
 
 
 def render_one(sigmat_scale: float, spp: int, output_dir: Path,

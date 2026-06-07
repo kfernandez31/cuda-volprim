@@ -148,7 +148,7 @@ mits_cloud_p2() { # cam seed env sigma tag srcdir
   if [ -s "$src" ]; then cp "$src" "$out"; say "   wrote $out"; else say "   MITS MISSING $src"; fi
 }
 
-MEADOW_DIR=assets/cloud/refs_prb_scattering_meadow_hg0.85
+MEADOW_DIR=assets/models/cloud/refs_prb_scattering_meadow_hg0.85
 say "P2(a) cameras {$P2_CAMS} meadow+scatter, ${P2_SPP}spp x seeds {$P2_SEEDS}"
 for cam in $P2_CAMS; do
   for s in $P2_SEEDS; do
@@ -158,7 +158,7 @@ for cam in $P2_CAMS; do
 done
 
 # ---- (b) low-sigma interior check (sigma=2, cam0, constant env) ----
-CONST_DIR=assets/cloud/refs_prb_scattering_hg0.85
+CONST_DIR=assets/models/cloud/refs_prb_scattering_hg0.85
 say "P2(b) low-sigma interior: cam0 sigma=2 const-env, ${P2_SPP}spp x seeds {$P2_SEEDS}"
 for s in $P2_SEEDS; do
   cuda_cloud_p2 0 "$s" white_constant 2 lowsig

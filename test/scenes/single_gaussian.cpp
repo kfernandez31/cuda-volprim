@@ -39,8 +39,8 @@ namespace {
 [[nodiscard]] std::string env_map_path() {
     const char* env = std::getenv("SG_ENV");
     const std::string sel = env ? env : "white_constant";
-    if (sel == "meadow") return "assets/meadow_2_4k.hdr";
-    return "assets/white_constant.hdr";
+    if (sel == "meadow") return "assets/environment_maps/meadow_2_4k.hdr";
+    return "assets/environment_maps/white_constant.hdr";
 }
 
 // SG_PERSP=1 switches the single-Gaussian scene to a PERSPECTIVE camera. An ortho
@@ -208,7 +208,7 @@ Result<MultiViewTestScene> two_gaussian_validation(float sigma_multiplier) {
         SINGLE_GAUSSIAN_ORTHO_HEIGHT);
 
     scene.cameras.push_back({camera, SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT});
-    scene.env_map_override = "assets/white_constant.hdr";
+    scene.env_map_override = "assets/environment_maps/white_constant.hdr";
 
     spdlog::info("two_gaussian_validation: sigma_multiplier={}, optical_thickness={:.4f}",
                  sigma_multiplier, optical_thickness);
@@ -305,7 +305,7 @@ Result<MultiViewTestScene> cluster_validation(float /*sigma_multiplier*/) {
         SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT, cam_origin, cam_target, cam_up,
         ortho_height);
     scene.cameras.push_back({camera, SINGLE_GAUSSIAN_WIDTH, SINGLE_GAUSSIAN_HEIGHT});
-    scene.env_map_override = "assets/white_constant.hdr";
+    scene.env_map_override = "assets/environment_maps/white_constant.hdr";
 
     spdlog::info("cluster_validation: mode={}, n_prims={}, ortho_height={}",
                  mode, scene.primitives.size(), ortho_height);

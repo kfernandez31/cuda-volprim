@@ -15,7 +15,7 @@ HG="${SG_HG_G:-}"
 mkdir -p "$OUT"
 
 # Mitsuba cloud output dir mirrors render_cloud_prb_absorption.py: refs_prb_scattering_meadow[_hgG]
-MITS_DIR="assets/cloud/refs_prb_scattering_meadow"
+MITS_DIR="assets/models/cloud/refs_prb_scattering_meadow"
 if [ -n "$HG" ] && [ "$HG" != "0" ] && [ "$HG" != "0.0" ]; then
   MITS_DIR="${MITS_DIR}_hg$(LC_ALL=C printf %.2f "$HG")"
 fi

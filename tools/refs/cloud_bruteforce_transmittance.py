@@ -16,7 +16,7 @@ import mitsuba as mi
 mi.set_variant('cuda_ad_rgb')
 import volprim.integrators.volprim_prb  # noqa
 from scipy.special import erf
-CLOUD='/home/kacper/thesis/assets/cloud'; sys.path.insert(0, CLOUD)
+CLOUD='/home/kacper/thesis/assets/models/cloud'; sys.path.insert(0, CLOUD)
 import __init__ as cs
 
 SIG=7.5

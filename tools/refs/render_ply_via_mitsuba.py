@@ -31,13 +31,13 @@ import volprim.integrators.volprim_tomography  # noqa: F401
 # Load cloud/__init__.py's SENSORS dict for the camera.
 # Use the local copy under assets/ if it exists; otherwise fall back to ~/jorge/cloud.
 THESIS_ROOT = "/home/kacper/thesis"
-LOCAL_CLOUD_INIT = os.path.join(THESIS_ROOT, "assets/cloud")
+LOCAL_CLOUD_INIT = os.path.join(THESIS_ROOT, "assets/models/cloud")
 JORGE_CLOUD_INIT = "/home/kacper/jorge/cloud"
 CLOUD_INIT_DIR = LOCAL_CLOUD_INIT if os.path.exists(os.path.join(LOCAL_CLOUD_INIT, "__init__.py")) else JORGE_CLOUD_INIT
 sys.path.insert(0, CLOUD_INIT_DIR)
 import __init__ as cloud_scene
 
-PLY_PATH = os.path.join(THESIS_ROOT, "assets/cloud/root.primitives_pyr0.ply")
+PLY_PATH = os.path.join(THESIS_ROOT, "assets/models/cloud/root.primitives_pyr0.ply")
 OUT_DIR = os.path.join(THESIS_ROOT, "test_results/ply_via_mitsuba")
 os.makedirs(OUT_DIR, exist_ok=True)
 

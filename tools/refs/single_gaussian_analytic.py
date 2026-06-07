@@ -41,7 +41,7 @@ import Imath
 ORTHO_HEIGHT = 6.0
 WIDTH = 256
 HEIGHT = 256
-ENV_RADIANCE = 1.0  # assets/white_constant.hdr is unit white
+ENV_RADIANCE = 1.0  # assets/environment_maps/white_constant.hdr is unit white
 
 
 def load_exr(path: Path) -> np.ndarray:

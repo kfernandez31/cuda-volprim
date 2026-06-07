@@ -1,6 +1,6 @@
 # Asset Taxonomy & Thesis-Usefulness Assessment
 
-Generated 2026-06-06. Source: `assets/*.zip` (11.8 GB) → extracted to `assets/unpacked/` (30 GB, 22 dirs).
+Generated 2026-06-06. Source: `assets/*.zip` (11.8 GB) → extracted to `assets/models/unpacked/` (30 GB, 22 dirs).
 All assets are outputs of Jorge's **hierarchical-Gabor** optimizer (a DSYG successor that fits a
 coarse **Gaussian** base + a high-frequency **Gabor-noise** layer to a reference volume).
 
@@ -131,6 +131,6 @@ scattering showcase, generate controlled volprim references with matched `--hg-g
 (now possible without a rebuild after Phase 1).
 
 ## Disk note
-`assets/unpacked/` is 30 GB; the source `*.zip` are another 11.8 GB. Once the 4 Tier-A assets are
+`assets/models/unpacked/` is 30 GB; the source `*.zip` are another 11.8 GB. Once the 4 Tier-A assets are
 copied into the renderer's asset path, the Tier-C/D unpacked dirs (and possibly the zips) can be
-deleted to reclaim ~35 GB. `assets/unpacked/` is not gitignored — add it.
+deleted to reclaim ~35 GB. `assets/models/unpacked/` is not gitignored — add it.
