@@ -1069,6 +1069,37 @@ graceful-overflow (#63) to simultaneously fix the dense-asset cap-overflow (§8.
 plateaus AND occupancy is still the wall is the full wavefront rewrite justified BY DATA (it wasn't
 before). Profiles saved: /tmp/ncu_prof256.txt (+ the stall-metric query in this session's transcript).
 
+### 8.32 Track-length × argmin combine — investigated, NOT needed (env transmittance is already analytic); confirmed 3 ways
+Re-opened the track-length estimator (Mitsuba's `volprim_prb` β*=seg_tr) as a variance lever for the
+collision-vs-track-length gap (§8.27). First corrected an earlier overstatement: track-length and our
+ADT/argmin are **NOT architecturally exclusive**. SDTracking Thm 1 makes the per-primitive free-flight
+**argmin** distribute identically to a combined-medium free-flight, i.e. argmin and Mitsuba's
+segment-march are two implementations of the *same* scatter-distance sampling — you can keep argmin and
+still apply track-length throughput weighting on top (Jorge's code couples track-length with
+segment-marching + a Newton solver, but that coupling is a choice, not a requirement).
+
+**Why we nonetheless don't need it.** Track-length's entire purpose is a *low-variance transmittance*
+estimate — necessary for Mitsuba because it **delta-tracks** (stochastic, noisy transmittance). **We
+compute transmittance analytically with erf — exact, zero-variance.** So the prize track-length buys is
+already ours. Concretely, the combined estimator = Rao-Blackwellizing the binary scatter/escape with the
+analytic transmittance — which **is A1** ([[project_a1_dead_end]]), and the env contribution is **already
+fully RB'd at every vertex** in the showcase: both NEE+MIS strategies use `compute_transmittance_to_env`
+(analytic erf), and bounce-0 direct uses `ENABLE_ANALYTIC_DIRECT`. Verified in code (raygen.cuh:207–227).
+There is no escape/transmittance variance left for track-length to remove.
+
+**Empirical confirmation (the decisive test).** Toggled the one RB-escape we have — `ENABLE_ANALYTIC_DIRECT`
+ON vs OFF — on the cloud (256 spp, RMSE vs uniform-2048 GT): **ON 0.02361 / 67 s, OFF 0.02277 / 62 s.**
+RB-escape gives **no measurable noise reduction** (within single-seed noise, even marginally worse) and
+costs ~8 % time. If the track-length mechanism mattered here it would show a clear win; it doesn't —
+because this dense, high-albedo cloud's noise is dominated by **multiple scattering**, not by the
+get-through (transmittance) term that track-length sharpens. (Analytic-direct still helps *thin/absorption*
+scenes where the direct term dominates, so it stays default-on; it's just a non-factor for the thick cloud.)
+
+**Verdict: track-length is a dead end for the scattering showcase, confirmed three independent ways**
+(§8.27 measurement · the code proof that env transmittance is already analytic · this ON/OFF toggle). The
+surviving variance is multiple-scattering / path-length, whose lever is RR/splitting (§8.33), not
+track-length. No code change; A1 stays bounce-0-only as it is.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
