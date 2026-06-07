@@ -165,25 +165,30 @@ constexpr bool ENABLE_ANALYTIC_DIRECT = true;
 // =============================================================================
 // Adaptive Sampling Constants
 // =============================================================================
+//
+// RUNTIME-PROMOTED: adaptive sampling is now a runtime feature (common::params::RenderParams
+// adaptive_threshold_ / adaptive_min_samples_, set via --adaptive-threshold / --adaptive-min-samples).
+// The host allocates the variance buffer iff threshold > 0; the device keys all adaptive work on
+// image_.variance_ != nullptr (so OFF = zero memory + zero per-sample cost). ENABLE_ADAPTIVE_SAMPLING /
+// ADAPTIVE_THRESHOLD / ADAPTIVE_MIN_SAMPLES below are now just documented DEFAULTS (no longer read on
+// the device); only ADAPTIVE_MIN_LUMINANCE is still used. EVALUATED & found a NET LOSS on the scattering
+// cloud (FINDINGS §8.30): too few pixels converge at useful thresholds, ~2× slower at equal quality, and
+// early-stopping adds a ~6e-4 firefly bias that fails the ≤1e-4 systematic gate. Default OFF.
 
-// Master gate. When false, variance buffer is not allocated and the kernel
-// skips Welford's M2 update — saves W·H·16B of device memory + a write per
-// sample. Flip to true when you actually want adaptive sampling.
+// Default master state (the feature now defaults OFF via adaptive_threshold_ = 0).
 constexpr bool ENABLE_ADAPTIVE_SAMPLING = false;
 
-// Minimum samples before convergence testing begins
-// Central Limit Theorem requires sufficient samples for variance estimation
-// Typical range: 10-30 samples (lower = more aggressive, higher = more conservative)
-// Tune based on scene complexity: simple scenes can use 10, complex scenes need 20-30
+// Default minimum samples before convergence testing begins (runtime: --adaptive-min-samples).
 constexpr size_t ADAPTIVE_MIN_SAMPLES = 32;
 
-// Relative error threshold for convergence (default: 1%)
-// Pixel converges when: max(std_dev / mean) across all channels < threshold
-// Lower threshold = higher quality but less speedup
-constexpr float ADAPTIVE_THRESHOLD = 0.0f;  // Only consulted when ENABLE_ADAPTIVE_SAMPLING is true
+// Default relative-error threshold (runtime: --adaptive-threshold). 0 = OFF. When >0 the device
+// criterion is the RELATIVE STANDARD ERROR OF THE MEAN: stop when max_channel(sqrt(M2/((n-1)·n))/mean)
+// < threshold (e.g. 0.02 = 2% estimated relative error). (The earlier scaffolding used the raw
+// coefficient-of-variation std/mean, which never tightens with n — fixed; see raygen.cuh / §8.30.)
+constexpr float ADAPTIVE_THRESHOLD = 0.0f;
 
-// Minimum luminance to avoid division by zero in relative error computation
-// Used when computing relative error for near-black pixels
+// Minimum luminance to avoid division by zero in relative error computation (STILL USED on device).
+// Used when computing relative error for near-black pixels.
 constexpr float ADAPTIVE_MIN_LUMINANCE = 1e-6f;
 
 }  // namespace consts

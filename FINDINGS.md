@@ -1069,6 +1069,54 @@ graceful-overflow (#63) to simultaneously fix the dense-asset cap-overflow (§8.
 plateaus AND occupancy is still the wall is the full wavefront rewrite justified BY DATA (it wasn't
 before). Profiles saved: /tmp/ncu_prof256.txt (+ the stall-metric query in this session's transcript).
 
+### 8.30 Adaptive sampling implemented + evaluated — NET LOSS on the scattering showcase (kept, default-off)
+Finished the scaffolded adaptive sampler (#56) as a proper runtime feature and measured it against
+Mitsuba-style references on the cloud. **Verdict: it does not help our high-variance volumetric
+showcase — slightly-to-2× SLOWER at equal quality — and introduces a small bias that fails the strict
+systematic gate. Kept in the codebase (runtime-gated, default OFF = zero cost) as a measured result.**
+
+**Implementation.** Promoted from compile-time (`ENABLE_ADAPTIVE_SAMPLING`/`ADAPTIVE_THRESHOLD`) to
+runtime via RenderParams: `--adaptive-threshold` (0 = off → variance buffer not allocated, no per-sample
+M2, identical to a non-adaptive render) and `--adaptive-min-samples`. The device keys all adaptive work
+on `image_.variance_ != nullptr`. **Fixed a latent bug in the scaffolding**: the convergence criterion
+was coefficient-of-variation `std/mean` (a per-distribution constant — never tightens with n, not an
+error bound), now the **relative standard error of the mean** `sqrt(M2/((n-1)·n))/mean` (PBRT/Mitsuba
+style), so the threshold means "stop at X% estimated relative error." Per-batch test (BATCH_SIZE=16,
+default min 32). Output reads the Welford mean directly, so varying per-pixel counts are
+output-correct. Plumbed through app + test-runner config paths.
+
+**Measurements** (cloud_asset_scattering cam0, σ=7.5, albedo 0.9, RTX 3090; GT = uniform 2048 spp seed99,
+530s; RMSE vs GT):
+| config | time | RMSE | bias Δmean |
+|---|---|---|---|
+| uniform 256 | 76 s | 0.0236 | +0.00001 |
+| adaptive max256 thr 0.01 / 0.02 / 0.04 | 75–76 s | 0.0238 / 0.0240 / 0.0249 | −0.0003 … −0.0005 |
+| **adaptive max2048 thr 0.02 / 0.01** | **582 / 599 s** | 0.0128 / 0.0118 | −0.0004 / −0.0003 |
+| uniform ~1024 (RMSE-interp) | ~304 s | ~0.0118 | — |
+
+So adaptive max2048 thr0.01 matches uniform-1024 quality (RMSE 0.0118) but takes **599 s vs ~304 s — ~2×
+slower**. At max256 it's a wash on time and slightly worse on quality. **Every operating point is
+slower-or-equal, never faster.**
+
+**Root cause (with a decisive diagnostic).** Force-stop (threshold 1.0 → every pixel stops at the 32-spp
+min) rendered in **10 s vs 76 s** (≈32/256) — so the early-return DOES convert to wall-clock when pixels
+converge; the mechanism is sound (**this rules out SIMT warp-divergence as the cause**, an earlier
+hypothesis). The real reason: **the cloud is too uniformly high-variance for pixels to converge at useful
+thresholds.** Firefly-prone scatter gives per-pixel CoV ≈ 1–2, so reaching 2% relative error needs
+~(CoV/0.02)² ≈ 2,500–10,000 spp — beyond any practical cap. At thr0.02/max2048, essentially zero pixels
+stop early, so the per-batch M2+check overhead (~10%) is pure loss → 582 s > 530 s. Adaptive's premise
+(many easy pixels to skip) simply doesn't hold for a frame-filling scattering cloud.
+
+**Bias caveat.** Early stopping on the right-skewed (firefly) scatter distribution locks in slightly-low
+estimates before rare bright paths arrive → **negative bias ~−4e-4 (~6e-4 relative), which EXCEEDS the
+≤1e-4 Mitsuba systematic gate.** So adaptive is beauty-only, never for the validation comparison.
+
+**Where it would pay off (not here):** (a) genuinely low-variance scenes (absorption-only, simple
+lighting), or (b) a **wavefront architecture with stream compaction** that removes converged rays from
+the work pool regardless of spatial coherence — i.e. the same wavefront direction §8.28/§8.29 point to.
+Adaptive is kept default-off (zero overhead) so it composes for free if wavefront ever lands. Scripts:
+tools/refs/exr_rmse.py + the threshold sweep in this session's transcript.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

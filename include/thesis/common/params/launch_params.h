@@ -52,6 +52,19 @@ struct RenderParams {
     // folded these two constants at compile time. Keeps eval to a single runtime multiply
     // (× inv_denom_3_2) — a micro-opt; not sufficient for full bit-exactness (see struct note).
     float hg_phase_coeff_ = 0.0f;
+
+    // Adaptive sampling (runtime-gated; was the compile-time ENABLE_ADAPTIVE_SAMPLING +
+    // ADAPTIVE_THRESHOLD). The host allocates the per-pixel variance (Welford M2) buffer iff
+    // adaptive_threshold_ > 0; the device then keys all adaptive work on image_.variance_ != null.
+    // adaptive_threshold_ = target RELATIVE STANDARD ERROR OF THE MEAN: a pixel stops sampling
+    // once max_channel( stderr/mean ) < threshold, where stderr = sqrt(M2/((n-1)·n)). So 0.02 =
+    // "stop at 2% estimated relative error." 0 = OFF (no buffer, no per-sample M2 cost,
+    // bit-identical to a non-adaptive build). UNBIASED: the per-pixel estimate is the mean of
+    // however many samples it took — stopping early only leaves a pixel slightly noisier, never
+    // biased (the Welford mean is output directly). Set the threshold conservatively so stopped
+    // pixels are already converged (quality preserved); see FINDINGS §8.30.
+    float adaptive_threshold_ = 0.0f;        // was consts::ADAPTIVE_THRESHOLD
+    uint32_t adaptive_min_samples_ = 32;     // was consts::ADAPTIVE_MIN_SAMPLES (min before testing)
 };
 
 struct THESIS_ALIGNMENT LaunchParams {

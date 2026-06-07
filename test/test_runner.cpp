@@ -48,6 +48,8 @@ struct TestConfig {
     float firefly_clamp = 0.0f;
     float filter_stddev = 0.0f;
     float hg_g = 0.85f;
+    float adaptive_threshold = 0.0f;
+    uint32_t adaptive_min_samples = 32;
 };
 
 void list_scenes(const std::string& category = "all") {
@@ -105,6 +107,8 @@ utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     app.add_option("--rr-max-survival", config.rr_max_survival, "Russian roulette max survival probability")->default_val(0.99f)->check(CLI::Range(0.0f, 1.0f));
     app.add_option("--firefly-clamp", config.firefly_clamp, "Per-sample luminance clamp (0=off; BIASED when >0)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
     app.add_option("--filter-stddev", config.filter_stddev, "Gaussian pixel filter stddev in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
+    app.add_option("--adaptive-threshold", config.adaptive_threshold, "Adaptive sampling: stop a pixel at this relative std-error of the mean (0=off; e.g. 0.02=2%)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
+    app.add_option("--adaptive-min-samples", config.adaptive_min_samples, "Adaptive sampling: min samples before convergence testing")->default_val(32)->check(CLI::PositiveNumber);
 
     argv = app.ensure_utf8(argv);
     try {
@@ -152,6 +156,8 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.firefly_clamp_luminance_ = test_config.firefly_clamp;
     renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
     renderer_config.hg_g_ = test_config.hg_g;
+    renderer_config.adaptive_threshold_ = test_config.adaptive_threshold;
+    renderer_config.adaptive_min_samples_ = test_config.adaptive_min_samples;
 
     // Assume env map and module paths are in default locations
     renderer_config.env_map_path_ = "assets/meadow_2_4k.hdr";
@@ -233,6 +239,8 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         renderer_config.firefly_clamp_luminance_ = test_config.firefly_clamp;
         renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
         renderer_config.hg_g_ = test_config.hg_g;
+    renderer_config.adaptive_threshold_ = test_config.adaptive_threshold;
+    renderer_config.adaptive_min_samples_ = test_config.adaptive_min_samples;
 
         // Use override env map if specified, otherwise default
         renderer_config.env_map_path_ =

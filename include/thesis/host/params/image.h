@@ -39,10 +39,13 @@ class Image {
    public:
     // Constructor for buffer allocation. `enable_aovs` allocates the denoiser
     // guide-layer buffers; pass false when not denoising to save 2·W·H·16B of
-    // device memory plus a per-sample write each. Variance buffer is gated on
-    // device::consts::ENABLE_ADAPTIVE_SAMPLING (compile-time, in constants.cuh).
+    // device memory plus a per-sample write each. `enable_adaptive` allocates the
+    // per-pixel Welford-M2 variance buffer for adaptive sampling — pass true iff the
+    // config's adaptive threshold > 0. The device keys all adaptive work on
+    // device_image_.variance_ != nullptr, so when this is false there is zero per-sample
+    // cost and the render is identical to a non-adaptive build.
     Image(size_t width, size_t height, size_t num_samples_per_pixel, size_t batch_size,
-          bool enable_aovs, CUcontext ctx,
+          bool enable_aovs, bool enable_adaptive, CUcontext ctx,
           std::shared_ptr<cuda::Stream> sample_buffer_stream,
           std::shared_ptr<cuda::Stream> averaged_pixels_stream)
         : mean_managed_(width * height, ctx, sample_buffer_stream, cuda::AllocType::OnDeviceOnly),
@@ -52,7 +55,7 @@ class Image {
                                    cuda::AllocType::OnBoth),
           batch_size_(batch_size),
           stream_(sample_buffer_stream) {
-        if constexpr (device::consts::ENABLE_ADAPTIVE_SAMPLING) {
+        if (enable_adaptive) {
             variance_managed_ = cuda::AsyncBuffer<float4>(width * height, ctx, sample_buffer_stream,
                                                           cuda::AllocType::OnDeviceOnly);
             variance_managed_.memset_device(0);

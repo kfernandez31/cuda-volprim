@@ -42,7 +42,7 @@ Renderer::Renderer(const app::Config& config, std::vector<device::params::Primit
       gas_(cuda_ctx_.get(), streams_[cuda::StreamKind::GAS]),
       ias_(cuda_ctx_.get(), streams_[cuda::StreamKind::IAS]),
       env_map_(utils::io::async::loadHDR(config_.env_map_path_), cuda_ctx_.get(), streams_[cuda::StreamKind::EnvMap]),
-      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, config_.denoise_, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
+      image_(config_.image_width_, config_.image_height_, config_.num_samples_per_pixel_, BATCH_SIZE, config_.denoise_, /*enable_adaptive=*/config_.adaptive_threshold_ > 0.0f, cuda_ctx_.get(), streams_[cuda::StreamKind::Image], streams_[cuda::StreamKind::Main]),
       camera_(camera.value_or(host::params::Camera::getDefaultCamera(config.image_width_, config.image_height_))),
       primitives_(num_primitives_, cuda_ctx_.get(), streams_[cuda::StreamKind::Prims], cuda::AllocType::OnBoth, cuda::HostHint::WriteCombined),
       launch_params_(1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnDeviceOnly),
@@ -204,6 +204,8 @@ void Renderer::initStaticParams() {
     rp.rr_max_survival_ = config_.rr_max_survival_;
     rp.firefly_clamp_luminance_ = config_.firefly_clamp_luminance_;
     rp.pixel_filter_stddev_ = config_.pixel_filter_stddev_;
+    rp.adaptive_threshold_ = config_.adaptive_threshold_;
+    rp.adaptive_min_samples_ = config_.adaptive_min_samples_;
 
     // Pre-fold the Henyey-Greenstein constants exactly as the device constexpr did, so the
     // per-sample arithmetic (and thus the render) is bit-identical for a given g. eval uses
@@ -225,10 +227,13 @@ void Renderer::initStaticParams() {
     // can never be mistaken for a validation number (and vice-versa).
     spdlog::info(
         "Render params: max_depth={} rr_depth={} rr_max_survival={:.3f} "
-        "hg_g={:.3f}{} firefly_clamp={:.3g} filter_stddev={:.3g}{} seed={} denoise={}",
+        "hg_g={:.3f}{} firefly_clamp={:.3g} filter_stddev={:.3g}{} adaptive_threshold={:.3g}{} "
+        "seed={} denoise={}",
         rp.max_bounces_, rp.rr_depth_, rp.rr_max_survival_, rp.hg_g_,
         rp.hg_isotropic_ ? " (isotropic)" : "", rp.firefly_clamp_luminance_,
         rp.pixel_filter_stddev_, rp.pixel_filter_stddev_ > 0.0f ? " (gaussian)" : " (box)",
+        rp.adaptive_threshold_,
+        rp.adaptive_threshold_ > 0.0f ? " (adaptive on)" : " (off)",
         config_.seed_, config_.denoise_);
 
     launch_params_.upload(&launch_params_host_);

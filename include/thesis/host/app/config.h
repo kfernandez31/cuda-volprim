@@ -36,6 +36,10 @@ struct Config {
     float firefly_clamp_luminance_ = 0.0f;  // --firefly-clamp (0 = off; BIASED when >0)
     float pixel_filter_stddev_ = 0.0f;    // --filter-stddev (0 = box; >0 = Gaussian AA)
     float hg_g_ = 0.85f;                  // --hg-g (Henyey-Greenstein anisotropy)
+    // Adaptive sampling: stop a pixel once its estimated relative error < threshold (0 = off,
+    // uniform spp). --adaptive-min-samples = samples taken before convergence testing begins.
+    float adaptive_threshold_ = 0.0f;     // --adaptive-threshold (0 = off; e.g. 0.02 = 2% rel err)
+    uint32_t adaptive_min_samples_ = 32;  // --adaptive-min-samples
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept;
 };

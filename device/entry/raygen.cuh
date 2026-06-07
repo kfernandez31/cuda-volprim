@@ -31,10 +31,13 @@ extern "C" __global__ void __raygen__rg() {
     const auto prev_count = __ldg(&launch_params.image_.sample_counts_[pixel_linear_idx]);
     auto mean = make_float3(__ldg(&launch_params.image_.mean_[pixel_linear_idx]));
 
-    // Variance (Welford M2) is only allocated when adaptive sampling is enabled.
-    // Skip the read entirely when disabled — pointer is null, dereference would UB.
+    // Variance (Welford M2) is only allocated when adaptive sampling is enabled (the host
+    // allocates image_.variance_ iff render_.adaptive_threshold_ > 0). The buffer pointer is
+    // the single runtime truth for "adaptive on" — null when off, so the read/update/check/
+    // writeback all key on it and cost nothing in a non-adaptive render.
+    const bool adaptive = launch_params.image_.variance_ != nullptr;
     auto M2 = make_float3(0.0f);
-    if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+    if (adaptive) {
         M2 = make_float3(__ldg(&launch_params.image_.variance_[pixel_linear_idx]));
     }
 
@@ -48,22 +51,29 @@ extern "C" __global__ void __raygen__rg() {
         aov_normal = make_float3(__ldg(&launch_params.image_.normal_aov_[pixel_linear_idx]));
     }
 
-    // Adaptive sampling: check if pixel has already converged. Whole block is dead
-    // code when ENABLE_ADAPTIVE_SAMPLING is false (M2 stays zero, threshold unreachable).
-    if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
-        if (prev_count >= consts::ADAPTIVE_MIN_SAMPLES) {
-            const auto variance = M2 * math::rcp(static_cast<float>(prev_count - 1));
-            const auto std_dev = math::sqrt(variance);
+    // Adaptive sampling: skip this batch if the pixel's estimate has already converged.
+    // Convergence criterion = RELATIVE STANDARD ERROR OF THE MEAN (PBRT/Mitsuba style):
+    //   sample variance s² = M2/(n-1);  variance of the mean = s²/n;  stderr = sqrt(M2/((n-1)·n))
+    //   stop when max_channel( stderr / mean ) < threshold.
+    // The /√n factor (vs the raw coefficient-of-variation s/mean) is what makes the criterion
+    // tighten as samples accumulate AND makes the threshold mean "estimated relative error of the
+    // pixel" — so it can be reasoned about and set conservatively. Skipping is per-batch (returns
+    // before the batch loop): a converged pixel keeps its count/mean and is re-tested next batch.
+    // Unbiased: the output is the Welford mean of however many samples the pixel took.
+    if (adaptive && prev_count >= launch_params.render_.adaptive_min_samples_) {
+        // var_of_mean = M2 / ((n-1)·n); stderr = sqrt(var_of_mean). prev_count ≥ min_samples ≥ 2.
+        const auto inv_nm1_n =
+            math::rcp(static_cast<float>(prev_count - 1) * static_cast<float>(prev_count));
+        const auto std_err = math::sqrt(M2 * inv_nm1_n);
 
-            // Per-channel relative error to avoid one channel dominating the criterion
-            const auto safe_mean = make_float3(math::max(mean.x, consts::ADAPTIVE_MIN_LUMINANCE),
-                                               math::max(mean.y, consts::ADAPTIVE_MIN_LUMINANCE),
-                                               math::max(mean.z, consts::ADAPTIVE_MIN_LUMINANCE));
-            const auto per_channel_error = std_dev / safe_mean;
+        // Per-channel relative error so no single channel dominates / hides residual noise.
+        const auto safe_mean = make_float3(math::max(mean.x, consts::ADAPTIVE_MIN_LUMINANCE),
+                                           math::max(mean.y, consts::ADAPTIVE_MIN_LUMINANCE),
+                                           math::max(mean.z, consts::ADAPTIVE_MIN_LUMINANCE));
+        const auto per_channel_error = std_err / safe_mean;
 
-            if (math::max(per_channel_error) < consts::ADAPTIVE_THRESHOLD) {
-                return;  // Pixel converged, skip sampling
-            }
+        if (math::max(per_channel_error) < launch_params.render_.adaptive_threshold_) {
+            return;  // Estimate converged to target relative error — skip remaining samples.
         }
     }
 
@@ -286,12 +296,12 @@ extern "C" __global__ void __raygen__rg() {
         }
 
         // Welford's online algorithm: numerically stable single-pass mean + M2.
-        // M2 update is dead when ENABLE_ADAPTIVE_SAMPLING is false (compiler
-        // strips it under the if constexpr below).
+        // M2 update runs only when adaptive sampling is on (variance buffer allocated);
+        // a non-adaptive render pays nothing.
         const auto n_inv = math::rcp(static_cast<float>(prev_count + sample_in_batch + 1));
         const auto delta1 = radiance - mean;
         mean += delta1 * n_inv;
-        if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+        if (adaptive) {
             const auto delta2 = radiance - mean;
             M2 += delta1 * delta2;
         }
@@ -304,7 +314,7 @@ extern "C" __global__ void __raygen__rg() {
     }  // End of batch loop
 
     // Write back Welford state
-    if constexpr (consts::ENABLE_ADAPTIVE_SAMPLING) {
+    if (adaptive) {
         launch_params.image_.variance_[pixel_linear_idx] = make_float4(M2);
     }
     launch_params.image_.mean_[pixel_linear_idx] = make_float4(mean);

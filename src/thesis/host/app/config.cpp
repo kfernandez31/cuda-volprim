@@ -46,6 +46,8 @@ utils::Result<Config> Config::parse(int argc, char* argv[]) noexcept {
     render_group->add_option("--firefly-clamp", config.firefly_clamp_luminance_, "Per-sample luminance clamp (0=off; BIASED when >0)")->check(CLI::NonNegativeNumber);
     render_group->add_option("--filter-stddev", config.pixel_filter_stddev_, "Gaussian pixel filter stddev in px (0=box)")->check(CLI::NonNegativeNumber);
     render_group->add_option("--hg-g", config.hg_g_, "Henyey-Greenstein anisotropy g in (-1,1)")->check(CLI::Range(-0.999f, 0.999f));
+    render_group->add_option("--adaptive-threshold", config.adaptive_threshold_, "Adaptive sampling: stop a pixel at this relative std-error of the mean (0=off; e.g. 0.02=2%)")->check(CLI::NonNegativeNumber);
+    render_group->add_option("--adaptive-min-samples", config.adaptive_min_samples_, "Adaptive sampling: min samples before convergence testing")->check(CLI::PositiveNumber);
     // clang-format on
 
     argv = app.ensure_utf8(argv);
