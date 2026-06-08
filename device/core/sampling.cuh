@@ -288,8 +288,8 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
     if (out_miss)
         *out_miss = miss;  // Optionally return Miss payload
 
-        // No exit computation - exits will be computed on-demand in argmin loop
-        // No sorting - argmin doesn't need sorted hits
+    // No exit computation — exits are computed on-demand in the argmin loop.
+    // No sorting — argmin doesn't need sorted hits.
 
 #ifdef DEBUG
     if (hit_buffer.full()) {
@@ -297,6 +297,14 @@ __device__ void collect_hits(const geometry::Ray& ray, HitBuffer& hit_buffer,
                hit_buffer.size(), hit_buffer.capacity());
     }
 #endif
+}
+
+// Per-primitive analog free-flight optical-depth threshold: τ = -log(1-χ), χ ~ U(0,1). The min
+// over independent per-primitive τ samples is the ADT collision estimator (SDTracking §4.1).
+// Factored out of the two argmin loops below so the draw is defined once.
+__device__ __forceinline__ float sample_free_flight_tau(random::PCG32& rng) {
+    const float chi = random::sample_uniform(rng);
+    return -math::log(math::max(1.0f - chi, 1e-10f));
 }
 
 // Sample scattering event using argmin approach (no sorting!)
@@ -360,10 +368,8 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         // so use exit_from_inside; compute_exit_from_entry assumes entry-on-surface.
         const float t_exit = common::geometry::exit_from_inside(ray, prim);
 
-        // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
-        // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
-        const float chi_i = random::sample_uniform(rng);
-        const float tau_i = -math::log(math::max(1.0f - chi_i, 1e-10f));
+        // Independent per-primitive free-flight threshold (ADT requirement).
+        const float tau_i = sample_free_flight_tau(rng);
         const float t_scatter = prim.inv_cdf(ray, tau_i);
 
         if (t_scatter >= 0.0f && t_scatter < t_scatter_min && t_scatter <= t_exit) {
@@ -375,10 +381,8 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         const float hit_t = hit_buffer.t_hit_[j];
         const auto& prim = launch_params.primitives_[hit_buffer.prim_idx_[j]];
 
-        // Sample INDEPENDENT free-flight distance per primitive (ADT requirement)
-        // Transform uniform sample to optical depth threshold: τ = -log(1-χ)
-        const float chi_j = random::sample_uniform(rng);
-        const float tau_j = -math::log(math::max(1.0f - chi_j, 1e-10f));
+        // Independent per-primitive free-flight threshold (ADT requirement).
+        const float tau_j = sample_free_flight_tau(rng);
 
         // Segment-restricted CDF: solves optical_depth(ray, hit_t, t_scatter) = tau_j.
         // Replaces the prior full-Gaussian inv_cdf + reject (t_scatter >= hit.t_hit),

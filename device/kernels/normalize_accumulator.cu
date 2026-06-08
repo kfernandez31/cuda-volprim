@@ -24,9 +24,9 @@ static __global__ void normalize_accumulator_kernel(float4* out_pixels, const fl
     }
 }
 
-void launch_normalize_accumulator_kernel(float4* out_pixels, const float4* accumulator,
-                                         size_t image_size, float normalization_factor,
-                                         cudaStream_t stream) {
+extern "C" void launch_normalize_accumulator_kernel(float4* out_pixels, const float4* accumulator,
+                                                    size_t image_size, float normalization_factor,
+                                                    cudaStream_t stream) {
     const size_t num_blocks =
         common::math::min(common::math::ceil_div(image_size, BLOCK_SIZE), MAX_GRID_BLOCKS);
 

@@ -19,6 +19,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -35,7 +36,7 @@ struct TestConfig {
     size_t width = 1920;
     size_t height = 1080;
     std::string output_dir = "test_results";
-    std::string output_file = "";
+    std::string output_file;
     float sigma_multiplier = 7.5f;  // Default sigma_t scaling factor
     bool denoise = false;
     size_t seed = 42;  // RNG seed; vary to produce independent noise realizations
@@ -50,7 +51,7 @@ struct TestConfig {
     float hg_g = 0.85f;
 };
 
-void list_scenes(const std::string& category = "all") {
+void list_scenes(std::string_view category = "all") {
     std::vector<TestScene> scenes;
     std::string header;
 
@@ -71,10 +72,21 @@ void list_scenes(const std::string& category = "all") {
         std::cout << "  " << scene.name << "\n";
         std::cout << "    " << scene.description << "\n";
     }
+
+    // The validation scenes are dispatched by exact --scene name match (not via the registries
+    // above), so list them explicitly for discoverability.
+    if (category == "all" || category == "validation") {
+        std::cout << "\n  Validation scenes (run via --scene <name>):\n";
+        for (const char* name : {"single_gaussian_validation", "two_gaussian_validation",
+                                 "cluster_validation", "asset_validation",
+                                 "cloud_asset_validation", "cloud_asset_scattering"}) {
+            std::cout << "    " << name << "\n";
+        }
+    }
     std::cout << "\n";
 }
 
-utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
+[[nodiscard]] utils::Result<TestConfig> parse_args(int argc, char* argv[]) {
     TestConfig config;
 
     CLI::App app{"Test Runner for Gaussian Volumetric Path Tracer"};
