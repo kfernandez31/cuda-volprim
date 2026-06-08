@@ -138,7 +138,8 @@ void list_scenes(std::string_view category = "all") {
     return config;
 }
 
-void run_test_scene(const TestScene& scene, const TestConfig& test_config, const std::string& output_path) {
+void run_test_scene(const TestScene& scene, const TestConfig& test_config,
+                    std::string_view output_path) {
     std::cout << "\n────────────────────────────────────────────────────────\n";
     std::cout << "Running test: " << scene.name << "\n";
     std::cout << "Description: " << scene.description << "\n";

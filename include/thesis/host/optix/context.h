@@ -37,7 +37,7 @@ class Context {
                       validation);
 
         OPTIX_CHECK(optixDeviceContextSetCacheEnabled(handle_, 1));
-        constexpr size_t MEGABYTES = 1024 * 1024;
+        constexpr size_t MEGABYTES = size_t{1024} * 1024;
         OPTIX_CHECK(
             optixDeviceContextSetCacheDatabaseSizes(handle_, 64 * MEGABYTES, 128 * MEGABYTES));
     }

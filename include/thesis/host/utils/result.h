@@ -17,7 +17,7 @@
         if (!_try_result) {                              \
             return std::unexpected(_try_result.error()); \
         }                                                \
-        var = std::move(*_try_result);                   \
+        (var) = std::move(*_try_result);                 \
     } while (0)
 
 #define TRY(expr)                                        \

@@ -123,7 +123,8 @@ class Image {
         return static_cast<size_t>(device_image_.width_) * device_image_.height_;
     }
     [[nodiscard]] size_t total_size() const noexcept {
-        return device_image_.width_ * device_image_.height_ * device_image_.num_samples_per_pixel_;
+        return static_cast<size_t>(device_image_.width_) * device_image_.height_ *
+               device_image_.num_samples_per_pixel_;
     }
 
     [[nodiscard]] float aspect_ratio() const noexcept {
