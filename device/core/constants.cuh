@@ -156,6 +156,18 @@ constexpr bool ENABLE_NEE = true;
 // phase::eval sign inconsistency, now fixed.) On for env-map scenes; no-op cost on constant env.
 constexpr bool ENABLE_MIS = true;
 
+// Volumetric product-RIS for the NEE direct term (OPTIMIZATION_FRONTIER ②). When true, replaces
+// the 2-shadow-ray phase-IS+env-IS balance-MIS with a SINGLE shadow ray: K unshadowed env-IS
+// candidates are resampled — weighted by the unshadowed product target p̂ = phase(wi,ω)·lum(env(ω))
+// over the env-IS proposal pdf — into a 1-survivor weighted reservoir, and only the survivor's
+// transmittance is traced. Unbiased RIS (Talbot et al. 2005, "Importance Resampling for Global
+// Illumination"): recovers MIS-quality product sampling at ~1-ray cost (the 2nd shadow ray is
+// ~26% of frame time, §8.36-adjacent kill-test). Requires ENABLE_NEE; takes precedence over
+// ENABLE_MIS when both are set. K=1 reduces exactly to plain env-IS NEE.
+constexpr bool ENABLE_RIS = true;
+constexpr int RIS_NUM_CANDIDATES = 8;  // K; sweep 4–16. Higher K → better product sampling at
+                                       // cheap ALU cost (no GAS descent per candidate).
+
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
 // (via compute_transmittance_to_env) instead of the high-variance analog binary

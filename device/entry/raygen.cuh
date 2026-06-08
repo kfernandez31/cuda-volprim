@@ -197,7 +197,49 @@ extern "C" __global__ void __raygen__rg() {
                 const auto wi = ray.direction_;
                 const auto base = throughput * albedo;
 
-                if constexpr (consts::ENABLE_MIS) {
+                if constexpr (consts::ENABLE_RIS) {
+                    // ─── Product-RIS direct lighting: K env-IS candidates → 1 reservoir → 1 ray ───
+                    // Target p̂(ω) = phase(wi,ω)·lum(env(ω)) (the UNSHADOWED phase×env product that
+                    // neither phase-IS nor env-IS alone samples). Candidates drawn from env-IS
+                    // (proposal q = pdf_env), resampling weight w = p̂/q. A 1-survivor weighted
+                    // reservoir picks y ∝ w; ONLY y's transmittance is traced (1 shadow ray, vs 2
+                    // for balance-MIS). Unbiased RIS (Talbot 2005): with scalar target p̂ carrying
+                    // the RGB via f/p̂, ⟨L⟩ = base · env(y)/lum(env(y)) · T(y) · (Σ_k w_k / K).
+                    // K=1 collapses to the plain (unbiased) env-IS NEE estimator.
+                    const auto luma_w = make_float3(0.2126f, 0.7152f, 0.0722f);
+                    float wsum = 0.0f;
+                    float3 y_dir = make_float3(0.0f, 0.0f, 0.0f);
+                    float3 y_env = make_float3(0.0f, 0.0f, 0.0f);
+#pragma unroll
+                    for (int k = 0; k < consts::RIS_NUM_CANDIDATES; ++k) {
+                        const auto cand = env_is::sample(rng);
+                        if (cand.pdf <= 0.0f)
+                            continue;
+                        const auto env_c = launch_params.env_map_.sample(cand.wo);
+                        const float lum_c = math::dot(env_c, luma_w);
+                        // w = p̂/q = phase(wi,ω)·lum(env(ω)) / pdf_env(ω)
+                        const float w = phase::eval(wi, cand.wo) * lum_c * math::rcp(cand.pdf);
+                        if (!(w > 0.0f))
+                            continue;
+                        wsum += w;
+                        // Weighted reservoir (1 sample): keep candidate with prob w/wsum.
+                        if (random::sample_uniform(rng) * wsum < w) {
+                            y_dir = cand.wo;
+                            y_env = env_c;
+                        }
+                    }
+                    if (wsum > 0.0f) {
+                        const float lum_y = math::dot(y_env, luma_w);  // > 0 (w>0 ⇒ lum_c>0)
+                        if (lum_y > 0.0f) {
+                            const auto T = compute_transmittance_to_env(event.position_, y_dir,
+                                                                        event.active_prims_);
+                            const float W_ris =
+                                wsum * math::rcp(static_cast<float>(consts::RIS_NUM_CANDIDATES));
+                            // f(y)/p̂(y) = env(y)·T/lum(env(y)); times the RIS normalization W_ris.
+                            radiance += base * (y_env * math::rcp(lum_y)) * T * W_ris;
+                        }
+                    }
+                } else if constexpr (consts::ENABLE_MIS) {
                     // ─── Strategy A: phase importance sampling ───
                     const auto a = phase::sample(wi, rng);
                     const auto pdf_b_at_a = env_is::pdf(a.wo);
