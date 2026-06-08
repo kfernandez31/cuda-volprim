@@ -37,7 +37,13 @@ class THESIS_ALIGNMENT Primitive {
     // primitive load on the dominant axis. sizeof stays 80 B (alignas(16)); a static_assert
     // below pins scale_ ≥ 64 so an accidental reorder that re-pollutes the hot sectors fails
     // to compile. Bit-identical to the old layout (POD, same values).
-   private:
+    // All data members live in ONE access block (public) so Primitive is standard-layout —
+    // required for the offsetof(scale_) layout static_assert below to be well-defined. Mixed
+    // private/public non-static data members make a class non-standard-layout, where offsetof is
+    // conditionally-supported / -Winvalid-offsetof. Field ORDER is perf-critical (hot 64 B first;
+    // see the note above). Prefer the accessors (center(), scale(), …); the raw members are
+    // public only for the layout assert and the direct hot-path reads (albedo_, optical_thickness_).
+   public:
     float3 center_;                              // [ 0, 12) hot
     common::geometry::UnitQuaternion rot_quat_;  // [12, 28) hot — conjugate for world->local
     float3 rcp_scale_;                           // [28, 40) hot — 1/scale, avoids per-call rcp()
@@ -46,14 +52,12 @@ class THESIS_ALIGNMENT Primitive {
     float density_norm_factor_;                  // [40, 44) hot
     float inv_cdf_factor_;                        // [44, 48) hot
 
-   public:
     // Material properties (accessed directly in device code)
     float3 albedo_;             // [48, 60) hot
     float optical_thickness_;   // [60, 64) hot
 
-    // COLD: device-unused (host-only BVH build / export). Kept as the LAST data member so it
-    // is isolated in the third 32 B sector that the device hot path never fetches. Public only
-    // so the offsetof layout static_assert below can see it; access it via scale()/localToWorld().
+    // COLD: device-unused (host-only BVH build / export). LAST data member, isolated in the
+    // third 32 B sector the device hot path never fetches.
     float3 scale_;              // [64, 76) cold
 
     // Default constructor
@@ -130,8 +134,10 @@ class THESIS_ALIGNMENT Primitive {
         return math::exp(exponent) * density_norm_factor_;
     }
 
-    // Device-only: inverse CDF for importance sampling
-    __device__ float inv_cdf(const geometry::Ray& ray, float chi) const {
+    // Device-only: analog free-flight — solve optical_depth(ray, 0, t) = tau for the world-space
+    // ray parameter t. `tau` is a sampled optical-depth threshold, NOT a uniform χ: the caller
+    // passes tau = -log(1-χ). Returns +∞ when the primitive's mass along the ray is less than tau.
+    __device__ float inv_cdf(const geometry::Ray& ray, float tau) const {
         namespace math = common::math;
 
         // Whitened local space
@@ -150,7 +156,7 @@ class THESIS_ALIGNMENT Primitive {
         // The factor of 2 from the erfinv equation is absorbed into inv_cdf_factor_
         const auto K = w_inv_len * math::exp(-0.5f * diff) * inv_cdf_factor_;
 
-        const auto raw_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
+        const auto raw_arg = math::erf(wp * math::ONE_OVER_ROOT_TWO_F) + tau * math::rcp(K);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         // Only check for NaN/Inf (actual numerical error)
@@ -161,7 +167,7 @@ class THESIS_ALIGNMENT Primitive {
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
         // Saturated above 1.0 ⇒ the primitive's remaining mass along the ray is less
-        // than the requested optical-depth threshold (chi). The primitive cannot
+        // than the requested optical-depth threshold (tau). The primitive cannot
         // produce a scatter on this sample — return +∞ so the ADT-min in the caller
         // rejects it cleanly. Matches papers/jorge_python.py:43-45 which lets erfinv
         // produce NaN and converts NaN → dr.inf for the same case.
@@ -185,8 +191,9 @@ class THESIS_ALIGNMENT Primitive {
     // Math: identical to inv_cdf except the erf reference shifts from
     //   erf(wp/√2)  →  erf((wp + t_offset·|w|)/√2)
     // The perpendicular distance in whitened space is invariant under shifts
-    // along the ray, so K (and hence the per-step erf advance chi/K) is unchanged.
-    __device__ float inv_cdf_segment(const geometry::Ray& ray, float t_offset, float chi) const {
+    // along the ray, so K (and hence the per-step erf advance tau/K) is unchanged.
+    // `tau` is a sampled optical-depth threshold (NOT a uniform χ); see inv_cdf above.
+    __device__ float inv_cdf_segment(const geometry::Ray& ray, float t_offset, float tau) const {
         namespace math = common::math;
 
         const auto w = transform_dir_local(ray.direction_);
@@ -204,7 +211,7 @@ class THESIS_ALIGNMENT Primitive {
 
         // Shift the erf reference from t=0 to t=t_offset.
         const auto wp_off = math::fma(t_offset, w_len, wp);
-        const auto raw_arg = math::erf(wp_off * math::ONE_OVER_ROOT_TWO_F) + chi * math::rcp(K);
+        const auto raw_arg = math::erf(wp_off * math::ONE_OVER_ROOT_TWO_F) + tau * math::rcp(K);
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         if (!isfinite(raw_arg)) {
@@ -213,7 +220,7 @@ class THESIS_ALIGNMENT Primitive {
         }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS
 
-        // Saturated above 1.0 ⇒ the remaining segment mass < chi (the optical-depth
+        // Saturated above 1.0 ⇒ the remaining segment mass < tau (the optical-depth
         // threshold). No scatter possible from this primitive on this sample — return
         // +∞ for an explicit ADT-min rejection. Matches papers/jorge_python.py:43-45
         // (NaN → dr.inf). Previously this relied on erfinv(1.0f) ≈ FLT_MAX combined

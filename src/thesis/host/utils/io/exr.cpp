@@ -91,7 +91,7 @@ Result<> saveExrImage(std::span<const float4> framebuffer, size_t width, size_t 
         const char* err = nullptr;
         if (SaveEXRImageToFile(&image, &header, filename.string().c_str(), &err) !=
             TINYEXR_SUCCESS) {
-            std::string err_msg(err);
+            std::string err_msg(err ? err : "unknown error");
             FreeEXRErrorMessage(err);
             return make_error("EXR save failed: {}", err_msg);
         }

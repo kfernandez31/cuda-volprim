@@ -6,7 +6,6 @@
 
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
-#include "thesis/device/utils/set.h"
 #include "thesis/device/utils/vector.h"
 
 #include <optix.h>
@@ -240,7 +239,10 @@ extern "C" __global__ void __raygen__rg() {
             if (bounce >= launch_params.render_.rr_depth_) {
                 auto p_survive =
                     math::min(launch_params.render_.rr_max_survival_, math::max(throughput));
-                if (random::sample_uniform(rng) > p_survive) {
+                // `|| p_survive <= 0` also breaks a zero-throughput path: without it, the
+                // measure-zero case sample_uniform()==0 with p_survive==0 falls through to
+                // 0/0 = NaN below. Short-circuits to a no-op for any p_survive > 0 (bit-identical).
+                if (random::sample_uniform(rng) > p_survive || p_survive <= 0.0f) {
                     break;
                 }
                 throughput /= p_survive;
@@ -256,7 +258,7 @@ extern "C" __global__ void __raygen__rg() {
                 break;
             }
 
-            // Prepare next ray (direction is already unit from sample_phase)
+            // Prepare next ray (direction is already unit from phase::sample)
             ray = geometry::Ray::spawn_unchecked(event.position_, event.direction_);
         }
 

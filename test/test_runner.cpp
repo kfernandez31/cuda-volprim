@@ -153,9 +153,9 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config, const
     renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
     renderer_config.hg_g_ = test_config.hg_g;
 
-    // Assume env map and module paths are in default locations
+    // env map is relative to the project root; the OptiX module uses the Config default
+    // (OPTIXIR_PATH, absolute — set by CMake).
     renderer_config.env_map_path_ = "assets/environment_maps/meadow_2_4k.hdr";
-    renderer_config.module_blob_path_ = "build/device_program.optixir";
 
     try {
         // Create renderer with test scene primitives
@@ -237,7 +237,6 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         // Use override env map if specified, otherwise default
         renderer_config.env_map_path_ =
             scene.env_map_override.value_or("assets/environment_maps/meadow_2_4k.hdr");
-        renderer_config.module_blob_path_ = "build/device_program.optixir";
 
         try {
             // Create renderer with test scene primitives and specific camera
@@ -262,10 +261,10 @@ int main(int argc, char* argv[]) {
     app::logging::init();
 
     // Validate working directory (test runner must be run from project root)
-    if (!fs::exists("assets") || !fs::exists("build")) {
+    if (!fs::exists("assets")) {
         std::cerr << "Error: Test runner must be executed from project root directory.\n";
         std::cerr << "Current directory: " << fs::current_path() << "\n";
-        std::cerr << "Expected assets/ and build/ directories to exist.\n";
+        std::cerr << "Expected the assets/ directory (the OptiX module is resolved via OPTIXIR_PATH).\n";
         return 1;
     }
 

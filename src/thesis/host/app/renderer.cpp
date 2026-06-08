@@ -260,7 +260,7 @@ void Renderer::createPipeline(
 
     // Complete async module load
     module_ = utils::try_unwrap_or_exit<optix::Module>(
-        optix::Module::loadAsync(optix_ctx_.get(), module_file_future, pco));
+        optix::Module::loadAsync(optix_ctx_.get(), std::move(module_file_future), pco));
 
     // Get built-in sphere intersection module
     OptixBuiltinISOptions builtin_is_options{};

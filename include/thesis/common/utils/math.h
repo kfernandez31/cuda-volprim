@@ -181,7 +181,10 @@ constexpr float ONE_OVER_FOUR_ROOT_TWO_F = 1.0f / (4.0f * ROOT_TWO_F);
 
 template <typename T, typename Exponent>
 THESIS_HOST_DEVICE constexpr T pow(T base, Exponent exp) noexcept {
-    return (exp == 0) ? T(1) : base * pow(base, exp - 1);
+    // `exp > 0` (not `exp == 0`) is the recursion guard: it terminates on a NEGATIVE
+    // exponent (returning 1) instead of recursing away from 0 forever, and avoids the
+    // unsigned `<= 0` tautology warning. Bit-identical for the intended non-negative use.
+    return (exp > 0) ? base * pow(base, exp - 1) : T(1);
 }
 
 THESIS_HOST_DEVICE THESIS_INLINE constexpr float pow2(float a) noexcept {

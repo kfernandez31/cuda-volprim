@@ -18,8 +18,14 @@ struct Config {
     std::string launch_params_variable_name_ = "launch_params";
 
     fs::path output_path_ = "output.exr";
+    // OPTIXIR_PATH (absolute, from CMake) makes the module resolvable regardless of the build-dir
+    // name / cwd; falls back to the conventional relative path when the macro isn't defined.
+#ifdef OPTIXIR_PATH
+    fs::path module_blob_path_ = OPTIXIR_PATH;
+#else
     fs::path module_blob_path_ = fs::path("build") / "device_program.optixir";
-    fs::path env_map_path_ = fs::path("assets") / "meadow_2_4k.hdr";
+#endif
+    fs::path env_map_path_ = fs::path("assets") / "environment_maps" / "meadow_2_4k.hdr";
 
     size_t num_samples_per_pixel_ = 1;
     size_t image_width_ = 1000;

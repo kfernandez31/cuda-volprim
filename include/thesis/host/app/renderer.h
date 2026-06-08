@@ -30,7 +30,6 @@ class Renderer {
     void initPrimsAndGAS(std::vector<device::params::Primitive>&& primitives);
     void initStaticParams();
     void updateDynamicParams();
-    void createPrimitives();
     void createPipeline(std::future<utils::Result<std::vector<std::byte>>> module_file_future);
 
     app::Config config_;

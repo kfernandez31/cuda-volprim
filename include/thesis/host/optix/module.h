@@ -25,7 +25,7 @@ class Module {
     Module() = default;
 
     [[nodiscard]] static utils::Result<Module> loadAsync(
-        OptixDeviceContext ctx, std::future<utils::Result<std::vector<std::byte>>>& file_future,
+        OptixDeviceContext ctx, std::future<utils::Result<std::vector<std::byte>>>&& file_future,
         const OptixPipelineCompileOptions& pco) {
         Module module;
 

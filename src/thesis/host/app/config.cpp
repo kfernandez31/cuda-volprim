@@ -55,6 +55,12 @@ utils::Result<Config> Config::parse(int argc, char* argv[]) noexcept {
         std::ostringstream oss;
         auto code = app.exit(e, oss);
         return utils::make_error("Argument parse error (code {}): {}", code, oss.str());
+    } catch (const std::exception& e) {
+        // parse() can throw non-ParseError types; this function is noexcept, so letting one
+        // escape would std::terminate. Surface it as a Result error instead.
+        return utils::make_error("Argument parsing failed: {}", e.what());
+    } catch (...) {
+        return utils::make_error("Argument parsing failed: unknown error");
     }
 
     return config;

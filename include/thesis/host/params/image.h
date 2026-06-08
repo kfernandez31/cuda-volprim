@@ -56,7 +56,7 @@ class Image {
             variance_managed_ = cuda::AsyncBuffer<float4>(width * height, ctx, sample_buffer_stream,
                                                           cuda::AllocType::OnDeviceOnly);
             variance_managed_.memset_device(0);
-            device_image_.variance_ = const_cast<float4*>(variance_managed_.device());
+            device_image_.variance_ = variance_managed_.device();
         } else {
             device_image_.variance_ = nullptr;
         }
@@ -70,15 +70,15 @@ class Image {
                                                             cuda::AllocType::OnDeviceOnly);
             albedo_aov_managed_.memset_device(0);
             normal_aov_managed_.memset_device(0);
-            device_image_.albedo_aov_ = const_cast<float4*>(albedo_aov_managed_.device());
-            device_image_.normal_aov_ = const_cast<float4*>(normal_aov_managed_.device());
+            device_image_.albedo_aov_ = albedo_aov_managed_.device();
+            device_image_.normal_aov_ = normal_aov_managed_.device();
         } else {
             device_image_.albedo_aov_ = nullptr;
             device_image_.normal_aov_ = nullptr;
         }
 
-        device_image_.mean_ = const_cast<float4*>(mean_managed_.device());
-        device_image_.sample_counts_ = const_cast<uint32_t*>(sample_counts_managed_.device());
+        device_image_.mean_ = mean_managed_.device();
+        device_image_.sample_counts_ = sample_counts_managed_.device();
         device_image_.width_ = static_cast<uint32_t>(width);
         device_image_.height_ = static_cast<uint32_t>(height);
         device_image_.num_samples_per_pixel_ = static_cast<uint32_t>(num_samples_per_pixel);

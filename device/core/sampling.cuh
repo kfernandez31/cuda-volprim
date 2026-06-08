@@ -135,12 +135,6 @@ __device__ __forceinline__ float pdf(float3 wi, float3 wo) { return eval(wi, wo)
 
 }  // namespace phase
 
-// Legacy wrapper retained for the unoccluded single-scatter accumulation in raygen.
-// NEE will replace that call site, after which this can be deleted.
-__forceinline__ __device__ float3 sample_phase(random::PCG32& rng) {
-    return phase::sample(make_float3(0.0f, 0.0f, 1.0f), rng).wo;
-}
-
 // =============================================================================
 // Environment importance sampling
 // =============================================================================

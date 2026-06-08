@@ -20,6 +20,11 @@ void contextLogCb(uint level, const char* /*tag*/, const char* message, void* /*
         [](auto msg) { spdlog::debug("OptiX: {}", msg); },
     };
 
+    // OptiX delivers level ∈ [1,4]; guard against an out-of-range value indexing OOB.
+    if (level < 1 || level > loggers.size()) {
+        spdlog::info("OptiX (level {}): {}", level, message);
+        return;
+    }
     loggers[level - 1](message);
 }
 

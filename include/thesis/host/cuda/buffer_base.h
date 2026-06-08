@@ -53,7 +53,7 @@ class BufferBase {
         }
     }
 
-    [[nodiscard]] const Policy::ContextParam& get_context_param() {
+    [[nodiscard]] const Policy::ContextParam& get_context_param() const {
         return Policy::get_context_param(host_ptr_, device_ptr_);
     }
 

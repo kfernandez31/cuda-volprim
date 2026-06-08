@@ -37,7 +37,10 @@
       "Bash(nvcc:*)",
       "Bash(readelf:*)",
       "Bash(ls:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(who)",
+      "Bash(w)",
+      "Bash(users)"
     ],
     "deny": [
       "Bash(git push:*)",

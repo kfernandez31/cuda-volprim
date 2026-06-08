@@ -17,13 +17,6 @@ __device__ __forceinline__ constexpr T&& forward(typename std::remove_reference<
     return static_cast<T&&>(t);
 }
 
-template <typename T>
-__device__ __forceinline__ void swap(T& a, T& b) {
-    T tmp = a;
-    a = b;
-    b = tmp;
-}
-
 }  // namespace utility
 }  // namespace device
 }  // namespace thesis
