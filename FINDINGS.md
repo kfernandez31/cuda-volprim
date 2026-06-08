@@ -1550,6 +1550,43 @@ clock-unthrottled re-measure (cost ratio is clock-robust; quality is clock-indep
 The contribution is its *adaptation + measurement* in the Gaussian-medium NEE (where the expensive
 volumetric transmittance fired ×2 under MIS makes 2→1 a real win), plus the latent env-IS bug it surfaced.
 
+### 8.38 Path guiding (frontier ④) — evaluated, NOT pursued: cheap test impossible + downside-skewed risk; full oracle deferred (branch feature/path-guiding)
+The last frontier idea: add a learned spatio-directional guide (coarse 32³ grid × octahedral histogram)
+as a 3rd MIS strategy on the continuation direction, to attack the surviving **multiple-scatter** variance
+(the indirect tail; RIS §8.37 fixed the *direct* term). Built the scaffold + a directionality DIAGNOSTIC
+(deposit hook in NEE, host grid alloc + dump, `--guide-learn`, Python readout). Outcome: **not pursued.**
+
+**1. No valid CHEAP test exists here — the diagnostic is insufficient by construction.** Three deposit
+variants tried: (a) direct env field → 0.84 directionality, but that's trivially the env-IS target (sun);
+(b) one-bounce-indirect, naive → 0.85, but biased by the forward phase lobe the samples came from;
+(c) phase-pdf-de-biased → 0.72 weighted (median 0.73, p10 0.36 in deep cells). **All three measure the
+NEE-handled layer, not the multi-bounce tail** — because the bounce>0 escape (direct env in the
+continuation direction) is already suppressed/counted by NEE, so any NEE-harvest proxy reports the part
+guiding can't improve. Measuring the layer guiding *would* help requires propagating full path radiance
+back through bounces — i.e. **building the complete oracle**, not a cheap probe. The cheap kill-test *is*
+the expensive thing in disguise.
+
+**2. The risk profile is DOWNSIDE-SKEWED (it can be a net SLOWDOWN, not just neutral-or-gain).** Unlike
+RIS — which *removed* cost (2 shadow rays → 1), so its variance win was a bonus on top of a guaranteed
+speedup — guiding only ever *adds* cost: per-vertex grid reads (+ online atomic writes) land on the exact
+`long_scoreboard` global-memory-stall axis that is already the bottleneck (§8.29), lowering occupancy. A
+coarse guide can also *raise* variance where its pdf mismatches (MIS caps the blow-up but the samples are
+still spent). Equal-quality = noise×time, so a small noise win + a real time cost ⇒ **net loss**. Direct
+precedent on this same cloud: adaptive sampling (§8.30) was the same shape (variance lever + per-sample
+overhead) and **net-lost ~2× equal-quality.** Guiding carries that risk with an *uncertain, bounded* upside.
+
+**3. The upside is bounded LOW on the showcase by prior evidence.** §8.27/A1: the dense σ=7.5/albedo-0.9
+cloud's multiple-scatter noise is **flat with depth** → the deep field self-averages → **near-diffuse** →
+little for a directional guide to exploit where the surviving variance actually lives (the deep cells; the
+diagnostic's directional structure ~0.7 was concentrated in bright near-surface cells, which are already
+low-variance — p10 was 0.36 deep).
+
+**Verdict: full oracle DEFERRED.** Building multi-day machinery (full path-radiance learning + guide-IS MIS
++ RMSE²·time measurement) to confirm a payoff the evidence bounds to "modest at best, plausibly a net
+slowdown" is poor ROI. Scaffold + the reusable field-directionality diagnostic kept on
+`feature/path-guiding` (not merged) for any future thin/structured-media work. **This closes the
+OPTIMIZATION_FRONTIER.md shortlist: ① null, ② WIN (shipped), ③ near-null (parked), ④ deferred, ⑤ dropped.**
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG

@@ -20,7 +20,9 @@ where the env is structured, and it surfaced+fixed a latent env-IS bug. The pure
 structural micro-levers remain dead (§8.29–§8.36; ① exit-caching + ③ alias-table both <1 % nulls,
 2026-06-08): there is **no path-changing *hardware/throughput* breakthrough on this card** — the one true
 hardware lever (OptiX SER) is Ada-only, N/A on the 3090, and the megakernel sits at a defensible ~22 %
-occupancy wall. The remaining lever is **estimator quality** (RIS done; ④ guide-IS untried — the only
+occupancy wall. **SHORTLIST NOW CLOSED (2026-06-08): ① null · ② RIS WIN (shipped) · ③ near-null (parked) ·
+④ deferred (§8.38) · ⑤ dropped.** Effort pivots to thesis writing + breadth experiments (§6).
+The remaining lever was **estimator quality** (RIS done; ④ guide-IS evaluated + deferred — the only
 attack on the surviving multiple-scatter variance).
 
 > Derivation: an adversarial multi-agent sweep built a 41-item tried-and-killed ledger, generated 71 raw
@@ -156,6 +158,15 @@ These are *measured*, not assumed. They are why most ideas die.
 - **Kill-test:** stub the two `upper_bound` calls to return a constant index, render the meadow, diff
   wall-clock — this bounds the max achievable win. Barely moves → dead. Few % → build the real table.
 
+### ④ Path guiding (shared grid as 3rd MIS strategy) — ⏹ EVALUATED, NOT PURSUED (2026-06-08) — see FINDINGS §8.38
+> **Verdict:** scaffold + directionality diagnostic built (branch `feature/path-guiding`), but NOT pursued
+> to a full build. Two blockers: (1) **no valid cheap test exists** — every NEE-harvest proxy measures the
+> NEE-handled layer, not the multi-bounce tail guiding would help (the bounce>0 escape is already
+> NEE-counted); a verdict needs the full multi-day oracle. (2) **Downside-skewed risk:** unlike RIS (which
+> *removed* cost), guiding only *adds* cost (grid reads/atomics on the `long_scoreboard` bottleneck) → can
+> be a **net slowdown**, exactly like adaptive sampling (§8.30) which net-lost ~2× here. Upside bounded low
+> by §8.27/A1 (deep field near-diffuse). Full oracle deferred; scaffold kept for thin/structured-media future.
+
 ### ④ On-the-fly scatter-direction GUIDING (shared coarse SH grid as a 3rd MIS strategy) — *Medium-high effort* — THE ONLY LEVER LEFT FOR THE ACTUAL SURVIVING VARIANCE
 - **What:** Add a shared coarse spatio-directional structure (e.g. 32³ spatial-hash grid × low-order SH
   of NEE-found env radiance) as a **third "guide-IS" MIS strategy** at deep continuation vertices,
@@ -217,6 +228,8 @@ All measured; see `FINDINGS.md §8`:
   reduction also bounded by the 22 % occupancy wall — the 4th confirmation).
 - Env-IS alias table (§8.36 — correct, bias +8e-5 < gate, but sub-1 % near-null; long_scoreboard unmoved,
   env-IS search is ~0.5 % of loads — parked on a branch, binary-search sampler stays shipped).
+- Path guiding (§8.38 — deferred, not pursued: no valid cheap test, downside-skewed risk like adaptive
+  §8.30 which net-lost ~2×, upside bounded low by §8.27 near-diffuse deep field; scaffold kept on a branch).
 - Adaptive sampling (§8.30 — net loss, SIMT-divergence-gated, +bias).
 - Density-contribution culling (§8.31 — redundant with the BVH 3σ bound).
 - Track-length × argmin combine (§8.32 — env transmittance already analytic).
