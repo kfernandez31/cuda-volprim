@@ -165,8 +165,9 @@ constexpr bool ENABLE_MIS = true;
 // ~26% of frame time, §8.36-adjacent kill-test). Requires ENABLE_NEE; takes precedence over
 // ENABLE_MIS when both are set. K=1 reduces exactly to plain env-IS NEE.
 constexpr bool ENABLE_RIS = true;
-constexpr int RIS_NUM_CANDIDATES = 8;  // K; sweep 4–16. Higher K → better product sampling at
-                                       // cheap ALU cost (no GAS descent per candidate).
+constexpr int RIS_NUM_CANDIDATES = 6;  // K (default; runtime --ris-candidates). K-sweep §8.37: the
+                                       // equal-quality sweet spot is K=4–8 (~1.4–1.46×); 6 is the
+                                       // chosen compromise (cost rises with K, quality plateaus by ~8).
 
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env

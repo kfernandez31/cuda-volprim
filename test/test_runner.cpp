@@ -52,7 +52,7 @@ struct TestConfig {
     float firefly_clamp = 0.0f;
     float filter_stddev = 0.0f;
     float hg_g = 0.85f;
-    uint32_t ris_candidates = 8;  // K for product-RIS NEE (only used when ENABLE_RIS); --ris-candidates
+    uint32_t ris_candidates = 6;  // K for product-RIS NEE (only used when ENABLE_RIS); --ris-candidates
 };
 
 void list_scenes(std::string_view category = "all") {
@@ -121,7 +121,7 @@ void list_scenes(std::string_view category = "all") {
     app.add_option("--rr-max-survival", config.rr_max_survival, "Russian roulette max survival probability")->default_val(0.99f)->check(CLI::Range(0.0f, 1.0f));
     app.add_option("--firefly-clamp", config.firefly_clamp, "Per-sample luminance clamp (0=off; BIASED when >0)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
     app.add_option("--filter-stddev", config.filter_stddev, "Gaussian pixel filter stddev in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
-    app.add_option("--ris-candidates", config.ris_candidates, "Product-RIS candidate count K (only used when ENABLE_RIS)")->default_val(8)->check(CLI::PositiveNumber);
+    app.add_option("--ris-candidates", config.ris_candidates, "Product-RIS candidate count K (only used when ENABLE_RIS)")->default_val(6)->check(CLI::PositiveNumber);
 
     argv = app.ensure_utf8(argv);
     try {
