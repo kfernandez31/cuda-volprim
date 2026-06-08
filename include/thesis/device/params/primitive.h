@@ -175,7 +175,9 @@ class THESIS_ALIGNMENT Primitive {
         const auto erfinv_arg = math::clamp(raw_arg, -1.0f, 1.0f);
 
         // Result is in whitened arc-length (t * |w|); divide by |w| to get world-space ray parameter t
-        return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
+        // erfinvf (single precision) — NOT the unqualified `erfinv`, which binds CUDA's
+        // double-precision ::erfinv(double) and runs fp64 (1/64 rate on GeForce) on this hot line.
+        return (math::ROOT_TWO_F * erfinvf(erfinv_arg) - wp) * w_inv_len;
     }
 
     // Device-only: free-flight inverse CDF restricted to t ≥ t_offset.
@@ -228,7 +230,9 @@ class THESIS_ALIGNMENT Primitive {
         if (raw_arg > 1.0f) return consts::INF_F;
         const auto erfinv_arg = math::clamp(raw_arg, -1.0f, 1.0f);
 
-        return (math::ROOT_TWO_F * erfinv(erfinv_arg) - wp) * w_inv_len;
+        // erfinvf (single precision) — NOT the unqualified `erfinv`, which binds CUDA's
+        // double-precision ::erfinv(double) and runs fp64 (1/64 rate on GeForce) on this hot line.
+        return (math::ROOT_TWO_F * erfinvf(erfinv_arg) - wp) * w_inv_len;
     }
 
     // Device-only: optical depth from t0 to t1
