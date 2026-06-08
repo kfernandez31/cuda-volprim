@@ -40,6 +40,8 @@ struct RenderParams {
     float rr_max_survival_ = 0.99f;       // was consts::RR_MAX_SURVIVAL
     float firefly_clamp_luminance_ = 0.0f;  // was consts::FIREFLY_CLAMP_LUMINANCE (0 = off)
     float pixel_filter_stddev_ = 0.0f;    // was consts::PIXEL_FILTER_STDDEV (0 = box)
+    bool use_ris_ = false;                // --ris: product-RIS NEE instead of MIS (default off = MIS; §8.37 scene-dependent)
+    uint32_t ris_num_candidates_ = 6;     // K for product-RIS NEE (was consts::RIS_NUM_CANDIDATES); --ris-candidates
 
     bool hg_isotropic_ = false;           // |g| < eps → isotropic branch (host decides)
     float hg_g_ = 0.85f;                  // user-facing g (eval uses +g); was consts::HG_G

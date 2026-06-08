@@ -188,9 +188,14 @@ __device__ __forceinline__ Sample sample(random::PCG32& rng) {
     const int v = upper_bound(env.marginal_cdf_, H, u01.x);
     const int u = upper_bound(env.conditional_cdf_ + v * W, W, u01.y);
 
-    // Texel center → (u_norm, v_norm) ∈ [0, 1]²
-    const float u_norm = (static_cast<float>(u) + 0.5f) * math::rcp(static_cast<float>(W));
-    const float v_norm = (static_cast<float>(v) + 0.5f) * math::rcp(static_cast<float>(H));
+    // CONTINUOUS within-texel position (NOT the texel center). The CDF is piecewise-constant per
+    // texel, so jittering uniformly inside the chosen texel leaves the pdf unchanged but makes
+    // env-IS an unbiased *continuous* estimator. Returning the center instead biases any integrand
+    // that varies within a texel (e.g. phase·T): MIS masks it (phase-IS covers the sub-texel
+    // variation) but single-strategy env-IS / product-RIS exposes it (furnace −0.7%).
+    const auto jit = random::sample_uniform_2d(rng);
+    const float u_norm = (static_cast<float>(u) + jit.x) * math::rcp(static_cast<float>(W));
+    const float v_norm = (static_cast<float>(v) + jit.y) * math::rcp(static_cast<float>(H));
 
     const float theta = math::fma(2.0f * math::PI_F, u_norm, -math::PI_F);  // azimuth ∈ [-π, π]
     const float polar = v_norm * math::PI_F;                                 // polar ∈ [0, π]
