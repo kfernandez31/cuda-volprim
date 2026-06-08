@@ -12,9 +12,11 @@ survived an adversarial review, the hard constraints any future idea must respec
 
 ## 1. TL;DR verdict
 
-**The thin sliver paid off: ② volumetric RIS is a ~1.4× equal-quality WIN (§8.37, 2026-06-08).** It's an
-*algorithmic* win, not a hardware one — it cuts the renderer's #1 cost (transmittance: 2 shadow rays → 1)
-AND lowers variance via product sampling, and it surfaced+fixed a latent env-IS bug. The pure-perf /
+**The thin sliver paid off: ② volumetric RIS is a ~1.4× equal-quality WIN on env-map scenes (§8.37,
+2026-06-08)** — though SCENE-DEPENDENT (~2.5× *worse* on flat/constant env), so it ships **runtime-gated
+(`--ris`, default MIS)**, validated unbiased vs Mitsuba GT. It's an *algorithmic* win, not a hardware one —
+it cuts the renderer's #1 cost (transmittance: 2 shadow rays → 1) AND lowers variance via product sampling
+where the env is structured, and it surfaced+fixed a latent env-IS bug. The pure-perf /
 structural micro-levers remain dead (§8.29–§8.36; ① exit-caching + ③ alias-table both <1 % nulls,
 2026-06-08): there is **no path-changing *hardware/throughput* breakthrough on this card** — the one true
 hardware lever (OptiX SER) is Ada-only, N/A on the 3090, and the megakernel sits at a defensible ~22 %
@@ -84,14 +86,17 @@ These are *measured*, not assumed. They are why most ideas die.
   (must be bit-identical)**, compare wall-clock over 5 runs. Flat within ~1 % → dies cheaply. ≥2 % →
   extend to the hit loop and re-profile `long_scoreboard` in ncu.
 
-### ② Volumetric RIS — ✅ WIN (2026-06-08), ship candidate — see FINDINGS §8.37
-> **Verdict:** built + validated (branch `feature/volumetric-ris`). Kill-test confirmed the premise
-> (cutting 1 of 2 shadow rays = **−26 % frame**, vs ①/③'s <1 %). Product-RIS (K=8 env-IS candidates →
-> 1 reservoir → 1 shadow ray) gives **~1.4× equal-quality** on the showcase: **0.77× cost** (one GAS
-> descent) **AND 0.84–0.93× variance** (product sampling helps too). Bias within gate (furnace-clean;
-> Δ vs MIS +9.9e-5/1.5σ). **Bonus: surfaced + fixed a latent env-IS texel-center bug** (MIS-masked;
-> also affects ③). The FIRST frontier item to clear the bar. GPU-gated before merge: K-sweep, more bias
-> seeds, full-clock re-measure, Mitsuba re-validation. Parked on branch pending those.
+### ② Volumetric RIS — ✅ SCENE-DEPENDENT WIN, validated + runtime-gated (2026-06-08) — see FINDINGS §8.37
+> **Verdict:** built, validated, ship-ready (branch `feature/volumetric-ris`). Kill-test confirmed the
+> premise (cutting 1 of 2 shadow rays = **−26 % frame**, vs ①/③'s <1 %). Product-RIS (K env-IS candidates
+> → 1 reservoir → 1 shadow ray) is **~1.4× equal-quality on structured env** (meadow showcase: 0.83× cost
+> × 0.84× variance) **BUT ~2.5× WORSE on flat/constant env** (no structure to product-sample + forgoes
+> exact phase-IS). So it's **NOT a universal replacement** → gated behind a **runtime `--ris` flag**
+> (default OFF = MIS). **Validated UNBIASED vs Mitsuba-analog GT** on the firefly-free constant-env rung
+> (signed-mean Δ: RIS −8.5e-6, MIS −2.5e-5; both ≪1e-4) + furnace-exact. K-sweep: sweet spot **K=4–8**,
+> default **K=6** (runtime `--ris-candidates`). **Bonus: surfaced + fixed a latent env-IS texel-center bug**
+> (MIS-masked; also fixes ③). The FIRST frontier item to clear the bar. Not novel (Talbot 2005 / ReSTIR) —
+> the contribution is the adaptation + measurement. Default build unchanged (MIS); RIS opt-in for env-maps.
 
 ### ② Volumetric RIS — product (phase × env) importance sampling, 2 shadow rays → 1 — *Medium effort, medium bias risk* — THE MOST THESIS-INTERESTING NEW IDEA
 - **What:** Today's NEE/MIS fires **two** independent balance-MIS shadow rays per scatter vertex

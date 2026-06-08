@@ -1467,7 +1467,7 @@ for the alias arrays, or (c) the added host build code. Same conclusion-class as
 bound by the Primitive loads / long_scoreboard, not by peripheral sampling work. Kept on the branch as a
 reproducible artifact; the binary-search sampler remains the shipped path. ncu: /tmp/ncu_{baseline,alias}.csv.
 
-### 8.37 Volumetric product-RIS direct lighting — a GENUINE WIN (~1.4× equal-quality) + a latent env-IS bug fix (branch feature/volumetric-ris)
+### 8.37 Volumetric product-RIS direct lighting — a SCENE-DEPENDENT win (~1.4× on env-maps, ~2.5× WORSE on flat), runtime-gated `--ris`; + a latent env-IS bug fix (branch feature/volumetric-ris)
 OPTIMIZATION_FRONTIER.md ②, the headline new-algorithm idea. Today's NEE/MIS fires **two** balance-MIS
 shadow rays per scatter vertex (phase-IS + env-IS), each a full `compute_transmittance_to_env` GAS descent
 — and transmittance is ~85 % of frame time (§8.16). Replace with **product-RIS** (Talbot et al. 2005):
@@ -1497,28 +1497,58 @@ MIS-with-jitter (cloud cam0 + meadow + HG, 8 seeds, 128 spp): signed-mean Δ(RIS
 pairs are near-independent realizations → the per-seed Δ is noise-dominated; furnace is the stronger energy
 proof). K=1 reduces exactly to plain (unbiased) env-IS NEE — a built-in consistency check.
 
-**Performance — the win (cloud + meadow, 8 seeds, 128 spp, @150 W).** Equal-quality = noise_const·time,
-noise_const k = (per-seed RMSE)²·spp; cross-seed-pair noise estimate:
+**Performance & scene-dependence (the key result).** Equal-quality = noise_const·time, k = (per-seed
+RMSE)²·spp. **Two regimes, OPPOSITE verdicts:**
 
-| | per-seed RMSE | noise const k | wall-clock |
+*Structured env (meadow showcase — cloud cam0 + meadow + HG, 8 seeds @128):*
+| | noise k | wall-clock | equal-quality |
 |---|---|---|---|
-| MIS (jittered, 2 rays) | 0.1248 | 1.99 | ~44 s |
-| **RIS K=8 (1 ray)** | **0.1142** | **1.67** | **~34 s** |
+| MIS (2 rays) | 1.99 | 1.00× | 1.00× |
+| RIS (1 ray) | 1.67 | 0.83× | **~1.4× WIN** |
 
-- **Cost:** 0.77× (~23–26 %, one GAS descent instead of two) — solid (kill-test + functional).
-- **Variance:** RIS is *also* lower-noise, robustly across metrics — RMSE 0.92×, MAD(L1) 0.97×, 99 %-clip
-  0.93× (all <1 → product sampling genuinely helps, not a firefly fluke).
-- **Equal-quality speedup: ~1.4× (1.29× from the cost cut alone → 1.54× with the variance win).** The first
-  frontier item to clear the bar — categorically unlike ①/③ (sub-1 % nulls). Per-spp throughput AND quality
-  both improve; it directly attacks the renderer's #1 cost (transmittance) rather than the periphery.
+RIS is *both* cheaper (one GAS descent — robust noise ratios RMSE 0.92× / MAD 0.97× / 99%-clip 0.93×, all
+<1) and lower-noise (product sampling captures the phase×sun direction neither strategy alone does).
 
-**Caveats / GPU-gated confirmations still owed before shipping:** (a) only K=8 measured — the K∈{4,16} sweep
-for the sweet spot is unrun; (b) measured @150 W power cap — the *cost* ratio is clock-robust (transmittance
-dominates at any clock) and the variance is clock-independent, but a full-clock re-measure is owed; (c) the
-+9.9e-5 bias is within-gate but only 1.5σ — more seeds would tighten it; (d) **Mitsuba re-validation** of the
-showcase (RIS changes the estimator AND the env-IS jitter changes the validated output). **Status: ship
-candidate, parked on branch `feature/volumetric-ris` pending those confirmations.** Renders:
-/tmp/{m,r}_*.exr; blobs /tmp/blob_{ris8,misjit,mis2}.optixir.
+*Flat / constant env (firefly-free rung, 4 seeds @256):* RIS is **~3× NOISIER** (k 0.286 vs MIS 0.096) →
+**~2.5× WORSE equal-quality.** With no env structure, env-IS proposes ~uniformly, so RIS approximates the
+peaked g=0.85 lobe with only K coarse candidates while MIS's phase-IS samples it *exactly* — RIS forgoes
+exact phase-IS and flat lighting gives nothing back. (Mirrors the renderer's §8.5 env-vs-flat split.)
+
+**→ RIS is NOT a universal replacement for MIS. Gated behind a runtime flag `--ris`** (RenderParams
+`use_ris_`; default OFF = MIS, the universal-safe baseline). One binary; the user opts into RIS for env-map
+scenes. K is also runtime (`--ris-candidates`, default **6**).
+
+**K-sweep (interleaved, throttle-controlled; meadow @128).** k falls with K, cost rises with K:
+| K | noise k | cost vs MIS | equal-quality |
+|---|---|---|---|
+| 2 | 1.95 | 0.74× | 1.38× |
+| 4 | 1.76 | 0.78× | **1.46×** |
+| 6 (default)* | ~1.71* | ~0.80×* | ~1.45×* |
+| 8 | 1.67 | 0.83× | 1.43× |
+| 16 | 1.62 | 0.92× | 1.33× |
+
+Sweet spot **K=4–8**; **K=6 chosen** as the compromise. Quality plateaus by ~8; K=16's cost outruns its
+gain. (*K=6 interpolated — bracketed by the measured K=4/K=8; bias is K-independent so it needs no separate
+correctness check.)
+
+**Correctness — validated UNBIASED vs Mitsuba GT.** Furnace energy-exact (K=8 @4096 spp: σ=2 0.3σ, σ=6
+0.6σ). The clean absolute check is the **constant-env** rung (firefly-free → Mitsuba-*analog* is a usable GT;
+the meadow GT is firefly-limited — Mitsuba-analog p99.9=56/max=342, so its mean is untrustworthy there, and
+Mitsuba's *NEE* is itself +6.5% biased per §8.1, so neither Mitsuba mode validates on the sun scene).
+Constant-env signed-mean Δ vs Mitsuba-analog GT (4 seeds @256): **MIS −2.5e-5, RIS K=8 −8.5e-6** — both
+≪1e-4 (RIS if anything *closer* to GT). On the meadow, RIS≡MIS to ~1e-5 across all metrics (transitive
+validation: MIS is Mitsuba-validated §8.11). The env-IS jitter fix is energy-validated and also corrects the
+§8.36 alias table — a real env-IS bug (texel-center, MIS-masked), candidate to land on main independently.
+
+**Status: validated, runtime-gated, ship-ready on branch `feature/volumetric-ris`** (commits: RIS impl +
+env-IS jitter fix → runtime K → K=6 default → `--ris` runtime gate). Default build unchanged (MIS). RIS is
+the recommended mode for env-map showcase scenes; MIS for flat/general. Only owed at full power: a
+clock-unthrottled re-measure (cost ratio is clock-robust; quality is clock-independent). Renders:
+/tmp/{ris_val,cev}/; blobs /tmp/blob_{ris_rt,mis_rt}.optixir.
+
+**Honesty note (thesis framing):** RIS is *not novel* — Talbot et al. 2005 / Bitterli et al. 2020 (ReSTIR).
+The contribution is its *adaptation + measurement* in the Gaussian-medium NEE (where the expensive
+volumetric transmittance fired ×2 under MIS makes 2→1 a real win), plus the latent env-IS bug it surfaced.
 
 ## 9. Known limitations & OPEN items
 
