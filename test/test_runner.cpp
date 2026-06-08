@@ -26,6 +26,9 @@ namespace fs = std::filesystem;
 using namespace thesis::host;
 using namespace thesis::test::scenes;
 
+// Default environment map for the test scenes (relative to the project root).
+constexpr const char* kDefaultEnvMap = "assets/environment_maps/meadow_2_4k.hdr";
+
 struct TestConfig {
     std::string scene_name;
     bool list_scenes = false;
@@ -168,7 +171,7 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config,
 
     // env map is relative to the project root; the OptiX module uses the Config default
     // (OPTIXIR_PATH, absolute — set by CMake).
-    renderer_config.env_map_path_ = "assets/environment_maps/meadow_2_4k.hdr";
+    renderer_config.env_map_path_ = kDefaultEnvMap;
 
     try {
         // Create renderer with test scene primitives
@@ -249,7 +252,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
 
         // Use override env map if specified, otherwise default
         renderer_config.env_map_path_ =
-            scene.env_map_override.value_or("assets/environment_maps/meadow_2_4k.hdr");
+            scene.env_map_override.value_or(kDefaultEnvMap);
 
         try {
             // Create renderer with test scene primitives and specific camera
@@ -348,20 +351,22 @@ int main(int argc, char* argv[]) {
 
     // Handle single scene
     if (!test_config.scene_name.empty()) {
-        // Special case: cloud asset multi-view tests (validation = pure absorber, scattering = albedo override)
-        if (test_config.scene_name == "cloud_asset_validation" ||
-            test_config.scene_name == "cloud_asset_scattering") {
+        // Special-case validation scenes: dispatched by exact name → factory (they are NOT in the
+        // --all/--list registries). Each builds a TestScene (sigma_multiplier = peak extinction)
+        // and runs the multi-view harness. run_special unifies the build / has_value-check / run /
+        // exception handling that every one of these blocks shared.
+        // (single_gaussian_validation pairs with tools/refs/single_gaussian_analytic.py, which
+        // diffs the rendered EXR against exp(-τ)·env and exp(-2τ)·env.)
+        const std::string& scene_name = test_config.scene_name;
+        const float sigma_mult = test_config.sigma_multiplier;
+        auto run_special = [&](std::string_view label, auto&& factory) -> int {
             try {
-                auto cloud_scene_result =
-                    (test_config.scene_name == "cloud_asset_scattering")
-                        ? cloud_asset_scattering(test_config.sigma_multiplier)
-                        : cloud_asset_validation(test_config.sigma_multiplier);
-                if (!cloud_scene_result.has_value()) {
-                    std::cerr << "✗ Failed to load cloud asset: " << cloud_scene_result.error().msg_
-                              << "\n";
+                auto result = factory();
+                if (!result.has_value()) {
+                    std::cerr << "✗ Failed to build " << label << ": " << result.error().msg_ << "\n";
                     return 1;
                 }
-                run_multiview_test(cloud_scene_result.value(), test_config);
+                run_multiview_test(result.value(), test_config);
                 return 0;
             } catch (const std::exception& e) {
                 std::cerr << "✗ Exception: " << e.what() << "\n";
@@ -370,86 +375,21 @@ int main(int argc, char* argv[]) {
                 std::cerr << "✗ Unknown exception occurred\n";
                 return 1;
             }
-        }
-
-        // Special case: single-Gaussian closed-form verification scene.
-        // sigma_multiplier maps to the primitive's peak extinction; the python
-        // comparator at tools/refs/single_gaussian_analytic.py then diffs the
-        // rendered EXR against exp(-tau)·env and exp(-2·tau)·env.
-        if (test_config.scene_name == "single_gaussian_validation") {
-            try {
-                auto sg_result = single_gaussian_validation(test_config.sigma_multiplier);
-                if (!sg_result.has_value()) {
-                    std::cerr << "✗ Failed to build single_gaussian scene: "
-                              << sg_result.error().msg_ << "\n";
-                    return 1;
-                }
-                run_multiview_test(sg_result.value(), test_config);
-                return 0;
-            } catch (const std::exception& e) {
-                std::cerr << "✗ Exception: " << e.what() << "\n";
-                return 1;
-            } catch (...) {
-                std::cerr << "✗ Unknown exception occurred\n";
-                return 1;
-            }
-        }
-
-        if (test_config.scene_name == "two_gaussian_validation") {
-            try {
-                auto tg_result = two_gaussian_validation(test_config.sigma_multiplier);
-                if (!tg_result.has_value()) {
-                    std::cerr << "✗ Failed to build two_gaussian scene: "
-                              << tg_result.error().msg_ << "\n";
-                    return 1;
-                }
-                run_multiview_test(tg_result.value(), test_config);
-                return 0;
-            } catch (const std::exception& e) {
-                std::cerr << "✗ Exception: " << e.what() << "\n";
-                return 1;
-            } catch (...) {
-                std::cerr << "✗ Unknown exception occurred\n";
-                return 1;
-            }
-        }
-
-        if (test_config.scene_name == "cluster_validation") {
-            try {
-                auto cl_result = cluster_validation(test_config.sigma_multiplier);
-                if (!cl_result.has_value()) {
-                    std::cerr << "✗ Failed to build cluster scene: "
-                              << cl_result.error().msg_ << "\n";
-                    return 1;
-                }
-                run_multiview_test(cl_result.value(), test_config);
-                return 0;
-            } catch (const std::exception& e) {
-                std::cerr << "✗ Exception: " << e.what() << "\n";
-                return 1;
-            } catch (...) {
-                std::cerr << "✗ Unknown exception occurred\n";
-                return 1;
-            }
-        }
-
-        if (test_config.scene_name == "asset_validation") {
-            try {
-                auto a_result = asset_validation(test_config.sigma_multiplier);
-                if (!a_result.has_value()) {
-                    std::cerr << "✗ Failed to build asset scene: " << a_result.error().msg_ << "\n";
-                    return 1;
-                }
-                run_multiview_test(a_result.value(), test_config);
-                return 0;
-            } catch (const std::exception& e) {
-                std::cerr << "✗ Exception: " << e.what() << "\n";
-                return 1;
-            } catch (...) {
-                std::cerr << "✗ Unknown exception occurred\n";
-                return 1;
-            }
-        }
+        };
+        if (scene_name == "cloud_asset_validation")
+            return run_special("cloud asset", [&] { return cloud_asset_validation(sigma_mult); });
+        if (scene_name == "cloud_asset_scattering")
+            return run_special("cloud asset", [&] { return cloud_asset_scattering(sigma_mult); });
+        if (scene_name == "single_gaussian_validation")
+            return run_special("single_gaussian scene",
+                               [&] { return single_gaussian_validation(sigma_mult); });
+        if (scene_name == "two_gaussian_validation")
+            return run_special("two_gaussian scene",
+                               [&] { return two_gaussian_validation(sigma_mult); });
+        if (scene_name == "cluster_validation")
+            return run_special("cluster scene", [&] { return cluster_validation(sigma_mult); });
+        if (scene_name == "asset_validation")
+            return run_special("asset scene", [&] { return asset_validation(sigma_mult); });
 
         // Find the requested scene
         auto it = std::find_if(scenes_to_run.begin(), scenes_to_run.end(),
