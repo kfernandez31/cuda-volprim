@@ -157,6 +157,7 @@ struct Sample {
 };
 
 // Smallest i in [0, n) such that cdf[i] > u. cdf is normalized to end at 1.
+// (Retained for reference; the sampling hot path now uses alias_draw below.)
 __device__ __forceinline__ int upper_bound(const float* cdf, int n, float u) {
     int lo = 0, hi = n;
     while (lo < hi) {
@@ -168,6 +169,21 @@ __device__ __forceinline__ int upper_bound(const float* cdf, int n, float u) {
         }
     }
     return lo < n ? lo : n - 1;
+}
+
+// Walker's alias draw: O(1) sample of an index in [0, n) from a precomputed
+// (prob, alias) table (built host-side; see EnvironmentMap::appendAliasTable).
+// Replaces the data-dependent O(log n) binary search over the CDF with 1–2
+// loads. The single uniform u is reused for both bin selection and the
+// accept/reject test → exactly one rng draw per dimension, matching the
+// inverse-CDF method it replaces (so the rest of the path's rng stream is
+// unperturbed; only the env-IS texel selection differs).
+__device__ __forceinline__ int alias_draw(const float* prob, const int* alias, int n, float u) {
+    const float scaled = u * static_cast<float>(n);
+    int i = static_cast<int>(scaled);  // floor(u·n) ∈ [0, n-1] for u ∈ [0,1)
+    if (i >= n) i = n - 1;             // guard u rounding up to 1.0
+    const float frac = scaled - static_cast<float>(i);
+    return (frac < prob[i]) ? i : alias[i];
 }
 
 __device__ __forceinline__ Sample sample(random::PCG32& rng) {
@@ -185,8 +201,11 @@ __device__ __forceinline__ Sample sample(random::PCG32& rng) {
     const int W = static_cast<int>(env.cdf_width_);
     const int H = static_cast<int>(env.cdf_height_);
 
-    const int v = upper_bound(env.marginal_cdf_, H, u01.x);
-    const int u = upper_bound(env.conditional_cdf_ + v * W, W, u01.y);
+    // O(1) Walker's-alias selection (replaces two data-dependent binary searches over
+    // the CDF — same distribution, see EnvironmentMap::buildAlias). u01.x → row, u01.y → col.
+    const int v = alias_draw(env.marginal_alias_prob_, env.marginal_alias_idx_, H, u01.x);
+    const int u = alias_draw(env.conditional_alias_prob_ + v * W,
+                             env.conditional_alias_idx_ + v * W, W, u01.y);
 
     // Texel center → (u_norm, v_norm) ∈ [0, 1]²
     const float u_norm = (static_cast<float>(u) + 0.5f) * math::rcp(static_cast<float>(W));
