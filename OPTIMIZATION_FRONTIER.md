@@ -12,11 +12,14 @@ survived an adversarial review, the hard constraints any future idea must respec
 
 ## 1. TL;DR verdict
 
-**Near-exhausted, with a thin sliver of genuine territory left.** Every cheap/structural lever has been
-measured and killed (§8.29–§8.36; ① exit-caching + ③ alias-table closed 2026-06-08). There is **no path-changing perf breakthrough available on this
-hardware** — the one true lever (OptiX Shader Execution Reordering) is Ada-only and N/A on the 3090. The
-megakernel sits at a defensible ~22 % occupancy latency wall. What remains is a **short list of
-unmeasured, mostly-modest ideas**, two of which are genuinely novel for this renderer.
+**The thin sliver paid off: ② volumetric RIS is a ~1.4× equal-quality WIN (§8.37, 2026-06-08).** It's an
+*algorithmic* win, not a hardware one — it cuts the renderer's #1 cost (transmittance: 2 shadow rays → 1)
+AND lowers variance via product sampling, and it surfaced+fixed a latent env-IS bug. The pure-perf /
+structural micro-levers remain dead (§8.29–§8.36; ① exit-caching + ③ alias-table both <1 % nulls,
+2026-06-08): there is **no path-changing *hardware/throughput* breakthrough on this card** — the one true
+hardware lever (OptiX SER) is Ada-only, N/A on the 3090, and the megakernel sits at a defensible ~22 %
+occupancy wall. The remaining lever is **estimator quality** (RIS done; ④ guide-IS untried — the only
+attack on the surviving multiple-scatter variance).
 
 > Derivation: an adversarial multi-agent sweep built a 41-item tried-and-killed ledger, generated 71 raw
 > candidates → 60 unique, and vetted each against the ledger + hard constraints. **5 survived as
@@ -80,6 +83,15 @@ These are *measured*, not assumed. They are why most ideas die.
 - **Kill-test:** cache only active-prims exits, build Release, render cloud cam0, **diff EXR vs baseline
   (must be bit-identical)**, compare wall-clock over 5 runs. Flat within ~1 % → dies cheaply. ≥2 % →
   extend to the hit loop and re-profile `long_scoreboard` in ncu.
+
+### ② Volumetric RIS — ✅ WIN (2026-06-08), ship candidate — see FINDINGS §8.37
+> **Verdict:** built + validated (branch `feature/volumetric-ris`). Kill-test confirmed the premise
+> (cutting 1 of 2 shadow rays = **−26 % frame**, vs ①/③'s <1 %). Product-RIS (K=8 env-IS candidates →
+> 1 reservoir → 1 shadow ray) gives **~1.4× equal-quality** on the showcase: **0.77× cost** (one GAS
+> descent) **AND 0.84–0.93× variance** (product sampling helps too). Bias within gate (furnace-clean;
+> Δ vs MIS +9.9e-5/1.5σ). **Bonus: surfaced + fixed a latent env-IS texel-center bug** (MIS-masked;
+> also affects ③). The FIRST frontier item to clear the bar. GPU-gated before merge: K-sweep, more bias
+> seeds, full-clock re-measure, Mitsuba re-validation. Parked on branch pending those.
 
 ### ② Volumetric RIS — product (phase × env) importance sampling, 2 shadow rays → 1 — *Medium effort, medium bias risk* — THE MOST THESIS-INTERESTING NEW IDEA
 - **What:** Today's NEE/MIS fires **two** independent balance-MIS shadow rays per scatter vertex
@@ -182,9 +194,9 @@ Time-box each behind its kill-test; stop at the first that fails its premise.
 
 1. ~~**① single-pass argmin**~~ — ❌ DONE (2026-06-08): bit-identical but no win (wash trending slightly
    slower); load-COUNT reduction fails for the same occupancy-wall reason latency micro-ops did. FINDINGS §8.35.
-2. **② volumetric RIS** — but ONLY after the one-flag "1 vs 2 shadow ray" headroom measurement confirms
-   the transmittance cost is cuttable. The single most defensible *new algorithmic* contribution;
-   thesis-interesting whether it wins big or merely matches MIS at lower cost.
+2. ~~**② volumetric RIS**~~ — ✅ DONE (2026-06-08): the kill-test confirmed −26 % headroom, and RIS
+   delivered **~1.4× equal-quality** (0.77× cost × 0.84–0.93× variance) + fixed a latent env-IS bug.
+   The single most defensible new algorithmic contribution; ship candidate (branch). FINDINGS §8.37.
 3. ~~**③ alias table**~~ — ⏸ DONE (2026-06-08): correct but sub-1 % near-null, long_scoreboard unmoved;
    parked, not merged (FINDINGS §8.36). Park **④ guide-IS** unless ② leaves time — ④ is the only remaining
    lever for the real surviving variance but its oracle kill-test must show >~1.15× before any build.

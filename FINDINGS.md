@@ -1467,6 +1467,59 @@ for the alias arrays, or (c) the added host build code. Same conclusion-class as
 bound by the Primitive loads / long_scoreboard, not by peripheral sampling work. Kept on the branch as a
 reproducible artifact; the binary-search sampler remains the shipped path. ncu: /tmp/ncu_{baseline,alias}.csv.
 
+### 8.37 Volumetric product-RIS direct lighting — a GENUINE WIN (~1.4× equal-quality) + a latent env-IS bug fix (branch feature/volumetric-ris)
+OPTIMIZATION_FRONTIER.md ②, the headline new-algorithm idea. Today's NEE/MIS fires **two** balance-MIS
+shadow rays per scatter vertex (phase-IS + env-IS), each a full `compute_transmittance_to_env` GAS descent
+— and transmittance is ~85 % of frame time (§8.16). Replace with **product-RIS** (Talbot et al. 2005):
+stream K *unshadowed* env-IS candidates, resample one survivor weighted by the unshadowed product target
+p̂(ω)=phase(wi,ω)·lum(env(ω)) over the env-IS proposal pdf, and trace **one** shadow ray for the survivor.
+This product-samples the phase×env direction that *neither* current strategy captures, at ~1-ray cost.
+
+**Kill-test FIRST (the gate, §8.36-adjacent):** flipping `ENABLE_MIS` false (the validated 1-shadow-ray
+phase-IS NEE) vs true measured **−25.9/−24.4/−26.7/−27.4/−27.4 % wall-clock over 5 A/B pairs** → cutting
+one shadow ray drops **~26 % of frame**, far above the ~9 % @150 W noise. Cost premise *confirmed* (vs ①/③
+which were <1 %). Green-lit the build.
+
+**A latent bug surfaced + fixed (env-IS texel-center quantization).** First RIS build failed furnace hard
+(σ=2 −0.70 %/237σ, σ=6 −1.57 %/297σ, growing with scatter depth). Localized to K=1 (= plain env-IS-only
+NEE), so the bug predates RIS: `env_is::sample` returned the **texel center** (`u_norm=(u+0.5)/W`) instead
+of a continuous within-texel position, biasing any integrand that varies within a texel (phase·T). **MIS
+masked it** (phase-IS covers the sub-texel variation + balance down-weights env-IS where phase is peaked);
+single-strategy env-IS / RIS exposed it. Fix: jitter uniformly inside the chosen texel (pdf unchanged — the
+CDF is piecewise-constant per texel). Post-fix furnace: K=1 σ=2 **−2e-5 (0.2σ)**, σ=6 **−1.4e-4 (1.2σ)**;
+K=8 @4096 spp σ=2 **−3e-7 (0.3σ)** PASS, σ=6 **−1e-5 (0.6σ)** PASS; MIS-with-jitter still PASS (1.1σ). The
+fix also applies to the §8.36 alias table (same `env_is::sample`). NB this is a real correctness bug in the
+shipped env-IS, masked by MIS — candidate to land on main independently after Mitsuba re-validation.
+
+**Correctness (RIS K=8, jittered env-IS).** Furnace flat (energy, above). Multi-seed equivalence vs
+MIS-with-jitter (cloud cam0 + meadow + HG, 8 seeds, 128 spp): signed-mean Δ(RIS−MIS) =
+**+9.9e-5 ± 6.6e-5 (1.5σ) — within the ≤1e-4 gate** (RIS and MIS are different estimators, so same-seed
+pairs are near-independent realizations → the per-seed Δ is noise-dominated; furnace is the stronger energy
+proof). K=1 reduces exactly to plain (unbiased) env-IS NEE — a built-in consistency check.
+
+**Performance — the win (cloud + meadow, 8 seeds, 128 spp, @150 W).** Equal-quality = noise_const·time,
+noise_const k = (per-seed RMSE)²·spp; cross-seed-pair noise estimate:
+
+| | per-seed RMSE | noise const k | wall-clock |
+|---|---|---|---|
+| MIS (jittered, 2 rays) | 0.1248 | 1.99 | ~44 s |
+| **RIS K=8 (1 ray)** | **0.1142** | **1.67** | **~34 s** |
+
+- **Cost:** 0.77× (~23–26 %, one GAS descent instead of two) — solid (kill-test + functional).
+- **Variance:** RIS is *also* lower-noise, robustly across metrics — RMSE 0.92×, MAD(L1) 0.97×, 99 %-clip
+  0.93× (all <1 → product sampling genuinely helps, not a firefly fluke).
+- **Equal-quality speedup: ~1.4× (1.29× from the cost cut alone → 1.54× with the variance win).** The first
+  frontier item to clear the bar — categorically unlike ①/③ (sub-1 % nulls). Per-spp throughput AND quality
+  both improve; it directly attacks the renderer's #1 cost (transmittance) rather than the periphery.
+
+**Caveats / GPU-gated confirmations still owed before shipping:** (a) only K=8 measured — the K∈{4,16} sweep
+for the sweet spot is unrun; (b) measured @150 W power cap — the *cost* ratio is clock-robust (transmittance
+dominates at any clock) and the variance is clock-independent, but a full-clock re-measure is owed; (c) the
++9.9e-5 bias is within-gate but only 1.5σ — more seeds would tighten it; (d) **Mitsuba re-validation** of the
+showcase (RIS changes the estimator AND the env-IS jitter changes the validated output). **Status: ship
+candidate, parked on branch `feature/volumetric-ris` pending those confirmations.** Renders:
+/tmp/{m,r}_*.exr; blobs /tmp/blob_{ris8,misjit,mis2}.optixir.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
