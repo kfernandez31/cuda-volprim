@@ -207,11 +207,11 @@ extern "C" __global__ void __raygen__rg() {
                     // the RGB via f/p̂, ⟨L⟩ = base · env(y)/lum(env(y)) · T(y) · (Σ_k w_k / K).
                     // K=1 collapses to the plain (unbiased) env-IS NEE estimator.
                     const auto luma_w = make_float3(0.2126f, 0.7152f, 0.0722f);
+                    const int ris_k = static_cast<int>(launch_params.render_.ris_num_candidates_);
                     float wsum = 0.0f;
                     float3 y_dir = make_float3(0.0f, 0.0f, 0.0f);
                     float3 y_env = make_float3(0.0f, 0.0f, 0.0f);
-#pragma unroll
-                    for (int k = 0; k < consts::RIS_NUM_CANDIDATES; ++k) {
+                    for (int k = 0; k < ris_k; ++k) {
                         const auto cand = env_is::sample(rng);
                         if (cand.pdf <= 0.0f)
                             continue;
@@ -233,8 +233,7 @@ extern "C" __global__ void __raygen__rg() {
                         if (lum_y > 0.0f) {
                             const auto T = compute_transmittance_to_env(event.position_, y_dir,
                                                                         event.active_prims_);
-                            const float W_ris =
-                                wsum * math::rcp(static_cast<float>(consts::RIS_NUM_CANDIDATES));
+                            const float W_ris = wsum * math::rcp(static_cast<float>(ris_k));
                             // f(y)/p̂(y) = env(y)·T/lum(env(y)); times the RIS normalization W_ris.
                             radiance += base * (y_env * math::rcp(lum_y)) * T * W_ris;
                         }

@@ -204,6 +204,7 @@ void Renderer::initStaticParams() {
     rp.rr_max_survival_ = config_.rr_max_survival_;
     rp.firefly_clamp_luminance_ = config_.firefly_clamp_luminance_;
     rp.pixel_filter_stddev_ = config_.pixel_filter_stddev_;
+    rp.ris_num_candidates_ = config_.ris_num_candidates_;
 
     // Pre-fold the Henyey-Greenstein constants exactly as the device constexpr did, so the
     // per-sample arithmetic (and thus the render) is bit-identical for a given g. eval uses
