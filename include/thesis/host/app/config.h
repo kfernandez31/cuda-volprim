@@ -43,6 +43,7 @@ struct Config {
     float pixel_filter_stddev_ = 0.0f;    // --filter-stddev (0 = box; >0 = Gaussian AA)
     float hg_g_ = 0.85f;                  // --hg-g (Henyey-Greenstein anisotropy)
     bool use_ris_ = false;                // --ris (product-RIS NEE instead of MIS; default off = MIS, §8.37 scene-dependent)
+    bool guide_learn_ = false;            // --guide-learn (④ directionality diagnostic: deposit NEE radiance into the grid, dump post-render)
     uint32_t ris_num_candidates_ = 6;     // --ris-candidates (K for product-RIS NEE; only used with --ris)
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept;

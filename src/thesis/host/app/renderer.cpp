@@ -16,6 +16,7 @@
 #include <cstring>
 #include <execution>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <numeric>
 #include <ranges>
@@ -90,6 +91,8 @@ void Renderer::initPrimsAndGAS(std::vector<device::params::Primitive>&& primitiv
     /* ── 1.5. Sort primitives by Morton code for better cache locality ─── */
     if (num_primitives_ > 1) {
         const auto [scene_min, scene_max] = utils::math::computeBounds(primitives);
+        scene_min_ = scene_min;  // stash for the ④ path-guiding grid AABB (config_.guide_learn_)
+        scene_max_ = scene_max;
 
         // Guard against degenerate axes (all centers coplanar): a 1e-30 floor keeps
         // (pos - scene_min) * inv_extent finite — collapses to 0 along that axis.
@@ -194,6 +197,26 @@ void Renderer::initStaticParams() {
         1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
     overflow_counter_.memset_device(0);
     par.overflow_counter_ = overflow_counter_.device();
+
+    // ④ path-guiding directionality diagnostic: allocate the shared grid only when requested
+    // (otherwise par.guide_bins_ stays null → zero device cost). Grid AABB = scene bounds.
+    if (config_.guide_learn_) {
+        constexpr size_t guide_n =
+            static_cast<size_t>(device::consts::GUIDE_NUM_CELLS) * device::consts::GUIDE_DIR_BINS;
+        guide_bins_ = cuda::AsyncBuffer<float>(guide_n, cuda_ctx_.get(),
+                                               streams_[cuda::StreamKind::Main],
+                                               cuda::AllocType::OnBoth);
+        guide_bins_.memset_device(0);
+        const float3 extent = scene_max_ - scene_min_;
+        par.guide_bins_ = guide_bins_.device();
+        par.guide_aabb_min_ = scene_min_;
+        par.guide_aabb_inv_extent_ = make_float3(1.0f / std::max(extent.x, 1e-30f),
+                                                 1.0f / std::max(extent.y, 1e-30f),
+                                                 1.0f / std::max(extent.z, 1e-30f));
+        spdlog::info("④ guide diagnostic: grid {}³×{} bins allocated ({:.1f} MB)",
+                     device::consts::GUIDE_SPATIAL_RES, device::consts::GUIDE_DIR_BINS,
+                     guide_n * sizeof(float) / 1e6);
+    }
 
     // Runtime render params (promoted from constants.cuh). Defaults mirror the constants;
     // a default config reproduces the prior compile-time path's math (unbiased, but not
@@ -363,6 +386,18 @@ void Renderer::render() {
             "regions may be under-absorbed (too bright). Raise MAX_ACTIVE_PRIMS / "
             "HIT_BUFFER_CAPACITY in device/core/constants.cuh for this scene.",
             overflows);
+    }
+
+    // ④ guide diagnostic: download the grid and dump raw floats for offline directionality analysis
+    // (Python computes per-cell |Σ v·ω̂|/Σ v). The Main stream is already synced above.
+    if (config_.guide_learn_) {
+        guide_bins_.download();
+        streams_[cuda::StreamKind::Main]->synchronize();
+        const auto view = guide_bins_.host_view();
+        std::ofstream f("/tmp/guide_bins.f32", std::ios::binary);
+        f.write(reinterpret_cast<const char*>(view.data()),
+                static_cast<std::streamsize>(view.size_bytes()));
+        spdlog::info("④ guide diagnostic: dumped {} floats to /tmp/guide_bins.f32", view.size());
     }
 
     spdlog::info("All batches complete, saving image...");

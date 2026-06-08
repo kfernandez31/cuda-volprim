@@ -53,6 +53,7 @@ struct TestConfig {
     float filter_stddev = 0.0f;
     float hg_g = 0.85f;
     bool use_ris = false;         // --ris: product-RIS NEE instead of MIS (default off = MIS; §8.37 scene-dependent)
+    bool guide_learn = false;     // --guide-learn: ④ directionality diagnostic (deposit NEE radiance, dump grid)
     uint32_t ris_candidates = 6;  // K for product-RIS NEE (only used with --ris); --ris-candidates
 };
 
@@ -123,6 +124,7 @@ void list_scenes(std::string_view category = "all") {
     app.add_option("--firefly-clamp", config.firefly_clamp, "Per-sample luminance clamp (0=off; BIASED when >0)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
     app.add_option("--filter-stddev", config.filter_stddev, "Gaussian pixel filter stddev in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
     app.add_flag("--ris", config.use_ris, "Use product-RIS NEE instead of MIS (1 shadow ray; ~1.4x on env-map scenes, ~2.5x worse on flat — §8.37)");
+    app.add_flag("--guide-learn", config.guide_learn, "④ path-guiding directionality diagnostic: deposit NEE radiance into a grid, dump to /tmp/guide_bins.f32");
     app.add_option("--ris-candidates", config.ris_candidates, "Product-RIS candidate count K (only used with --ris)")->default_val(6)->check(CLI::PositiveNumber);
 
     argv = app.ensure_utf8(argv);
@@ -173,6 +175,7 @@ void run_test_scene(const TestScene& scene, const TestConfig& test_config,
     renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
     renderer_config.hg_g_ = test_config.hg_g;
     renderer_config.use_ris_ = test_config.use_ris;
+    renderer_config.guide_learn_ = test_config.guide_learn;
     renderer_config.ris_num_candidates_ = test_config.ris_candidates;
 
     // env map is relative to the project root; the OptiX module uses the Config default
@@ -256,6 +259,7 @@ void run_multiview_test(const MultiViewTestScene& scene, const TestConfig& test_
         renderer_config.pixel_filter_stddev_ = test_config.filter_stddev;
         renderer_config.hg_g_ = test_config.hg_g;
         renderer_config.use_ris_ = test_config.use_ris;
+    renderer_config.guide_learn_ = test_config.guide_learn;
         renderer_config.ris_num_candidates_ = test_config.ris_candidates;
 
         // Use override env map if specified, otherwise default

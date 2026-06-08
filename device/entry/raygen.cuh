@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/guiding.cuh"
 #include "core/launch_params.cuh"
 #include "core/random.cuh"
 #include "core/sampling.cuh"
@@ -105,6 +106,14 @@ extern "C" __global__ void __raygen__rg() {
         optix::ScatteringEvent<PrimsSet> event;
         payloads::Miss miss;
         HitBuffer hit_buffer;
+
+        // ④ guide diagnostic carry-state: previous scatter vertex + the continuation direction
+        // taken from it, so the current vertex's incident radiance can be deposited back there
+        // (one-bounce-indirect field). Unused (and optimized out) when guide_bins_ is null.
+        float3 guide_prev_pos = make_float3(0.0f, 0.0f, 0.0f);
+        float3 guide_prev_dir = make_float3(0.0f, 0.0f, 1.0f);
+        float guide_prev_phasepdf = 1.0f;  // pdf of the phase-sampled continuation (de-bias the deposit)
+        bool guide_have_prev = false;
 
         // active_prims is populated by sample_scattering_event's per-bounce scan
         // (sampling.cuh). The bounce-0 entry already covers the same camera-position
@@ -258,6 +267,32 @@ extern "C" __global__ void __raygen__rg() {
                                                                     event.active_prims_);
                     // f / pdf_env = phase * env * T / pdf_env
                     radiance += base * env_b * T_b * w_b * phase_at_b * math::rcp(b.pdf);
+
+                    // ④ directionality diagnostic (null pointer = off, zero cost). This measures the
+                    // INDIRECT field — the signal guiding the CONTINUATION actually needs (the direct
+                    // env term is already handled by NEE/RIS). One-bounce-indirect: deposit the env
+                    // radiance found at THIS vertex back at the PREVIOUS scatter vertex, along the
+                    // continuation direction that led here. Per cell, the directional spread of these
+                    // says whether continuing toward learned-bright directions can beat phase sampling.
+                    if (launch_params.guide_bins_ != nullptr) {
+                        const float3 incident =
+                            env_a * T_a * w_a + env_b * T_b * w_b * phase_at_b * math::rcp(b.pdf);
+                        const float incident_lum =
+                            math::dot(incident, make_float3(0.2126f, 0.7152f, 0.0722f));
+                        if (guide_have_prev) {
+                            // de-bias by the phase-sampling pdf so the binned estimate reflects the
+                            // FIELD L_indirect(ω), not the (forward) phase lobe the samples came from.
+                            guide::deposit(launch_params.guide_bins_,
+                                           guide::cell_index(launch_params.guide_aabb_min_,
+                                                             launch_params.guide_aabb_inv_extent_,
+                                                             guide_prev_pos),
+                                           guide_prev_dir, incident_lum * math::rcp(guide_prev_phasepdf));
+                        }
+                        guide_prev_pos = event.position_;                     // P_b
+                        guide_prev_dir = event.direction_;                    // d_b (continuation P_b→P_{b+1})
+                        guide_prev_phasepdf = phase::eval(wi, event.direction_);  // pdf of that d_b
+                        guide_have_prev = true;
+                    }
                 } else {
                     // Single-strategy NEE: phase IS only.
                     // For phase IS, phase/pdf_phase == 1 → contribution = base · env · T.

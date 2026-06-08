@@ -73,6 +73,13 @@ struct THESIS_ALIGNMENT LaunchParams {
     // (under-absorption) — turning the previously SILENT overflow into a visible signal.
     // Single element; null-guarded on device.
     unsigned long long* overflow_counter_ = nullptr;
+
+    // Path-guiding directionality diagnostic (OPTIMIZATION_FRONTIER ④). null = disabled (no overhead).
+    // When allocated, the NEE block deposits incident radiance into this shared grid (atomicAdd);
+    // host downloads it post-render to measure per-cell directionality. See device/core/guiding.cuh.
+    float* guide_bins_ = nullptr;          // [GUIDE_NUM_CELLS * GUIDE_DIR_BINS]
+    float3 guide_aabb_min_ = {0.0f, 0.0f, 0.0f};
+    float3 guide_aabb_inv_extent_ = {0.0f, 0.0f, 0.0f};
 };
 
 }  // namespace params

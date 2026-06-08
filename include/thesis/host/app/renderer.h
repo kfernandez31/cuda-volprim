@@ -56,6 +56,12 @@ class Renderer {
     // drops). Read back after the render to warn about silently-biased dense regions.
     cuda::AsyncBuffer<unsigned long long> overflow_counter_;
 
+    // Path-guiding directionality diagnostic (④). Allocated only when config_.guide_learn_;
+    // downloaded + dumped to disk post-render. scene_min_/max_ define the grid AABB.
+    cuda::AsyncBuffer<float> guide_bins_;
+    float3 scene_min_{};
+    float3 scene_max_{};
+
     optix::Module module_;
     optix::Module builtin_is_module_;
     optix::ProgramGroup raygen_pg_;

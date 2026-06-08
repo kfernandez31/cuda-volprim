@@ -169,6 +169,16 @@ constexpr int RIS_NUM_CANDIDATES = 6;  // K (default; runtime --ris-candidates).
                                        // equal-quality sweet spot is K=4–8 (~1.4–1.46×); 6 is the
                                        // chosen compromise (cost rises with K, quality plateaus by ~8).
 
+// Path-guiding grid (OPTIMIZATION_FRONTIER ④, oracle kill-test). Host-safe constants for the shared
+// spatio-directional grid: a SPATIAL_RES³ spatial grid, each cell a DIR_RES² octahedral directional
+// histogram. Used first for the cheap directionality DIAGNOSTIC (deposit NEE radiance, measure
+// |Σ L·ω|/Σ L per cell) — if the field is near-isotropic, guiding can't help → kill before the full
+// oracle. See device/core/guiding.cuh.
+constexpr int GUIDE_SPATIAL_RES = 32;
+constexpr int GUIDE_DIR_RES = 8;
+constexpr int GUIDE_DIR_BINS = GUIDE_DIR_RES * GUIDE_DIR_RES;                          // 64
+constexpr int GUIDE_NUM_CELLS = GUIDE_SPATIAL_RES * GUIDE_SPATIAL_RES * GUIDE_SPATIAL_RES;  // 32768
+
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
 // (via compute_transmittance_to_env) instead of the high-variance analog binary
