@@ -197,7 +197,7 @@ extern "C" __global__ void __raygen__rg() {
                 const auto wi = ray.direction_;
                 const auto base = throughput * albedo;
 
-                if constexpr (consts::ENABLE_RIS) {
+                if (launch_params.render_.use_ris_) {  // runtime --ris (default off = MIS)
                     // ─── Product-RIS direct lighting: K env-IS candidates → 1 reservoir → 1 ray ───
                     // Target p̂(ω) = phase(wi,ω)·lum(env(ω)) (the UNSHADOWED phase×env product that
                     // neither phase-IS nor env-IS alone samples). Candidates drawn from env-IS
