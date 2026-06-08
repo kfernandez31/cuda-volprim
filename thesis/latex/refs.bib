@@ -141,7 +141,7 @@
     keywords = {ray tracing, graphics systems, graphics hardware}
 }
 
-@software{Mitsuba3,
+@misc{Mitsuba3,
     title = {Mitsuba 3 renderer},
     author = {Wenzel Jakob and Sébastien Speierer and Nicolas Roussel and Merlin Nimier-David and Delio Vicini and Tizian Zeltner and Baptiste Nicolet and Miguel Crespo and Vincent Leroy and Ziyi Zhang},
     note = {\url{https://mitsuba-renderer.org}},
@@ -161,7 +161,7 @@
     note = {\url{https://rgl.epfl.ch/publications/Jakob2022DrJit}},
 }
 
-@software{Enoki,
+@misc{Enoki,
    author = {Wenzel Jakob},
    year = {2019},
    note = {\url{https://github.com/mitsuba-renderer/enoki}},
@@ -174,4 +174,192 @@
    year = {2024},
    month = {August},
    note = {\url{https://raytracing.github.io/books/RayTracingInOneWeekend.html}}
+}
+
+% ============================================================
+% Techniques & sources added for the thesis (design spec §11).
+% Recent/whitepaper/dataset entries web-verified 2026-06-08; the two local
+% papers (Kutz2017, StochasticSplats2025) taken from their PDFs. DOIs included
+% only where confident; classics carry author/title/venue/year/pages (the
+% verified essentials) — add remaining DOIs in a final pass if desired.
+% ============================================================
+
+@inproceedings{Kajiya1986,
+  author    = {Kajiya, James T.},
+  title     = {The Rendering Equation},
+  booktitle = {Proceedings of SIGGRAPH '86},
+  series    = {Computer Graphics},
+  volume    = {20},
+  pages     = {143--150},
+  year      = {1986},
+  doi       = {10.1145/15922.15902},
+}
+
+@inproceedings{VeachGuibas1995,
+  author    = {Veach, Eric and Guibas, Leonidas J.},
+  title     = {Optimally Combining Sampling Techniques for {Monte} {Carlo} Rendering},
+  booktitle = {Proceedings of SIGGRAPH '95},
+  pages     = {419--428},
+  year      = {1995},
+  doi       = {10.1145/218380.218498},
+}
+
+@inproceedings{ArvoKirk1990,
+  author    = {Arvo, James and Kirk, David},
+  title     = {Particle Transport and Image Synthesis},
+  booktitle = {Proceedings of SIGGRAPH '90},
+  series    = {Computer Graphics},
+  volume    = {24},
+  pages     = {63--66},
+  year      = {1990},
+  doi       = {10.1145/97879.97886},
+}
+
+@book{Chandrasekhar1960,
+  author    = {Chandrasekhar, Subrahmanyan},
+  title     = {Radiative Transfer},
+  publisher = {Dover Publications},
+  year      = {1960},
+}
+
+@article{HenyeyGreenstein1941,
+  author    = {Henyey, Louis G. and Greenstein, Jesse L.},
+  title     = {Diffuse Radiation in the Galaxy},
+  journal   = {The Astrophysical Journal},
+  volume    = {93},
+  pages     = {70--83},
+  year      = {1941},
+}
+
+@techreport{Woodcock1965,
+  author      = {Woodcock, E. R. and Murphy, T. and Hemmings, P. J. and Longworth, T. C.},
+  title       = {Techniques Used in the {GEM} Code for {Monte} {Carlo} Neutronics Calculations in Reactors and Other Systems of Complex Geometry},
+  institution = {Argonne National Laboratory},
+  number      = {ANL-7050},
+  year        = {1965},
+}
+
+@article{Kutz2017,
+  author    = {Kutz, Peter and Habel, Ralf and Li, Yining Karl and Nov{\'a}k, Jan},
+  title     = {Spectral and Decomposition Tracking for Rendering Heterogeneous Volumes},
+  journal   = {ACM Transactions on Graphics (Proceedings of SIGGRAPH)},
+  volume    = {36},
+  number    = {4},
+  articleno = {111},
+  year      = {2017},
+  doi       = {10.1145/3072959.3073665},
+}
+
+@inproceedings{Talbot2005,
+  author    = {Talbot, Justin F. and Cline, David and Egbert, Parris},
+  title     = {Importance Resampling for Global Illumination},
+  booktitle = {Proceedings of the 16th Eurographics Symposium on Rendering (EGSR '05)},
+  pages     = {139--146},
+  year      = {2005},
+  note      = {\url{http://justintalbot.com/publication/importance-resampling/}},
+}
+
+@article{Chao1982,
+  author    = {Chao, M. T.},
+  title     = {A General Purpose Unequal Probability Sampling Plan},
+  journal   = {Biometrika},
+  volume    = {69},
+  number    = {3},
+  pages     = {653--656},
+  year      = {1982},
+}
+
+@article{Vitter1985,
+  author    = {Vitter, Jeffrey S.},
+  title     = {Random Sampling with a Reservoir},
+  journal   = {ACM Transactions on Mathematical Software},
+  volume    = {11},
+  number    = {1},
+  pages     = {37--57},
+  year      = {1985},
+  doi       = {10.1145/3147.3165},
+}
+
+@article{Bitterli2020,
+  author    = {Bitterli, Benedikt and Wyman, Chris and Pharr, Matt and Shirley, Peter and Lefohn, Aaron and Jarosz, Wojciech},
+  title     = {Spatiotemporal Reservoir Resampling for Real-Time Ray Tracing with Dynamic Direct Lighting},
+  journal   = {ACM Transactions on Graphics (Proceedings of SIGGRAPH)},
+  volume    = {39},
+  number    = {4},
+  year      = {2020},
+  doi       = {10.1145/3386569.3392481},
+}
+
+@article{Sobol1967,
+  author    = {Sobol', Ilya M.},
+  title     = {On the Distribution of Points in a Cube and the Approximate Evaluation of Integrals},
+  journal   = {USSR Computational Mathematics and Mathematical Physics},
+  volume    = {7},
+  number    = {4},
+  pages     = {86--112},
+  year      = {1967},
+}
+
+@article{Owen1998,
+  author    = {Owen, Art B.},
+  title     = {Scrambling {Sobol'} and {Niederreiter--Halton} Sequences},
+  journal   = {Journal of Complexity},
+  volume    = {14},
+  number    = {4},
+  pages     = {466--489},
+  year      = {1998},
+}
+
+@article{MacDonaldBooth1990,
+  author    = {MacDonald, J. David and Booth, Kellogg S.},
+  title     = {Heuristics for Ray Tracing Using Space Subdivision},
+  journal   = {The Visual Computer},
+  volume    = {6},
+  number    = {3},
+  pages     = {153--166},
+  year      = {1990},
+}
+
+@misc{NvidiaSER2022,
+  author       = {{NVIDIA}},
+  title        = {{NVIDIA} {Ada} {GPU} Architecture Whitepaper (Shader Execution Reordering)},
+  year         = {2022},
+  howpublished = {Whitepaper, v2.02},
+  note         = {\url{https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-architecture.pdf}},
+}
+
+@book{PBRT4,
+  author    = {Pharr, Matt and Jakob, Wenzel and Humphreys, Greg},
+  title     = {Physically Based Rendering: From Theory to Implementation},
+  edition   = {Fourth},
+  publisher = {The MIT Press},
+  year      = {2023},
+  note      = {\url{https://www.pbr-book.org/}},
+}
+
+@misc{WDASCloud2017,
+  author       = {{Walt Disney Animation Studios}},
+  title        = {Cloud Data Set},
+  year         = {2017},
+  howpublished = {Disney Enterprises, Inc., CC BY-SA 3.0},
+  note         = {\url{https://disneyanimation.com/resources/clouds/}},
+}
+
+@inproceedings{TurkLevoy1994,
+  author    = {Turk, Greg and Levoy, Marc},
+  title     = {Zippered Polygon Meshes from Range Images},
+  booktitle = {Proceedings of SIGGRAPH '94},
+  pages     = {311--318},
+  year      = {1994},
+  doi       = {10.1145/192161.192241},
+}
+
+@misc{StochasticSplats2025,
+  author        = {Kheradmand, Shakiba and Vicini, Delio and Kopanas, George and Lagun, Dmitry and Yi, Kwang Moo and Matthews, Mark and Tagliasacchi, Andrea},
+  title         = {StochasticSplats: Stochastic Rasterization for Sorting-Free {3D} {Gaussian} Splatting},
+  year          = {2025},
+  eprint        = {2503.24366},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  note          = {\url{https://arxiv.org/abs/2503.24366}},
 }
