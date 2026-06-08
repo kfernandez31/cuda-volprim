@@ -13,7 +13,7 @@ survived an adversarial review, the hard constraints any future idea must respec
 ## 1. TL;DR verdict
 
 **Near-exhausted, with a thin sliver of genuine territory left.** Every cheap/structural lever has been
-measured and killed (§8.29–§8.34). There is **no path-changing perf breakthrough available on this
+measured and killed (§8.29–§8.36; ① exit-caching + ③ alias-table closed 2026-06-08). There is **no path-changing perf breakthrough available on this
 hardware** — the one true lever (OptiX Shader Execution Reordering) is Ada-only and N/A on the 3090. The
 megakernel sits at a defensible ~22 % occupancy latency wall. What remains is a **short list of
 unmeasured, mostly-modest ideas**, two of which are genuinely novel for this renderer.
@@ -53,7 +53,14 @@ These are *measured*, not assumed. They are why most ideas die.
 > **Discipline for all of them: run the kill-test BEFORE implementing.** Each idea has a cheap
 > measurement that confirms or refutes its premise in minutes-to-hours. Time-box every one.
 
-### ① Single-pass argmin exit-caching — *Low effort (1–2 h), bit-identical, low risk* — DO FIRST
+### ① Single-pass argmin exit-caching — ❌ TESTED, NOT A WIN (2026-06-08) — see FINDINGS §8.35
+> **Verdict:** implemented (active-prims-only `float[128]` register/local cache), **bit-identical**
+> (0/1.62M px), but **no speedup — a wash trending slightly slower** (A/B-interleaved cloud cam0:
+> +2.3 % mean / +4.6 % median / +5.7 % min, within ~9 % run jitter). Measured at the admin-locked
+> 150 W / 435 MHz operating point — the regime *most* favorable to caching — and it still didn't help;
+> at full clocks (memory/occupancy-bound) the 512 B local spill is strictly worse. Closes the §8.29
+> deferred load-COUNT lever and confirms the 22 %-occupancy wall a 4th way. Code reverted; main unchanged.
+
 - **What:** `sample_scattering_event` (`device/core/sampling.cuh`) computes each prim's `t_exit` twice —
   once in the argmin pass (lines ~362–410) and again in the "rebuild `final_active_prims`" pass
   (~425–450). The rebuild re-issues the exact scattered `Primitive` transform loads that *are* the
@@ -110,6 +117,14 @@ These are *measured*, not assumed. They are why most ideas die.
   ~85 % of frame), RIS is the device that recovers MIS quality at ~1-ray cost → build it. If the drop is
   negligible, the cost premise is false → RIS is dead before any code.**
 
+### ③ Alias table (O(1)) for env-IS sampling — ⏸ TESTED, PARKED (2026-06-08) — see FINDINGS §8.36
+> **Verdict:** implemented (Walker/Vose, branch `feature/env-is-alias-table`) + verified **correct**
+> (furnace flat; 12-seed bias +8.1e-5 < 1e-4 gate). But **sub-1 % near-null**: ncu shows −0.56 % global
+> loads / −0.87 % DRAM / −1 % duration and the **long_scoreboard stall unmoved (0.34→0.34)** — the env-IS
+> search is only ~0.5 % of megakernel loads. No occupancy cost (global tables, not local spill → not
+> *negative* like ①), but the <1 % env-only win doesn't justify +33–66 MB + perturbing the validated
+> showcase by +8e-5. **Parked, not merged**; binary-search sampler stays the shipped path.
+
 ### ③ Alias table (O(1)) for env-IS sampling — *Low effort, small (~1–4 %), env-only*
 - **What:** `env_is::sample` does **two per-sample binary searches** (`upper_bound`, `sampling.cuh:194–195`)
   over the global marginal/conditional CDF arrays — ~`log₂(H)+log₂(W)` *data-dependent* loads that can't
@@ -165,13 +180,14 @@ These are *measured*, not assumed. They are why most ideas die.
 
 Time-box each behind its kill-test; stop at the first that fails its premise.
 
-1. **① single-pass argmin** — 1–2 h, bit-identical. The cleanest possible test of whether load-COUNT
-   reduction (vs the already-killed latency micro-ops) finally moves wall-clock.
+1. ~~**① single-pass argmin**~~ — ❌ DONE (2026-06-08): bit-identical but no win (wash trending slightly
+   slower); load-COUNT reduction fails for the same occupancy-wall reason latency micro-ops did. FINDINGS §8.35.
 2. **② volumetric RIS** — but ONLY after the one-flag "1 vs 2 shadow ray" headroom measurement confirms
    the transmittance cost is cuttable. The single most defensible *new algorithmic* contribution;
    thesis-interesting whether it wins big or merely matches MIS at lower cost.
-3. Park **③ alias table** and **④ guide-IS** unless ①–② leave time. ④ is the only remaining lever for the
-   real surviving variance but its oracle kill-test must show >~1.15× before any build.
+3. ~~**③ alias table**~~ — ⏸ DONE (2026-06-08): correct but sub-1 % near-null, long_scoreboard unmoved;
+   parked, not merged (FINDINGS §8.36). Park **④ guide-IS** unless ② leaves time — ④ is the only remaining
+   lever for the real surviving variance but its oracle kill-test must show >~1.15× before any build.
 4. **⑤ Epanechnikov** — only as a deliberate research direction, not a quick win.
 
 ---
@@ -180,6 +196,10 @@ Time-box each behind its kill-test; stop at the first that fails its premise.
 
 All measured; see `FINDINGS.md §8`:
 - Megakernel footprint: SoA / field-reorder / `__ldg` (§8.29 — bit-identical, no wall-clock; 3× null).
+- Single-pass argmin exit-caching (§8.35 — bit-identical, no win / wash-trending-slower; load-count
+  reduction also bounded by the 22 % occupancy wall — the 4th confirmation).
+- Env-IS alias table (§8.36 — correct, bias +8e-5 < gate, but sub-1 % near-null; long_scoreboard unmoved,
+  env-IS search is ~0.5 % of loads — parked on a branch, binary-search sampler stays shipped).
 - Adaptive sampling (§8.30 — net loss, SIMT-divergence-gated, +bias).
 - Density-contribution culling (§8.31 — redundant with the BVH 3σ bound).
 - Track-length × argmin combine (§8.32 — env transmittance already analytic).

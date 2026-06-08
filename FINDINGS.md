@@ -1374,6 +1374,99 @@ RR=12) is the architecturally correct, defensible final state — and already *b
 Code kept on `feature/wavefront-phase1` behind `THESIS_WAVEFRONT=OFF` as the reproducible artifact;
 the default build is unaffected. WAVEFRONT_PLAN.md Phases 2–5 are withdrawn.
 
+### 8.35 Single-pass argmin exit-caching — tested, NOT a win (closes the §8.29 deferred load-count item; bit-identical)
+§8.29 left one untested non-rewrite lever explicitly open: *cut the global-load instruction COUNT*
+(the `Primitive` is re-read ~4–5×/scatter) rather than per-load latency (the killed §8.29 micro-ops).
+This is the **argmin→rebuild-exit slice** of that item, and OPTIMIZATION_FRONTIER.md's ① "DO FIRST."
+`sample_scattering_event` computes each active prim's `t_exit = exit_from_inside(ray, prim)` **twice** —
+once in the argmin pass, once in the rebuild-`final_active_prims` pass (same `ray`, same `prim`,
+`active_prims` untouched and stable-order between the passes). I cached pass-1's active-prims exits in a
+`float[MAX_ACTIVE_PRIMS]` (=128) register/local array and replaced pass-2's recompute with an indexed
+read — removing whole scattered `Primitive`-transform loads (the §8.29 bottleneck axis), not just their
+latency.
+
+**Correctness: BIT-IDENTICAL** (0/1.62M px differ vs baseline, cloud cam0 128 spp; exits are a pure
+function of unchanged inputs and iteration order is stable). Auto-passes the bias gate by construction.
+
+**Performance: no win — a wash trending slightly slower.** A/B-interleaved (baseline blob vs cache blob,
+swapped each run so any drift hits both arms; same host loader), 6 pairs, cloud cam0 128 spp seed 42:
+
+| metric | baseline | cache | cache vs baseline |
+|---|---|---|---|
+| min | 46.75 s | 49.40 s | **+5.7 %** |
+| median | 49.41 s | 51.68 s | **+4.6 %** |
+| mean | 50.33 s | 51.50 s | **+2.3 %** |
+| mean paired Δ (cache−baseline) | — | — | **+1.33 s** (sd 4.46 s) |
+
+Run-to-run jitter (sd ≈ 9 %) exceeds the effect, so it is not a statistically *clean* slowdown — but
+**every central-tendency metric points the same way (slightly slower), and there is no speedup in any
+of them.** A frontier idea must demonstrably *win* to ship; wash-trending-slower + 512 B/thread of
+local scratch + extra code = **reject.**
+
+**⚠ Operating-point caveat (matters for the sign).** The benchmark GPU is **admin-locked at 150 W**
+(default 350 W) → SM pinned at **435 MHz vs 2100 MHz max** (`clocks_event_reasons.active=0x4`, SW power
+cap; temp only 63 °C, so not thermal). That makes it **compute/power-bound**, which is the regime *most
+favorable* to caching (removing recomputed ALU should help most) — and it *still* doesn't help. At full
+clocks the kernel is **memory-latency/occupancy-bound** (§8.29: 22 % occupancy, 114 regs), where the
+512 B local spill *lowers occupancy* → strictly worse. So the verdict is robust across both operating
+points, and matches the prior full-clock experience that caching exits "proved a slower choice."
+
+**Mechanism (why removing loads doesn't help).** The recomputed `exit_from_inside` reads a `Primitive`
+that is already **82–84 % L1 / 98.7 % L2 resident** (§8.29) — the recompute is cheap. Caching trades
+that cheap re-read for a `float[128]` local array that **spills to local memory** (frame growth on a
+kernel already at the 114-reg/22 %-occupancy ceiling). Spill traffic + addressing ≥ the saved re-read.
+**This confirms the §8.29 occupancy-wall thesis a 4th independent way: cutting global-load *count*
+(this) fails for the same reason cutting per-load *latency* (SoA / reorder / `__ldg`) failed — at 22 %
+occupancy the wall is latency exposure, removable only by more warps, not by tidier per-warp work.**
+
+**Verdict: DEAD END** — the §8.29 deferred load-count lever is now closed empirically. Experimental code
+reverted (main unchanged; the validated megakernel is byte-for-byte preserved). Blobs/EXRs:
+/tmp/device_program_{baseline,cache}.optixir, /tmp/{base,cache}_cloud_excache.exr.
+
+### 8.36 Alias table for env-IS sampling — implemented + verified correct, but a sub-1 % near-null (env-IS search is not a bottleneck); parked
+OPTIMIZATION_FRONTIER.md ③: replace the **two data-dependent binary searches** in `env_is::sample`
+(`upper_bound` over the marginal + per-row conditional CDFs, ~log₂H+log₂W ≈ 23 uncoalesced loads/sample)
+with **Walker/Vose alias tables** (O(1), 1–2 loads/dim). Built host-side
+(`EnvironmentMap::buildAlias`/`appendAliasTable`) from the *same* `joint_density`/row-sum weights the CDF
+uses, so the sampled distribution is identical; the device draw (`alias_draw`) reuses the single uniform
+for both bin-select and accept (provably equivalent to two draws for integer n → the rest of the path's
+rng stream is unperturbed; a same-seed alias-vs-baseline pair differs *only* in env-IS texel selection).
+Branch `feature/env-is-alias-table` (NOT merged — parked artifact).
+
+**Correctness — PASS (statistical gate; not bit-identical by design).** Different realization of the same
+distribution, so verified by:
+- **Furnace:** alias tracks the binary-search baseline to within MC noise at every spp (σ=6: both fail the
+  structure metric at 256 spp, both pass at 1024 spp, bias→0). Energy-conserving.
+- **Bias (12-seed diff-of-means, cloud cam0 + meadow + HG + MIS, 128 spp):** signed-mean Δ(alias−base) =
+  **+8.1e-5 ± 3.1e-5 (2.6σ) — below the ≤1e-4 gate.** The marginal residual is consistent with the alias
+  being built in **double** vs the baseline CDF's **float** prefix sums (i.e. the alias is the slightly
+  *more* accurate sampler near the peaked meadow sun), not a sampling bug.
+
+**Performance — sub-1 %, does not move the bottleneck.** At the admin-locked 150 W operating point the
+~9 % wall-clock jitter swamps the expected ~1–4 % env-only win, so measured clock-independently with `ncu`
+(§8.29 method; megakernel, cloud+meadow 1 spp):
+
+| metric | binary-search | alias | Δ |
+|---|---|---|---|
+| global-load instructions | 8.527e8 | 8.479e8 | −0.56 % |
+| DRAM bytes read | 5.735e9 | 5.685e9 | −0.87 % |
+| kernel duration | 236.6 ms | 234.2 ms | −1.03 % |
+| **long_scoreboard stall ratio** | **0.34** | **0.34** | **±0.00 %** |
+| L1 / L2 sector hit | 92.09 / 81.82 % | 92.21 / 81.73 % | ≈0 |
+
+All deltas favorable but tiny, and the **dominant `long_scoreboard` stall is unmoved** — the env-IS CDF
+search is only ~0.5 % of the megakernel's global loads; the Primitive loads in the transmittance/scatter
+loops dominate (per §8.29). Wall-clock A/B (6 pairs, 128 spp, blob+binary swap) confirmed it: median
+−0.8 %, mean +0.4 % → indistinguishable within noise, no regression.
+
+**Verdict: NEAR-NULL, parked (not shipped).** Correct and marginally *favorable* — and, unlike ① (§8.35),
+it carries **no occupancy cost** (the tables are global, not per-ray local spill) so it's a clean parked
+result, not a dead end. But the <1 % env-only win does not justify (a) perturbing the *validated* showcase
+output by +8e-5 (the binary-search path is currently bit-exact-validated), (b) the ~+33–66 MB device memory
+for the alias arrays, or (c) the added host build code. Same conclusion-class as ①/§8.29: this renderer is
+bound by the Primitive loads / long_scoreboard, not by peripheral sampling work. Kept on the branch as a
+reproducible artifact; the binary-search sampler remains the shipped path. ncu: /tmp/ncu_{baseline,alias}.csv.
+
 ## 9. Known limitations & OPEN items
 
 - **Feature validation (this session, §8.6–8.13) — summary.** Real HDR env (meadow), HG
