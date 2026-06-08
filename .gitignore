@@ -19,3 +19,23 @@ test_results/
 **/.venv/
 **/.venv-volprim/
 **/__pycache__/
+
+# PBRT book mirror (symlink to ~/jorge/pbr-book; copyrighted, do not commit)
+/references/pbr-book
+
+# LaTeX build artifacts (thesis/latex/); *.out and *.log already ignored above
+*.aux
+*.bbl
+*.blg
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.thm
+*.idx
+*.ind
+*.ilg
+thesis/latex/thesis.pdf
+thesis/latex/thesis.ps

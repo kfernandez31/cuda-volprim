@@ -1,0 +1,130 @@
+\chapter{Related work}
+
+\section{Neural Radiance Fields (NeRFs)}
+Neural Radiance Fields (NeRFs)~\cite{NeRF} are a groundbreaking approach in the field of computer graphics and computer vision, enabling the generation of high-quality 3D representations from a sparse set of 2D images. Introduced in 2020, NeRFs utilize deep learning techniques to model volumetric scene representations by encoding both spatial and directional information of light emitted from a scene. The core of the NeRF framework involves a fully connected MLP neural network that takes a 5-dimensional input vector $(x, y, z, \theta, \phi)$, where $\hat{x}=(x, y, z)$ represents the spatial coordinates of a point in the scene and $d=(\theta, \phi)$ denotes the viewing direction. The network outputs the corresponding RGB color and volume density at that location, approximating the following function:
+
+$$F_{\Theta}(\hat{x}, d) = (c, \sigma)$$
+
+This dual output is crucial: the RGB values provide the color emitted from that point, while the density $\sigma$ quantifies how much light is absorbed or scattered at that location. The rendering process involves tracing rays from the camera for each pixel, and sampling along their paths to numerically integrate the contributions of color and density to a novel view of the scene. 
+
+The color $C$ observed along a ray $\bm{r}$ that intersects a continuous space of points $t\in [t_n, t_f]$ can be expressed as:
+
+$$C(r) = \int_{t_n}^{t_f} T(t)\cdot\sigma(\bm{r}(t))\cdot \bm{c}(\bm{r}(t), d)~dt,~\text{ where }~T(t) = \exp\left(-\int_{t_n}^t \sigma(\bm{r}(s)) ~ds\right)$$
+
+where $T(t)$ is the percentage of light that successfully passes to point $t$, called its accumulated transmittance. In practice, this integral is numerically approximated with a quadrature:
+
+$$\hat{C}(r) = \sum_{i=1}^n T_i\cdot(1-e^{-\sigma_i\delta_i})\cdot\textbf{c}_i ,~\text{ where }~ T_i=\prod_{j=1}^{i-1}e^{-\sigma_j\delta_j}, ~~\delta_j=t_{j+1}-t_i,$$
+
+where each $t_i$ is uniformly sampled from the $i$-th bin, each bin being one of $N$ evenly spaced intervals: $$t_i\sim\mathcal{U}[t_n+\frac{i-1}{N}(t_f-t_n),~~t_n+\frac{i}{N}(t_f-t_n)]$$
+
+This process is then optimized with techniques such as hierarchical volume sampling, which promotes sampling more points for parts of the volume that require it, and less for those that don't.
+
+NeRFs are particularly effective in synthesizing highly detailed views, even with limited input images, and can reconstruct complex geometry and lighting effects. They have found applications in various domains, including virtual and augmented reality, and digital content creation, significantly enhancing the ability to create immersive environments from minimal photographic data. Furthermore, NeRFs also allow for generating new camera paths to simulate perspectives such as drone flight, providing a versatile, cost-effective tool for scene exploration. As opposed to traditional point cloud representations or triangle meshes, they also support non-Lambertian surfaces (ones that don't reflect light uniformly in all directions).
+
+However, NeRFs suffer from two major drawbacks. One of them is that, being based on a neural network, they do not provide an explicit representation of the scene. Hence, by design, it is impossible to port the generated 3D scene or some of its elements as a model into software like Blender. Secondly, NeRFs are computationally expensive and require lengthy training as compared to more modern methods, which will be discussed further. Lastly, they deliver rather unimpressive frames per second (FPS) values.
+
+The architecture of a NeRF typically consists of a fully connected deep neural network with 9 layers and 256 channels, which results in approximately 5 million learnable parameters, however this is still smaller than an explicitly stored 3D model of several gigabytes. To improve rendering quality, NeRFs take multiple samples per ray, allowing for a more accurate representation of the scene. 
+
+Extensions to the original NeRF framework, such as MIP-NeRF~\cite{MipNeRF}, enhance its capabilities by efficiently rendering anti-aliased conical frustums instead of rays. This approach reduces objectionable aliasing artifacts and significantly improves NeRF's ability to represent fine details while also being approximately 7\% faster than the original NeRF with half the network size. Others, such as PixelNerf~\cite{PixelNeRF} aim to reduce the number of input views for the neural network to recreate the scene.
+
+Overall, when published, NeRFs have emerged as a state-of-the-art (SOTA) method for synthesizing novel views of complex scenes, optimizing an underlying continuous volumetric scene function using a sparse set of input views, however not without noticeable limitations that future methods will aim to improve.
+
+\section{Ray tracers}
+
+\subsection{The Mitsuba ray tracer}
+
+Mitsuba is a versatile rendering architecture designed for efficient ray tracing, with significant advancements in its iterations, particularly Mitsuba 2 and Mitsuba 3. These versions integrate a range of rendering features while focusing on performance and modularity.
+
+\subsubsection{Mitsuba 2}
+
+Mitsuba 2 supports various rendering techniques, including:
+
+\begin{itemize}
+    \item \textbf{Differentiable Rendering}: Enables optimization loops to recover unknown scene parameters, useful for applications like caustic design and volume density reconstruction.
+    \item \textbf{Spectral and Polarized Rendering}: Allows accurate simulation of light properties, essential for optical experiments and realistic material interactions.
+    \item \textbf{Vectorization}: Utilizes modern CPU vector instructions to enhance rendering performance, particularly in coherent sampling methods.
+    \item \textbf{Modular Design}: Facilitates easy extension and integration of new features without significant code duplication, streamlining development.
+\end{itemize}
+
+The architecture leverages Enoki~\cite{Enoki}, a tensor math library, to handle various target platforms (CPU/GPU) and support automatic differentiation, which is crucial for differentiable rendering tasks.
+
+\subsubsection{Mitsuba 3}
+
+Mitsuba 3 builds on the capabilities of Mitsuba 2, offering:
+
+\begin{itemize}
+    \item \textbf{Flexible Compilation}: Supports various configurations, including derivative tracking and dynamic compilation via LLVM or CUDA.
+    \item \textbf{Core Libraries and Plugins}: A modular system that allows for the implementation of diverse materials and rendering algorithms while maintaining scene compatibility with earlier versions.
+\end{itemize}
+
+Overall, Mitsuba provides a powerful platform for ray tracing, enabling advanced features like spectral and polarized rendering, differentiable rendering, and efficient performance through vectorization. Its modular architecture supports a wide range of applications in computer graphics and optical design.
+
+Overall, Mitsuba provides a powerful platform for ray tracing, enabling advanced features like spectral and polarized rendering, differentiable rendering, and efficient performance through vectorization. Its modular architecture supports a wide range of applications in computer graphics and optical design.
+
+\subsubsection{Limitations of Mitsuba}
+
+Despite its strengths, Mitsuba has several limitations that may affect its suitability for specific real-time rendering use cases:
+
+\begin{itemize}
+    \item \textbf{JIT Compilation Overhead}: The just-in-time (JIT) compilation can lead to long kernel call times until they are cached, which may hinder performance in dynamic scenarios.
+    \item \textbf{Single-Frame Rendering Focus}: Mitsuba is primarily designed for single-frame rendering, which may not meet the needs of applications requiring real-time performance.
+    \item \textbf{Limited Control Over CUDA Kernels}: The generated CUDA kernels do not allow for fine-grained control, which can restrict optimization opportunities, particularly for complex representations like hierarchical Gaussians.
+\end{itemize}
+
+Given these limitations, exploring alternative rendering systems may be beneficial for specific ray tracing use cases that demand faster, real-time performance.
+
+\section{Volume Rendering}
+
+Volume rendering is a powerful technique used to visualize complex, dynamic three-dimensional data, such as liquids, smoke, clouds, fire, and dust. This method is essential in various fields, such as:
+
+\begin{itemize}
+    \item \textbf{Medicine}: Techniques like CT angiography to visualize blood vessels and other internal structures.
+    \item \textbf{Material Science and Quality Control}: Analysis of the internal structure of materials, detecting defects, and ensuring quality control in manufacturing processes.
+    \item \textbf{Biology}: Visualizing complex biological structures, such as tissues and cellular arrangements.
+    \item \textbf{Geology and Archaeology}: Visualizing geological formations and archaeological sites, providing insights into their structure and composition.
+    \item \textbf{Computational Science and Engineering}: Employed in simulations and modeling to visualize fluid dynamics, particle interactions, and other complex systems.
+\end{itemize}
+
+% \subsubsection{Rendering Techniques}
+
+% Several methods are employed in volume rendering, each with its strengths and limitations:
+
+% \begin{itemize}
+%     \item \textbf{Slice-Based Rendering}: This technique involves rendering multiple 2D slices of the volume data, allowing for visualization from a single perspective. While effective, it may not provide a comprehensive view of the volume's internal structure.
+%     \item \textbf{Transfer Functions}: Transfer functions are used to map data values to color and opacity, enabling the visualization of different features within the volume. By adjusting these functions, users can highlight specific structures or regions of interest.
+% \end{itemize}
+
+
+% Methods:
+% - volume rendering with slices - only allows for one perspective
+
+% Transfer functions - take a function (data value f) and convert it to some color value and opacity
+
+\subsubsection{Sparse Volume Representation}
+
+The canonical approach to representing volumetric data often involves using voxel grids and point clouds. However, these methods can be highly memory inefficient, particularly for highly detailed models, and they struggle to accurately represent non-Lambertian surfaces, leading to visual artifacts in rendering.
+
+To address these challenges, specialized data structures and file formats have been developed, with OpenVDB~\cite{OpenVDB} being a prominent example. OpenVDB is an industry-standard framework that provides a comprehensive set of tools for efficiently managing and manipulating volumetric data. It supports various tasks, including collision detection, point cloud rendering, and shape manipulation, and is integrated into popular software like Blender. 
+
+Internally, OpenVDB utilizes a Bounding Volume Hierarchy (BVH) to optimize memory usage and access times. Key features of OpenVDB include its small memory and disk footprint and fast random access capabilities, allowing for $O(1)$ iteration, lookup, insertion, and deletion. This is guaranteed mainly through the clever usage of bitmasks to accelerate indexing. The VDB structure resembles the CPU memory layout in terms of lookup latency -- the lower the level in the tree, the lower the latency.
+
+For applications requiring real-time visualization, such as gaming, a GPU-supported extension of OpenVDB called NanoVDB~\cite{NanoVDB} has been introduced by Museth et al. NanoVDB enables efficient volume cutting, partitioning, and out-of-core loading, making it suitable for interactive applications where performance is critical.
+
+Another innovative approach is NeuralVDB, which builds upon the OpenVDB framework by incorporating an implicit representation in the leaf nodes of the underlying tree. This method is particularly beneficial in scenarios such as movie production, where models can reach terabytes of data. However, efficiently loading these large datasets into the renderer poses challenges, especially given the limitations of GPU memory pools. The need to minimize memory calls is crucial when handling millions of queries, as repeatedly querying an uncached multi-gigabyte structure can lead to significant memory overhead.
+
+While NeuralVDB optimizes memory usage, it comes with trade-offs in performance, often resulting in processing times that are an order of magnitude slower. This is especially pronounced when assets are altered, as it necessitates retraining the neural networks for every modification. Such requirements can hinder throughput, particularly in dynamic production environments where assets are frequently updated.
+
+%%%%%%
+
+
+% Physically-based rendering
+% Path tracing
+% GPU Path traicng
+% Inverse rendering
+
+% ToWrite:
+% raytracing shaders
+% pathtracing
+% inverse rendering
+% differentiable renderers?
+

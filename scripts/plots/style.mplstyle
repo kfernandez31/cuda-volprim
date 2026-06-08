@@ -1,0 +1,23 @@
+# Publication figure style for the thesis (targets memoir 11pt Palatino body text).
+# Palatino falls back to DejaVu Serif if unavailable to matplotlib — acceptable.
+figure.figsize: 5.5, 3.4
+figure.dpi: 150
+savefig.dpi: 300
+savefig.format: pdf
+savefig.bbox: tight
+font.family: serif
+font.serif: Palatino, TeX Gyre Pagella, DejaVu Serif
+font.size: 10
+axes.titlesize: 11
+axes.labelsize: 10
+legend.fontsize: 9
+xtick.labelsize: 9
+ytick.labelsize: 9
+axes.grid: True
+grid.alpha: 0.3
+grid.linewidth: 0.5
+axes.spines.top: False
+axes.spines.right: False
+lines.linewidth: 1.5
+lines.markersize: 5
+legend.frameon: False

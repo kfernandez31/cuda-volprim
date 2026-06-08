@@ -1,0 +1,13 @@
+\chapter{Renderer: Architecture \& Implementation}
+\label{ch:architecture}
+
+% --- SCAFFOLD (plan Task 2.1) — FLAGSHIP CHAPTER ---
+% Content: design spec section 2.1 (N1 single-trace anyhit-buffer collection + analytic exits;
+%          N2 ADT argmin free-flight scatter sampling) + spec section 6 (Ch 4 row).
+% Sources: code (device/, src/, include/), abstract_kindof.txt (N1 prose),
+%          optimizations.md Big-O tables (recovered from git history), CLAUDE.md.
+% Must cover: the flagship novelty section (N1 + N2, prior-art positioning vs DSYG/Mitsuba
+%   marching + SDTracking Theorem 1 + Stochastic Splats, the analytic-erf inversion that enables
+%   it, the honest-synthesis framing); analytic erf optical depth; GAS/IAS instanced spheres;
+%   data structures (BitVector/CompactSet dispatch, HitBufferSoA); megakernel design; RR;
+%   transforms; camera-inside. Include the complexity Big-O table + an architecture diagram.
