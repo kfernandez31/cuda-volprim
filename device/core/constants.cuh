@@ -156,6 +156,19 @@ constexpr bool ENABLE_NEE = true;
 // phase::eval sign inconsistency, now fixed.) On for env-map scenes; no-op cost on constant env.
 constexpr bool ENABLE_MIS = true;
 
+// Volumetric product-RIS for the NEE direct term (OPTIMIZATION_FRONTIER ②). SELECTED AT RUNTIME via
+// --ris (RenderParams::use_ris_; default OFF = MIS). When on, it replaces the 2-shadow-ray
+// phase-IS+env-IS balance-MIS with a SINGLE shadow ray: K unshadowed env-IS candidates are resampled
+// — weighted by the unshadowed product target p̂ = phase(wi,ω)·lum(env(ω)) over the env-IS proposal
+// pdf — into a 1-survivor weighted reservoir, and only the survivor's transmittance is traced.
+// Unbiased RIS (Talbot et al. 2005, "Importance Resampling for Global Illumination"); validated vs
+// Mitsuba GT (§8.37). SCENE-DEPENDENT: ~1.4× equal-quality on STRUCTURED env (meadow showcase), but
+// ~2.5× WORSE on FLAT/constant env (no structure to product-sample + it forgoes exact phase-IS) —
+// hence runtime-gated, MIS stays the safe default. K=1 reduces exactly to plain env-IS NEE.
+constexpr int RIS_NUM_CANDIDATES = 6;  // K (default; runtime --ris-candidates). K-sweep §8.37: the
+                                       // equal-quality sweet spot is K=4–8 (~1.4–1.46×); 6 is the
+                                       // chosen compromise (cost rises with K, quality plateaus by ~8).
+
 // Analytic (Rao-Blackwellized) direct camera->env transmittance. When true, the
 // bounce-0 unscattered term is added deterministically as throughput · exp(-τ) · env
 // (via compute_transmittance_to_env) instead of the high-variance analog binary
