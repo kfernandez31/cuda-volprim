@@ -151,12 +151,12 @@ keeping this MIS structure intact.
 The primary (camera) ray's direct contribution is treated specially: rather than relying on the path to
 escape the medium and hit the environment, the renderer adds the analytic camera-to-environment term
 $T_{\text{cam}}\,L_{\text{env}}$ at bounce zero, where $T_{\text{cam}}$ is the closed-form transmittance
-through the medium along the view ray. This Rao--Blackwellises the otherwise high-variance escape
+through the medium along the view ray. This Rao--Blackwellises~\cite{Rao1945,Blackwell1947} the otherwise high-variance escape
 contribution at no extra trace. Paths are terminated by Russian roulette beyond a configurable depth,
 with survival probability the throughput's largest channel clamped to \num{0.99}; surviving throughput
 is reweighted to keep the estimator unbiased.
 
-Samples are accumulated by Welford's single-pass online mean (and variance, when adaptive sampling is
+Samples are accumulated by Welford's single-pass online mean~\cite{Welford1962} (and variance, when adaptive sampling is
 enabled), so that arbitrarily many samples per pixel can be folded in across launches without storing
 per-sample data and without catastrophic cancellation. Sample batches are processed within a single
 kernel launch, amortising launch overhead and keeping the accumulator in registers across the batch.
@@ -165,7 +165,7 @@ kernel launch, amortising launch overhead and keeping the accumulator in registe
 \label{sec:gpu-impl}
 
 \paragraph{Acceleration structure.} The scene is built as a two-level OptiX structure. A single
-geometry acceleration structure (GAS) holds one \emph{unit sphere}, built from OptiX's built-in sphere
+geometry acceleration structure (GAS) holds one \emph{unit sphere}, built from OptiX's~\cite{Optix} built-in sphere
 primitive (\texttt{OPTIX\_BUILD\_INPUT\_TYPE\_SPHERES}) so that ray--sphere intersection runs on the
 hardware intersector with no custom program. Each Gaussian primitive is then an \emph{instance} of that
 GAS in an instance acceleration structure (IAS), carrying the affine transform that maps the unit
@@ -183,13 +183,19 @@ structure whose representation is chosen at compile time by scene size: for up t
 \emph{bit vector} gives $O(1)$ insert, erase, and test in $N/8$ bytes; beyond that a compact unsorted
 array (\texttt{CompactSet}) gives $O(k)$ operations in space proportional to the maximum overlap rather
 than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
-sized to the worst-case overlap measured on the target assets (a handful to a few dozen primitives),
-with graceful handling if exceeded; raising the hit-buffer capacity well beyond the measured need was
-found to slow rendering several-fold, so it is kept tight.
+set above the maximum overlap \emph{recorded on the primary cloud scene} (around \num{45}
+simultaneously overlapping primitives) with headroom, and a deliberately degenerate collinear stress
+test exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed
+sufficient on every scene, a device-side overflow counter flags at runtime any ray that exceeds it,
+so excess overlap is \emph{detected} rather than silently corrupting the image; raising the
+hit-buffer capacity well beyond this need slowed rendering several-fold, so it is kept tight and
+guarded instead.
 
 \paragraph{Megakernel rationale.} The entire bounce loop executes inside the ray-generation program: a
-single \emph{megakernel}, not a wavefront of separate trace/scatter/shade kernels communicating through
-global memory. This is a deliberate fit to the workload. The per-bounce arithmetic is light (a few
+single \emph{megakernel}. The standard alternative is \emph{wavefront} path tracing~\cite{Laine2013},
+in which each stage of the path---ray traversal, scattering, shading---is a separate kernel launch and
+per-ray state is carried between them through global memory, with stream compaction between stages to
+keep GPU warps coherent. Keeping the whole loop in one kernel is a deliberate fit to the workload. The per-bounce arithmetic is light (a few
 error functions and a phase evaluation), but the per-ray \emph{state} that must persist across
 bounces---chiefly the active set---is comparatively large. A wavefront would have to stream that state
 to and from global memory every bounce; the megakernel keeps it in registers and shared/local memory,
