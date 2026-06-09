@@ -1,13 +1,198 @@
-\chapter{Renderer: Architecture \& Implementation}
+\chapter{Renderer: Architecture and Implementation}
 \label{ch:architecture}
 
-% --- SCAFFOLD (plan Task 2.1) — FLAGSHIP CHAPTER ---
-% Content: design spec section 2.1 (N1 single-trace anyhit-buffer collection + analytic exits;
-%          N2 ADT argmin free-flight scatter sampling) + spec section 6 (Ch 4 row).
-% Sources: code (device/, src/, include/), abstract_kindof.txt (N1 prose),
-%          optimizations.md Big-O tables (recovered from git history), CLAUDE.md.
-% Must cover: the flagship novelty section (N1 + N2, prior-art positioning vs DSYG/Mitsuba
-%   marching + SDTracking Theorem 1 + Stochastic Splats, the analytic-erf inversion that enables
-%   it, the honest-synthesis framing); analytic erf optical depth; GAS/IAS instanced spheres;
-%   data structures (BitVector/CompactSet dispatch, HitBufferSoA); megakernel design; RR;
-%   transforms; camera-inside. Include the complexity Big-O table + an architecture diagram.
+This chapter describes the renderer itself: a from-scratch CUDA/OptiX volumetric path tracer for the
+Gaussian kernel-mixture volumes of \Cref{sec:kernel-mixture}. Its design answers one question
+differently from the reference: \emph{given a camera ray, how is the next scattering event found?}
+The reference~\cite{DSYG} marches the ray segment by segment through the sorted sequence of primitive
+boundaries and root-finds the scatter distance; this renderer instead collects all of a ray's
+primitives in a \emph{single} acceleration-structure traversal and samples the scatter distance in
+\emph{closed form}, with no sorting, no marching, and no root-finding. The two halves of that
+design---single-trace collection (\Cref{sec:collection}) and analog-decomposition scatter sampling
+(\Cref{sec:adt})---are the thesis's primary contribution; the supporting machinery (direct lighting,
+data structures, and the OptiX configuration) is described in
+\Crefrange{sec:direct-lighting}{sec:gpu-impl}.
+
+\section{Pipeline overview}
+\label{sec:pipeline}
+
+The renderer ingests a set of Gaussian primitives (a PLY file of centres, covariances encoded as
+scale + rotation quaternion, densities, and albedos), builds a two-level OptiX acceleration structure
+over them (\Cref{sec:gpu-impl}), and path-traces the image in a single megakernel launched per pixel.
+Each path repeats four steps per bounce: \emph{collect} the primitives the current ray segment
+intersects (one trace), \emph{sample} a scattering distance from them (the argmin of per-primitive
+free flights), \emph{shade} the event by next-event estimation against the environment, and
+\emph{continue} along a phase-sampled direction until Russian roulette terminates the path. Per-pixel
+radiance is accumulated across samples by a single-pass online mean (\Cref{sec:direct-lighting}). The
+entire bounce loop lives inside the ray-generation program; \Cref{sec:gpu-impl} explains why this
+megakernel structure---rather than a wavefront of separate kernels---is the right fit for this
+workload.
+
+\section{Single-trace primitive collection}
+\label{sec:collection}
+
+To sample a scattering event along a ray, the renderer must know which primitives the ray passes
+through and over what intervals. The reference constructs this information incrementally, advancing the
+ray from one primitive boundary to the next and issuing a fresh acceleration-structure query at each
+step; for a ray crossing $N$ overlapping primitives this is $O(N)$ traversals. The observation behind
+this renderer's collection scheme is that, because every primitive is a bounded convex region (a
+transformed unit sphere, \Cref{sec:gpu-impl}), \emph{all} of the ray's entry points can be gathered in
+a \emph{single} traversal, and the corresponding exits then computed analytically.
+
+Concretely, the scene is traced once per scattering event with an \emph{any-hit} program and no
+closest-hit program (the ray flag \texttt{OPTIX\_RAY\_FLAG\_DISABLE\_CLOSESTHIT}). Because any-hit
+fires for every intersection without terminating the ray, a single trace visits every primitive the
+ray meets. Back-face culling (\texttt{OPTIX\_RAY\_FLAG\_CULL\_BACK\_FACING\_TRIANGLES}) discards the
+exit intersections, so the any-hit program records only \emph{entries}---each as a
+\((t_{\text{hit}},\,\text{primitive index})\) pair appended to a per-ray buffer. The matching exit of
+any primitive is not traced at all: since the primitive's geometry is known, the exit distance follows
+in closed form from the ray--sphere intersection. One traversal therefore replaces the reference's
+$N$, and the buffer holds exactly the data the scatter sampler needs.
+
+The entry buffer is a structure-of-arrays, \texttt{HitBufferSoA}, storing the hit distances and
+primitive indices in separate arrays (\SI{4}{\byte} and \SI{2}{\byte} per entry respectively) so that
+the sampler's sequential scan over hits is coalesced. It is a per-ray buffer held in fast local memory
+with a fixed capacity (\Cref{sec:gpu-impl}); overflow is detected and handled rather than left to
+corrupt the result. Two categories of primitive contribute to a scattering event: those the ray is
+already \emph{inside} at the segment's start (the camera may begin inside the medium, and after a
+scatter the new ray starts inside whatever primitives contain the scatter point), tracked in an
+\emph{active set}; and those the ray \emph{enters} along the segment, delivered by the trace into the
+hit buffer. The sampler in \Cref{sec:adt} draws candidates from both.
+
+\section{Analytic optical depth}
+\label{sec:analytic-od}
+
+The property that makes both single-trace collection and closed-form scatter sampling possible is the
+analytic optical depth of a single Gaussian (\Cref{sec:kernel-mixture}). Restricting primitive $k$'s
+Gaussian to the ray and integrating yields, in closed form,
+\[
+  \tau_k(t_0, t_1) = \int_{t_0}^{t_1} \sigma_{t,k}\big(\bm{r}(s)\big)\,\mathrm{d}s
+  \;\propto\; \sigma_{t,k}\, e^{-\tfrac{1}{2}d_\perp^2}\,
+  \big[\operatorname{erf}(u_1) - \operatorname{erf}(u_0)\big],
+\]
+where $d_\perp$ is the (whitened) perpendicular distance from the primitive centre to the ray and
+$u_0,u_1$ are the whitened endpoints of the interval. The renderer evaluates the Gaussian in an
+\emph{unnormalised} convention---a per-primitive factor $\big((2\pi)^{3/2}\textstyle\prod_i s_i\big)^{-1}$
+folds the covariance scales $s_i$ into a precomputed constant---so that $\tau_k$ costs one
+exponential and two error-function evaluations. Crucially this expression is \emph{monotonic and
+invertible} in $t_1$: given a target optical depth $\tau$, the distance at which a primitive
+accumulates it is recovered by a single inverse error function,
+\[
+  t(\tau) \;=\; \text{(ray geometry)} \;+\; \tfrac{1}{w}\,\operatorname{erf}^{-1}\!\big(\operatorname{erf}(u_0) + \tau/K_k\big),
+\]
+with $K_k$ a precomputed per-primitive constant. This closed-form inverse is what the next section
+turns into a sampler.
+
+\section{Sort-free scatter sampling}
+\label{sec:adt}
+
+A volumetric path tracer must sample the distance to the next collision in proportion to the collision
+density $\sigma_t(\bm{r}(t))\,T(t)$, i.e.\ draw a free flight (\Cref{sec:volumetric-light-transport}).
+For a single homogeneous medium this means solving $\tau(t) = -\ln(1-\xi)$ for an exponentially
+distributed target; for the \emph{sum} of overlapping primitives the reference does it by marching and
+root-finding. This renderer avoids both by appealing to the structure of decomposition
+tracking~\cite{Kutz2017}.
+
+\paragraph{The argmin rule.} Decomposition tracking rests on the fact that a free flight through a sum
+of components is distributed as the \emph{minimum} of independent free flights through each component
+taken separately. Each primitive here \emph{is} such a component, and---by \Cref{sec:analytic-od}---can
+draw its own free flight in closed form: sample a per-primitive target
+$\tau_k = -\ln(1-\xi_k)$ with $\xi_k\sim\mathcal{U}[0,1)$, then invert to the distance $t_k$ at which
+primitive $k$ alone reaches $\tau_k$. The scattering event is the nearest of these,
+\[
+  t_{\text{scatter}} = \min_k t_k ,
+\]
+taken in a single linear pass over the ray's primitives (those in the active set, plus those in the
+hit buffer). There is no global sort of boundaries, no segment march, and no bisection or Newton
+iteration: the per-primitive inverse is exact (one $\operatorname{erf}^{-1}$), and the minimum
+reproduces exactly the distribution that sorting-and-marching would have produced. The scatter point's
+host primitive, albedo, and the updated active set all fall out of the same pass.
+
+\paragraph{Avoiding a rejection bias.} The two candidate categories are handled with slightly different
+inverses. A primitive the ray is already inside is inverted from the segment start ($t_0 = 0$). A
+primitive entered mid-segment must be inverted from its \emph{entry} distance, not from the ray origin;
+using the full-Gaussian inverse and rejecting samples that land before the entry would bias the result.
+The renderer therefore uses a segment-restricted inverse that solves $\tau_k(t_{\text{entry}}, t) =
+\tau_k$ directly, shifting the error-function reference to the entry point. This keeps every candidate
+unbiased by construction.
+
+\paragraph{Novelty and prior art.} The components of this scheme are individually known: the
+minimum-of-free-flights identity is decomposition tracking~\cite{Kutz2017}; the closed-form Gaussian
+optical depth is from the reference~\cite{DSYG}; and the sort-free \emph{spirit} mirrors stochastic
+splatting~\cite{StochasticSplats2025} on the rasterisation side. The contribution is their
+\emph{synthesis}: applying analog decomposition tracking to ray-traced Gaussian kernel-mixture volumes,
+so that the analytic per-primitive inverse makes each component's free flight a closed-form draw and
+the argmin replaces the reference's marching, sorting, and root-finding entirely. To the author's
+knowledge this is the first realisation of decomposition-tracking free-flight sampling for this
+representation; it is a direction the reference's authors anticipated but did not implement.
+% TODO(confirm with Kacper/Jorge): exact credit line — what Jorge proposed vs. what was realised here,
+% and whether "first realisation for this representation" is the claim we want to commit to.
+
+\paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
+active set against the scene's $N$ primitives, plus an $O(A + H)$ pass over the $A$ active and $H$
+newly entered primitives to take the argmin. This replaces the reference's per-bounce sort
+($O(H \log^2 H)$ or worse) and root-find with closed-form work, and---because the argmin needs no
+ordering---removes the sort from the common (scattering) path altogether. The residual $O(N)$ active-set
+scan is the dominant per-bounce cost and the subject of one of the optimisations in
+\Cref{ch:optimization}.
+
+\section{Direct lighting and the path-tracing loop}
+\label{sec:direct-lighting}
+
+At each scattering vertex the renderer estimates direct illumination from the environment map by
+next-event estimation combined with phase-function sampling under multiple importance sampling
+(\Cref{sec:volumetric-light-transport}): one shadow connection samples the environment by luminance,
+one continuation samples the Henyey--Greenstein phase function, and the two are weighted by the balance
+heuristic. The transmittance along the shadow ray reuses the analytic optical depth of
+\Cref{sec:analytic-od} over the primitives the shadow ray crosses. \Cref{ch:optimization} replaces the
+environment-sampling strategy with a resampled-importance-sampling variant behind a runtime flag, while
+keeping this MIS structure intact.
+
+The primary (camera) ray's direct contribution is treated specially: rather than relying on the path to
+escape the medium and hit the environment, the renderer adds the analytic camera-to-environment term
+$T_{\text{cam}}\,L_{\text{env}}$ at bounce zero, where $T_{\text{cam}}$ is the closed-form transmittance
+through the medium along the view ray. This Rao--Blackwellises the otherwise high-variance escape
+contribution at no extra trace. Paths are terminated by Russian roulette beyond a configurable depth,
+with survival probability the throughput's largest channel clamped to \num{0.99}; surviving throughput
+is reweighted to keep the estimator unbiased.
+
+Samples are accumulated by Welford's single-pass online mean (and variance, when adaptive sampling is
+enabled), so that arbitrarily many samples per pixel can be folded in across launches without storing
+per-sample data and without catastrophic cancellation. Sample batches are processed within a single
+kernel launch, amortising launch overhead and keeping the accumulator in registers across the batch.
+
+\section{Data structures and GPU configuration}
+\label{sec:gpu-impl}
+
+\paragraph{Acceleration structure.} The scene is built as a two-level OptiX structure. A single
+geometry acceleration structure (GAS) holds one \emph{unit sphere}, built from OptiX's built-in sphere
+primitive (\texttt{OPTIX\_BUILD\_INPUT\_TYPE\_SPHERES}) so that ray--sphere intersection runs on the
+hardware intersector with no custom program. Each Gaussian primitive is then an \emph{instance} of that
+GAS in an instance acceleration structure (IAS), carrying the affine transform that maps the unit
+sphere to the primitive's centre, anisotropic scale, and orientation (from its rotation quaternion).
+Thousands of distinct ellipsoids thus share a single sphere GAS, and the per-primitive geometry lives
+entirely in the instance transforms. Both structures are built with
+\texttt{OPTIX\_BUILD\_FLAG\_PREFER\_FAST\_TRACE} (favouring traversal speed over build time, the right
+trade for a renderer that builds once and traces for many samples) and
+\texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION} (whose memory effect is quantified in
+\Cref{ch:results}).
+
+\paragraph{Per-ray state.} Two per-ray containers dominate the kernel's footprint. The hit buffer
+(\Cref{sec:collection}) is a fixed-capacity \texttt{HitBufferSoA}. The active set is a small membership
+structure whose representation is chosen at compile time by scene size: for up to \num{256} primitives a
+\emph{bit vector} gives $O(1)$ insert, erase, and test in $N/8$ bytes; beyond that a compact unsorted
+array (\texttt{CompactSet}) gives $O(k)$ operations in space proportional to the maximum overlap rather
+than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
+sized to the worst-case overlap measured on the target assets (a handful to a few dozen primitives),
+with graceful handling if exceeded; raising the hit-buffer capacity well beyond the measured need was
+found to slow rendering several-fold, so it is kept tight.
+
+\paragraph{Megakernel rationale.} The entire bounce loop executes inside the ray-generation program: a
+single \emph{megakernel}, not a wavefront of separate trace/scatter/shade kernels communicating through
+global memory. This is a deliberate fit to the workload. The per-bounce arithmetic is light (a few
+error functions and a phase evaluation), but the per-ray \emph{state} that must persist across
+bounces---chiefly the active set---is comparatively large. A wavefront would have to stream that state
+to and from global memory every bounce; the megakernel keeps it in registers and shared/local memory,
+paying zero round-trips. \Cref{ch:optimization} reports the experiment that confirms this: a wavefront
+refactor, though correct, was dramatically slower, because moving the persistent per-ray state to
+global memory is fatal for an algorithm whose per-bounce compute is otherwise so cheap.
