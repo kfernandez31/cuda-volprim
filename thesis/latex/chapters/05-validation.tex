@@ -1,11 +1,149 @@
-\chapter{Validation Methodology \& Correctness}
+\chapter{Validation Methodology and Correctness}
 \label{ch:validation}
 
-% --- SCAFFOLD (plan Task 2.4) ---
-% Content: design spec section 6 (Ch 5) — elevate FINDINGS sections 0-8.14.
-% Through-line: differential validation. Lead with the PIVOT NARRATIVE (the voxel-grid references
-%   were unreproducible -> "run Mitsuba directly, run mine against it, quantify the gap").
-% Must cover: the equal-quality / firefly methodology (FINDINGS sec 0, 8.0); absorption ladder
-%   (single Gaussian exact -> overlap -> cloud, sec 2-7); scattering ladder vs Mitsuba-analog
-%   (8.2-8.4); features env/HDR/HG/MIS/RGB (8.6-8.14); the money shot (8.11). Frame the ladder as
-%   the UNBIASEDNESS PROOF of the N2/ADT scheme. Needs V-set figures (plan Task 1.1/1.4).
+A renderer that introduces a new sampling scheme (\Cref{ch:architecture}) must earn trust: the
+sort-free analog-decomposition sampler is only useful if it produces the \emph{same} images a correct
+volumetric path tracer would, and the production optimisations of \Cref{ch:optimization} are only
+admissible if they do not perturb that result. This chapter establishes that correctness. It first
+explains \emph{how} the renderer is validated---a differential methodology forced by the absence of an
+absolute ground truth (\Cref{sec:reference-problem})---and the statistics needed to compare two
+stochastic renderers fairly (\Cref{sec:compare-correctly}). It then walks a ladder of increasingly
+complex scenes, from a single Gaussian with a closed-form answer up to the full cloud, in absorption
+(\Cref{sec:absorption-ladder}) and then in scattering (\Cref{sec:scattering-ladder}), validates each
+rendering feature against the reference (\Cref{sec:feature-validation}), and closes on the combined
+showcase (\Cref{sec:money-shot}). Throughout, the ladder doubles as the empirical
+\emph{unbiasedness proof} of the analog-decomposition sampler: were the argmin rule biased, the
+discrepancy would appear first on the scenes with a known analytic answer.
+
+\section{The reference problem and differential validation}
+\label{sec:reference-problem}
+
+Validation began with a false start that shaped the entire methodology. The initial plan was to match
+reference images supplied for the asset---\texttt{.exr} renders produced from a voxel-grid
+discretisation of the volume---but these proved impossible to reproduce: the discretisation, density
+normalisation, and integrator settings behind them could not be recovered, and chasing a pixel match
+against an opaque reference conflated genuine renderer bugs with reference mismatches. Most visibly, the
+cloud rendered as a dark blob against the voxel reference; weeks of "debugging" the renderer were in
+fact chasing an artefact of the \emph{reference}, not the code.
+
+The resolution was to abandon the absolute reference and validate \emph{differentially}: render the
+same scene with Mitsuba~3~\cite{Mitsuba3}---configured identically, primitive-for-primitive, from the
+same Gaussian data---and quantify the difference. Mitsuba is mature, widely trusted, and runs the same
+physically based volumetric path tracing, so a small, converging difference is strong evidence of
+correctness, while a structured difference localises a bug. This reframing turned an unfalsifiable
+"does it look right?" into a measurable gap, and it is the backbone of every result below. Where an
+even stronger check is available---a scene with a closed-form answer---the renderer is held to that
+analytic ground truth directly.
+
+\section{How to compare correctly}
+\label{sec:compare-correctly}
+
+Comparing two Monte~Carlo renderers is itself error-prone, and several pitfalls had to be controlled.
+\emph{Bias and variance must be separated.} A single per-pixel RMSE between two noisy renders conflates
+estimator \emph{bias} (a systematic difference that survives convergence) with \emph{variance} (noise
+that vanishes as samples grow). The renderer is therefore checked for bias by comparing
+\emph{converged} means---or, where available, against an analytic value---while \emph{efficiency} is
+compared separately and at \emph{equal quality}: since Monte~Carlo error falls as
+$O(1/\sqrt{N})$ (\Cref{sec:monte-carlo}), the meaningful quantity is the noise constant
+$k = \mathrm{RMSE}^2 \cdot N$, and one renderer is faster than another only if it reaches the same $k$
+in less time. Raw frame-time comparisons at fixed sample count are reported only alongside this
+equal-quality figure (\Cref{ch:results}).
+
+Two further controls matter. \emph{Fireflies}---rare, very bright samples---inflate RMSE out of
+proportion to perceived error, so robust statistics (high percentiles, clipped means) accompany the raw
+numbers, and the difference in firefly behaviour between the renderers is itself a result
+(\Cref{ch:results}). And all timing is reported at a single, fixed GPU operating point, because clock
+throttling otherwise injects spurious variation; the equal-quality metric, being a ratio, is robust to
+it regardless.
+
+\section{Absorption: the correctness ladder}
+\label{sec:absorption-ladder}
+
+With scattering disabled (albedo $0$), the image depends only on transmittance, which for a Gaussian
+mixture is the closed-form optical depth of \Cref{sec:analytic-od}---so the ground truth is
+\emph{analytic}, independent of any reference renderer. This isolates the geometry and the optical-depth
+integration from the stochastic scattering logic.
+
+\paragraph{Single Gaussian.} A single primitive integrates to a closed-form transmittance at every
+pixel. The renderer matches this analytic value to within floating-point tolerance, confirming the
+ray--primitive transform, the erf-based optical depth, and the camera model. The small residual that
+remains is pure pixel-filter variance, not bias.
+
+\paragraph{Overlap ladder.} Stacking primitives tests the additivity of optical depth and the
+active-set bookkeeping that the argmin sampler depends on. Up to the active-set capacity the renderer
+matches the analytic transmittance of the combined medium to $\sim\!10^{-4}$. A deliberately degenerate
+\emph{collinear} stress test---$K$ identical Gaussians stacked so the exact answer is a single
+$K$-fold-denser Gaussian---exposed, and then confirmed the fix for, the cap-overflow behaviour discussed
+in \Cref{sec:gpu-impl}: past the old capacity the active set silently dropped primitives, producing a
+predictable under-absorption that matched $\exp(-\min(\text{cap},K)/K \cdot \tau_0)$ to $10^{-4}$. The
+same stress test surfaced a \emph{reference} limitation---Mitsuba's volumetric primitive integrator
+itself under-absorbs as identical primitives are stacked---a reminder that "differential" cuts both
+ways and that the analytic check is the final arbiter.
+
+\paragraph{The cloud.} The full $652$-primitive cloud, validated against the analytic absorption ground
+truth across all camera views, resolved the dark-blob artefact of \Cref{sec:reference-problem}: against
+the correct reference the renderer matches, view-independently. This established absorption correctness
+at scene scale before scattering---and hence multiple sampled bounces---was introduced.
+
+% FIGURE (campaign): absorption ladder — single / overlap / cloud, renderer vs analytic, with RMSE.
+
+\section{Scattering validation}
+\label{sec:scattering-ladder}
+
+Enabling scattering (albedo $>0$) activates the full path tracer: the analog-decomposition sampler, the
+phase function, and next-event estimation over many bounces. There is no closed-form image here, so two
+checks are used: a reference-free energy invariant, and the differential comparison against Mitsuba.
+
+\paragraph{Furnace test.} In a uniform environment with albedo $1$ and no absorption, energy
+conservation demands that every pixel return exactly the background---any deviation is estimator bias.
+The renderer passes this furnace test flat to within noise, confirming the scattering loop conserves
+energy. Notably, Mitsuba's \emph{next-event} integrator fails the same test by $\approx\!6.5\%$
+(an over-estimate from its direct-lighting term), so its \emph{analog} (NEE-disabled) mode---which is
+unbiased---is used as the scattering ground truth throughout.
+
+\paragraph{The scattering ladder.} Against Mitsuba-analog the renderer is validated up the same ladder:
+a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$. Single and cluster
+rungs match within noise; the cloud rung passes view-independently. These passes are the empirical
+evidence that the argmin scatter sampler (\Cref{sec:adt}) is unbiased: a wrong free-flight distribution
+would bias the converged mean away from the independently-correct Mitsuba-analog result, and it does
+not.
+
+% FIGURE (campaign): scattering ladder — renderer vs Mitsuba-analog, converged-mean difference.
+
+\section{Feature validation}
+\label{sec:feature-validation}
+
+Each rendering feature is gated against the reference before it is trusted in combination. Several
+genuine bugs were found and fixed this way---evidence that the differential method has teeth.
+
+\begin{itemize}
+  \item \textbf{Environment-map orientation.} A constant or isotropic environment cannot reveal an
+  orientation error; only a full-sphere directional test can. Such a test exposed a vertical-flip bug in
+  the HDR loader, which was fixed and then confirmed against Mitsuba across viewing directions.
+  \item \textbf{Real HDR illumination.} With a measured HDR environment (a meadow map), the single
+  Gaussian and then the full cloud match Mitsuba, confirming the environment importance sampling under
+  realistic, high-dynamic-range lighting.
+  \item \textbf{Anisotropic phase function.} Henyey--Greenstein scattering with $g \ne 0$ initially
+  disagreed with the reference; the cause was a sign error in the phase evaluation, after which forward-
+  and back-scattering match Mitsuba.
+  \item \textbf{Multiple importance sampling.} Combining phase and environment sampling under the
+  balance heuristic exposed a second sign error (in the phase PDF used for the MIS weight); once
+  corrected, the MIS estimator matches the reference and reduces variance as expected.
+  \item \textbf{Coloured albedo.} Per-channel RGB albedo reproduces the correct tint; a small
+  channel-dependent residual remains and is documented as a known limitation (\Cref{ch:conclusion}).
+  \item \textbf{Path-control robustness.} Sweeps over maximum depth, Russian-roulette depth, and related
+  controls leave the converged result unbiased, confirming these knobs trade noise for time without
+  perturbing the mean.
+\end{itemize}
+
+\section{The combined showcase}
+\label{sec:money-shot}
+
+The features are finally exercised together---the full cloud, under the measured HDR environment, with
+forward-scattering Henyey--Greenstein ($g = 0.85$) and MIS direct lighting. Against Mitsuba-analog the
+renderer matches the converged image and, at equal quality, reaches it in less time while remaining
+free of the fireflies that the reference exhibits on this scene (quantified in \Cref{ch:results}). This
+combined result is the correctness foundation on which the performance study of \Cref{ch:optimization}
+builds: every optimisation there is required to preserve this image, and is reverted if it does not.
+
+% FIGURE (campaign): the showcase — renderer vs Mitsuba-analog at equal quality, + firefly comparison.
