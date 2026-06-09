@@ -35,9 +35,11 @@ The renderer is deliberately scoped, and several limitations bound its current r
   coarse Gaussian base; high-frequency Gabor detail is unsupported.
   \item \textbf{Static, single-frame.} There is no animation support.
   \item \textbf{Compile-time, asset-dependent caps.} The per-ray buffers (\Cref{sec:gpu-impl}) are sized
-  for the target assets at compile time; a substantially denser scene requires re-sizing. The runtime
-  overflow counter \emph{detects} an undersized cap but does not fix it---the proper remedy is the
-  pre-sizing tool noted below.
+  at compile time; a substantially denser scene requires re-sizing and a rebuild. An offline estimator
+  now predicts the required caps from an asset's geometry---the \num{25600}-Gaussian bunny, for one,
+  needs markedly larger caps than the \num{652}-primitive cloud---so the sizing is no longer guesswork,
+  but the caps remain static, and the runtime overflow counter only \emph{detects} an undersized cap
+  rather than fixing it.
   \item \textbf{Ampere hardware.} The one lever that directly targets the renderer's ray divergence,
   OptiX Shader Execution Reordering~\cite{NvidiaSER2022}, is Ada-only and unavailable on the RTX~3090
   used throughout.
@@ -59,11 +61,11 @@ inverse rendering}: re-expressing the renderer with analytic backward passes or 
 SLANG.D~\cite{SLANG.D}, to recover scene parameters from images---the inverse-rendering capability the
 original proposal targeted. Second, \emph{Shader Execution Reordering on Ada}: the divergence lever that
 is unavailable here may recover part of the cost the megakernel pays on newer hardware, and is worth
-re-measuring there. Third, an \emph{offline cap-estimation tool} that predicts a scene's worst-case
-primitive overlap from its geometry, so the per-ray buffers can be sized correctly for any asset without
-trial-and-error recompiles---turning the current cloud-tuned caps into a per-asset guarantee. Path
-guiding, deferred here for want of a cheap predictive test (\Cref{sec:autopsies}), would also merit a
-revisit with a full offline oracle.
+re-measuring there. Third, \emph{dynamic cap sizing}: the offline estimator introduced here predicts
+the per-ray buffer sizes an asset needs, but the buffers themselves are still compile-time constants;
+resizing them at load time from the estimate---or growing them on demand when the overflow counter
+fires---would remove the per-asset recompile entirely. Path guiding, deferred here for want of a cheap
+predictive test (\Cref{sec:autopsies}), would also merit a revisit with a full offline oracle.
 
 \section{Closing}
 \label{sec:closing}

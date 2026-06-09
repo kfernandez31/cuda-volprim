@@ -182,14 +182,21 @@ trade for a renderer that builds once and traces for many samples) and
 structure whose representation is chosen at compile time by scene size: for up to \num{256} primitives a
 \emph{bit vector} gives $O(1)$ insert, erase, and test in $N/8$ bytes; beyond that a compact unsorted
 array (\texttt{CompactSet}) gives $O(k)$ operations in space proportional to the maximum overlap rather
-than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
-set above the maximum overlap \emph{recorded on the primary cloud scene} (around \num{45}
-simultaneously overlapping primitives) with headroom, and a deliberately degenerate collinear stress
-test exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed
-sufficient on every scene, a device-side overflow counter flags at runtime any ray that exceeds it,
-so excess overlap is \emph{detected} rather than silently corrupting the image; raising the
-hit-buffer capacity well beyond this need slowed rendering several-fold, so it is kept tight and
-guarded instead.
+than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are compile-time constants
+sized to the worst-case $3\sigma$ overlap of the target asset, the same geometric bound the
+acceleration structure wraps. That overlap is predicted offline, before any build, by a standalone
+estimator that reproduces the renderer's exact containment test over an asset's primitives and reports
+the maximum number of $3\sigma$ ellipsoids that share a point (the active-set bound) and that a single
+ray crosses (the hit-buffer length). For the primary cloud scene the estimate---around \num{45}
+simultaneously overlapping primitives---sits well within the chosen capacity, and the runtime counter
+below records zero overflows. A substantially denser asset shows why estimating offline beats guessing:
+the \num{25600}-Gaussian bunny, an order of magnitude larger than the cloud's \num{652}, exceeds the
+cloud-tuned caps, and the estimator quantifies the larger capacities it needs so the build can be sized
+correctly without trial-and-error recompiles. A deliberately degenerate collinear stress test
+exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed sufficient
+on every scene, a device-side overflow counter flags at runtime any ray that exceeds a capacity, so
+excess overlap is \emph{detected} rather than silently corrupting the image; raising the hit-buffer
+capacity well beyond this need slowed rendering several-fold, so it is kept tight and guarded instead.
 
 \paragraph{Megakernel rationale.} The entire bounce loop executes inside the ray-generation program: a
 single \emph{megakernel}. The standard alternative is \emph{wavefront} path tracing~\cite{Laine2013},
