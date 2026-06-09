@@ -5,8 +5,30 @@
 % What methods will you use?
 % What is your contribution? ...
 
-% - Your thoughts on the research idea (~4 sentences): As a primarily low-level developer with experience in CUDA, I am very excited about this project, as it will allow me to gain greater context on computer graphics, an area which combines high-throughput computations with mathematical modeling of the visible world. The focus will be on implementing and extending the "Don't Splat Your Gaussians" paper which aligns well with the most recent trends in rendering techniques. The proposed extensions could significantly enhance the versatility and performance of volume rendering methods, facilitating further research for the Perception, Display and Fabrication group and paving the way for future publications. I have hopes for at least part of the code to be made open source, in contrast to the propietary approach taken by Meta so far.
+Gaussian kernel-mixture volumes represent a participating medium as a sum of anisotropic Gaussian
+primitives, each contributing an analytic, invertible optical depth. The representation, introduced by
+\emph{Don't Splat Your Gaussians}, admits physically based path tracing, but the reference renderer
+that established its correctness---built in Mitsuba---reaches a scattering event by marching
+segment-by-segment between primitive boundaries, sorting those boundaries, and root-finding the
+scatter distance within each segment. This thesis asks whether a renderer built around the one
+property the representation affords---the analytic per-primitive optical depth---can be both correct
+and substantially faster.
 
-TODO
+It presents a from-scratch CUDA/OptiX volumetric path tracer organised around a novel rendering
+architecture with two complementary halves. \emph{Single-trace any-hit collection} gathers every
+primitive a ray enters in a single acceleration-structure traversal, using a back-face-culled
+any-hit program and computing exits in closed form rather than re-tracing. \emph{Analog-decomposition
+scatter sampling} then lets each collected primitive draw an independent closed-form free flight, and
+takes the nearest---the argmin---as the scattering event. Together they replace the reference's
+segment-marching, boundary-sorting, and root-finding outright.
+
+Correctness is established by a differential-validation methodology that compares the renderer against
+Mitsuba and, where a closed form exists, against analytic ground truth; the same ladder serves as the
+unbiasedness evidence for the new sampler. A systematic performance-engineering study, measured across
+time, image quality, and memory, contributes a second algorithmic win---volumetric product-resampled
+direct lighting---alongside a rigorously profiled ledger of negative results that maps where effort on
+this class of renderer does and does not pay off. Together these close an initial roughly fivefold
+equal-quality deficit against the reference and overtake it on the showcase scene, free of its
+fireflies.
 
 \end{abstract}

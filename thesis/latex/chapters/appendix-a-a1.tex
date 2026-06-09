@@ -1,7 +1,98 @@
-\chapter{A1: Per-Step Rao--Blackwellization --- Full Investigation}
+\chapter{A1: Per-Step Rao--Blackwellisation --- Full Investigation}
 \label{app:a1}
 
-% --- SCAFFOLD (plan Task 2.8) ---
-% Content: FINDINGS Appendix A (the A1 full investigation) — premise (what A1 was supposed to be),
-% what the investigation found, why the obvious fix is worse, the conclusion, and the small-mean-
-% residual footnote. This is the detailed write-up backing the A1 autopsy summarized in Ch 6.
+This appendix backs the A1 autopsy of \Cref{sec:autopsies} with its full evidence. A1 is the most
+instructive of the negative results: the hypothesis it began with was wrong, the corrected diagnosis
+identified a \emph{real} variance lever, and that lever was still declined---because it pays off only
+in the regime the renderer already dominates. The episode is recorded here in detail both as the
+substantiation of the summary and as a worked example of the measure-before-rewriting discipline that
+governs \Cref{ch:optimization}.
+
+\section{Premise}
+\label{sec:a1-premise}
+
+Profiling against the Mitsuba reference found the renderer roughly $2.85\times$ noisier per sample on
+the scattering cloud under flat lighting. The first hypothesis named a concrete cause: Mitsuba folds
+the analytic segment transmittance into the path throughput at \emph{every} bounce
+($\beta \mathrel{*}= T_{\text{seg}}$), whereas this renderer only does so at the primary vertex (its
+analytic-direct path). The proposed fix---``per-step Rao--Blackwellisation''---was to generalise that
+fold to all bounces. The hypothesis was explicitly flagged as \emph{unprofiled}, and so was tested
+before any change to the validated core estimator.
+
+\section{Diagnosis}
+\label{sec:a1-diagnosis}
+
+A depth sweep on the cleanest possible scene---a single Gaussian (no overlap), constant environment,
+$\alpha = 0.9$---isolates the effect. \Cref{tab:a1-depth} reports per-seed noise (standard deviation
+across seeds) against the maximum path depth.
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}rrrr@{}}
+    \toprule
+    Max depth & This renderer & Mitsuba (analog) & Ratio \\
+    \midrule
+    1 & 0.00599 & 0.00375 & $1.60\times$ \\
+    2 & 0.00639 & 0.00147 & $4.34\times$ \\
+    4 & 0.00643 & 0.00128 & $5.02\times$ \\
+    8 & 0.00643 & 0.00128 & $5.02\times$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Per-seed noise versus maximum path depth, single Gaussian under a constant environment
+  ($\alpha = 0.9$, six seeds). This renderer's noise is \emph{flat} with depth; Mitsuba's
+  \emph{drops}. The means agree, so both estimators are unbiased---the difference is purely variance,
+  and it is set by the multiple-scatter term, not the primary vertex.}
+  \label{tab:a1-depth}
+\end{table}
+
+Two control experiments place the gap. Disabling multiple-importance sampling (next-event estimation
+only) changes the noise by just $1.06\times$, so it is not an environment-sampling artefact; and the
+single-Gaussian scene reproduces the full gap, so it is not an effect of the argmin overlap region.
+The gap lives entirely in the converged multiple-scatter term.
+
+The corrected root cause emerged from reading Mitsuba's segment sampler rather than guessing at it.
+The two renderers use \emph{different classes} of estimator. Mitsuba folds the analytic segment
+transmittance into throughput at every segment---a \emph{track-length} (expected-value) estimator, in
+which every path contributes a smoothly $T$-weighted escape. The architecture of this thesis, by
+construction, makes a binary scatter-versus-escape decision per bounce (\Cref{sec:adt}): the
+transmittance is \emph{consumed by that decision} and never folded into the throughput. This is a
+\emph{collision} estimator. For transmittance-weighted estimands a track-length estimator has the
+lower variance, and the gap widens with depth: in a near-conservative constant medium almost every
+analog path eventually escapes to the same near-constant environment, so Mitsuba's walk self-averages
+and its variance vanishes with depth, while the collision estimator's stays flat. This both
+\emph{confirms} the original premise---it was the binary continuation, not the primary vertex, that
+opened the gap, exactly as the depth-1 row (where the analytic-direct fold is already active) shows---
+and \emph{corrects} an intermediate reading that had mistaken the two estimators for identical.
+
+\section{Why the natural fix raises variance}
+\label{sec:a1-fix}
+
+A tempting alternative---adding the continuation ray's escape as a second sampling strategy, in the
+textbook way a BSDF sample can hit an emitter---is \emph{strictly worse} than what the renderer
+already does. The existing phase-importance-sampled next-event estimator evaluates the same direct
+contribution but with an \emph{analytic} shadow-ray transmittance; the continuation strategy would
+use a \emph{stochastic} escape indicator instead. Same expectation, higher variance. That rewrite
+would raise the variance of the direct term, not lower it.
+
+\section{Conclusion}
+\label{sec:a1-conclusion}
+
+The corrected diagnosis identifies a genuine lever: granting the renderer a track-length throughput
+would recover the missing self-averaging under flat lighting. It was nonetheless declined, for two
+reasons. First, the lever helps only the flat- or constant-environment regime; on the environment-map
+showcase the renderer already matches and beats Mitsuba (\Cref{ch:results}), cleaner in total noise
+and free of its fireflies, because multiple-importance sampling closes the variance there. Second,
+folding transmittance into the throughput at every bounce means abandoning the binary scatter/escape
+decision that \emph{is} the sort-free argmin scheme---a rewrite of the validated core estimator that
+would undo the architecture's central contribution to win a regime that is not the target. The honest
+verdict is therefore a characterised trade-off rather than a missed optimisation: no single estimator
+beats both, and the one this renderer chose is the one its showcase rewards. A hybrid that keeps the
+argmin traversal but folds the analytic transmittance into throughput---generalising the primary-vertex
+fold to all bounces without discarding the single-trace structure---remains the open direction should
+the flat-environment gap ever become worth closing.
+
+A small mean residual, separate from the variance question above, persists at convergence: under the
+single-Gaussian constant-environment test the two renderers' means differ by about $0.5\%$ (this
+renderer slightly brighter). It is consistent with the low-density interior and coloured-albedo
+residuals noted in \Cref{ch:validation}, and a likely cause is the differing minimum-throughput cull
+threshold. It is tracked as an open item and is unrelated to A1.
