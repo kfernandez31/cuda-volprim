@@ -185,3 +185,32 @@ count, is what overruns L2 and collapses performance---the clearest evidence tha
 register-resident state is not an incidental choice but the load-bearing one.
 
 % FIGURE (campaign): GAS size before/after compaction; per-ray state footprint megakernel vs wavefront.
+
+\paragraph{Per-asset capacity budgets.} The per-ray buffers are bounded by the worst-case primitive
+overlap a scene presents, which the offline estimator of \Cref{sec:gpu-impl} predicts from geometry
+alone. \Cref{tab:overlap} reports that estimate across assets. The overlap varies by more than
+$25\times$ and---crucially---does not track the primitive count: a \num{4096}-primitive WDAS cloud fit
+demands an order of magnitude more capacity than a \num{24576}-primitive one, because overlap is set by
+how densely the Gaussians pack, not how many there are. No single static cap fits every scene: the
+\num{128}-entry buffers suit the primary cloud, but the denser fits and the bunny would overflow them
+and require a larger compile-time cap (which the estimator sizes ahead of the build).
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Asset & Primitives & Max point overlap & Max ray entries \\
+    \midrule
+    Disney cloud (primary) & \num{652}   & \num{45}  & \num{96}  \\
+    WDAS cloud fit         & \num{768}   & \num{19}  & \num{108} \\
+    WDAS cloud fit         & \num{4096}  & \num{529} & \num{706} \\
+    WDAS cloud fit         & \num{24576} & \num{57}  & \num{437} \\
+    Stanford bunny         & \num{25600} & \num{245} & \num{387} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Worst-case $3\sigma$ overlap per asset, predicted offline by the cap estimator (point
+  overlap sizes \texttt{MAX\_ACTIVE\_PRIMS}; ray entries size \texttt{HIT\_BUFFER\_CAPACITY}). Overlap
+  spans more than $25\times$ and is independent of primitive count, so the caps are necessarily
+  asset-dependent. The three WDAS rows are distinct density fits of the Disney cloud.}
+  \label{tab:overlap}
+\end{table}

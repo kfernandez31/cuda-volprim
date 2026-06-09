@@ -26,7 +26,43 @@ free flights), \emph{shade} the event by next-event estimation against the envir
 radiance is accumulated across samples by a single-pass online mean (\Cref{sec:direct-lighting}). The
 entire bounce loop lives inside the ray-generation program; \Cref{sec:gpu-impl} explains why this
 megakernel structure---rather than a wavefront of separate kernels---is the right fit for this
-workload.
+workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference with this renderer's.
+
+\begin{figure}[htp]
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \begin{tikzpicture}[
+      font=\small,
+      box/.style={draw, rounded corners, minimum height=9mm, text width=20mm,
+                  align=center, inner sep=3pt},
+      gone/.style={box, dashed, text=black!55},
+      >=Stealth, node distance=6mm and 7mm,
+    ]
+    % Reference pipeline
+    \node[box]               (r1) {Trace + march\\ ($\times N$)};
+    \node[gone, right=of r1] (r2) {Sort\\ boundaries};
+    \node[gone, right=of r2] (r3) {Bisection /\\ Newton};
+    \node[box,  right=of r3] (r4) {Scatter\\ at $t$};
+    \draw[->] (r1)--(r2); \draw[->] (r2)--(r3); \draw[->] (r3)--(r4);
+    \node[anchor=east] at ([xshift=-4mm]r1.west) {\textbf{Reference}};
+    \draw[black!55] (r2.south west)--(r2.north east);
+    \draw[black!55] (r3.south west)--(r3.north east);
+    % This renderer's pipeline
+    \node[box, below=14mm of r1] (o1) {Single any-hit\\ trace};
+    \node[box, right=of o1]      (o2) {Collect entries\\ (no sort)};
+    \node[box, right=of o2]      (o3) {Argmin of\\ free flights};
+    \node[box, right=of o3]      (o4) {Scatter\\ at $t$};
+    \draw[->] (o1)--(o2); \draw[->] (o2)--(o3); \draw[->] (o3)--(o4);
+    \node[anchor=east] at ([xshift=-4mm]o1.west) {\textbf{This renderer}};
+  \end{tikzpicture}%
+  }
+  \caption{Per-bounce scatter sampling, reference versus this renderer. The reference issues one
+  acceleration-structure traversal per primitive boundary ($\times N$), sorts the boundaries, and
+  root-finds the scatter distance within a segment. This renderer gathers all entries in a single
+  any-hit traversal and takes the argmin of closed-form per-primitive free flights, eliminating the
+  sort and the root-find (dashed) entirely.}
+  \label{fig:pipeline}
+\end{figure}
 
 \section{Single-trace primitive collection}
 \label{sec:collection}
@@ -40,9 +76,9 @@ transformed unit sphere, \Cref{sec:gpu-impl}), \emph{all} of the ray's entry poi
 a \emph{single} traversal, and the corresponding exits then computed analytically.
 
 Concretely, the scene is traced once per scattering event with an \emph{any-hit} program and no
-closest-hit program (the ray flag \texttt{OPTIX\_RAY\_FLAG\_DISABLE\_CLOSESTHIT}). Because any-hit
+closest-hit program (the ray flag \texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak DISABLE\_\allowbreak CLOSESTHIT}). Because any-hit
 fires for every intersection without terminating the ray, a single trace visits every primitive the
-ray meets. Back-face culling (\texttt{OPTIX\_RAY\_FLAG\_CULL\_BACK\_FACING\_TRIANGLES}) discards the
+ray meets. Back-face culling (\texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak CULL\_\allowbreak BACK\_\allowbreak FACING\_\allowbreak TRIANGLES}) discards the
 exit intersections, so the any-hit program records only \emph{entries}---each as a
 \((t_{\text{hit}},\,\text{primitive index})\) pair appended to a per-ray buffer. The matching exit of
 any primitive is not traced at all: since the primitive's geometry is known, the exit distance follows
@@ -106,7 +142,35 @@ taken in a single linear pass over the ray's primitives (those in the active set
 hit buffer). There is no global sort of boundaries, no segment march, and no bisection or Newton
 iteration: the per-primitive inverse is exact (one $\operatorname{erf}^{-1}$), and the minimum
 reproduces exactly the distribution that sorting-and-marching would have produced. The scatter point's
-host primitive, albedo, and the updated active set all fall out of the same pass.
+host primitive, albedo, and the updated active set all fall out of the same pass
+(\Cref{alg:argmin}).
+
+\begin{algorithm}[htp]
+\caption{Argmin scatter sampling for one ray segment.}
+\label{alg:argmin}
+\begin{algorithmic}[1]
+\Require ray $\bm{r}$; active set $A$ (primitives containing the origin); hit buffer $H$ of entries
+$(t_{\text{entry}}, k)$ from one trace
+\Ensure scatter distance $t^\star$ and host primitive, or \textsc{Escape}
+\State $t^\star \gets +\infty$
+\ForAll{$k \in A$} \Comment{origin inside: invert from $t_0 = 0$}
+  \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
+  \State $t_k \gets \textproc{inv\_cdf}(\bm{r}, \tau_k)$
+  \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
+    \State $t^\star \gets t_k$; \; remember $k$
+  \EndIf
+\EndFor
+\ForAll{$(t_{\text{entry}}, k) \in H$} \Comment{entered mid-segment: invert from $t_{\text{entry}}$}
+  \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
+  \State $t_k \gets \textproc{inv\_cdf\_seg}(\bm{r}, t_{\text{entry}}, \tau_k)$
+  \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
+    \State $t^\star \gets t_k$; \; remember $k$
+  \EndIf
+\EndFor
+\If{$t^\star = +\infty$} \State \Return \textsc{Escape} \EndIf
+\State \Return $t^\star$ and its remembered host primitive
+\end{algorithmic}
+\end{algorithm}
 
 \paragraph{Avoiding a rejection bias.} The two candidate categories are handled with slightly different
 inverses. A primitive the ray is already inside is inverted from the segment start ($t_0 = 0$). A
@@ -192,7 +256,7 @@ simultaneously overlapping primitives---sits well within the chosen capacity, an
 below records zero overflows. A substantially denser asset shows why estimating offline beats guessing:
 the \num{25600}-Gaussian bunny, an order of magnitude larger than the cloud's \num{652}, exceeds the
 cloud-tuned caps, and the estimator quantifies the larger capacities it needs so the build can be sized
-correctly without trial-and-error recompiles. A deliberately degenerate collinear stress test
+correctly without trial-and-error recompiles (\Cref{tab:overlap}). A deliberately degenerate collinear stress test
 exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed sufficient
 on every scene, a device-side overflow counter flags at runtime any ray that exceeds a capacity, so
 excess overlap is \emph{detected} rather than silently corrupting the image; raising the hit-buffer

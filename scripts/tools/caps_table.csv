@@ -1,0 +1,6 @@
+asset,count,active_max,active_p99,hit_max,hit_p99,cap_active,cap_hit
+root.primitives_pyr0,652,45,7,96,40,64,128
+root.primitives_pyr0,768,19,14,108,85,32,144
+root.primitives_pyr0,4096,529,525,706,152,672,896
+root.primitives_pyr0,24576,57,32,437,286,80,560
+bunny_pyr0,25600,245,48,387,242,320,496
