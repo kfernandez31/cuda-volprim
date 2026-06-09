@@ -60,6 +60,11 @@
 %% above.  We just load it last to be safe.
 \usepackage[linkcolor=black,colorlinks=true,citecolor=black,filecolor=black]{hyperref}
 
+%% Consistent units (W / ms / GB / counts) and smart cross-references.
+%% cleveref MUST be loaded last (after hyperref and varioref).
+\usepackage{siunitx}
+\usepackage[capitalise,noabbrev]{cleveref}
+
 
 %% Document information
 %% ====================

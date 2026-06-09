@@ -1,4 +1,5 @@
 \chapter{Related work}
+\label{ch:related-work}
 
 \section{Neural Radiance Fields (NeRFs)}
 Neural Radiance Fields (NeRFs)~\cite{NeRF} are a groundbreaking approach in the field of computer graphics and computer vision, enabling the generation of high-quality 3D representations from a sparse set of 2D images. Introduced in 2020, NeRFs utilize deep learning techniques to model volumetric scene representations by encoding both spatial and directional information of light emitted from a scene. The core of the NeRF framework involves a fully connected MLP neural network that takes a 5-dimensional input vector $(x, y, z, \theta, \phi)$, where $\hat{x}=(x, y, z)$ represents the spatial coordinates of a point in the scene and $d=(\theta, \phi)$ denotes the viewing direction. The network outputs the corresponding RGB color and volume density at that location, approximating the following function:
