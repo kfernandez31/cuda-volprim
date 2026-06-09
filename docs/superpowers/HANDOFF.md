@@ -85,3 +85,32 @@ It means **safe + detectable, NOT correct**:
 - Caps/overflow code: `device/core/constants.cuh`, `device/core/launch_params.cuh`,
   `include/thesis/device/utils/{bit_vector,compact_set}.h`.
 - Original draft (for BEFORE/AFTER): `git show b61e5cc:thesis/latex/chapters/0{1,2,3}-*.tex`.
+
+## STILL TODO — full gap analysis (2026-06-08)
+
+Ordered by how load-bearing they are.
+
+1. **Experiment campaign + ALL data figures — the big unlock.** No experiments run yet, so every plot
+   is absent. Ch 5 and Ch 6 carry marked `% FIGURE (campaign): …` slots (validation ladders, furnace,
+   RIS K-sweep, money-shot, GAS-compaction/memory) but no figures. Gates Ch 7 entirely. Needs the
+   full-blast GPU window (admin Piotr Rybicki) per spec §9.
+2. **Ch 7 Results** — empty stub; depends on (1).
+3. **Ch 1 Introduction** — still the OLD draft intro (future tense, no contributions list / structure);
+   retarget to the finished work.
+4. **Abstract** — still `TODO`.
+5. **Appendix A (A1)** — empty stub; write up the A1 investigation (FINDINGS App A).
+6. **Ch 4 §4.4 novelty-credit line** — `% TODO(confirm…)`: what Jorge proposed vs. what Kacper realised.
+7. **Per-asset cap-estimation script** (see section A above) — not written.
+8. **Mitsuba JIT/startup overhead** (task #96) — not measured; small Ch 7 comparison.
+9. **Ch 4 enrichment** — architecture/pipeline diagram + argmin pseudocode still missing (a complexity
+   table already exists, in Ch 6 `tab:complexity`).
+10. **Front matter:** acknowledgements DONE (Piotr **Rybicki** — friend/machine owner — + family);
+    title-page date still says "Lugano, September 2025" (stale, update); **advisors Didyk & Jorge are NOT
+    yet acknowledged** — confirm with Kacper whether to add them, and whether the "low-level graphics
+    mentorship" credit belongs to Rybicki (as written) or to an advisor.
+11. **Bibliography:** spot-check the DOIs deliberately omitted on some classics.
+12. **Final polish (Phase 3):** cross-chapter consistency pass (notation σ_t/τ/erf, tense, terminology);
+    confirm every reported number is at the single full-blast operating point.
+
+**Solid / done:** prose backbone Ch 2–6 + Ch 8 drafted, cited, compiling clean (~49pp); spec, plan,
+CONVENTIONS, bibliography (39 refs), figure pipeline.
