@@ -1,12 +1,187 @@
-\chapter{Performance Engineering \& Optimization}
+\chapter{Performance Engineering and Optimization}
 \label{ch:optimization}
 
-% --- SCAFFOLD (plan Task 2.5) ---
-% Content: design spec sections 8 + 9 — elevate FINDINGS sections 8.15-8.38 + Appendix A.
-% Structure: starting gap (8.5) -> profiling/bottleneck (8.28/8.29) -> the FOUR-MODE presentation
-%   (M measured ablations incl. the RIS highlight; C complexity-argued w/ Big-O; S standard-practice
-%   w/ one-line justifications; I icosphere infeasible) -> the AUTOPSY LEDGER (each: hypothesis ->
-%   kill-test -> measurement -> why it failed -> lesson; the megakernel-shaped structural lesson)
-%   -> the MEMORY sub-section (GAS compaction before/after; the wavefront RayState memory plot).
-% Through-line: negative results as a contribution. Needs O-set figures + the final inventory
-%   (plan Task 0.5a code-completeness pass + 1.2/1.4).
+The renderer validated in \Cref{ch:validation} was, at first, slower than the Mitsuba reference it
+matched: on the scattering cloud it ran roughly $1.9\times$ slower per sample \emph{and} $2.9\times$
+noisier per sample---about $5\times$ at equal quality. Closing that gap, and then overtaking the
+reference, is the subject of this chapter. The work is presented not as a list of speedups but as a
+\emph{method}: every candidate is classified by how it can honestly be justified, and only those whose
+outcome is genuinely informative are run as controlled ablations. Equally important is what did
+\emph{not} work---a ledger of dead ends (\Cref{sec:autopsies}) that together characterise the
+performance ceiling of this class of renderer and are themselves a contribution.
+
+\section{The starting gap and the bottleneck}
+\label{sec:bottleneck}
+
+Optimisation began with profiling, not guessing. NSight Compute locates the bottleneck firmly in
+\emph{memory latency}: the kernel is latency-bound on scattered global loads of the per-primitive
+\texttt{Primitive} struct, at roughly $22\%$ occupancy, itself capped by the code-intrinsic register
+pressure of the erf and phase-function chains. The primitive data is already $82$--$98\%$
+cache-resident, so reducing its \emph{footprint} cannot help much---the cost is in the latency of
+gathering scattered primitives, not in bandwidth. The structural reading of this is the same one that
+shaped the architecture (\Cref{sec:gpu-impl}): the per-bounce arithmetic is cheap but the per-ray state
+is large and persistent, so the algorithm is \emph{megakernel-shaped}. This single fact predicts
+several of the null results in \Cref{sec:autopsies}.
+
+\section{A taxonomy of optimisations}
+\label{sec:four-modes}
+
+Whether to \emph{measure} an optimisation is itself a decision. A controlled on/off ablation is worth
+running only when its outcome is not a foregone conclusion; otherwise the honest justification is a
+complexity argument, a citation to standard practice, or a statement of why no fair experiment is
+possible. Each optimisation in this chapter is therefore placed in one of four modes:
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Mode & When it applies & Examples \\
+    \midrule
+    \textbf{(M) Measured} & genuine choice, non-obvious outcome & RIS, RR depth, adaptive, denoiser, autopsies \\
+    \textbf{(C) Complexity-argued} & naive baseline $\to$ obvious form & scan fixes, argmin, $O(1)$ sets, compact buffer \\
+    \textbf{(S) Standard practice} & textbook; cite, don't measure & multi-stream, FMA, coalescing, fast-math \\
+    \textbf{(I) Infeasible} & no valid A/B possible & analytic vs tessellated spheres \\
+    \bottomrule
+  \end{tabular}
+  \caption{The four justification modes. The chapter measures what is informative, complexity-argues
+  what was merely made-correct, cites the standard, and states plainly what could not be tested.}
+  \label{tab:four-modes}
+\end{table}
+
+\section{Measured wins}
+\label{sec:wins}
+
+The kept speedups, each a controlled ablation against the validated baseline, are summarised in
+\Cref{tab:wins}. The single largest was eliminating a redundant per-bounce $O(N)$ containment scan;
+the most dramatic in relative terms was a smarter shadow-ray transmittance evaluation. Russian-roulette
+depth, a free efficiency knob, was tuned from $5$ to $12$. After these, the equal-quality comparison
+against Mitsuba inverts: the renderer reaches the same noise level in less time (\Cref{ch:results}).
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}llc@{}}
+    \toprule
+    Optimisation & Effect & FINDINGS \\
+    \midrule
+    Shadow-ray transmittance         & $\sim$\,12--15$\times$ (shadow kernel) & §8.16 \\
+    Skip per-bounce containment scan & $\sim$\,16\% frame                     & §8.23 \\
+    Russian-roulette depth $5\to12$  & $\sim$\,11\%                           & §8.33 \\
+    Dedup bounce-0 scan              & $\sim$\,8\%                            & §8.19 \\
+    Any-hit transmittance fusion     & $\sim$\,3\%                            & §8.18 \\
+    Fast \texttt{erf} in the hot path & $\sim$\,1.5\%                          & §8.21 \\
+    OptiX denoiser (showcase)        & $\sim$\,30$\times$ effective           & §8.22 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Measured (M-mode) optimisations kept in the renderer. Each is a controlled on/off ablation;
+  effects are on the scattering cloud at the fixed operating point.}
+  \label{tab:wins}
+\end{table}
+
+% FIGURE (campaign): RR-depth efficiency curve; fast_erf bias-vs-speed.
+
+\section{The algorithmic highlight: volumetric product-RIS}
+\label{sec:ris}
+
+The one \emph{studied} algorithmic win is in direct lighting. The baseline next-event estimator spends
+one shadow ray per scattering vertex on an environment sample drawn by luminance. Resampled importance
+sampling~\cite{Talbot2005} instead draws $K$ environment candidates, resamples one in proportion to a
+cheap target (phase value $\times$ environment luminance) via a weighted reservoir~\cite{Bitterli2020},
+and traces a shadow ray only for the survivor---paying $K$ cheap evaluations to make the single
+expensive shadow ray count. With $K=6$ this gives about $1.4\times$ at equal quality on
+environment-map scenes. Crucially it is \emph{scene-dependent}: on a flat (constant) environment, where
+the candidates are interchangeable, the resampling overhead makes it $\sim\!2.5\times$ \emph{worse}. It
+is therefore shipped behind a runtime flag (default off, plain MIS), not as an unconditional change.
+The result was validated unbiased against the Mitsuba-analog ground truth on a constant environment
+(furnace-clean), and---being a single-strategy estimator---it surfaced and forced the fix of a latent
+environment-sampling bug (a texel-centre quantisation that the prior MIS had masked).
+
+% FIGURE (campaign): RIS vs MIS equal-quality, env-map vs flat, K-sweep.
+
+\section{Complexity-argued improvements}
+\label{sec:complexity}
+
+Several changes are not ablations because their ``before'' was a naive or accidental baseline, not a
+defended design; regressing to it would only re-derive that doing things the slow way is slow. They are
+justified by complexity (\Cref{tab:complexity}) and reported with whatever incidental speedup they
+brought. The most consequential is the architecture's own argmin scatter sampler (\Cref{sec:adt}),
+which removes the reference's per-bounce sort and root-find outright.
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Step & Before & After \\
+    \midrule
+    Per scatter bounce       & $O(N + A^2)$              & $O(N + A)$ \\
+    Boundary sort (scatter)  & $O(H^2)$ / $O(H\log^2 H)$ & eliminated \\
+    Scatter distance         & bisection / Newton       & closed-form $\operatorname{erf}^{-1}$ \\
+    Active-set insert/test   & $O(\log A)$               & $O(1)$ (bit vector) \\
+    Hit record               & 20\,B (unified)          & 6\,B (structure-of-arrays) \\
+    \bottomrule
+  \end{tabular}
+  \caption{Complexity-argued (C-mode) improvements. The argmin sampler and the data-structure choices
+  reduce per-bounce work asymptotically; these are justified by the bound, not by a regression ablation.}
+  \label{tab:complexity}
+\end{table}
+
+\section{Reasoned decisions, not ablated}
+\label{sec:reasoned}
+
+Some choices are deliberately \emph{not} measured. Standard-practice optimisations---multiple CUDA
+streams with asynchronous transfers, fused multiply-adds and loop unrolling, \texttt{float4}-coalesced
+buffers, the fast-math flag set, GAS compaction and \texttt{PREFER\_FAST\_TRACE}---are cited rather than
+ablated, because regressing to ``everything on one stream'' would re-derive a textbook result. The
+analytic-versus-tessellated-sphere choice is \emph{infeasible} to ablate: the tessellated path was
+abandoned before the current architecture existed, so a fair A/B would require resurrecting a
+non-comparable codebase; it is justified instead by exactness (no tessellation error, no BVH bloat) and
+by the cross-renderer comparison of \Cref{ch:results}.
+
+\section{Negative results: an autopsy ledger}
+\label{sec:autopsies}
+
+The following ideas were implemented or seriously evaluated and did not pay off. Each is reported as
+hypothesis, cheap kill-test, measurement, and lesson---collectively a map of where effort on this
+renderer does \emph{not} go.
+
+\begin{itemize}
+  \item \textbf{Wavefront refactor (§8.34) --- the big one.} Splitting the megakernel into per-stage
+  kernels was $100$--$1400\times$ \emph{slower}: the ${\sim}352$\,B/ray state must stream through DRAM
+  every bounce and goes super-linear once the working set exceeds L2. \emph{Lesson:} moving persistent
+  per-ray state to global memory is fatal for this workload---it is megakernel-shaped, and this rules
+  out a whole family of designs (wavefront, ray-sorting, neural caches).
+  \item \textbf{Megakernel footprint reduction (§8.29).} SoA layouts, field reordering, and
+  \texttt{\_\_ldg} hints were null: the data is already cache-resident, so the cost is load
+  \emph{latency}, not footprint.
+  \item \textbf{Adaptive sampling (§8.30).} Per-pixel convergence stopping was a net loss
+  ($\sim\!2\times$ slower at equal quality, plus firefly bias) on the high-variance cloud; kept,
+  default-off.
+  \item \textbf{Per-step Rao--Blackwellisation, ``A1'' (§8.27, \Cref{app:a1}).} A direct/indirect
+  variance trade-off that helps only on flat environments, where the renderer already wins; no net gain.
+  \item \textbf{Density-contribution culling (§8.31)} --- redundant with the BVH's $3\sigma$ bound.
+  \textbf{Track-length combine (§8.32)} --- unnecessary, the environment transmittance is already
+  analytic. \textbf{Exit-caching (§8.35)} --- bit-identical, no win (the extra local state hit the
+  occupancy wall). \textbf{Env-IS alias table (§8.36)} --- correct but sub-$1\%$; environment sampling
+  is not the bottleneck. \textbf{Owen--Sobol sampling (§8.20)} --- no win on this high-variance
+  integrand.
+  \item \textbf{Path guiding (§8.38) --- deferred, not failed.} No \emph{cheap} kill-test could
+  validly predict its gain (proxies measure the NEE-handled layer, not the multi-bounce tail), the
+  upside is bounded low by the near-diffuse deep field, and the cost is downside-skewed; building it
+  would have been a multi-day bet against weak evidence.
+\end{itemize}
+
+The unifying lesson is the bottleneck of \Cref{sec:bottleneck}: at low occupancy bound by global-load
+latency, footprint and cache micro-optimisations are near-null, and any restructuring that externalises
+per-ray state backfires. The one true hardware lever for this divergence---OptiX Shader Execution
+Reordering~\cite{NvidiaSER2022}---is Ada-only and therefore unavailable on the Ampere RTX~3090 used here.
+
+\section{Memory}
+\label{sec:opt-memory}
+
+Performance is not only time. Two memory results matter. GAS compaction
+(\texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION}) reduces the acceleration-structure footprint at no
+traversal cost (quantified per asset in \Cref{ch:results}). And the wavefront autopsy above is
+fundamentally a \emph{memory} story: its ${\sim}352$\,B of per-ray state, multiplied by the live ray
+count, is what overruns L2 and collapses performance---the clearest evidence that the megakernel's
+register-resident state is not an incidental choice but the load-bearing one.
+
+% FIGURE (campaign): GAS size before/after compaction; per-ray state footprint megakernel vs wavefront.
