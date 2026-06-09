@@ -54,8 +54,9 @@ possible. Each optimisation in this chapter is therefore placed in one of four m
 The kept speedups, each a controlled ablation against the validated baseline, are summarised in
 \Cref{tab:wins}. The single largest was eliminating a redundant per-bounce $O(N)$ containment scan;
 the most dramatic in relative terms was a smarter shadow-ray transmittance evaluation. Russian-roulette
-depth, a free efficiency knob, was tuned from $5$ to $12$. After these, the equal-quality comparison
-against Mitsuba inverts: the renderer reaches the same noise level in less time (\Cref{ch:results}).
+depth, a free efficiency knob, was tuned from $5$ to $12$ (\Cref{fig:rr-depth}). After these, the
+equal-quality comparison against Mitsuba inverts: the renderer reaches the same noise level in less time
+(\Cref{ch:results}).
 
 \begin{table}[htp]
   \centering
@@ -77,7 +78,14 @@ against Mitsuba inverts: the renderer reaches the same noise level in less time 
   \label{tab:wins}
 \end{table}
 
-% FIGURE (campaign): RR-depth efficiency curve; fast_erf bias-vs-speed.
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/rr_depth.pdf}
+  \caption{Russian-roulette efficiency on the scattering cloud: frame time against the RR start depth at
+  matched quality. The chosen depth ($12$) sits at the efficiency knee; deeper paths buy negligible
+  variance reduction for added cost.}
+  \label{fig:rr-depth}
+\end{figure}
 
 \section{The algorithmic highlight: volumetric product-RIS}
 \label{sec:ris}
@@ -90,12 +98,20 @@ and traces a shadow ray only for the survivor---paying $K$ cheap evaluations to 
 expensive shadow ray count. With $K=6$ this gives about $1.4\times$ at equal quality on
 environment-map scenes. Crucially it is \emph{scene-dependent}: on a flat (constant) environment, where
 the candidates are interchangeable, the resampling overhead makes it $\sim\!2.5\times$ \emph{worse}. It
-is therefore shipped behind a runtime flag (default off, plain MIS), not as an unconditional change.
+is therefore shipped behind a runtime flag (default off, plain MIS), not as an unconditional change
+(\Cref{fig:ris-ksweep}).
 The result was validated unbiased against the Mitsuba-analog ground truth on a constant environment
 (furnace-clean), and---being a single-strategy estimator---it surfaced and forced the fix of a latent
 environment-sampling bug (a texel-centre quantisation that the prior MIS had masked).
 
-% FIGURE (campaign): RIS vs MIS equal-quality, env-map vs flat, K-sweep.
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/ris_ksweep.pdf}
+  \caption{Volumetric product-RIS versus plain MIS at equal quality, as the candidate count $K$ varies.
+  On an environment map RIS wins (peaking near $K=6$); on a flat environment the resampling overhead
+  makes it a net loss---hence the runtime flag.}
+  \label{fig:ris-ksweep}
+\end{figure}
 
 \section{Complexity-argued improvements}
 \label{sec:complexity}
@@ -179,12 +195,18 @@ Reordering~\cite{NvidiaSER2022}---is Ada-only and therefore unavailable on the A
 
 Performance is not only time. Two memory results matter. GAS compaction
 (\texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION}) reduces the acceleration-structure footprint at no
-traversal cost (quantified per asset in \Cref{ch:results}). And the wavefront autopsy above is
+traversal cost (\Cref{fig:gas-memory}; quantified per asset in \Cref{ch:results}). And the wavefront autopsy above is
 fundamentally a \emph{memory} story: its ${\sim}352$\,B of per-ray state, multiplied by the live ray
 count, is what overruns L2 and collapses performance---the clearest evidence that the megakernel's
 register-resident state is not an incidental choice but the load-bearing one.
 
-% FIGURE (campaign): GAS size before/after compaction; per-ray state footprint megakernel vs wavefront.
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/gas_memory.pdf}
+  \caption{Acceleration-structure footprint before and after GAS compaction, per asset. Compaction
+  shrinks the structure at no traversal cost; the saving grows with scene size.}
+  \label{fig:gas-memory}
+\end{figure}
 
 \paragraph{Per-asset capacity budgets.} The per-ray buffers are bounded by the worst-case primitive
 overlap a scene presents, which the offline estimator of \Cref{sec:gpu-impl} predicts from geometry

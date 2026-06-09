@@ -81,8 +81,16 @@ ways and that the analytic check is the final arbiter.
 truth across all camera views, resolved the dark-blob artefact of \Cref{sec:reference-problem}: against
 the correct reference the renderer matches, view-independently. This established absorption correctness
 at scene scale before scattering---and hence multiple sampled bounces---was introduced.
+\Cref{fig:absorption-ladder} collects the ladder.
 
-% FIGURE (campaign): absorption ladder — single / overlap / cloud, renderer vs analytic, with RMSE.
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/absorption_ladder.pdf}
+  \caption{Absorption-only validation against the analytic ground truth, up the complexity ladder: a
+  single Gaussian, an overlapping pair, and the full cloud. The renderer matches the closed-form
+  reference view-independently; per-scene RMSE is annotated.}
+  \label{fig:absorption-ladder}
+\end{figure}
 
 \section{Scattering validation}
 \label{sec:scattering-ladder}
@@ -103,9 +111,16 @@ a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$
 rungs match within noise; the cloud rung passes view-independently. These passes are the empirical
 evidence that the argmin scatter sampler (\Cref{sec:adt}) is unbiased: a wrong free-flight distribution
 would bias the converged mean away from the independently-correct Mitsuba-analog result, and it does
-not.
+not (\Cref{fig:scattering-ladder}).
 
-% FIGURE (campaign): scattering ladder — renderer vs Mitsuba-analog, converged-mean difference.
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/scattering_ladder.pdf}
+  \caption{Scattering validation against Mitsuba-analog up the same ladder (single Gaussian, cluster,
+  full cloud; albedo $0.9$). The converged means agree to within noise, the empirical evidence that the
+  argmin scatter sampler is unbiased.}
+  \label{fig:scattering-ladder}
+\end{figure}
 
 \section{Feature validation}
 \label{sec:feature-validation}
@@ -141,6 +156,14 @@ forward-scattering Henyey--Greenstein ($g = 0.85$) and MIS direct lighting. Agai
 renderer matches the converged image and, at equal quality, reaches it in less time while remaining
 free of the fireflies that the reference exhibits on this scene (quantified in \Cref{ch:results}). This
 combined result is the correctness foundation on which the performance study of \Cref{ch:optimization}
-builds: every optimisation there is required to preserve this image, and is reverted if it does not.
+builds: every optimisation there is required to preserve this image, and is reverted if it does not
+(\Cref{fig:showcase}).
 
-% FIGURE (campaign): the showcase — renderer vs Mitsuba-analog at equal quality, + firefly comparison.
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/showcase.pdf}
+  \caption{The combined showcase: the full cloud under a measured HDR environment with forward
+  Henyey--Greenstein scattering ($g = 0.85$) and MIS direct lighting. At equal quality the renderer
+  matches Mitsuba-analog while remaining free of the fireflies the reference exhibits on this scene.}
+  \label{fig:showcase}
+\end{figure}
