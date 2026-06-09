@@ -18,22 +18,19 @@ discrepancy would appear first on the scenes with a known analytic answer.
 \section{The reference problem and differential validation}
 \label{sec:reference-problem}
 
-Validation began with a false start that shaped the entire methodology. The initial plan was to match
-reference images supplied for the asset---\texttt{.exr} renders produced from a voxel-grid
-discretisation of the volume---but these proved impossible to reproduce: the discretisation, density
-normalisation, and integrator settings behind them could not be recovered, and chasing a pixel match
-against an opaque reference conflated genuine renderer bugs with reference mismatches. Most visibly, the
-cloud rendered as a dark blob against the voxel reference; weeks of "debugging" the renderer were in
-fact chasing an artefact of the \emph{reference}, not the code.
+An absolute ground truth for these assets was not available. The references supplied with
+them---\texttt{.exr} renders produced from a voxel-grid discretisation of the volume---proved
+unreproducible: the discretisation, density normalisation, and integrator settings behind them could
+not be recovered, so a pixel match against them would conflate genuine renderer bugs with reference
+mismatches. Validation is therefore done \emph{differentially}.
 
-The resolution was to abandon the absolute reference and validate \emph{differentially}: render the
-same scene with Mitsuba~3~\cite{Mitsuba3}---configured identically, primitive-for-primitive, from the
-same Gaussian data---and quantify the difference. Mitsuba is mature, widely trusted, and runs the same
-physically based volumetric path tracing, so a small, converging difference is strong evidence of
-correctness, while a structured difference localises a bug. This reframing turned an unfalsifiable
-"does it look right?" into a measurable gap, and it is the backbone of every result below. Where an
-even stronger check is available---a scene with a closed-form answer---the renderer is held to that
-analytic ground truth directly.
+The renderer is compared against Mitsuba~3~\cite{Mitsuba3}---configured identically,
+primitive-for-primitive, from the same Gaussian data---and the difference is quantified. Mitsuba is
+mature, widely trusted, and runs the same physically based volumetric path tracing, so a small,
+converging difference is strong evidence of correctness, while a structured difference localises a
+bug. This turns an unfalsifiable ``does it look right?'' into a measurable gap, and it is the backbone
+of every result below. Where an even stronger check exists---a scene with a closed-form answer---the
+renderer is held to that analytic ground truth directly.
 
 \section{How to compare correctly}
 \label{sec:compare-correctly}
