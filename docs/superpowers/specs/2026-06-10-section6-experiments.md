@@ -32,6 +32,10 @@ until they are done, in this order:
    render to confirm frame-time variance < a few %. (Note: `ncu` ignores this and locks to *base* clock
    via `--clock-control`; its metrics are ratios, so fine — but record it, don't claim "full-blast" for
    ncu rows.)
+5. **(Optional, G8 only) Port the icosphere GAS (CODE).** Lift `Icosphere<N>`
+   (`include/thesis/host/geometry/mesh.h`) + `TriangleGAS` (`gas.h`) from commit `eb5372f` into the
+   current renderer behind a build switch + subdivision level `N`; entries then come from triangle hits,
+   exits stay analytic. Real engineering, not a flag — greenlight before committing the window to it.
 
 ## 1. Goal
 
@@ -184,6 +188,27 @@ One-shot: Mitsuba compile + first launch vs steady-state, vs our OptiX-IR load +
 explicitly that steady-state per-frame numbers elsewhere **exclude startup on both sides** (ours: IR
 load; Mitsuba: JIT), so it is not double-counted in any $k\cdot t$.
 
+### G8 — Analytic vs tessellated (icosphere) spheres → `tab:wins` + new figure; **reclassifies the Ch 6 (I)→(M) item**
+The reference (DSYG) intersects each primitive as a **tessellated icosphere**; this renderer uses
+OptiX's **built-in analytic sphere**. Ch 6 currently files this under *(I) infeasible to ablate* (the old
+tessellated path predated the current architecture, `tab:four-modes` + `sec:reasoned`). It is in fact
+**feasible**: port *only* the historical icosphere **GAS** into the current renderer — the rest (IAS
+instancing, any-hit entry collection, analytic exit, optical-depth integration) is unchanged — giving a
+fair A/B where *only the per-primitive geometry differs*. Resurrect `Icosphere<N>`
+(`include/thesis/host/geometry/mesh.h`) + `TriangleGAS` (`gas.h`), both at commit **`eb5372f`** (the
+pre-anyhit checkpoint), behind a build switch + subdivision level `N`.
+- **Sweep** `N ∈ {0,1,2,3}` (12 → 642 vertices) vs the analytic sphere, same cloud scene/seeds.
+- **Three axes:** (a) **perf** — frame time + equal-quality `k` (built-in HW sphere intersector vs
+  triangle-BVH traversal); **clock-dependent → in the window**. (b) **accuracy** — RMSE vs the analytic
+  render, which is the *exact* ground truth here (the primitive truly is a sphere), so the discrepancy is
+  pure faceting error at each `N`; **clock-independent → runnable now**. (c) **GAS size** per `N`;
+  clock-independent.
+- **Expected shape (hypothesis; let the data decide):** analytic dominates — exact *and* faster — but the
+  measured magnitude is the result, and low-`N` icospheres may be faster-but-faceted (the accuracy×perf
+  trade is the story). Directly benchmarks our choice against the reference's.
+- **This is a code task (§0.5), not a flag flip.** If the port proves costly, fall back to the existing
+  (I)-mode argument and leave the item infeasible.
+
 ## 6. Output artifacts (→ figure pipeline)
 
 | Artifact | Columns | Feeds | Note |
@@ -195,6 +220,7 @@ load; Mitsuba: JIT), so it is not double-counted in any $k\cdot t$.
 | `wins.csv` (new) | `optimization, semantics, frame_ms, k, speedup` | `tab:wins` | `semantics` ∈ {sequential, marginal} |
 | `headline.csv` (new) | `renderer, asset, env, config, frame_ms, k, k_clipped, p99_9, maxpix` | G1 / Ch 7 | env includes `flat` |
 | `effective.csv` (new) | `feature, scene, rmse_vs_gt, time` | denoiser/adaptive | "effective", not $k$ |
+| `icosphere.csv` (new) | `subdiv_N, n_verts, frame_ms, k, rmse_vs_analytic, gas_kb` | G8 fig + `tab:wins` | analytic = exact GT |
 
 Validation montages (`fig:absorption-ladder`, `fig:scattering-ladder`, `fig:showcase`) are assembled
 from renders (G1 + Ch 5 ladders, the latter clock-independent — §1 carve-out).
@@ -217,5 +243,11 @@ Plan an overnight (~8–12 h) window.
   **none has an experiment here.** Either **rescope Ch 7** to the cloud+bunny+ladder this plan covers, or
   **add the cells** (4-asset = more recompiles + Mitsuba parity work; N-scaling = a `stress_N` sweep).
   Decide before the window; silent under-delivery resurfaces at writing time.
+- **[DECIDE] G8 icosphere A/B (effort-gated).** High value — it turns the analytic-vs-tessellated choice
+  from an *argued* (I)-mode item into a *measured* (M)-mode result that directly benchmarks the
+  reference's tessellated approach. But it needs the §0.5 code port. Greenlight the port, or keep the
+  (I)-mode argument. **If it lands, Ch 6 changes:** move the row out of `tab:four-modes`'s (I) column,
+  rewrite the analytic-vs-tessellated paragraph in `sec:reasoned`, and add the result — queued for the
+  Ch 6 rework.
 - **Out of scope:** WDAS reported numbers, emissive assets, the Gabor extension, re-running cited
   C/S/I-mode optimisations, and the Ch 6 prose rework (handoff "Ch 6 rework" queue).
