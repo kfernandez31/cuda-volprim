@@ -155,6 +155,13 @@ K-sweep **{1, 2, 4, 6, 8, 12}** on the cloud across flat → studio → meadow; 
 (consistency anchor, §8.37). The furnace re-confirm doubles as the **post-§0 RIS regression gate**. Let
 the data set the default K (dev measured {2,4,8,16}, K=6 interpolated); `06:111` "peaking near K=6"
 survives if the peak lands at 4 or 6.
+**Unbiasedness on the showcase env: CONFIRMED (2026-06-10, 150 W, clock-independent → final).** Cloud
+scattering on the meadow, MIS vs RIS-K6 at 1024 spp: converged means agree to within the MC-noise floor
+(signed-mean Δ 1.9e-4, vs a same-estimator noise floor of 1.1e-4), and RIS's per-pixel `|Δ|` is
+*lower* (2.98e-2 vs 3.21e-2) — consistent with its variance-reduction win, not a bias. Extends §8.37
+(constant-env) to the showcase. **So the window needs only the RIS perf K-sweep, not a correctness
+gate.** Ch 6 `sec:ris` can strengthen "validated unbiased … on a constant environment" → "…and on the
+environment-lit showcase" (Ch 6 pass).
 
 ### G4 — Profiling & boundedness → `sec:bottleneck`, `fig:roofline`
 **`ncu` is the load-bearing source** (cloud + bunny @256²): occupancy ~22 %, eligible-warps,
