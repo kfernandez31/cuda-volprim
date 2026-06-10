@@ -17,11 +17,12 @@ implementation plan. **Read §0 first — the run is invalid without those preco
 These are renderer-code + setup changes, not runner-script work. The run cannot produce its claims
 until they are done, in this order:
 
-1. **CLI restoration (CODE).** `--ris` / `--ris-candidates` are not registered in
-   `src/thesis/host/app/config.cpp` (fields exist at `config.h:45-46`); K was never CLI-exposed.
-   G3 is unrunnable until this is plumbed in both the app and the test-runner config path. Adaptive
-   sampling is `constexpr` (`constants.cuh:187`) with no `--adaptive-*` flag — restore the runtime flags
-   or accept a rebuild-toggle for G6-adaptive.
+1. **CLI status (corrected — review act-3 was checking the wrong binary).** The campaign runs through
+   **`test_runner`, whose CLI already exposes `--ris` and `--ris-candidates K`** (verified via
+   `--help`), so **G3 is runnable as-is**. The gap is only in the standalone app
+   (`src/thesis/host/app/config.cpp` lacks `--ris`); fix that *only if* that binary is shipped/used.
+   Adaptive sampling, however, is genuinely `constexpr` (`constants.cuh:187`) with no `test_runner`
+   flag — G6-adaptive needs the runtime flag restored or a rebuild-toggle.
 2. **Bunny cap recompile.** Estimator (`caps_table.csv`) says bunny needs
    **`MAX_ACTIVE_PRIMS=320`, `HIT_BUFFER_CAPACITY=496`** (point overlap 245→320, ray entries 387→496 at
    margin 1.25). *Not* 320/560 — 560 was the 24 576-prim WDAS row.

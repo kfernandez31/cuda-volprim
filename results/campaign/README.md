@@ -11,7 +11,7 @@ already wired in the chapters; only the included PDFs change. All reported numbe
 |---|---|---|
 | `fig:rr-depth` (Ch 6) | `rr_depth.csv` | `rr_depth, frame_ms, k, eff` (plot `eff` = k·t, not frame_ms) |
 | `fig:ris-ksweep` (Ch 6) | `ris_ksweep.csv` | `K, speedup_flat, speedup_studio, speedup_meadow` (peakiness ladder) |
-| `fig:gas-memory` (Ch 6) | `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` |
+| `fig:gas-memory` (Ch 6) | `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` (the **IAS** footprint; the GAS is a fixed unit sphere). **cloud measured at 150 W (clock-independent → final); bunny pending the asset-render path.** Figure held as placeholder until ≥2 assets. |
 
 A CSV with only its header (the committed state) renders a watermarked **PROVISIONAL** placeholder; add
 data rows and rerun to get the real plot. Schema details are in each CSV's header comments.
