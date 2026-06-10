@@ -1,164 +1,220 @@
 # Section 6 experiment lineup — full-blast runbook
 
-**Date:** 2026-06-10
-**Status:** design approved; ready to turn into an implementation plan (runner scripts)
+**Date:** 2026-06-10 · **Revised:** 2026-06-10 after plan-review
+(`thesis/reviews/2026-06-10-section6-plan-review.md`).
+**Status:** design revised per review; ready to turn into an implementation plan (runner scripts).
 **Purpose:** the complete set of measurements to run in one reserved full-blast window on Piotr
 Rybicki's RTX 3090, producing every quantitative number and figure for Chapter 6 (Performance
 Engineering) and the headline results carried into Chapter 7.
 
-This is the conceptual lineup. The runner scripts and exact CLI invocations are the subject of the
-follow-up implementation plan.
+This is the conceptual lineup. Runner scripts and exact CLI invocations are the follow-up
+implementation plan. **Read §0 first — the run is invalid without those preconditions.**
 
 ---
+
+## 0. Preconditions (Step 0 — before any timed run)
+
+These are renderer-code + setup changes, not runner-script work. The run cannot produce its claims
+until they are done, in this order:
+
+1. **CLI restoration (CODE).** `--ris` / `--ris-candidates` are not registered in
+   `src/thesis/host/app/config.cpp` (fields exist at `config.h:45-46`); K was never CLI-exposed.
+   G3 is unrunnable until this is plumbed in both the app and the test-runner config path. Adaptive
+   sampling is `constexpr` (`constants.cuh:187`) with no `--adaptive-*` flag — restore the runtime flags
+   or accept a rebuild-toggle for G6-adaptive.
+2. **Bunny cap recompile.** Estimator (`caps_table.csv`) says bunny needs
+   **`MAX_ACTIVE_PRIMS=320`, `HIT_BUFFER_CAPACITY=496`** (point overlap 245→320, ray entries 387→496 at
+   margin 1.25). *Not* 320/560 — 560 was the 24 576-prim WDAS row.
+3. **Re-gate every binary built in step 0** (CLI restore, caps recompile): furnace flat-test + a 1-seed
+   cloud diff vs a dev render. Converts "same binary we validated" from assumption to evidence; cheap.
+4. **Clock lock + stability check.** `nvidia-smi -lgc/-lmc` to the sustained full clock; a short repeated
+   render to confirm frame-time variance < a few %. (Note: `ncu` ignores this and locks to *base* clock
+   via `--clock-control`; its metrics are ratios, so fine — but record it, don't claim "full-blast" for
+   ncu rows.)
 
 ## 1. Goal
 
 Establish, at the single full-blast operating point, the performance story of Chapter 6:
 
-1. The **headline**: the renderer closed an initial ~5× equal-quality deficit against Mitsuba and
-   overtook it on the showcase, firefly-free (G1).
-2. The **per-optimisation evidence** justifying each kept win (G2) and the one studied algorithmic win
-   (RIS, G3).
-3. The **boundedness diagnosis** that explains why the megakernel is the right shape (G4).
-4. The **memory** results (G5), the **negative-result** numbers (G6), and the **Mitsuba overhead**
-   comparison (G7).
+1. The **headline**: under **flat lighting** the renderer closed an initial ~5.5× equal-quality deficit
+   against Mitsuba-analog (§8.5: 1.93× per-spp × 2.85× noise); on the **environment-lit showcase** it was
+   already ahead pre-optimisation (§8.11/§8.15) and stays ahead, firefly-free. **Both halves must be
+   measured** — the deficit-closure number is flat-env (G1 flat rung), not meadow.
+2. **Per-optimisation evidence** for each kept win (G2) and the one studied algorithmic win (RIS, G3).
+3. The **boundedness diagnosis** for why the megakernel is the right shape (G4).
+4. **Memory** (G5), the **negative-result** numbers (G6), the **Mitsuba overhead** comparison (G7).
 
-Every reported number comes from this run; dev-time 150 W numbers in FINDINGS remain as record only.
+**"Every reported number from this run"** has two honest carve-outs: (a) cited dev-time *negatives*
+(G6's non-re-run set); (b) Chapter 5's correctness *images and RMSE* — clock-independent artifacts, so
+reusing dev renders is legitimate, but say so (and either schedule the brute-force analytic rungs that
+`fig:absorption-ladder`'s caption promises, or fix the caption — full-review M3).
 
 ## 2. Operating point & hardware
 
-- **GPU:** NVIDIA RTX 3090 (Ampere, CC 8.6, 24 GB). Clocks **locked** at the card's sustained full
-  clock via `nvidia-smi` (`-lgc`/`-lmc`) so timings are comparable across the session. Record the
-  locked clock and driver/CUDA/OptiX versions in the run log.
+- **GPU:** RTX 3090 (Ampere, CC 8.6, 24 GB). Clocks locked at the sustained full clock; record locked
+  clock + driver/CUDA/OptiX versions.
 - **Renderer:** release build (`-O3`, `--use_fast_math`), OptiX-IR compiled once.
-- **Reference:** Mitsuba 3 (CUDA backend) on the same GPU. Two configs: **analog** (NEE disabled →
-  unbiased ground-truth behaviour) and **MIS** (its default; biased +6.5 % on the furnace, but the
-  realistic perf/firefly competitor).
-- **Clock-stability check** (first thing): a short repeated render to confirm the locked clock holds
-  and frame-time variance is < a few %.
+- **Reference, two configs:**
+  - **Mitsuba-analog** (NEE disabled → unbiased): the **only** valid equal-quality opponent.
+  - **Mitsuba-MIS** (its default): converges to a biased image (+6.5 % furnace §8.1; +155 % on the
+    showcase §8.11). **Never** compare equal-quality against it — matching its noise means "reaching the
+    wrong answer faster." Report vs MIS only: **per-spp time, firefly statistics, and its bias.**
 
 ## 3. Assets & scenes
 
-**Assets (two, distinct roles):**
-
 | Asset | Prims | Role | Caps |
 |---|---|---|---|
-| Disney cloud | 652 | primary showcase; carries the scene-dependent experiments | 128/128 (fits) |
-| Stanford bunny | 25 600 | scaling/stress; tests that the wins generalise | **recompile to ≥320/≥560** (estimator-sized) first |
+| Disney cloud | 652 | primary; scene-dependent experiments + flat-env headline | 128/128 (fits) |
+| Stanford bunny | 25 600 | scaling/stress; do the wins generalise | recompile to **320/496** (§0.2) |
 
-WDAS variants are **out of scope** for reported numbers; the cap-estimator table (`tab:overlap`,
-already produced) covers the broader density spread.
+**Bunny gate (act-7):** before any cross-renderer bunny number, establish converged-mean agreement
+with Mitsuba (the §8.25 energy-ratio method, 0.9999 on wdas8, is the template). The asset-side Mitsuba
+script supports constant-env only and the `asset_validation` camera was found vertically flipped vs
+Mitsuba — resolve both, or scope bunny to **ours-internal scaling only** (no equal-quality-vs-Mitsuba
+claim). WDAS variants out of scope for reported numbers (`tab:overlap` covers the density spread).
 
-**Scenes / lighting:** a **three-point environment peakiness ladder**, built from real HDRIs, anchors
-the RIS study (measured peakiness in parentheses, max-luminance / mean):
-- **Flat / constant** (`white_constant`, peak = 1×) — zero directional structure; carries the furnace
-  (unbiasedness) and the low end of the RIS ladder (where RIS loses).
-- **Studio** (`ferndale_studio_01`, peak ≈ 700×, ~47 % of energy in the top 0.1 % of texels) — a
-  *mid*-peak regime of soft area sources; the middle of the ladder, and a second, scenically distinct
-  showcase environment (indoor/product-viz). CC0, Poly Haven; fetch via
-  `scripts/tools/fetch_envmaps.sh` (`assets/` is gitignored, so env maps are fetched, not committed).
-- **Meadow** (`meadow_2_4k`, peak ≈ 2×10⁵×, ~74 % of energy in the top 0.1 %) — an *extreme*-peak hard
-  sun; the realistic showcase, where RIS wins most and fireflies appear.
-- Cloud is rendered under all three for G3; G1/fireflies use the meadow (and optionally the studio);
-  bunny under the meadow primarily. (A real-HDRI ladder is used rather than a synthetic bright-disk
-  sweep — recognisable and more defensible.)
+**Scenes — three-point peakiness ladder (real HDRIs; the peakiness numbers must come from a committed
+script so the figure x-axis is reproducible):**
+- **Flat / constant** (`white_constant`, peak 1×) — furnace + the RIS low end (loses) + **the flat-env
+  headline rung**.
+- **Studio** (`ferndale_studio_01`, peak ≈ 700×, ~47 % energy in top 0.1 %) — mid-peak; RIS middle
+  point; a second showcase scene. CC0 Poly Haven, `scripts/tools/fetch_envmaps.sh`.
+- **Meadow** (`meadow_2_4k`, peak ≈ 2×10⁵×, ~74 %) — hard sun; the showcase; RIS wins, fireflies appear.
 
-## 4. Methodology (measurement protocol)
+## 4. Methodology
 
-- **Equal-quality is reference-free.** Both this renderer and Mitsuba-analog are unbiased, so a finite-
-  spp render's error *is* its noise. Measure noise as the **per-pixel inter-seed variance across 16
-  seeds**; the efficiency metric is `k = (inter-seed RMS noise)² · N` (spp), and renderer X beats Y iff
-  it reaches the same `k` in less time. No expensive converged reference is needed.
-- **Bias is checked separately**, against **analytic** ground truth where it exists (absorption,
-  furnace); scattering-mean agreement with Mitsuba-analog is already established in Chapter 5.
-- **16 seeds** per configuration for noise/firefly statistics.
-- **Fireflies:** report both clipped and unclipped noise plus the max-pixel/high-percentile, so the
-  firefly-free advantage over Mitsuba-MIS is quantified rather than asserted.
-- **Ablation protocol:** (a) **bare baseline → final** end-to-end (the gap-closing story); (b)
-  **leave-one-out** from the all-on configuration (each kept M-mode win's marginal contribution). Only
-  M-mode optimisations are toggled; C/S/I-mode items are argued, not ablated (see `tab:four-modes`).
-- **Resolution:** the Chapter 5 validation resolution for renders; **256²** specifically for the `ncu`
-  profile (proper grid fill — see FINDINGS §8.28).
-- **Camera views:** 1–3 representative views for perf/ablations (view-independence is already
-  established in Chapter 5).
+**The "final" config is frozen, two variants (act-6).** Every $k$-measured number uses
+**final-validation**: exact `erf`, box pixel filter, no firefly clamp, no denoiser, MIS (the *unbiased*
+config). **final-showcase** (denoiser, etc.) is for **images only**, never for a noise constant. State
+which variant feeds each figure.
+
+**Equal-quality is reference-free — but only for unbiased, fixed-N outputs.** For final-validation and
+Mitsuba-analog, both unbiased, a finite-spp render's error *is* its noise; measure per-pixel inter-seed
+variance across **16 seeds** and report $k = (\text{RMS noise})^2 \cdot N$ (thesis k-convention, =
+FINDINGS' $k^2$ — note it when transcribing). X beats Y iff it reaches the same $k$ in less time.
+Excluded from $k$, by construction:
+- **Mitsuba-MIS** (biased — §2),
+- **denoiser** and **adaptive sampling** (biased / variable-N → inter-seed variance is blind to them;
+  $k$ ill-defined when N varies per pixel). For these use **converged-reference RMSE** (one ~2048-spp
+  uniform GT per scene, the §8.22/§8.30 machinery), labelled **"effective"**.
+
+**Tails & uncertainty.** Mitsuba-analog-meadow's $k$ is spp-dependent (fireflies converge slower than
+1/√N): **pin and report the measurement spp**, lean on clipped-$k$ + percentiles for tail-heavy configs.
+Report **seed-bootstrap CIs on every equal-quality ratio**; for ≤3 % effects (fusion, fast-erf) keep
+**interleaved A/B** ordering even at locked clocks (locking removes thermal drift, not all jitter —
+§8.35 saw ~9 % jitter swamp a small effect).
+
+**Ablation protocol (act-2) — leave-one-out-from-all-on is *not* executable** (none of the six wins is a
+runtime toggle; the shadow-transmittance "before" code is deleted and any-hit fusion is entangled with
+it). Instead:
+- **Merge-commit ladder (default).** For each kept win, check out its merge commit and parent (the
+  `deprecated-*` branches restore these) and re-run the *same* A/B at locked clocks. Reproduces the
+  **sequential-at-historical-point** numbers `tab:wins` already cites — zero new code.
+- **Leave-one-out at final** only where a real toggle exists: denoiser (`--denoise`), fast-erf (CMake),
+  RR (`--rr-depth`), RIS (`--ris`, post-§0).
+- **Label the semantics in `tab:wins`** — sequential-historical ≠ marginal-at-final (the shadow rewrite
+  was ~85 %-of-frame when measured; its marginal at final differs).
+- **bare → final** endpoints: pin the bare SHA (pre-§8.16 validated state, RR at its historical default
+  **5**); the 5→12 retune is part of the cumulative story.
+
+**Bias gates:** furnace (reference-free, scatter-side), re-confirmed under RIS; absorption analytic
+gates (dev artifacts); fast-erf via converged means; + the §0.3 re-gate after any binary change.
+
+**Resolution (pin it — Ch 5 names none):** dev used **800² cloud / 512² assets**; adopt those and state
+them. `ncu` at **256²** (grid-fill, §8.28). **Camera views:** 1–3 representative for perf (view-
+independence already shown in Ch 5).
 
 ## 5. Experiment groups
 
-Each group lists its purpose, the configurations to run, and the figure/table it feeds.
+### G1 — Headline cross-renderer → Ch 6 intro + Ch 7, `fig:showcase` (Ch 5)
+- **Flat-env rung (the headline source, act-1):** constant-env cloud × {bare-baseline, final-validation,
+  Mitsuba-analog}, 16 seeds + Mitsuba per-spp time → the ~5.5× deficit-closure number, and the in-run
+  evidence for Ch 6's "the equal-quality comparison inverts" (`06:57-59`, currently a §8.16/§8.23
+  *extrapolation*).
+- **Showcase rung:** meadow cloud × {final-validation, Mitsuba-analog} for equal-quality + per-spp;
+  Mitsuba-MIS for per-spp + fireflies + bias (not equal-quality). Pin which binary "final" is — RIS
+  on/off changes it ~1.4×.
+- **Bunny:** meadow × {final-validation, Mitsuba-analog} **only after the §3 gate**; else ours-internal.
+- **Fireflies:** clipped + unclipped noise, **p99.9 / p99.99 + max** (max alone is seed-unstable).
+- **Money-shot images** (final-showcase): ours vs Mitsuba-analog at equal quality + a firefly crop vs MIS.
 
-### G1 — Headline cross-renderer  → `fig:showcase` (Ch 5 money-shot), Ch 6 intro + Ch 7
-Configs (cloud-meadow, bunny-meadow): this renderer (final), Mitsuba-analog, Mitsuba-MIS.
-Measure per config: raw frame-time at fixed spp; inter-seed noise (16 seeds) → `k`; clipped/unclipped
-noise + max-pixel (fireflies). Derive the equal-quality speedup ratios.
-Render the money-shot images: ours vs Mitsuba-analog at equal quality + a firefly crop vs Mitsuba-MIS.
+### G2 — Optimisation ablations → `tab:wins`, `fig:rr-depth`
+Merge-commit ladder for the six wins (shadow-transmittance, skip-scan, dedup-bounce-0, any-hit fusion,
+fast-erf, denoiser) + bare→final endpoints; semantics labelled (§4). **RR-depth sweep {5, 6, 8, 10, 12,
+16}** — include **5** (the anchor of the cited 5→12 claim, §8.33). fast-erf **bias** gate (converged
+mean, fast vs exact) shares the converged-reference machinery. Report frame-time + $k$ (final-validation).
 
-### G2 — Optimisation ablations  → `tab:wins`, `fig:rr-depth`
-Bare baseline → final end-to-end (report the cumulative gap close), plus leave-one-out for each kept
-M-mode win: shadow-ray transmittance, skip per-bounce containment scan, dedup bounce-0 scan, any-hit
-transmittance fusion, fast `erf`, denoiser. Each on cloud-meadow (key ones also on bunny for
-generalisation); report frame-time and `k`.
-- **fast `erf`** additionally needs a **bias** measurement: converged mean with fast vs accurate `erf`
-  (the speed/accuracy trade).
-- **RR-depth sweep** {4, 6, 8, 10, 12, 16}: frame-time and `k` per depth → `fig:rr-depth` (efficiency
-  knee, justifying 12).
+### G3 — Volumetric product-RIS → `fig:ris-ksweep`, `sec:ris`
+K-sweep **{1, 2, 4, 6, 8, 12}** on the cloud across flat → studio → meadow; equal-quality speedup vs MIS
+**within each env** (same map both sides → no energy matching needed). K=1 = plain env-IS NEE
+(consistency anchor, §8.37). The furnace re-confirm doubles as the **post-§0 RIS regression gate**. Let
+the data set the default K (dev measured {2,4,8,16}, K=6 interpolated); `06:111` "peaking near K=6"
+survives if the peak lands at 4 or 6.
 
-### G3 — Volumetric product-RIS  → `fig:ris-ksweep`, `sec:ris`
-K-sweep {1, 2, 4, 6, 8, 12} on the cloud across the **three-point peakiness ladder** (flat → studio →
-meadow): equal-quality speedup vs plain MIS at each K, per environment. This shows directly that the RIS
-gain *rises with environment peakiness* — RIS loses on flat, is modest on the studio, and wins most on
-the meadow — a "measure the lever" result from real HDRIs (no synthetic env). Plus a **furnace**
-unbiasedness re-confirm (flat env, albedo 1).
+### G4 — Profiling & boundedness → `sec:bottleneck`, `fig:roofline`
+**`ncu` is the load-bearing source** (cloud + bunny @256²): occupancy ~22 %, eligible-warps,
+long_scoreboard-dominant stalls, SOL SM%/DRAM%, 114 regs, 82–98 % cache residency (§8.28). **Drop the
+nsys trace/scatter/escape/shade split (act-8)** — the bounce loop is one megakernel; nsys resolves only
+kernel-level (render vs denoise vs I/O). If a stage split is wanted, plan a `clock64()`-instrumented
+build and present it as such. **Roofline = non-saturation visual only** (SM 34.5 % / DRAM 1.1 % → point
+sits far under both roofs → latency-bound); caption it that way (else readers misread "under the memory
+roof" as bandwidth-bound — the exact error `sec:bottleneck` refutes), and note GFLOP/s undercounts the
+SFU/erf-heavy mix. **New work:** `fig:roofline` float (no chapter has it yet) + a dedicated log-log
+plotter (not "already wired").
 
-### G4 — Profiling & boundedness  → `sec:bottleneck`, `fig:roofline`
-`ncu` on the render kernel (cloud + bunny @256²): achieved occupancy, eligible-warps/scheduler stats,
-stall breakdown (long-scoreboard etc.), Speed-of-Light SM% vs DRAM%, register count. `nsys` timeline:
-wall-clock split across trace / scatter / escape / shading. **Roofline:** arithmetic intensity vs
-achieved GFLOP/s, plotted against the 3090's compute and memory roofs → `fig:roofline`.
+### G5 — Memory → `fig:gas-memory`, `sec:opt-memory`
+GAS size pre/post compaction per asset (`acceleration_structure.h:64-66`); peak device memory; per-ray
+state (megakernel-resident vs the wavefront ~352 B/ray, ncu-derivable); NanoVDB comparison (cite if
+unavailable). **Free add:** log the runtime **overflow counter** (`renderer.cpp:357-366`) per run —
+zero on cloud@128 and bunny@new-caps directly evidences the Ch 4 "detected, zero on validated scenes"
+claim at the operating point.
 
-### G5 — Memory  → `fig:gas-memory`, `sec:opt-memory`
-GAS size before/after compaction per asset → `fig:gas-memory`. Peak device memory per asset. Per-ray
-state footprint (megakernel register-resident vs the wavefront autopsy's ~352 B/ray). Optional:
-primitive-count memory vs an equivalent NanoVDB voxel grid (cite if no grid available).
+### G6 — Negative-result numbers → `sec:autopsies`
+- **Wavefront:** A/B **within** `feature/wavefront-phase1` (`THESIS_WAVEFRONT` ON vs OFF at the *same*
+  commit) — not branch-vs-main (which absorbs post-fork changes). One full-blast confirmation point + the
+  cited dev range (100–1400×).
+- **Adaptive:** **converged-reference RMSE** (its dev verdict ~2× slower at equal quality came from
+  RMSE-vs-GT; the noise-only $k$ would hide its bias and mis-rank it). Needs the restored flag or a
+  rebuild-toggle (§0.1).
+- Rest (footprint-null, exit-cache, env-IS alias <1 %, Owen–Sobol) cited from dev-time.
 
-### G6 — Negative-result numbers  → `sec:autopsies`
-Re-measure at full-blast the two that carry quantitative weight: **wavefront** slowdown (≥1 clean
-config on the cloud — confirm the order-of-magnitude regression) and **adaptive sampling** net-loss
-(equal-quality with vs without, cloud). The remaining autopsies (footprint-reduction null, exit-cache,
-env-IS alias < 1 %, Owen–Sobol null) are cited from dev-time, not re-run.
-
-### G7 — Mitsuba JIT / startup overhead  → `sec:bottleneck` / Ch 3 limitations (#96)
-Time Mitsuba's kernel compilation + first launch vs steady-state per-frame, against our compile-once
-OptiX-IR + launch. One-shot comparison; report the fixed startup cost Mitsuba pays.
+### G7 — Mitsuba JIT / startup overhead → `sec:bottleneck` / Ch 3 (#96)
+One-shot: Mitsuba compile + first launch vs steady-state, vs our OptiX-IR load + launch. State
+explicitly that steady-state per-frame numbers elsewhere **exclude startup on both sides** (ours: IR
+load; Mitsuba: JIT), so it is not double-counted in any $k\cdot t$.
 
 ## 6. Output artifacts (→ figure pipeline)
 
-Runners write CSVs into `results/campaign/`; `scripts/plots/build_figures.sh` turns them into the
-already-wired figures. Schemas (header-only today):
+| Artifact | Columns | Feeds | Note |
+|---|---|---|---|
+| `rr_depth.csv` | `rr_depth, frame_ms, k, eff` | `fig:rr-depth` | **plot efficiency $k\cdot t$, not frame_ms** (frame_ms is monotone → no knee, contradicts the caption). Committed CSV currently `…,rmse` — reconcile. |
+| `ris_ksweep.csv` | `K, speedup_flat, speedup_studio, speedup_meadow` | `fig:ris-ksweep` | matches |
+| `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` | `fig:gas-memory` | matches |
+| `roofline.csv` | `kernel, arith_intensity, achieved_gflops` (+ roofs) | `fig:roofline` | **new plotter + new float** |
+| `wins.csv` (new) | `optimization, semantics, frame_ms, k, speedup` | `tab:wins` | `semantics` ∈ {sequential, marginal} |
+| `headline.csv` (new) | `renderer, asset, env, config, frame_ms, k, k_clipped, p99_9, maxpix` | G1 / Ch 7 | env includes `flat` |
+| `effective.csv` (new) | `feature, scene, rmse_vs_gt, time` | denoiser/adaptive | "effective", not $k$ |
 
-| Artifact | Columns | Feeds |
-|---|---|---|
-| `rr_depth.csv` | `rr_depth, frame_ms, noise, k` | `fig:rr-depth` |
-| `ris_ksweep.csv` | `K, speedup_flat, speedup_studio, speedup_meadow` | `fig:ris-ksweep` |
-| `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` | `fig:gas-memory` |
-| `roofline.csv` | `kernel, arith_intensity, achieved_gflops` (+ peak roofs as plotter constants) | `fig:roofline` (needs a dedicated log-log plotter) |
-| `wins.csv` (new) | `optimization, mode, frame_ms, k, speedup` | `tab:wins` |
-| `headline.csv` (new) | `renderer, asset, scene, frame_ms, noise, k_unclipped, k_clipped, maxpix` | G1 numbers / Ch 7 |
-
-The three validation montages (`fig:absorption-ladder`, `fig:scattering-ladder`, `fig:showcase`) are
-assembled from renders (G1 + the Ch 5 ladders), overwriting their placeholders.
+Validation montages (`fig:absorption-ladder`, `fig:scattering-ladder`, `fig:showcase`) are assembled
+from renders (G1 + Ch 5 ladders, the latter clock-independent — §1 carve-out).
 
 ## 7. Sequencing & rough GPU-time
 
-Order to de-risk: (0) clock-stability + bunny cap recompile; (1) G4 profiling and G7 (quick, no seeds);
-(2) G5 memory (quick); (3) G1 + G2 + G3 (the 16-seed bulk — the long pole); (4) G6.
+(0) §0 preconditions (CLI restore, caps recompile to 320/496, re-gate, clock lock). (1) G4 ncu + G7
+(quick). (2) G5 memory (quick). (3) the 16-seed bulk — G1 (incl. flat rung) + G2 merge-ladder + G3.
+(4) G6.
 
-Rough budget (order-of-magnitude, refine in the plan): the 16-seed ablation/headline/RIS bulk dominates
-(~tens of short renders × 16 seeds × 2 assets for the key ones); profiling adds 1–2 h (`ncu` is slow);
-memory/JIT are minutes. **Plan for an overnight (~8–12 h) window** with margin; it compresses by
-dropping bunny from the per-optimisation ablations (keep bunny for headline/memory/profiling only).
+Budget: plausible but tight. Long poles, in order: the 16-seed bulk, then **Mitsuba-analog on the
+meadow** (high spp × 16 seeds for tail-stable clipped-$k$; bunny-analog adds more). Flat-env cells are
+cheap. Compression valve: drop bunny from the per-win ablations (keep it for headline/memory/profiling).
+Plan an overnight (~8–12 h) window.
 
-## 8. Out of scope
+## 8. Open decision & out of scope
 
-WDAS assets for reported numbers; emissive assets (no emission support); the Gabor-noise extension;
-re-running the cited C/S/I-mode optimisations; the Chapter 6 prose rework itself (tracked separately in
-the handoff's "Ch 6 rework" queue).
+- **[DECIDE] Ch 7 R-set reconciliation (act-9).** Ch 7's scaffold promises R2 (4-asset generalisation
+  incl. smoke/embergen), R3 (time/memory vs N scaling, `stress_N`), and R7's Mitsuba-side peak VRAM —
+  **none has an experiment here.** Either **rescope Ch 7** to the cloud+bunny+ladder this plan covers, or
+  **add the cells** (4-asset = more recompiles + Mitsuba parity work; N-scaling = a `stress_N` sweep).
+  Decide before the window; silent under-delivery resurfaces at writing time.
+- **Out of scope:** WDAS reported numbers, emissive assets, the Gabor extension, re-running cited
+  C/S/I-mode optimisations, and the Ch 6 prose rework (handoff "Ch 6 rework" queue).

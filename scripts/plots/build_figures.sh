@@ -19,10 +19,11 @@ has_data() { [ -f "$1" ] && [ "$(grep -vcE '^[[:space:]]*#|^[[:space:]]*$' "$1")
 
 # --- 1. RR-depth efficiency (Ch 6) ---
 if has_data "$RES/rr_depth.csv"; then
-  plot --csv "$RES/rr_depth.csv" --x rr_depth --y frame_ms --xlabel "RR start depth" \
-       --ylabel "frame time (ms)" --title "RR-depth efficiency" --out "$FIG/rr_depth.pdf"
+  # Plot efficiency (k*t, lower = better) vs depth -- shows the knee. frame_ms alone is monotone.
+  plot --csv "$RES/rr_depth.csv" --x rr_depth --y eff --xlabel "RR start depth" \
+       --ylabel "efficiency  k*t  (lower better)" --title "RR-depth efficiency" --out "$FIG/rr_depth.pdf"
 else
-  ph --title "RR-depth efficiency" --note "frame time vs RR start depth (tuned 5 -> 12)" \
+  ph --title "RR-depth efficiency" --note "efficiency k*t vs RR start depth (knee near 12; 5 = old default)" \
      --out "$FIG/rr_depth.pdf"
 fi
 

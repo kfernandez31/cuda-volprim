@@ -9,7 +9,7 @@ already wired in the chapters; only the included PDFs change. All reported numbe
 
 | Figure (label) | CSV | Columns |
 |---|---|---|
-| `fig:rr-depth` (Ch 6) | `rr_depth.csv` | `rr_depth, frame_ms, rmse` |
+| `fig:rr-depth` (Ch 6) | `rr_depth.csv` | `rr_depth, frame_ms, k, eff` (plot `eff` = k·t, not frame_ms) |
 | `fig:ris-ksweep` (Ch 6) | `ris_ksweep.csv` | `K, speedup_flat, speedup_studio, speedup_meadow` (peakiness ladder) |
 | `fig:gas-memory` (Ch 6) | `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` |
 
