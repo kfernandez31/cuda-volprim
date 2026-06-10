@@ -140,3 +140,35 @@ Ch 6 is Kacper's WIP; these were decided during review but deferred so the Ch 6 
    if caps are always estimated first, it is belt-and-suspenders. Code decision, not prose.
 7. **Feature inclusion/exclusion is Ch 6's job** — §5.5 was trimmed (bug-confession cut) and now hands the
    "which features to enable, at what cost" narrative to Ch 6. Make sure the perf study delivers it.
+8. **`--ris` CLI registration bug (CODE).** `config.cpp` registers only `--denoise`; `--ris` /
+   `--ris-candidates` are plumbed (`config.h:45`, `renderer.cpp:207`) but never registered, so RIS is
+   unreachable at runtime and "shipped behind a runtime flag" (Ch 6, and Ch 4 §4.6 implication) is false
+   in the current binary. Fix the lost registration in `config.cpp`; then Ch 6 + Ch 4 Implementation note
+   can truthfully call RIS a runtime flag.
+9. **MIS description in Ch 6:93–94** — repeats the (now-fixed in Ch 4) one-shadow-ray error; the code does
+   **two** shadow rays (phase-IS + env-IS balance-MIS, `constants.cuh:152`). Mirror the corrected Ch 4 §4.5.
+10. **Appendix A contradictions** (fix during the A1→Ch 6 fold): premise inversion vs FINDINGS §8.27
+    ("original §8.5 premise was RIGHT"); the track-length hybrid is **closed** (§8.32, "dead end … three
+    ways"), not "open" — scope any residual openness to the flat-env regime; soften the depth-1-row claim.
+11. **§8 numbers wording** — `~5×` deficit is `~5.5×` in FINDINGS §8.5 (Ch 8 + Ch 6 round the same; tighten
+    to `~5.5×` if desired).
+
+## Non-Ch 6 deferred TODOs from the 2026-06-10 review (thesis-wide, low-priority polish)
+
+The CRITICAL/MAJOR review items are FIXED (commit after this handoff). These remain:
+
+- **Tense sweep** (review §9.3): CONVENTIONS reserves past tense for measured results; Ch 5 uses a
+  timeless-property voice ("the renderer matches", "passes the furnace"). Decide the rule (the abstract
+  was already moved to past tense) then sweep, or amend CONVENTIONS to bless the timeless voice.
+- **Notation: MC sample count `N`** (review §9.1) — `02-background.tex:20` and `05-validation.tex:65`
+  use `N` for spp, colliding with `N` = primitive count. Switch sample-count `N` → `spp`. (The mixture
+  `K`→`N` and `K_k`→`C_k` collisions are already fixed.)
+- **`k` vs `k²` convention** (`05-validation.tex:65`): thesis `k = RMSE²·N` = FINDINGS' `k²`; note the
+  convention when campaign numbers land so a transcribed `kC=0.411` isn't squared-wrong.
+- **Remaining bib upgrades** (review §9.4): MipNeRF/PixelNeRF still arXiv `@misc` (cited once each);
+  canonical BVH cites (Rubin&Whitted / Kay&Kajiya / Goldsmith&Salmon) vs `MacDonaldBooth1990` +
+  the lecture-slides `SpatialAccelerationStructures`; EWA splatting (Zwicker 2001) if EWA is reintroduced;
+  Woodcock proceedings title; DOI spot-check (handoff item 11). DSYG/3DGS/NeRF already upgraded.
+- **Minor prose nits not yet done** (review §2–§4): `02-background.tex` BVH cite + `p` triple-duty
+  symbol; `04-architecture.tex` `:91` "fast local memory" wording, `:73-74`/`fig:pipeline` `N`→`H`,
+  "$O(N+A)$ absorbs H". Low priority.

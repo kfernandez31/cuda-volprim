@@ -3,7 +3,7 @@
 **Project:** OptiX + CUDA Physically Based Volumetric Renderer
 **Target:** Production-quality single-frame renderer for Gaussian volumetric primitives
 **Validation:** Comparison against Mitsuba reference implementation
-**Status:** Debugging ADT-based scattering (argmin approach) — renders incorrect, under active investigation
+**Status:** ADT argmin scatter sampling validated against Mitsuba (correct); thesis-writing phase (branch `thesis`)
 **Origin:** CUDA/C++ rewrite of Jorge Condor's Mitsuba implementation of *Don't Splat Your Gaussians* (DSYG)
 **Paper:** `papers/DSYG.pdf`
 
@@ -89,9 +89,9 @@ A **physically based volumetric path tracer** rendering participating media repr
 
 **Before commit `1c8b578`:** Segment-by-segment path tracing matching Mitsuba — sorting hits, marching through segments, bisection solver for scatter distance. `inv_cdf` existed in `primitive.h` but was unused. Renders matched reference.
 
-**After commit `1c8b578` (current `feature/test-suite`):** Novel ADT-inspired argmin approach suggested by Jorge. Instead of sorting and marching, each primitive independently samples a scatter distance via `inv_cdf`, and the minimum (argmin) determines where scattering occurs. Eliminates sorting for the scatter case; escape case still uses segment-by-segment integration as fallback. **Currently produces incorrect renders — under debugging.**
+**After commit `1c8b578`:** ADT-inspired argmin approach suggested by Jorge. Each primitive independently samples a scatter distance via `inv_cdf`, and the minimum (argmin) determines where scattering occurs. No escape-case segment-by-segment fallback exists (exits are analytic). **Validated correct against Mitsuba** (see `thesis/FINDINGS.md` §8 and Ch 5).
 
 ### Open Questions
 
-- Whether `inv_cdf` should use raw `χ ~ U(0,1)` (density CDF) or `-log(1-χ)` (free-flight CDF per SDTracking Theorem 1). Jorge's updated code uses raw χ, but ADT theory requires free-flight CDF. Needs empirical testing.
-- The `optical_depth` functions use an unnormalized Gaussian convention (scale factor `(2π)^{3/2}·∏s` larger than Jorge's Mitsuba). The `optical_thickness_` (σ_t) values are calibrated to match this convention.
+- RESOLVED: `inv_cdf` uses the free-flight CDF `-log(1-χ)` (per SDTracking Theorem 1), not raw `χ` — confirmed in `device/core/sampling.cuh` (`sample_free_flight_tau`).
+- RESOLVED: the kernel applies the per-primitive Gaussian normalisation (`density_norm_factor_ = (2π)^{-3/2}·∏(1/s)` in `primitive.h`); it is a *normalised* convention. The `optical_thickness_` (σ_t) values are calibrated to match Mitsuba's `volprim` convention (see `src/.../io/ply.cpp`).
