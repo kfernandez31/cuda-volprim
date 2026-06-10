@@ -45,7 +45,11 @@ else
      --out "$FIG/gas_memory.pdf"
 fi
 
-# --- 4-6. Validation montages (Ch 5): assembled from renders, placeholder until then ---
+# --- 4. Roofline (Ch 6): arithmetic intensity vs achieved performance, showing latency/memory bound ---
+ph --title "Roofline" --note "arithmetic intensity vs achieved GFLOP/s (latency/memory bound)" \
+   --out "$FIG/roofline.pdf"
+
+# --- 5-7. Validation montages (Ch 5): assembled from renders, placeholder until then ---
 ph --title "Absorption validation ladder" \
    --note "single / overlap / cloud: renderer vs analytic, with RMSE" \
    --out "$FIG/absorption_ladder.pdf"
