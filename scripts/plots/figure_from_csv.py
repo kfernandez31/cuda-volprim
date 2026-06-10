@@ -53,15 +53,17 @@ def main() -> None:
         plt.style.use(STYLE)
     fig, ax = plt.subplots()
 
-    for yc in args.y:
+    n_series = len(args.y)
+    bar_w = 0.8 / n_series
+    for i, yc in enumerate(args.y):
         y = np.atleast_1d(data[yc])
         if args.kind == "line":
             ax.plot(x, y, marker="o", label=yc)
         elif args.kind == "scatter":
             ax.scatter(x, y, label=yc)
-        else:  # bar — positional, with x values as tick labels
+        else:  # grouped bars (side-by-side per series); x values as tick labels
             pos = np.arange(len(x))
-            ax.bar(pos, y, label=yc)
+            ax.bar(pos + (i - (n_series - 1) / 2) * bar_w, y, width=bar_w, label=yc)
             ax.set_xticks(pos)
             ax.set_xticklabels([str(v) for v in x])
 

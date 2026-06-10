@@ -39,8 +39,9 @@ fi
 
 # --- 3. GAS compaction (Ch 6) ---
 if has_data "$RES/gas_memory.csv"; then
-  plot --csv "$RES/gas_memory.csv" --x asset --y gas_mb_uncompacted gas_mb_compacted --kind bar \
-       --xlabel "asset" --ylabel "GAS size (MB)" --title "GAS compaction" --out "$FIG/gas_memory.pdf"
+  plot --csv "$RES/gas_memory.csv" --x asset --y gas_mb_uncompacted gas_mb_compacted --kind bar --logy \
+       --xlabel "asset" --ylabel "acceleration-structure size (MB, log)" \
+       --title "Acceleration-structure compaction" --out "$FIG/gas_memory.pdf"
 else
   ph --title "GAS compaction" --note "acceleration-structure size before/after, per asset" \
      --out "$FIG/gas_memory.pdf"
