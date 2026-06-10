@@ -40,7 +40,7 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
     ]
     % Reference pipeline
     \node[box]               (r1) {Trace + march\\ ($\times N$)};
-    \node[gone, right=of r1] (r2) {Sort\\ boundaries};
+    \node[gone, right=of r1] (r2) {Select next\\ boundary};
     \node[gone, right=of r2] (r3) {Bisection /\\ Newton};
     \node[box,  right=of r3] (r4) {Scatter\\ at $t$};
     \draw[->] (r1)--(r2); \draw[->] (r2)--(r3); \draw[->] (r3)--(r4);
@@ -56,11 +56,12 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
     \node[anchor=east] at ([xshift=-4mm]o1.west) {\textbf{This renderer}};
   \end{tikzpicture}%
   }
-  \caption{Per-bounce scatter sampling, reference versus this renderer. The reference issues one
-  acceleration-structure traversal per primitive boundary ($\times N$), sorts the boundaries, and
-  root-finds the scatter distance within a segment. This renderer gathers all entries in a single
-  any-hit traversal and takes the argmin of closed-form per-primitive free flights, eliminating the
-  sort and the root-find (dashed) entirely.}
+  \caption{Per-bounce scatter sampling, reference versus this renderer. The reference marches the ray
+  boundary by boundary---one traversal per step, maintaining the overlapping-primitive set and
+  selecting the next boundary by a running minimum---and root-finds the scatter distance within each
+  segment. This renderer gathers all entries in a single any-hit traversal and takes the argmin of
+  closed-form per-primitive free flights, eliminating the per-segment boundary selection and the
+  root-find (dashed) entirely.}
   \label{fig:pipeline}
 \end{figure}
 
@@ -139,11 +140,13 @@ primitive $k$ alone reaches $\tau_k$. The scattering event is the nearest of the
   t_{\text{scatter}} = \min_k t_k ,
 \]
 taken in a single linear pass over the ray's primitives (those in the active set, plus those in the
-hit buffer). There is no global sort of boundaries, no segment march, and no bisection or Newton
-iteration: the per-primitive inverse is exact (one $\operatorname{erf}^{-1}$), and the minimum
-reproduces exactly the distribution that sorting-and-marching would have produced. The scatter point's
-host primitive, albedo, and the updated active set all fall out of the same pass
-(\Cref{alg:argmin}).
+hit buffer). Where the reference marches the ray and, within each segment, root-finds the scatter
+distance---selecting the next boundary by a running minimum at every step---this scheme needs neither
+march nor root-find: the per-primitive inverse is exact (one $\operatorname{erf}^{-1}$), so a single
+argmin over closed-form free flights gives the scatter point directly. The minimum reproduces
+\emph{exactly} the distribution the reference's marching produces (it is the decomposition-tracking
+identity, not an approximation), and the scatter point's host primitive, albedo, and the updated
+active set all fall out of the same pass (\Cref{alg:argmin}).
 
 \begin{algorithm}[htp]
 \caption{Argmin scatter sampling for one ray segment.}
@@ -186,7 +189,7 @@ optical depth is from the reference~\cite{DSYG}; and the sort-free \emph{spirit}
 splatting~\cite{StochasticSplats2025} on the rasterisation side. The contribution is their
 \emph{synthesis}: applying analog decomposition tracking to ray-traced Gaussian kernel-mixture volumes,
 so that the analytic per-primitive inverse makes each component's free flight a closed-form draw and
-the argmin replaces the reference's marching, sorting, and root-finding entirely. To the author's
+the argmin replaces the reference's marching and root-finding entirely. To the author's
 knowledge this is the first realisation of decomposition-tracking free-flight sampling for this
 representation; it is a direction the reference's authors anticipated but did not implement.
 % TODO(confirm with Kacper/Jorge): exact credit line — what Jorge proposed vs. what was realised here,
@@ -194,9 +197,10 @@ representation; it is a direction the reference's authors anticipated but did no
 
 \paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
 active set against the scene's $N$ primitives, plus an $O(A + H)$ pass over the $A$ active and $H$
-newly entered primitives to take the argmin. This replaces the reference's per-bounce sort
-($O(H \log^2 H)$ or worse) and root-find with closed-form work, and---because the argmin needs no
-ordering---removes the sort from the common (scattering) path altogether. The residual $O(N)$ active-set
+newly entered primitives to take the argmin. This replaces the reference's per-bounce boundary
+marching---an $O(A^2)$ running-minimum selection across segments---and its per-segment root-find with
+closed-form work, and---because the argmin needs no ordering---removes ordered boundary processing
+from the common (scattering) path altogether. The residual $O(N)$ active-set
 scan is the dominant per-bounce cost and the subject of one of the optimisations in
 \Cref{ch:optimization}.
 

@@ -9,8 +9,8 @@ Gaussian kernel-mixture volumes represent a participating medium as a sum of ani
 primitives, each contributing an analytic, invertible optical depth. The representation, introduced by
 \emph{Don't Splat Your Gaussians}, admits physically based path tracing, but the reference renderer
 that established its correctness---built in Mitsuba---reaches a scattering event by marching
-segment-by-segment between primitive boundaries, sorting those boundaries, and root-finding the
-scatter distance within each segment. This thesis asks whether a renderer built around the one
+segment-by-segment between primitive boundaries, maintaining the set of overlapping primitives and
+root-finding the scatter distance within each segment. This thesis asks whether a renderer built around the one
 property the representation affords---the analytic per-primitive optical depth---can be both correct
 and substantially faster.
 
