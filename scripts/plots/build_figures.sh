@@ -28,11 +28,11 @@ fi
 
 # --- 2. RIS K-sweep (Ch 6) ---
 if has_data "$RES/ris_ksweep.csv"; then
-  plot --csv "$RES/ris_ksweep.csv" --x K --y speedup_envmap speedup_flat \
+  plot --csv "$RES/ris_ksweep.csv" --x K --y speedup_flat speedup_studio speedup_meadow \
        --xlabel "RIS candidates K" --ylabel "equal-quality speedup" --title "RIS vs MIS" \
        --out "$FIG/ris_ksweep.pdf"
 else
-  ph --title "RIS vs MIS, equal quality" --note "K-sweep: env-map (win) vs flat (loss)" \
+  ph --title "RIS vs MIS, equal quality" --note "K-sweep across peakiness: flat / studio / meadow" \
      --out "$FIG/ris_ksweep.pdf"
 fi
 

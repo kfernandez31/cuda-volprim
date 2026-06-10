@@ -49,11 +49,19 @@ Every reported number comes from this run; dev-time 150 W numbers in FINDINGS re
 WDAS variants are **out of scope** for reported numbers; the cap-estimator table (`tab:overlap`,
 already produced) covers the broader density spread.
 
-**Scenes / lighting:**
-- **Meadow HDR environment** — the showcase lighting; carries G1, the env-map side of G3, fireflies.
-- **Constant / flat environment** — carries the furnace (unbiasedness) and the flat side of the RIS
-  sweep (where RIS loses).
-- Cloud is rendered under both; bunny under meadow (scaling) primarily.
+**Scenes / lighting:** a **three-point environment peakiness ladder**, built from real HDRIs, anchors
+the RIS study (measured peakiness in parentheses, max-luminance / mean):
+- **Flat / constant** (`white_constant`, peak = 1×) — zero directional structure; carries the furnace
+  (unbiasedness) and the low end of the RIS ladder (where RIS loses).
+- **Studio** (`ferndale_studio_01`, peak ≈ 700×, ~47 % of energy in the top 0.1 % of texels) — a
+  *mid*-peak regime of soft area sources; the middle of the ladder, and a second, scenically distinct
+  showcase environment (indoor/product-viz). CC0, Poly Haven; fetch via
+  `scripts/tools/fetch_envmaps.sh` (`assets/` is gitignored, so env maps are fetched, not committed).
+- **Meadow** (`meadow_2_4k`, peak ≈ 2×10⁵×, ~74 % of energy in the top 0.1 %) — an *extreme*-peak hard
+  sun; the realistic showcase, where RIS wins most and fireflies appear.
+- Cloud is rendered under all three for G3; G1/fireflies use the meadow (and optionally the studio);
+  bunny under the meadow primarily. (A real-HDRI ladder is used rather than a synthetic bright-disk
+  sweep — recognisable and more defensible.)
 
 ## 4. Methodology (measurement protocol)
 
@@ -95,8 +103,11 @@ generalisation); report frame-time and `k`.
   knee, justifying 12).
 
 ### G3 — Volumetric product-RIS  → `fig:ris-ksweep`, `sec:ris`
-K-sweep {1, 2, 4, 6, 8, 12} on **cloud-meadow** (RIS wins) and **cloud-flat** (RIS loses): equal-
-quality speedup vs plain MIS at each K. Plus a **furnace** unbiasedness re-confirm (flat env, albedo 1).
+K-sweep {1, 2, 4, 6, 8, 12} on the cloud across the **three-point peakiness ladder** (flat → studio →
+meadow): equal-quality speedup vs plain MIS at each K, per environment. This shows directly that the RIS
+gain *rises with environment peakiness* — RIS loses on flat, is modest on the studio, and wins most on
+the meadow — a "measure the lever" result from real HDRIs (no synthetic env). Plus a **furnace**
+unbiasedness re-confirm (flat env, albedo 1).
 
 ### G4 — Profiling & boundedness  → `sec:bottleneck`, `fig:roofline`
 `ncu` on the render kernel (cloud + bunny @256²): achieved occupancy, eligible-warps/scheduler stats,
@@ -127,7 +138,7 @@ already-wired figures. Schemas (header-only today):
 | Artifact | Columns | Feeds |
 |---|---|---|
 | `rr_depth.csv` | `rr_depth, frame_ms, noise, k` | `fig:rr-depth` |
-| `ris_ksweep.csv` | `K, speedup_envmap, speedup_flat` | `fig:ris-ksweep` |
+| `ris_ksweep.csv` | `K, speedup_flat, speedup_studio, speedup_meadow` | `fig:ris-ksweep` |
 | `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` | `fig:gas-memory` |
 | `roofline.csv` | `kernel, arith_intensity, achieved_gflops` (+ peak roofs as plotter constants) | `fig:roofline` (needs a dedicated log-log plotter) |
 | `wins.csv` (new) | `optimization, mode, frame_ms, k, speedup` | `tab:wins` |
