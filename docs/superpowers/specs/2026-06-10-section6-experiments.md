@@ -206,6 +206,18 @@ pre-anyhit checkpoint), behind a build switch + subdivision level `N`.
 - **Expected shape (hypothesis; let the data decide):** analytic dominates — exact *and* faster — but the
   measured magnitude is the result, and low-`N` icospheres may be faster-but-faceted (the accuracy×perf
   trade is the story). Directly benchmarks our choice against the reference's.
+- **Memory caveat (what the standalone G5 result does *not* answer).** The G5 `gas_memory.csv`
+  (cloud+bunny, analytic, compacted) is the *analytic-self* half (uncompacted→compacted), **not** an
+  analytic-vs-tessellated result. **Compaction is a wash:** Mitsuba compacts with the *same* flags
+  (`ALLOW_COMPACTION | PREFER_FAST_TRACE` + an `optixAccelCompact` pass — verified in
+  `~/jorge/mitsuba3/include/mitsuba/render/optix/shapes.h:153,180-214` and
+  `src/render/scene_optix.inl:166`), so it is standard practice, not a differentiator. The real
+  memory comparison is the **geometry**: our tiny analytic builtin-sphere GAS (instanced) vs the
+  tessellated icosphere. **TODO when G8 runs:** determine Mitsuba's icosphere **degree** and whether it
+  **instances one icosphere or tessellates per-primitive** (the latter → ~N× geometry, a large analytic
+  win) from the `ellipsoids` shape plugin in `~/jorge/mitsuba3` (source is local → determinable now,
+  no guessing); the IAS numbers already measured carry over unchanged (instance records are
+  geometry-independent).
 - **This is a code task (§0.5), not a flag flip.** If the port proves costly, fall back to the existing
   (I)-mode argument and leave the item infeasible.
 
