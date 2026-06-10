@@ -43,26 +43,48 @@
 
 \chapter{Introduction}
 
-One of the most relevant topics being currently being explored in the field of computer graphics is the efficient generation or recreation of high-fidelity 3D scenes based on their 2D representations in the form of photographs taken from different angles. Example applications include: 
-\begin{enumerate}
-    \item Improving the user experience of online marketplaces by allowing buyers to inspect a model of their item of interest based on the seller's uploaded pictures,
-    \item Digital memorialization of cultural and historical heritage sites, in particular for regions affected by war or natural disasters,
-    \item Creating interactive video game or simulation environments based on real world observations.
-\end{enumerate}
+Reconstructing and rendering high-fidelity 3D scenes from photographs is a long-standing goal in
+computer graphics, with applications from online retail and the digital preservation of cultural
+heritage to interactive simulation. The methods that have proven most successful represent a scene as a
+\emph{radiance field}, and the most efficient of these are \emph{explicit}: they model the scene as a
+large collection of simple primitives rather than an implicit neural network. The dominant such
+primitive is the anisotropic 3D Gaussian of 3D Gaussian Splatting~\cite{3DGS}, which renders in real
+time by rasterisation.
 
-Techniques that have demonstrated significant success in this area are primarily categorized under the concept of radiance fields. A radiance field can be mathematically defined as a function $ L: \mathbb{R}^3 \times S^2 \rightarrow \mathbb{R}^3 $, where $ \mathbb{R}^3 $ on the left side represents the three-dimensional world space of the scene, $ S^2 $ denotes the unit sphere of directions surrounding each point, and $ \mathbb{R}^3 $ on the right side corresponds to the color space. Formally, this can be expressed as:
+Rasterised splatting is fast but approximates light transport only coarsely. \emph{Don't Splat Your
+Gaussians} (DSYG)~\cite{DSYG}, presented at ACM~SIGGRAPH~2025 by Condor et al., retains the explicit
+Gaussian representation but treats it as a participating medium and renders it with physically based
+volumetric path tracing, recovering accurate multiple scattering and relighting at a substantially
+higher cost. Its reference implementation is a plugin for the Mitsuba~3 research
+renderer~\cite{Mitsuba3}---correct and flexible, but not engineered for throughput: it reaches each
+scattering event by marching the ray segment-by-segment between primitive boundaries and root-finding
+the scatter distance within each segment.
 
-$$L(x, y, z, \theta, \phi) = (R, G, B)$$
+This thesis re-implements that renderer from scratch in CUDA and OptiX as a performance-engineering
+study. The goal, from the outset, was efficiency: to render Gaussian kernel-mixture volumes both
+correctly and substantially faster than the reference, and to chart where the performance of such a
+renderer can and cannot be improved. The central observation is that the one property the representation
+affords---an analytic, invertible per-primitive optical depth---admits a different sampling
+architecture, free of the reference's marching and root-finding.
 
-In this equation, $ (x, y, z) $ denotes the spatial coordinates of a point in the scene, while $ (\theta, \phi) $ represents the viewing direction, defined in spherical coordinates (polar and azimuthal angle respectively). 
+\paragraph{Contributions.} This thesis contributes:
+\begin{itemize}
+  \item a novel single-trace, march- and root-find-free rendering architecture for ray-traced Gaussian
+  kernel-mixture volumes, in two complementary halves---single-trace any-hit collection with analytic
+  exits, and analog-decomposition (argmin) scatter sampling (\Cref{ch:architecture});
+  \item a from-scratch CUDA/OptiX path tracer realising it, with no rendering-framework dependency
+  beyond OptiX;
+  \item a differential-validation methodology against Mitsuba and, where a closed form exists, against
+  analytic ground truth---which doubles as the unbiasedness evidence for the new sampler
+  (\Cref{ch:validation}); and
+  \item a systematic GPU performance-engineering study, contributing a second algorithmic win
+  (volumetric product-RIS) and a profiled ledger of negative results, measured across time, quality, and
+  memory (\Cref{ch:optimization,ch:results}).
+\end{itemize}
 
-The first major advancements in radiance fields, Neural Radiance Fields (NeRFs~\cite{NeRF}), represented them implicitly using a neural network. However not so long after did explicit solutions emerge as well, offering superior real-time capabilities~\cite{3DGS}.
-
-%This framework allows for the representation of the light emitted from any point in the scene in a specific direction, facilitating the reconstruction of 3D structures from their 2D projections. 
-
-There are various rendering techniques used by the above solutions. The first group, represented by rasterization only roughly approximates light transfer, but achieves superb results in terms of time. The second, based on ray-tracing, aims to model this complex phenomenon in a more physically-accurate way, which for a long time in graphics was not possible due to limitations in hardware, but is now becoming more widely adopted and explored.
-
-In this thesis, we focus on a framework devised by Condor et al.~\cite{DSYG} and presented at the ACM SIGGRAPH 2025 conference that combines an explicit representation scene representation with physically-based rendering. We aim to extend this framework in two major ways. First, in terms of speed, with a custom path-tracer specialized for the kernel mixture model scene representation. Second, with further research of its capabilities to render materials with complex surfaces such as textiles, and fluid dynamics, among others. 
-
-% 3) we offer a unified solution for both that can be faster while still being physically based, unbiased, and capable of modelling scattering, relighting (light transport). 
+\paragraph{Structure.} \Cref{ch:background} reviews the volumetric light-transport and GPU ray-tracing
+background, and \Cref{ch:related-work} positions the work against Gaussian splatting and prior
+volumetric renderers. \Cref{ch:architecture} presents the rendering architecture; \Cref{ch:validation}
+establishes its correctness; \Cref{ch:optimization} and \Cref{ch:results} report the performance study
+and its results; and \Cref{ch:conclusion} concludes.
 

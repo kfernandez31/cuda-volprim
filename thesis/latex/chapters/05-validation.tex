@@ -15,14 +15,23 @@ showcase (\Cref{sec:money-shot}). Throughout, the ladder doubles as the empirica
 \emph{unbiasedness proof} of the analog-decomposition sampler: were the argmin rule biased, the
 discrepancy would appear first on the scenes with a known analytic answer.
 
-\section{The reference problem and differential validation}
+\section{Experimental setup}
+\label{sec:setup}
+
+All results in this thesis were measured on a single workstation: an NVIDIA GeForce RTX~3090 (Ampere,
+compute capability~8.6, \SI{24}{\giga\byte}), with the renderer built on CUDA and OptiX~9 in its
+release configuration (\texttt{-O3}, \texttt{-{}-use\_fast\_math}). The Mitsuba~3 reference runs on the
+same GPU through its CUDA backend, so cross-renderer comparisons are on identical hardware. Unless noted
+otherwise, every timing figure is taken at a single fixed operating point---the card's sustained full
+clock---to avoid clock-throttling artefacts (\Cref{sec:compare-correctly}); the equal-quality metric,
+being a ratio, is robust to the operating point regardless.
+
+\section{Differential validation}
 \label{sec:reference-problem}
 
-An absolute ground truth for these assets was not available. The references supplied with
-them---\texttt{.exr} renders produced from a voxel-grid discretisation of the volume---proved
-unreproducible: the discretisation, density normalisation, and integrator settings behind them could
-not be recovered, so a pixel match against them would conflate genuine renderer bugs with reference
-mismatches. Validation is therefore done \emph{differentially}.
+No absolute, per-asset ground truth is available for these Gaussian assets, so correctness is
+established \emph{differentially}---by quantitative comparison against a trusted reference renderer,
+backed by analytic ground truth wherever a scene admits a closed form.
 
 The renderer is compared against Mitsuba~3~\cite{Mitsuba3}---configured identically,
 primitive-for-primitive, from the same Gaussian data---and the difference is quantified. Mitsuba is
@@ -38,7 +47,18 @@ renderer is held to that analytic ground truth directly.
 Comparing two Monte~Carlo renderers is itself error-prone, and several pitfalls had to be controlled.
 \emph{Bias and variance must be separated.} A single per-pixel RMSE between two noisy renders conflates
 estimator \emph{bias} (a systematic difference that survives convergence) with \emph{variance} (noise
-that vanishes as samples grow). The renderer is therefore checked for bias by comparing
+that vanishes as samples grow). Concretely, for two independent renders $A$ and $B$ of the same scene,
+the expected per-pixel squared difference splits cleanly into the two,
+\[
+  \mathbb{E}\big[(A-B)^2\big]
+  = \underbrace{\big(\mathbb{E}[A]-\mathbb{E}[B]\big)^2}_{\text{bias}^2}
+  + \underbrace{\operatorname{Var}[A]+\operatorname{Var}[B]}_{\text{noise}},
+\]
+so a single raw difference cannot, on its own, tell a genuine discrepancy from sampling noise.
+Re-rendering each image under several independent seeds estimates the noise term directly (as the
+inter-seed variance); when the measured difference is statistically consistent with that noise floor,
+the bias term is zero to within the noise---the precise sense in which two renders are said here to
+``match to within Monte~Carlo noise.'' The renderer is therefore checked for bias by comparing
 \emph{converged} means---or, where available, against an analytic value---while \emph{efficiency} is
 compared separately and at \emph{equal quality}: since Monte~Carlo error falls as
 $O(1/\sqrt{N})$ (\Cref{sec:monte-carlo}), the meaningful quantity is the noise constant
@@ -78,8 +98,7 @@ itself under-absorbs as identical primitives are stacked---a reminder that "diff
 ways and that the analytic check is the final arbiter.
 
 \paragraph{The cloud.} The full $652$-primitive cloud, validated against the analytic absorption ground
-truth across all camera views, resolved the dark-blob artefact of \Cref{sec:reference-problem}: against
-the correct reference the renderer matches, view-independently. This established absorption correctness
+truth across all camera views, matches view-independently. This established absorption correctness
 at scene scale before scattering---and hence multiple sampled bounces---was introduced.
 \Cref{fig:absorption-ladder} collects the ladder.
 

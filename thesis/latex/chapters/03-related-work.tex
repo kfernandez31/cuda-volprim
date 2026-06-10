@@ -82,10 +82,10 @@ root-finding (\Cref{ch:architecture}).
 Removing the global sort from Gaussian rendering has also been pursued on the rasterisation side.
 StochasticSplats~\cite{StochasticSplats2025} renders 3DGS scenes with stochastic rasterisation
 (stochastic transparency), trading the depth sort for additional samples per pixel and thereby
-avoiding the popping that sort-order changes introduce. The goal---eliminating the sort---is the same
-one this thesis pursues, but in the complementary setting of a physically based volumetric \emph{path
-tracer} rather than a rasteriser, where the sort is removed by the decomposition-tracking argument
-above instead of by stochastic blending.
+avoiding the popping that sort-order changes introduce. The goal---avoiding an explicit
+ordering of primitives---is the same one this thesis pursues, but in the complementary setting of a
+physically based volumetric \emph{path tracer} rather than a rasteriser: here the ordering is sidestepped
+by the decomposition-tracking argmin of \Cref{sec:adt} rather than by stochastic blending.
 
 \section{Reference renderers and volume representations}
 \label{sec:reference-renderers}
@@ -93,10 +93,10 @@ above instead of by stochastic blending.
 Mitsuba~3~\cite{Mitsuba3}, built on the Dr.Jit just-in-time compiler~\cite{DrJit}, is a research
 renderer offering differentiable, retargetable (LLVM/CUDA) rendering from a Python front end; the
 DSYG reference is implemented as a Mitsuba plugin. Its design priorities, however, leave performance
-on the table for a single-primitive production renderer: JIT kernel construction adds launch
-overhead, the system is oriented toward single-frame and inverse-rendering workflows, and the
-generated CUDA offers limited room for the fine-grained, primitive-specific optimisation this thesis
-applies. These gaps motivate a bespoke CUDA/OptiX implementation. Mitsuba nonetheless remains
+on the table for a bespoke production renderer: JIT kernel construction adds launch overhead; the
+system is built for generality---differentiable, retargetable, inverse-rendering workflows---rather
+than for a single, highly tuned forward renderer; and the generated CUDA offers limited room for the
+fine-grained, primitive-specific optimisation this thesis applies. These gaps motivate a bespoke CUDA/OptiX implementation. Mitsuba nonetheless remains
 indispensable as the \emph{validation reference}: \Cref{ch:validation} establishes correctness by
 quantitative comparison against it.
 

@@ -49,7 +49,7 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
     \draw[black!55] (r3.south west)--(r3.north east);
     % This renderer's pipeline
     \node[box, below=14mm of r1] (o1) {Single any-hit\\ trace};
-    \node[box, right=of o1]      (o2) {Collect entries\\ (no sort)};
+    \node[box, right=of o1]      (o2) {Collect entries;\\ exits analytic};
     \node[box, right=of o2]      (o3) {Argmin of\\ free flights};
     \node[box, right=of o3]      (o4) {Scatter\\ at $t$};
     \draw[->] (o1)--(o2); \draw[->] (o2)--(o3); \draw[->] (o3)--(o4);
@@ -60,8 +60,8 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
   boundary by boundary---one traversal per step, maintaining the overlapping-primitive set and
   selecting the next boundary by a running minimum---and root-finds the scatter distance within each
   segment. This renderer gathers all entries in a single any-hit traversal and takes the argmin of
-  closed-form per-primitive free flights, eliminating the per-segment boundary selection and the
-  root-find (dashed) entirely.}
+  closed-form per-primitive free flights (the matching exits computed analytically rather than traced),
+  eliminating the per-segment boundary selection and the root-find (dashed) entirely.}
   \label{fig:pipeline}
 \end{figure}
 
@@ -207,8 +207,9 @@ scan is the dominant per-bounce cost and the subject of one of the optimisations
 \section{Direct lighting and the path-tracing loop}
 \label{sec:direct-lighting}
 
-At each scattering vertex the renderer estimates direct illumination from the environment map by
-next-event estimation combined with phase-function sampling under multiple importance sampling
+At each scattering vertex the renderer estimates direct illumination from the environment map---an
+image-based model of distant illumination surrounding the scene, sampled as an infinitely far
+emitter---by next-event estimation combined with phase-function sampling under multiple importance sampling
 (\Cref{sec:volumetric-light-transport}): one shadow connection samples the environment by luminance,
 one continuation samples the Henyey--Greenstein phase function, and the two are weighted by the balance
 heuristic. The transmittance along the shadow ray reuses the analytic optical depth of
@@ -220,7 +221,8 @@ The primary (camera) ray's direct contribution is treated specially: rather than
 escape the medium and hit the environment, the renderer adds the analytic camera-to-environment term
 $T_{\text{cam}}\,L_{\text{env}}$ at bounce zero, where $T_{\text{cam}}$ is the closed-form transmittance
 through the medium along the view ray. This Rao--Blackwellises~\cite{Rao1945,Blackwell1947} the otherwise high-variance escape
-contribution at no extra trace. Paths are terminated by Russian roulette beyond a configurable depth,
+contribution---replacing a sampled quantity with its analytic expectation, which can only lower
+variance---at no extra trace. Paths are terminated by Russian roulette beyond a configurable depth,
 with survival probability the throughput's largest channel clamped to \num{0.99}; surviving throughput
 is reweighted to keep the estimator unbiased.
 
@@ -249,13 +251,17 @@ trade for a renderer that builds once and traces for many samples) and
 (\Cref{sec:collection}) is a fixed-capacity \texttt{HitBufferSoA}. The active set is a small membership
 structure whose representation is chosen at compile time by scene size: for up to \num{256} primitives a
 \emph{bit vector} gives $O(1)$ insert, erase, and test in $N/8$ bytes; beyond that a compact unsorted
-array (\texttt{CompactSet}) gives $O(k)$ operations in space proportional to the maximum overlap rather
-than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are compile-time constants
-sized to the worst-case $3\sigma$ overlap of the target asset, the same geometric bound the
-acceleration structure wraps. That overlap is predicted offline, before any build, by a standalone
-estimator that reproduces the renderer's exact containment test over an asset's primitives and reports
-the maximum number of $3\sigma$ ellipsoids that share a point (the active-set bound) and that a single
-ray crosses (the hit-buffer length). For the primary cloud scene the estimate---around \num{45}
+array gives $O(k)$ operations in space proportional to the maximum overlap rather
+than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
+compile-time constants, and want to be as small as is safe: the hit buffer is the kernel's most
+expensive per-ray state, so an over-sized cap wastes local memory and depresses occupancy (raising it
+well beyond need slowed rendering several-fold). They are therefore sized to the worst-case $3\sigma$
+overlap of the target asset---the same geometric bound the acceleration structure wraps---tight but
+sufficient. That overlap is predicted offline, before any build, by a standalone estimator: it
+Monte~Carlo-samples points and lines through the scene's bounding box, tests each against every
+primitive's exact $3\sigma$ ellipsoid (the renderer's own containment criterion), and reports the
+maximum number that simultaneously contain a point (the active-set bound) or that one ray crosses (the
+hit-buffer length). For the primary cloud scene the estimate---around \num{45}
 simultaneously overlapping primitives---sits well within the chosen capacity, and the runtime counter
 below records zero overflows. A substantially denser asset shows why estimating offline beats guessing:
 the \num{25600}-Gaussian bunny, an order of magnitude larger than the cloud's \num{652}, exceeds the
@@ -263,8 +269,7 @@ cloud-tuned caps, and the estimator quantifies the larger capacities it needs so
 correctly without trial-and-error recompiles (\Cref{tab:overlap}). A deliberately degenerate collinear stress test
 exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed sufficient
 on every scene, a device-side overflow counter flags at runtime any ray that exceeds a capacity, so
-excess overlap is \emph{detected} rather than silently corrupting the image; raising the hit-buffer
-capacity well beyond this need slowed rendering several-fold, so it is kept tight and guarded instead.
+excess overlap is \emph{detected} rather than silently corrupting the image.
 
 \paragraph{Megakernel rationale.} The entire bounce loop executes inside the ray-generation program: a
 single \emph{megakernel}. The standard alternative is \emph{wavefront} path tracing~\cite{Laine2013},
@@ -272,8 +277,14 @@ in which each stage of the path---ray traversal, scattering, shading---is a sepa
 per-ray state is carried between them through global memory, with stream compaction between stages to
 keep GPU warps coherent. Keeping the whole loop in one kernel is a deliberate fit to the workload. The per-bounce arithmetic is light (a few
 error functions and a phase evaluation), but the per-ray \emph{state} that must persist across
-bounces---chiefly the active set---is comparatively large. A wavefront would have to stream that state
+bounces---mainly the active set---is comparatively large. A wavefront would have to stream that state
 to and from global memory every bounce; the megakernel keeps it in registers and shared/local memory,
 paying zero round-trips. \Cref{ch:optimization} reports the experiment that confirms this: a wavefront
 refactor, though correct, was dramatically slower, because moving the persistent per-ray state to
 global memory is fatal for an algorithm whose per-bounce compute is otherwise so cheap.
+
+\paragraph{Implementation.} Beyond OptiX and a few small header-only utilities (PLY and EXR I/O,
+logging, and command-line parsing), the renderer has no external dependencies---in particular no
+rendering framework---which keeps the codebase compact and straightforward to extend. Optional
+features---volumetric product-RIS, the OptiX denoiser, adaptive sampling, and a fast-math
+$\operatorname{erf}$---are exposed as runtime flags, so behaviour can be changed without recompiling.
