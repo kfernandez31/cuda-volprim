@@ -144,28 +144,21 @@ not (\Cref{fig:scattering-ladder}).
 \section{Feature validation}
 \label{sec:feature-validation}
 
-Each rendering feature is gated against the reference before it is trusted in combination. Several
-genuine bugs were found and fixed this way---evidence that the differential method has teeth.
+Each rendering feature is validated against the reference before it is trusted in combination:
+environment-map illumination, the Henyey--Greenstein phase function across forward and backward
+scattering, multiple importance sampling, and per-channel coloured albedo. Each matches the reference
+to within Monte~Carlo noise, with one exception---coloured albedo leaves a small channel-dependent
+residual, documented as a known limitation (\Cref{ch:conclusion}).
 
-\begin{itemize}
-  \item \textbf{Environment-map orientation.} A constant or isotropic environment cannot reveal an
-  orientation error; only a full-sphere directional test can. Such a test exposed a vertical-flip bug in
-  the HDR loader, which was fixed and then confirmed against Mitsuba across viewing directions.
-  \item \textbf{Real HDR illumination.} With a measured HDR environment (a meadow map), the single
-  Gaussian and then the full cloud match Mitsuba, confirming the environment importance sampling under
-  realistic, high-dynamic-range lighting.
-  \item \textbf{Anisotropic phase function.} Henyey--Greenstein scattering with $g \ne 0$ initially
-  disagreed with the reference; the cause was a sign error in the phase evaluation, after which forward-
-  and back-scattering match Mitsuba.
-  \item \textbf{Multiple importance sampling.} Combining phase and environment sampling under the
-  balance heuristic exposed a second sign error (in the phase PDF used for the MIS weight); once
-  corrected, the MIS estimator matches the reference and reduces variance as expected.
-  \item \textbf{Coloured albedo.} Per-channel RGB albedo reproduces the correct tint; a small
-  channel-dependent residual remains and is documented as a known limitation (\Cref{ch:conclusion}).
-  \item \textbf{Path-control robustness.} Sweeps over maximum depth, Russian-roulette depth, and related
-  controls leave the converged result unbiased, confirming these knobs trade noise for time without
-  perturbing the mean.
-\end{itemize}
+One validation lesson generalises beyond this renderer and is worth stating: an environment-map
+\emph{orientation} error is invisible to a constant or isotropic test scene and to an equatorial view;
+only a full-sphere \emph{directional} comparison can expose it. Designing the test to be sensitive to
+the quantity under check---rather than to a convenient one---is what makes a differential method
+trustworthy.
+
+With every feature correct in isolation and in combination, \emph{which} features to enable, and at
+what cost in time and quality, becomes a separate question---a performance-engineering one, taken up in
+\Cref{ch:optimization}.
 
 \section{The combined showcase}
 \label{sec:money-shot}

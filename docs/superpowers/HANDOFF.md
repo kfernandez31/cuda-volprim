@@ -114,3 +114,29 @@ Ordered by how load-bearing they are.
 
 **Solid / done:** prose backbone Ch 2–6 + Ch 8 drafted, cited, compiling clean (~49pp); spec, plan,
 CONVENTIONS, bibliography (39 refs), figure pipeline.
+
+## Ch 6 rework — queued items from the 2026-06-10 review (do in the Ch 6 pass)
+
+Ch 6 is Kacper's WIP; these were decided during review but deferred so the Ch 6 rework integrates them coherently:
+
+1. **Fold Appendix A (A1) into Ch 6** (Kacper decision). Move `chapters/appendix-a-a1.tex` content into
+   `sec:autopsies` as a full subsection (expand the A1 bullet). Then delete `appendix-a-a1.tex`, remove
+   `\appendix` + `\input{chapters/appendix-a-a1}` from `thesis.tex`, and repoint `\Cref{app:a1}` (used in
+   Ch 6) to the new subsection label. Rationale: consistency — wavefront/adaptive are Ch 6 bullets, so A1
+   should not get a lone appendix.
+2. **`tab:complexity` "Boundary sort (scatter)" row** — reword; the reference does NOT sort (verified: it
+   marches + per-segment running-min selection + bisection). Change to "boundary marching/selection" to
+   stay consistent with the abstract/§4.4/Fig 4.1 corrections (commit 38c3d25).
+3. **§6.1 "Optimisation began with profiling, not guessing"** — remove (Kacper: false + pretentious;
+   FINDINGS §8.5 was explicitly "never profiled" at first).
+4. **§6.2 four-modes table overflows the page** (Kacper #24) — resize/restructure (e.g. shorten the
+   Examples column or use a smaller font / `\resizebox`).
+5. **Roofline figure** (Kacper #28) — placeholder already in `build_figures.sh` + `figures/roofline.pdf`;
+   still TODO: a dedicated roofline plotter (log-log with memory/compute roofs from the ncu numbers) and
+   wiring `fig:roofline` into `sec:bottleneck`.
+6. **Overflow counter — code question** (Kacper #27, deferred). Decide whether to keep the device
+   `overflow_counter_` at all now that `estimate_caps.py` sizes caps offline. Keep: cheap runtime
+   assertion that the (sampled, conservative) estimate held, esp. for an un-estimated new asset. Drop:
+   if caps are always estimated first, it is belt-and-suspenders. Code decision, not prose.
+7. **Feature inclusion/exclusion is Ch 6's job** — §5.5 was trimmed (bug-confession cut) and now hands the
+   "which features to enable, at what cost" narrative to Ch 6. Make sure the perf study delivers it.
