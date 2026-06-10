@@ -20,8 +20,9 @@ short. Adapted from patterns in academic-writing Claude setups — the "always-o
   `K` RIS candidates · spp = samples per pixel.
 
 ## LaTeX
-- **Cross-refs (cleveref):** `\Cref{}` at sentence start, `\cref{}` mid-sentence (auto "Chapter/Section/
-  Figure/Equation N"). Label prefixes: `ch:`, `sec:`, `fig:`, `tab:`, `eq:`, `app:`.
+- **Cross-refs (cleveref):** use `\Cref{}` **everywhere** as house style (capitalised
+  "Chapter/Section/Figure N", mid-sentence included; the loaded `capitalise` option keeps it
+  consistent). Label prefixes: `ch:`, `sec:`, `fig:`, `tab:`, `eq:`, `app:`.
 - **Tables:** `booktabs` (`\toprule \midrule \bottomrule`); no vertical rules.
 - **Units & numbers (siunitx):** `\SI{150}{\watt}`, `\SI{2.1}{\milli\second}`, `\SI{30}{\giga\byte}`,
   `\num{24576}`; speedups as `\(1.4\times\)`.

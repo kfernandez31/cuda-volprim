@@ -1,46 +1,3 @@
-% Some commands used in this file
-\newcommand{\package}{\emph}
-
-% \chapter{Introduction}
-
-% \section{Sample Section}
-% \label{sec:section}
-
-% \subsection{Sample Subsection}
-
-% \theoremstyle{plain}
-% \theoremsymbol{}
-% \newtheorem{Rule}[theorem]{Rule}
-
-
-% \begin{Rule}
-% \end{Rule}
-
-% \begin{quote}
-% \end{quote}
-
-% \emph{}
-
-% \begin{Rule}
-%   Learn when to use \lstinline[showspaces=true]-\ - and
-%   \lstinline-\@-.
-% \end{Rule}
-
-% Unless you use `french spacing', the space at the end of a sentence is
-% slightly larger than the normal interword space.
-
-% The rule used by \TeX{} is that any space following a period,
-% exclamation mark or question mark is sentence-ending, except for
-% periods preceded by an upper-case letter.  Inserting \lstinline-\-
-% before a space turns it into an interword space, and inserting
-% \lstinline-\@- before a period makes it sentence-ending.  This means
-% you should write
-% \begin{lstlisting}
-% Prof.\ Dr.\ A. Steger is a member of CADMO\@.
-% If you want to write a thesis with her, you
-% should use this template.
-% \end{lstlisting}
-
 \chapter{Introduction}
 
 Reconstructing and rendering high-fidelity 3D scenes from photographs is a long-standing goal in
@@ -69,17 +26,18 @@ architecture, free of the reference's marching and root-finding.
 
 \paragraph{Contributions.} This thesis contributes:
 \begin{itemize}
-  \item a novel single-trace, march- and root-find-free rendering architecture for ray-traced Gaussian
-  kernel-mixture volumes, in two complementary halves---single-trace any-hit collection with analytic
-  exits, and analog-decomposition (argmin) scatter sampling (\Cref{ch:architecture});
+  \item a single-trace, march- and root-find-free rendering architecture for ray-traced Gaussian
+  kernel-mixture volumes---realising, for this representation, an approach the reference's authors
+  anticipated but did not implement---in two complementary halves: single-trace any-hit collection with
+  analytic exits, and analog-decomposition (argmin) scatter sampling (\Cref{ch:architecture});
   \item a from-scratch CUDA/OptiX path tracer realising it, with no rendering-framework dependency
   beyond OptiX;
   \item a differential-validation methodology against Mitsuba and, where a closed form exists, against
   analytic ground truth---which doubles as the unbiasedness evidence for the new sampler
   (\Cref{ch:validation}); and
-  \item a systematic GPU performance-engineering study, contributing a second algorithmic win
-  (volumetric product-RIS) and a profiled ledger of negative results, measured across time, quality, and
-  memory (\Cref{ch:optimization,ch:results}).
+  \item a systematic GPU performance-engineering study, contributing a second, scene-dependent win
+  (volumetric product resampled importance sampling, RIS) and a profiled ledger of negative results,
+  measured across time and image quality (\Cref{ch:optimization,ch:results}).
 \end{itemize}
 
 \paragraph{Structure.} \Cref{ch:background} reviews the volumetric light-transport and GPU ray-tracing

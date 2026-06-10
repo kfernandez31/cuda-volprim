@@ -24,17 +24,18 @@ and rendering are slow.
 anisotropic 3D Gaussians, each carrying a position, covariance, opacity, and view-dependent colour.
 Rendering rasterises the Gaussians---projecting them to screen space, sorting by depth, and
 alpha-blending---which reaches real-time frame rates and high fidelity. The explicit representation
-is directly editable, but it carries two costs relevant here. First, appearance is \emph{baked}:
-colour is optimised per view, so the scene cannot be relit. Second, the screen-space EWA projection
-is only an approximation of each Gaussian, which manifests as primitives that flicker or pop as the
-viewpoint moves (\Cref{fig:flicker}). Both limitations point toward rendering the same primitives by
-ray tracing instead of rasterisation.
+is directly editable, but it carries two costs relevant here. First, appearance is \emph{baked}: each
+Gaussian stores a view-dependent colour fitted under the capture illumination, so the scene cannot be
+relit. Second, correct alpha-blending requires a \emph{global depth sort} of the primitives, recomputed
+per view; as the viewpoint moves the sort order changes discontinuously, producing the flickering and
+popping characteristic of splatting (\Cref{fig:flicker}). Both limitations point toward rendering the
+same primitives by ray tracing instead of rasterisation.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=11cm]{images/flicker.png}
-  \caption{Flickering and popping artefacts of rasterised Gaussian splatting: the view-dependent
-  screen-space projection of each primitive is inconsistent across viewpoints.}
+  \caption{Flickering and popping artefacts of rasterised Gaussian splatting, caused by the
+  view-dependent global depth sort changing order discontinuously as the camera moves.}
   \label{fig:flicker}
 \end{figure}
 
@@ -51,11 +52,11 @@ gives up---while the closed-form optical depth keeps each primitive cheap. DSYG 
 thesis re-implements and accelerates.
 
 The reference renders correctly but is not built for speed: it samples the scatter distance by
-marching the ray through the sorted sequence of primitive boundaries, accumulating optical depth and
-solving for the scatter point with a Newton or bisection root-find. That segment-by-segment march,
-the sort it depends on, and the root-find are precisely what \Cref{ch:architecture} removes,
-replacing them with a single-trace collection pass and closed-form per-primitive free-flight
-sampling.
+marching the ray boundary by boundary---maintaining the set of overlapping primitives and selecting
+the next boundary by a running minimum---accumulating optical depth and solving for the scatter point
+with a root-find (Newton or bisection) within each multi-primitive segment. That segment-by-segment
+march and the per-segment root-find are precisely what \Cref{ch:architecture} removes, replacing them
+with a single-trace collection pass and closed-form per-primitive free-flight sampling.
 
 \section{Volumetric Monte Carlo and tracking}
 \label{sec:volumetric-mc}
@@ -64,16 +65,15 @@ The estimators that make participating media renderable are surveyed by
 Nov\'ak et al.~\cite{MonteCarlo}. For a heterogeneous medium the optical depth has no closed form, so
 free paths are sampled without inverting it: \emph{delta (Woodcock) tracking}~\cite{Woodcock1965}
 adds a fictitious medium to homogenise the extinction and accepts or rejects candidate collisions,
-yielding unbiased free flights at the cost of many extinction evaluations. Spectral and
-\emph{decomposition} tracking~\cite{Kutz2017} reduce that cost by splitting the medium into a control
+yielding unbiased free flights at the cost of many extinction evaluations. \emph{Decomposition} tracking~\cite{Kutz2017} reduces that cost by splitting the medium into a control
 component---chosen so that free paths through it can be constructed in \emph{closed form}---and a
-residual handled by weighted tracking.
+residual handled by tracking (analog in the variant this thesis builds on; weighted in its extension).
 
 Decomposition tracking is the theoretical root of this thesis's scatter sampler. Its key property is
 that a free flight through a sum of components is distributed as the \emph{minimum} of independent
 free flights through each component taken separately. Because every Gaussian primitive here admits a
 closed-form, invertible optical depth, each can draw its own free-flight distance directly, and the
-minimum over the primitives a ray touches is the scatter event---no marching, sorting, or
+minimum over the primitives a ray touches is the scatter event---no marching and no
 root-finding (\Cref{ch:architecture}).
 
 \section{Sort-free Gaussian rendering}

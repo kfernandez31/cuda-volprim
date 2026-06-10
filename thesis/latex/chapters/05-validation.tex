@@ -11,9 +11,10 @@ stochastic renderers fairly (\Cref{sec:compare-correctly}). It then walks a ladd
 complex scenes, from a single Gaussian with a closed-form answer up to the full cloud, in absorption
 (\Cref{sec:absorption-ladder}) and then in scattering (\Cref{sec:scattering-ladder}), validates each
 rendering feature against the reference (\Cref{sec:feature-validation}), and closes on the combined
-showcase (\Cref{sec:money-shot}). Throughout, the ladder doubles as the empirical
-\emph{unbiasedness proof} of the analog-decomposition sampler: were the argmin rule biased, the
-discrepancy would appear first on the scenes with a known analytic answer.
+showcase (\Cref{sec:money-shot}). Throughout, the scattering ladder and the furnace
+invariant serve as the empirical \emph{unbiasedness evidence} for the analog-decomposition sampler: a
+biased free-flight rule would shift the converged scattering result away from the energy-conserving
+furnace value and from the independently-correct Mitsuba-analog reference.
 
 \section{Experimental setup}
 \label{sec:setup}
@@ -82,9 +83,9 @@ mixture is the closed-form optical depth of \Cref{sec:analytic-od}---so the grou
 integration from the stochastic scattering logic.
 
 \paragraph{Single Gaussian.} A single primitive integrates to a closed-form transmittance at every
-pixel. The renderer matches this analytic value to within floating-point tolerance, confirming the
-ray--primitive transform, the erf-based optical depth, and the camera model. The small residual that
-remains is pure pixel-filter variance, not bias.
+pixel. The renderer matches this analytic value to about $10^{-5}$---the pixel-filter jitter floor---confirming
+the ray--primitive transform, the erf-based optical depth, and the camera model; the small residual
+that remains is pixel-filter variance, not bias.
 
 \paragraph{Overlap ladder.} Stacking primitives tests the additivity of optical depth and the
 active-set bookkeeping that the argmin sampler depends on. Up to the active-set capacity the renderer
@@ -97,17 +98,17 @@ same stress test surfaced a \emph{reference} limitation---Mitsuba's volumetric p
 itself under-absorbs as identical primitives are stacked---a reminder that "differential" cuts both
 ways and that the analytic check is the final arbiter.
 
-\paragraph{The cloud.} The full $652$-primitive cloud, validated against the analytic absorption ground
-truth across all camera views, matches view-independently. This established absorption correctness
-at scene scale before scattering---and hence multiple sampled bounces---was introduced.
-\Cref{fig:absorption-ladder} collects the ladder.
+\paragraph{The cloud.} The full $652$-primitive cloud matches the reference across all $24$ camera
+views---against Mitsuba, with a float64 brute-force analytic transmittance adjudicating the edge band
+on a representative view---establishing absorption correctness at scene scale before scattering, and
+hence multiple sampled bounces, was introduced. \Cref{fig:absorption-ladder} collects the ladder.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/absorption_ladder.pdf}
-  \caption{Absorption-only validation against the analytic ground truth, up the complexity ladder: a
-  single Gaussian, an overlapping pair, and the full cloud. The renderer matches the closed-form
-  reference view-independently; per-scene RMSE is annotated.}
+  \caption{Absorption-only validation up the complexity ladder: a single Gaussian, an overlapping pair,
+  and the full cloud. The single Gaussian is held to its closed-form transmittance; the pair and cloud
+  are compared against Mitsuba with analytic spot-checks. The renderer matches view-independently.}
   \label{fig:absorption-ladder}
 \end{figure}
 
@@ -126,18 +127,23 @@ energy. Notably, Mitsuba's \emph{next-event} integrator fails the same test by $
 unbiased---is used as the scattering ground truth throughout.
 
 \paragraph{The scattering ladder.} Against Mitsuba-analog the renderer is validated up the same ladder:
-a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$. Single and cluster
-rungs match within noise; the cloud rung passes view-independently. These passes are the empirical
-evidence that the argmin scatter sampler (\Cref{sec:adt}) is unbiased: a wrong free-flight distribution
-would bias the converged mean away from the independently-correct Mitsuba-analog result, and it does
-not (\Cref{fig:scattering-ladder}).
+a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$. The single rung
+matches to within noise; the cluster and cloud rungs match in the bulk but leave one small,
+convergence-stable residual in the \emph{overlap} region---a $+2\times10^{-4}$ core difference on the
+cluster (about six standard errors), echoed as ${+}1\times10^{-4}$ in the densest part of the cloud.
+It is below $0.2\%$ of the peak and confined to vertices where many primitives overlap; its likely
+cause is the argmin free-flight distribution under heavy overlap (\Cref{sec:adt}), and it is recorded
+as an open item (\Cref{ch:conclusion}). The agreement everywhere else is the empirical evidence that
+the sampler is unbiased to within ${\sim}10^{-4}$: a grossly wrong free-flight distribution would
+shift the converged mean far more, and it does not (\Cref{fig:scattering-ladder}). That the
+methodology resolves a $10^{-4}$ effect at all is itself a measure of its sensitivity.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/scattering_ladder.pdf}
   \caption{Scattering validation against Mitsuba-analog up the same ladder (single Gaussian, cluster,
-  full cloud; albedo $0.9$). The converged means agree to within noise, the empirical evidence that the
-  argmin scatter sampler is unbiased.}
+  full cloud; albedo $0.9$). The converged means agree to within noise outside a small overlap-region
+  residual ($\le 0.2\%$ of peak, an open item), evidence the sampler is unbiased to within ${\sim}10^{-4}$.}
   \label{fig:scattering-ladder}
 \end{figure}
 
@@ -145,8 +151,8 @@ not (\Cref{fig:scattering-ladder}).
 \label{sec:feature-validation}
 
 Each rendering feature is validated against the reference before it is trusted in combination:
-environment-map illumination, the Henyey--Greenstein phase function across forward and backward
-scattering, multiple importance sampling, and per-channel coloured albedo. Each matches the reference
+environment-map illumination, the Henyey--Greenstein phase function (forward scattering, $g = 0.85$),
+multiple importance sampling, and per-channel coloured albedo. Each matches the reference
 to within Monte~Carlo noise, with one exception---coloured albedo leaves a small channel-dependent
 residual, documented as a known limitation (\Cref{ch:conclusion}).
 
@@ -156,7 +162,7 @@ only a full-sphere \emph{directional} comparison can expose it. Designing the te
 the quantity under check---rather than to a convenient one---is what makes a differential method
 trustworthy.
 
-With every feature correct in isolation and in combination, \emph{which} features to enable, and at
+With the features validated to within the stated residuals, \emph{which} features to enable, and at
 what cost in time and quality, becomes a separate question---a performance-engineering one, taken up in
 \Cref{ch:optimization}.
 
@@ -165,8 +171,9 @@ what cost in time and quality, becomes a separate question---a performance-engin
 
 The features are finally exercised together---the full cloud, under the measured HDR environment, with
 forward-scattering Henyey--Greenstein ($g = 0.85$) and MIS direct lighting. Against Mitsuba-analog the
-renderer matches the converged image and, at equal quality, reaches it in less time while remaining
-free of the fireflies that the reference exhibits on this scene (quantified in \Cref{ch:results}). This
+renderer matches the converged image across four well-separated views and, at equal quality, reaches it
+in less time while remaining free of the fireflies that the reference exhibits on this scene
+(quantified in \Cref{ch:results}). This
 combined result is the correctness foundation on which the performance study of \Cref{ch:optimization}
 builds: every optimisation there is required to preserve this image, and is reverted if it does not
 (\Cref{fig:showcase}).

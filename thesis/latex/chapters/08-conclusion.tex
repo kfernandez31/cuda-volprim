@@ -14,13 +14,13 @@ complementary halves: \emph{single-trace any-hit collection}, which gathers all 
 entries in one acceleration-structure traversal (back-face-culled to entries, exits computed
 analytically), and \emph{analog-decomposition scatter sampling}, in which each primitive draws a
 closed-form free flight and the nearest---the argmin---is the scattering event. Together they replace
-the segment-marching, boundary-sorting, and root-finding that the reference uses for the scatter
+the segment-marching and root-finding that the reference uses for the scatter
 distance. This rests on two supporting pillars: a \emph{differential-validation methodology}
 (\Cref{ch:validation}) that establishes correctness against Mitsuba and, where a closed form exists,
 against analytic ground truth---and that doubles as the unbiasedness evidence for the new sampler; and a
-systematic \emph{performance-engineering study} (\Cref{ch:optimization}) that contributed a second
-algorithmic win (volumetric product-RIS direct lighting) and a rigorously characterised ledger of
-negative results, and that closed the initial $\sim\!5\times$ equal-quality gap and overtook the
+systematic \emph{performance-engineering study} (\Cref{ch:optimization}) that contributed a second,
+scene-dependent win (volumetric product-RIS direct lighting---$1.4\times$ at equal quality under
+environment lighting, default off) and a rigorously characterised ledger of negative results, and that closed the initial $\sim\!5\times$ equal-quality gap and overtook the
 reference on the showcase, free of its fireflies.
 
 \section{Limitations}
@@ -43,7 +43,12 @@ The renderer is deliberately scoped, and several limitations bound its current r
   \item \textbf{Ampere hardware.} The one lever that directly targets the renderer's ray divergence,
   OptiX Shader Execution Reordering~\cite{NvidiaSER2022}, is Ada-only and unavailable on the RTX~3090
   used throughout.
-  \item \textbf{Coloured albedo.} A small channel-dependent residual remains in RGB-albedo rendering.
+  \item \textbf{Small systematic residuals.} A handful of sub-$0.2\%$ systematic differences from the
+  reference are documented rather than resolved: a ${+}2\times10^{-4}$ difference at heavily-overlapped
+  scatter vertices (candidate cause: the argmin free-flight distribution under overlap,
+  \Cref{ch:validation}); a ${+}1.8\times10^{-4}$ brightness systematic in low-density interiors; and a
+  small channel-dependent residual in coloured-albedo rendering. Each is bounded well under a part in
+  $500$ and confined to a specific regime.
 \end{itemize}
 
 \section{Future work}

@@ -89,8 +89,9 @@ $N$, and the buffer holds exactly the data the scatter sampler needs.
 The entry buffer is a structure-of-arrays, \texttt{HitBufferSoA}, storing the hit distances and
 primitive indices in separate arrays (\SI{4}{\byte} and \SI{2}{\byte} per entry respectively) so that
 the sampler's sequential scan over hits is coalesced. It is a per-ray buffer held in fast local memory
-with a fixed capacity (\Cref{sec:gpu-impl}); overflow is detected and handled rather than left to
-corrupt the result. Two categories of primitive contribute to a scattering event: those the ray is
+with a fixed capacity (\Cref{sec:gpu-impl}); overflow is \emph{detected} rather than corrected---a
+dropped hit biases the pixel toward under-absorption, but a device counter flags the event instead of
+letting it pass silently. Two categories of primitive contribute to a scattering event: those the ray is
 already \emph{inside} at the segment's start (the camera may begin inside the medium, and after a
 scatter the new ray starts inside whatever primitives contain the scatter point), tracked in an
 \emph{active set}; and those the ray \emph{enters} along the segment, delivered by the trace into the
@@ -108,16 +109,15 @@ Gaussian to the ray and integrating yields, in closed form,
   \big[\operatorname{erf}(u_1) - \operatorname{erf}(u_0)\big],
 \]
 where $d_\perp$ is the (whitened) perpendicular distance from the primitive centre to the ray and
-$u_0,u_1$ are the whitened endpoints of the interval. The renderer evaluates the Gaussian in an
-\emph{unnormalised} convention---a per-primitive factor $\big((2\pi)^{3/2}\textstyle\prod_i s_i\big)^{-1}$
-folds the covariance scales $s_i$ into a precomputed constant---so that $\tau_k$ costs one
-exponential and two error-function evaluations. Crucially this expression is \emph{monotonic and
+$u_0,u_1$ are the whitened endpoints of the interval. The renderer folds the per-primitive normalisation
+$\big((2\pi)^{3/2}\textstyle\prod_i s_i\big)^{-1}$ into a precomputed constant, so that $\tau_k$ costs
+one exponential and two error-function evaluations. Crucially this expression is \emph{monotonic and
 invertible} in $t_1$: given a target optical depth $\tau$, the distance at which a primitive
 accumulates it is recovered by a single inverse error function,
 \[
-  t(\tau) \;=\; \text{(ray geometry)} \;+\; \tfrac{1}{w}\,\operatorname{erf}^{-1}\!\big(\operatorname{erf}(u_0) + \tau/K_k\big),
+  t(\tau) \;=\; \text{(ray geometry)} \;+\; \tfrac{1}{w}\,\operatorname{erf}^{-1}\!\big(\operatorname{erf}(u_0) + \tau/C_k\big),
 \]
-with $K_k$ a precomputed per-primitive constant. This closed-form inverse is what the next section
+with $C_k$ a per-ray constant built from a precomputed per-primitive factor. This closed-form inverse is what the next section
 turns into a sampler.
 
 \section{Sort-free scatter sampling}
@@ -145,8 +145,10 @@ distance---selecting the next boundary by a running minimum at every step---this
 march nor root-find: the per-primitive inverse is exact (one $\operatorname{erf}^{-1}$), so a single
 argmin over closed-form free flights gives the scatter point directly. The minimum reproduces
 \emph{exactly} the distribution the reference's marching produces (it is the decomposition-tracking
-identity, not an approximation), and the scatter point's host primitive, albedo, and the updated
-active set all fall out of the same pass (\Cref{alg:argmin}).
+identity, not an approximation), and the scatter \emph{distance} $t^\star$ is the result of this single
+pass (\Cref{alg:argmin}). The scatter point's albedo is then a $\sigma_t$-weighted mixture over the
+primitives that contain it, and the active set for the next bounce is rebuilt by a second linear pass
+over the same candidates---no new trace.
 
 \begin{algorithm}[htp]
 \caption{Argmin scatter sampling for one ray segment.}
@@ -154,24 +156,24 @@ active set all fall out of the same pass (\Cref{alg:argmin}).
 \begin{algorithmic}[1]
 \Require ray $\bm{r}$; active set $A$ (primitives containing the origin); hit buffer $H$ of entries
 $(t_{\text{entry}}, k)$ from one trace
-\Ensure scatter distance $t^\star$ and host primitive, or \textsc{Escape}
+\Ensure scatter distance $t^\star$, or \textsc{Escape}
 \State $t^\star \gets +\infty$
 \ForAll{$k \in A$} \Comment{origin inside: invert from $t_0 = 0$}
   \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
   \State $t_k \gets \textproc{inv\_cdf}(\bm{r}, \tau_k)$
   \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
-    \State $t^\star \gets t_k$; \; remember $k$
+    \State $t^\star \gets t_k$
   \EndIf
 \EndFor
 \ForAll{$(t_{\text{entry}}, k) \in H$} \Comment{entered mid-segment: invert from $t_{\text{entry}}$}
   \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
   \State $t_k \gets \textproc{inv\_cdf\_seg}(\bm{r}, t_{\text{entry}}, \tau_k)$
   \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
-    \State $t^\star \gets t_k$; \; remember $k$
+    \State $t^\star \gets t_k$
   \EndIf
 \EndFor
 \If{$t^\star = +\infty$} \State \Return \textsc{Escape} \EndIf
-\State \Return $t^\star$ and its remembered host primitive
+\State \Return $t^\star$
 \end{algorithmic}
 \end{algorithm}
 
@@ -189,8 +191,9 @@ optical depth is from the reference~\cite{DSYG}; and the sort-free \emph{spirit}
 splatting~\cite{StochasticSplats2025} on the rasterisation side. The contribution is their
 \emph{synthesis}: applying analog decomposition tracking to ray-traced Gaussian kernel-mixture volumes,
 so that the analytic per-primitive inverse makes each component's free flight a closed-form draw and
-the argmin replaces the reference's marching and root-finding entirely. The approach was proposed by
-Condor~\cite{DSYG}---a direction the reference's authors anticipated but had not implemented---and is
+the argmin replaces the reference's marching and root-finding entirely. The approach was suggested by
+Condor (the reference's co-author; personal communication)---a direction the reference's authors
+anticipated but had not implemented---and is
 realised and validated here, to the author's knowledge for the first time for this representation.
 
 \paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
@@ -207,20 +210,21 @@ scan is the dominant per-bounce cost and the subject of one of the optimisations
 
 At each scattering vertex the renderer estimates direct illumination from the environment map---an
 image-based model of distant illumination surrounding the scene, sampled as an infinitely far
-emitter---by next-event estimation combined with phase-function sampling under multiple importance sampling
-(\Cref{sec:volumetric-light-transport}): one shadow connection samples the environment by luminance,
-one continuation samples the Henyey--Greenstein phase function, and the two are weighted by the balance
-heuristic. The transmittance along the shadow ray reuses the analytic optical depth of
-\Cref{sec:analytic-od} over the primitives the shadow ray crosses. \Cref{ch:optimization} replaces the
-environment-sampling strategy with a resampled-importance-sampling variant behind a runtime flag, while
-keeping this MIS structure intact.
+emitter---by next-event estimation under multiple importance sampling
+(\Cref{sec:volumetric-light-transport}): two shadow connections are drawn per vertex---one sampling the
+environment by luminance, one sampling the Henyey--Greenstein phase function---each weighted by the
+balance heuristic, with transmittance from the analytic optical depth of \Cref{sec:analytic-od} along
+each shadow ray. Indirect light is carried by the phase-sampled continuation ray, whose direct
+environment contribution is suppressed so it is not double-counted against next-event estimation.
+\Cref{ch:optimization} replaces this two-shadow-ray estimator with an optional
+resampled-importance-sampling variant that traces a single shadow ray, keeping the MIS scaffold intact.
 
 The primary (camera) ray's direct contribution is treated specially: rather than relying on the path to
 escape the medium and hit the environment, the renderer adds the analytic camera-to-environment term
 $T_{\text{cam}}\,L_{\text{env}}$ at bounce zero, where $T_{\text{cam}}$ is the closed-form transmittance
 through the medium along the view ray. This Rao--Blackwellises~\cite{Rao1945,Blackwell1947} the otherwise high-variance escape
-contribution---replacing a sampled quantity with its analytic expectation, which can only lower
-variance---at no extra trace. Paths are terminated by Russian roulette beyond a configurable depth,
+contribution---replacing a stochastically-sampled escape with its analytic expectation, which can only
+lower variance---for the cost of a single transmittance ray. Paths are terminated by Russian roulette beyond a configurable depth,
 with survival probability the throughput's largest channel clamped to \num{0.99}; surviving throughput
 is reweighted to keep the estimator unbiased.
 
@@ -252,8 +256,9 @@ structure whose representation is chosen at compile time by scene size: for up t
 array gives $O(k)$ operations in space proportional to the maximum overlap rather
 than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
 compile-time constants, and want to be as small as is safe: the hit buffer is the kernel's most
-expensive per-ray state, so an over-sized cap wastes local memory and depresses occupancy (raising it
-well beyond need slowed rendering several-fold). They are therefore sized to the worst-case $3\sigma$
+expensive per-ray state, so an over-sized cap wastes local memory and depresses occupancy (on the
+sparse cloud, raising it well beyond need slowed rendering several-fold; on denser assets the effect is
+smaller). They are therefore sized to the worst-case $3\sigma$
 overlap of the target asset---the same geometric bound the acceleration structure wraps---tight but
 sufficient. That overlap is predicted offline, before any build, by a standalone estimator: it
 Monte~Carlo-samples points and lines through the scene's bounding box, tests each against every
@@ -284,5 +289,6 @@ global memory is fatal for an algorithm whose per-bounce compute is otherwise so
 \paragraph{Implementation.} Beyond OptiX and a few small header-only utilities (PLY and EXR I/O,
 logging, and command-line parsing), the renderer has no external dependencies---in particular no
 rendering framework---which keeps the codebase compact and straightforward to extend. Optional
-features---volumetric product-RIS, the OptiX denoiser, adaptive sampling, and a fast-math
-$\operatorname{erf}$---are exposed as runtime flags, so behaviour can be changed without recompiling.
+features are toggleable without touching the core renderer: the OptiX denoiser via a runtime flag
+(\texttt{--denoise}), and adaptive sampling, a fast-math $\operatorname{erf}$, and volumetric
+product-RIS via compile-time switches.

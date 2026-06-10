@@ -22,13 +22,13 @@ integrand at random sample points $\bm{x}_i$ drawn from a probability density $p
 \]
 The estimator is unbiased---its expected value is exactly the integral, so its error is random noise
 that averages out rather than a systematic offset that does not---for any $p$ whose support covers that
-of $f$, and---crucially---its variance falls as $O(1/N)$, so the error falls as $O(1/\sqrt{N})$ \emph{independently of
+of $f$, and---crucially---its variance falls as $O(1/N)$ (when $f/p$ has finite variance), so the error falls as $O(1/\sqrt{N})$ \emph{independently of
 dimension}. This dimension-independence is why MC is the workhorse for the high-dimensional
 transport integrals below, where deterministic quadrature is hopeless.
 
 The constant hidden in that $1/\sqrt{N}$ rate is what every variance-reduction technique in this
 thesis targets. \emph{Importance sampling}---choosing $p$ to resemble $f$---shrinks it, vanishing
-entirely when $p \propto f$. Two consequences recur. First, because error scales with $\sqrt{N}$,
+entirely when $p \propto f$. Two consequences recur. First, because error scales as $1/\sqrt{N}$,
 halving the noise costs four times the samples; constant-factor variance reductions are therefore
 worth real effort (\Cref{ch:optimization}). Second, replacing pseudo-random points with a
 low-discrepancy sequence such as Sobol~\cite{Sobol1967} with Owen scrambling~\cite{Owen1998} can
@@ -84,8 +84,9 @@ surviving from $0$ to $t$ is the \emph{transmittance}
   \tau(t) = \int_0^{t} \sigma_t\big(\bm{r}(s)\big)\,\mathrm{d}s,
 \]
 where $\tau(t)$ is the \emph{optical depth} accumulated along the segment. For a general
-heterogeneous medium $\tau$ has no closed form and must be estimated stochastically, for instance
-by delta tracking~\cite{Woodcock1965} or its decomposition variants~\cite{Kutz2017}. A property of
+heterogeneous medium $\tau$ has no closed form; instead, free flights are sampled and transmittance
+$T = e^{-\tau}$ estimated stochastically---for instance by delta tracking~\cite{Woodcock1965} or its
+decomposition variants~\cite{Kutz2017}. A property of
 the Gaussian kernel-mixture representation that this work exploits throughout is that the
 contribution of a single Gaussian primitive to $\tau$ \emph{does} admit a closed form in terms of
 the error function (\Cref{sec:kernel-mixture}), making the per-primitive optical depth analytic
@@ -116,9 +117,10 @@ Henyey--Greenstein model~\cite{HenyeyGreenstein1941},
   p_{\mathrm{HG}}(\cos\theta) =
   \frac{1}{4\pi}\,\frac{1-g^{2}}{\big(1+g^{2}-2g\cos\theta\big)^{3/2}},
 \]
-whose single parameter $g\in(-1,1)$ controls anisotropy: $g>0$ is forward scattering (clouds are
-strongly forward, $g\approx 0.85$), $g=0$ is isotropic (e.g.\ a thin, optically simple haze), and
-$g<0$ is backward (as in some atmospheric aerosols). $p_{\mathrm{HG}}$ is
+whose single parameter $g\in(-1,1)$ controls anisotropy, with $\theta$ the angle between the incoming
+and outgoing directions: $g>0$ is forward scattering (clouds are strongly forward, $g\approx 0.85$),
+$g=0$ is isotropic (an idealisation, and the high-order multiple-scattering limit), and $g<0$ is
+backscattering. $p_{\mathrm{HG}}$ is
 cheap to importance-sample and integrates to one over the sphere, both properties the estimator
 below relies on.
 
@@ -133,9 +135,9 @@ strategy $s$ with density $p_s$ receives the balance-heuristic weight
 \[
   w_s(\bm{x}) = \frac{n_s\,p_s(\bm{x})}{\sum_k n_k\,p_k(\bm{x})},
 \]
-a weighted combination that trusts each strategy in proportion to how likely it was to have produced
-the sample, and that provably keeps the combined estimator's variance close to that of the best
-individual strategy.
+where $n_s$ is the number of samples allocated to strategy $s$. This weighting trusts each strategy in
+proportion to how likely it was to have produced the sample, and its variance is provably within a
+small additive term of the best achievable combination of the given strategies.
 \Cref{ch:optimization} revisits this direct-lighting estimator, replacing the light-sampling
 strategy with resampled importance sampling~\cite{Talbot2005} while retaining the MIS scaffold.
 
@@ -143,18 +145,18 @@ strategy with resampled importance sampling~\cite{Talbot2005} while retaining th
 \label{sec:kernel-mixture}
 
 The scene representation this thesis renders is a \emph{Gaussian kernel mixture}: the medium's
-extinction field is modelled as a weighted sum of $K$ Gaussian kernels, in general anisotropic,
+extinction field is modelled as a weighted sum of $N$ Gaussian kernels, in general anisotropic,
 \[
-  \sigma_t(\bm{x}) = \sum_{k=1}^{K} w_k\,
+  \sigma_t(\bm{x}) = \sum_{k=1}^{N} w_k\,
   \mathcal{G}(\bm{x};\bm{\mu}_k,\Sigma_k),
   \qquad
   \mathcal{G}(\bm{x};\bm{\mu},\Sigma) =
   \exp\!\Big(-\tfrac{1}{2}(\bm{x}-\bm{\mu})^{\!\top}\Sigma^{-1}(\bm{x}-\bm{\mu})\Big),
 \]
 where each kernel has a mean $\bm{\mu}_k$ (its centre), a covariance $\Sigma_k$ (its anisotropic
-extent and orientation), and a weight $w_k$ (its density). Such mixtures are fit to a reference
+extent and orientation), and a weight $w_k$ (a peak-extinction amplitude). Such mixtures are fit to a reference
 volume by expectation--maximisation or, in the radiance-field setting, by gradient descent against
-images; the primitives are the same anisotropic 3D Gaussians introduced by 3D Gaussian
+images; the primitives are the same anisotropic 3D Gaussians popularised by 3D Gaussian
 Splatting~\cite{3DGS} and carried into volumetric ray tracing by Condor et al.~\cite{DSYG}
 (\Cref{ch:related-work}).
 
