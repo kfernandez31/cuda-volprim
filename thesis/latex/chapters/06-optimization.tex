@@ -193,20 +193,14 @@ Reordering~\cite{NvidiaSER2022}---is Ada-only and therefore unavailable on the A
 \section{Memory}
 \label{sec:opt-memory}
 
-Performance is not only time. Two memory results matter. GAS compaction
-(\texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION}) reduces the acceleration-structure footprint at no
-traversal cost (\Cref{fig:gas-memory}; quantified per asset in \Cref{ch:results}). And the wavefront autopsy above is
-fundamentally a \emph{memory} story: its ${\sim}352$\,B of per-ray state, multiplied by the live ray
-count, is what overruns L2 and collapses performance---the clearest evidence that the megakernel's
-register-resident state is not an incidental choice but the load-bearing one.
-
-\begin{figure}[htp]
-  \centering
-  \includegraphics[width=0.8\linewidth]{figures/gas_memory.pdf}
-  \caption{Acceleration-structure footprint before and after GAS compaction, per asset. Compaction
-  shrinks the structure at no traversal cost; the saving grows with scene size.}
-  \label{fig:gas-memory}
-\end{figure}
+Performance is not only time, and the memory story has one result that matters: the megakernel's
+per-ray state. The wavefront autopsy above is fundamentally a \emph{memory} story---its ${\sim}352$\,B
+of per-ray state, multiplied by the live ray count, is what overruns L2 and collapses performance, the
+clearest evidence that the megakernel's register-resident state is not an incidental choice but the
+load-bearing one. The acceleration structure itself is not where the budget goes: it is sub-megabyte
+for the cloud and a few megabytes for the bunny, built with compaction as a matter of course (a single
+build flag, \texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION}, also used by the reference) and dwarfed by
+the per-ray state.
 
 \paragraph{Per-asset capacity budgets.} The per-ray buffers are bounded by the worst-case primitive
 overlap a scene presents, which the offline estimator of \Cref{sec:gpu-impl} predicts from geometry

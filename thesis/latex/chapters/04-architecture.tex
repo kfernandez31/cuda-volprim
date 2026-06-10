@@ -246,8 +246,8 @@ Thousands of distinct ellipsoids thus share a single sphere GAS, and the per-pri
 entirely in the instance transforms. Both structures are built with
 \texttt{OPTIX\_BUILD\_FLAG\_PREFER\_FAST\_TRACE} (favouring traversal speed over build time, the right
 trade for a renderer that builds once and traces for many samples) and
-\texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION} (whose memory effect is quantified in
-\Cref{ch:results}).
+\texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION} (standard practice---it shrinks the built
+structure at no traversal cost).
 
 \paragraph{Per-ray state.} Two per-ray containers dominate the kernel's footprint. The hit buffer
 (\Cref{sec:collection}) is a fixed-capacity \texttt{HitBufferSoA}. The active set is a small membership

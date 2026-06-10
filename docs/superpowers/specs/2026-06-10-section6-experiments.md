@@ -167,12 +167,16 @@ roof" as bandwidth-bound — the exact error `sec:bottleneck` refutes), and note
 SFU/erf-heavy mix. **New work:** `fig:roofline` float (no chapter has it yet) + a dedicated log-log
 plotter (not "already wired").
 
-### G5 — Memory → `fig:gas-memory`, `sec:opt-memory`
-GAS size pre/post compaction per asset (`acceleration_structure.h:64-66`); peak device memory; per-ray
-state (megakernel-resident vs the wavefront ~352 B/ray, ncu-derivable); NanoVDB comparison (cite if
-unavailable). **Free add:** log the runtime **overflow counter** (`renderer.cpp:357-366`) per run —
-zero on cloud@128 and bunny@new-caps directly evidences the Ch 4 "detected, zero on validated scenes"
-claim at the operating point.
+### G5 — Memory → `sec:opt-memory` (no dedicated figure)
+**DONE (cloud + bunny, clock-independent → final):** AS footprint cloud 0.198→0.103 MB, bunny
+7.72→3.97 MB; bunny fired the overflow counter at 128/128 (873k drops), confirming detection + the
+estimator's 320/496 prediction.
+**Compaction is demoted** — Mitsuba compacts with the same flags, so it is *(S)* standard practice, not
+a result; no dedicated figure (the old `fig:gas-memory` was removed from Ch 6, `sec:opt-memory` now
+states the footprint in one clause). The real memory result is the **per-ray state** (megakernel-resident
+vs the wavefront ~352 B/ray) plus **absolute compactness** (sub-MB–few-MB AS vs millions of voxels;
+NanoVDB comparison, cite if unavailable). The `gas_memory.csv` data stays as the **analytic baseline for
+G8**. Still TODO: **peak VRAM** per asset (`cudaMemGetInfo` snapshot).
 
 ### G6 — Negative-result numbers → `sec:autopsies`
 - **Wavefront:** A/B **within** `feature/wavefront-phase1` (`THESIS_WAVEFRONT` ON vs OFF at the *same*
@@ -227,7 +231,7 @@ pre-anyhit checkpoint), behind a build switch + subdivision level `N`.
 |---|---|---|---|
 | `rr_depth.csv` | `rr_depth, frame_ms, k, eff` | `fig:rr-depth` | **plot efficiency $k\cdot t$, not frame_ms** (frame_ms is monotone → no knee, contradicts the caption). Committed CSV currently `…,rmse` — reconcile. |
 | `ris_ksweep.csv` | `K, speedup_flat, speedup_studio, speedup_meadow` | `fig:ris-ksweep` | matches |
-| `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` | `fig:gas-memory` | matches |
+| `gas_memory.csv` | `asset, gas_mb_uncompacted, gas_mb_compacted` | (no figure — demoted) | DONE; analytic baseline for G8 |
 | `roofline.csv` | `kernel, arith_intensity, achieved_gflops` (+ roofs) | `fig:roofline` | **new plotter + new float** |
 | `wins.csv` (new) | `optimization, semantics, frame_ms, k, speedup` | `tab:wins` | `semantics` ∈ {sequential, marginal} |
 | `headline.csv` (new) | `renderer, asset, env, config, frame_ms, k, k_clipped, p99_9, maxpix` | G1 / Ch 7 | env includes `flat` |
