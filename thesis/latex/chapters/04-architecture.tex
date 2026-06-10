@@ -189,11 +189,9 @@ optical depth is from the reference~\cite{DSYG}; and the sort-free \emph{spirit}
 splatting~\cite{StochasticSplats2025} on the rasterisation side. The contribution is their
 \emph{synthesis}: applying analog decomposition tracking to ray-traced Gaussian kernel-mixture volumes,
 so that the analytic per-primitive inverse makes each component's free flight a closed-form draw and
-the argmin replaces the reference's marching and root-finding entirely. To the author's
-knowledge this is the first realisation of decomposition-tracking free-flight sampling for this
-representation; it is a direction the reference's authors anticipated but did not implement.
-% TODO(confirm with Kacper/Jorge): exact credit line — what Jorge proposed vs. what was realised here,
-% and whether "first realisation for this representation" is the claim we want to commit to.
+the argmin replaces the reference's marching and root-finding entirely. The approach was proposed by
+Condor~\cite{DSYG}---a direction the reference's authors anticipated but had not implemented---and is
+realised and validated here, to the author's knowledge for the first time for this representation.
 
 \paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
 active set against the scene's $N$ primitives, plus an $O(A + H)$ pass over the $A$ active and $H$
