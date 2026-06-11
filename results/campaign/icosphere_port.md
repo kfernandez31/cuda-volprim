@@ -28,34 +28,42 @@ unchanged):
 The unit icosphere is mapped to each Gaussian's 3σ ellipsoid by the *same* per-instance `localToWorld`
 the analytic unit sphere uses, so the IAS (652 instances) is geometry-independent and unchanged.
 
-## Validation — accuracy vs the analytic render (the exact ground truth)
+## Validation — accuracy vs the analytic render (the exact ground truth), THREE assets
 
 The primitive *is* a sphere, so the analytic render is exact and the discrepancy at each `N` is pure
-faceting error. Cloud absorption, `white_constant`, 64 spp (transmittance deterministic). Diff vs
-`/tmp/analytic_cloud.exr` (`results/campaign/icosphere.csv`):
+faceting error. Absorption, `white_constant`, 64 spp (transmittance deterministic). Tested on **cloud,
+tornado, and bunny** (built at 320/496, which fits all three → 0 overflow drops, so the diff is pure
+faceting, not truncation). RMSE vs the analytic render (`results/campaign/icosphere.csv`; GAS size is
+asset-independent — the unit icosphere is instanced):
 
-| N | verts | tris | RMSE vs analytic | mean\|Δ\| | signed-mean | GAS (compacted) |
-|---|---|---|---|---|---|---|
-| 0 | 12  | 20   | 4.01e-2 | 1.13e-2 | −1.13e-2 | 1408 B |
-| 1 | 42  | 80   | 1.01e-2 | 2.69e-3 | −2.69e-3 | 3328 B |
-| 2 | 162 | 320  | 2.54e-3 | 6.57e-4 | −6.57e-4 | 9600 B |
-| 3 | 642 | 1280 | **8.19e-3** | **1.12e-3** | **+9.10e-4** | 42 496 B |
+| N | verts | tris | cloud RMSE | tornado RMSE | bunny RMSE | signed-mean (sign) | GAS |
+|---|---|---|---|---|---|---|---|
+| 0 | 12  | 20   | 4.01e-2 | 9.39e-3 | 1.18e-2 | − (brighter) | 1408 B |
+| 1 | 42  | 80   | 1.01e-2 | 1.95e-3 | 2.48e-3 | − (brighter) | 3328 B |
+| 2 | 162 | 320  | 2.54e-3 | 4.57e-4 | 5.84e-4 | − (brighter) | 9600 B |
+| 3 | 642 | 1280 | **8.19e-3** | **4.59e-3** | **4.43e-3** | **+ (darker)** | 42 496 B |
 
-**N=0→2 is a clean ~4×-per-subdivision faceting curve** with the physically correct sign: the inscribed
-icosphere (vertices on the sphere, faces chord-inside) is slightly *smaller* than the true ellipsoid →
-less absorption → *brighter* → negative signed-mean. This proves the port is correct (a wrong
-front-face filter would double-count → tens-of-percent error everywhere; instead it's <0.3% mean,
-edge-localized).
+**N=0→2 is a clean ~4×-per-subdivision faceting curve on all three assets**, with the physically
+correct sign: the inscribed icosphere (vertices on the sphere, faces chord-inside) is slightly
+*smaller* than the true ellipsoid → less absorption → *brighter* → negative signed-mean. This proves
+the port is correct (a wrong front-face filter would double-count → tens-of-percent error everywhere;
+instead it's <0.3% mean, edge-localized, and converges).
 
-**N=3 reverses** — error grows and the sign flips to *darker*. It is a **localized** artifact, not a
-global bias: at |Δ|>0.05 the cloud has 4 pixels at N=2 but **3170 at N=3** (927 >0.1, 52 >0.2). Cause:
-when a near-spherical icosphere is stretched into a thin ellipsoid by a highly anisotropic Gaussian's
-transform, fine tessellation produces **thin sliver triangles**; near-grazing rays on slivers land a
-faceted entry point far from the true surface, and "analytic exit from faceted entry" then
-mis-integrates a handful of rays. The analytic sphere is exact regardless of anisotropy — so this is a
-genuine **quality argument for the analytic choice**, not a port bug. (It also bounds the useful
-tessellation: past N≈2 the sliver error overtakes the shrinking geometric faceting error for
-anisotropic primitives.)
+**N=3 reverses on every asset** — RMSE grows and the signed-mean flips to *darker* (positive). It is a
+**localized** high-error population, not a global bias: at |Δ|>0.05 the count jumps from ~0 at N=2 to
+cloud 3170, tornado 475, bunny 185 px at N=3. Cause: at fine tessellation the icosphere triangles
+become small slivers; near-grazing rays land a faceted entry point far from the true surface, and
+"analytic exit from faceted entry" then mis-integrates a handful of rays. The analytic sphere is exact
+regardless — a genuine **quality argument for the analytic choice**, not a port bug, and it bounds the
+useful tessellation (past N≈2 the sliver error overtakes the shrinking geometric faceting error).
+
+**Hypothesis corrected by the multi-asset test.** I expected the most *anisotropic* asset (tornado) to
+show the worst N=3 reversal; the data says otherwise — the **cloud** has by far the largest reversal
+(3170 vs 475 vs 185 px), despite being the roundest. So the reversal tracks **per-primitive screen
+footprint / overlap depth** (the cloud's 652 large, heavily-overlapping Gaussians each cover many
+pixels, so each sliver error hits more pixels), not anisotropy per se. This is exactly why the
+single-asset (cloud-only) result was not enough to judge — running tornado + bunny changed the
+conclusion.
 
 ## Memory — instancing makes tessellation memory-cheap
 
