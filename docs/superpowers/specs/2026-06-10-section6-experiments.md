@@ -285,3 +285,46 @@ Plan an overnight (~8–12 h) window.
   Ch 6 rework.
 - **Out of scope:** WDAS reported numbers, emissive assets, the Gabor extension, re-running cited
   C/S/I-mode optimisations, and the Ch 6 prose rework (handoff "Ch 6 rework" queue).
+
+---
+
+## Appendix: run log — exact commands, cap-sensitivity A/B (2026-06-11)
+
+Reproducible recipe for the experiment recorded in `results/campaign/caps_ab.md` (and the pattern for
+any multi-build A/B — `OPTIXIR_PATH` is baked absolute at compile time, so builds are swapped by
+copying the exe + `device_program.optixir` pair in place):
+
+```bash
+# 1. Build the 64-cap variant and stash the pair
+sed -i 's/constexpr size_t MAX_ACTIVE_PRIMS = 128;/constexpr size_t MAX_ACTIVE_PRIMS = 64;/' \
+    device/core/constants.cuh
+cmake --build build --target test_runner -j
+mkdir -p /tmp/ab
+cp build/bin/Release/test_runner /tmp/ab/exe_64; cp build/device_program.optixir /tmp/ab/ir_64
+
+# 2. Overflow probe at 64 (expect no warning; post-480f812 expect "Cap check: 0 overflows")
+build/bin/Release/test_runner --scene cloud_asset_validation --spp 1 --width 32 --height 32 \
+    --output /tmp/cap64_val.exr
+
+# 3. Correctness gate: 1024-spp seed-42 scattering @64 vs the saved @128 render (same seed/spp)
+SG_ENV=meadow SG_CAM=0 build/bin/Release/test_runner --scene cloud_asset_scattering \
+    --spp 1024 --width 256 --height 256          # NB: asset scenes IGNORE --width/--height (900x600)
+tools/refs/.venv/bin/python tools/refs/exr_diff.py /tmp/mis.exr \
+    test_results/cloud_asset_scattering/0000.exr  # gate: signed-mean ~1e-10, max|d| ~7e-5 (FMA reorder)
+
+# 4. Build the 128 variant, stash the pair (revert the sed, rebuild, cp exe_128/ir_128)
+
+# 5. Interleaved timing A/B (3 rounds, alternating builds under the SAME GPU state)
+for i in 1 2 3; do for v in 128 64; do
+  cp /tmp/ab/exe_$v build/bin/Release/test_runner; cp /tmp/ab/ir_$v build/device_program.optixir
+  SG_ENV=meadow SG_CAM=0 build/bin/Release/test_runner --scene cloud_asset_scattering \
+      --spp 64 --width 256 --height 256 --output /tmp/ab_r.exr 2>&1 | grep "Total time"
+done; done
+
+# 6. Restore the canonical 128 build
+cp /tmp/ab/exe_128 build/bin/Release/test_runner; cp /tmp/ab/ir_128 build/device_program.optixir
+```
+
+Lesson encoded in the protocol: a naive before/after across sessions showed a phantom 2× regression —
+ambient GPU state (a desktop session on the card) swings per-spp time ~3× at the un-pinned 150 W
+point. Interleave or lock clocks; never compare timings across sessions.

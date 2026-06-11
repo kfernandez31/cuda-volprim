@@ -172,3 +172,71 @@ The CRITICAL/MAJOR review items are FIXED (commit after this handoff). These rem
 - **Minor prose nits not yet done** (review §2–§4): `02-background.tex` BVH cite + `p` triple-duty
   symbol; `04-architecture.tex` `:91` "fast local memory" wording, `:73-74`/`fig:pipeline` `N`→`H`,
   "$O(N+A)$ absorbs H". Low priority.
+
+---
+
+# EXPERIMENTS HANDOFF (2026-06-11) — next Claude: continue the campaign
+
+**Read first:** `docs/superpowers/specs/2026-06-10-section6-experiments.md` (the revised runbook —
+§0 preconditions, G1–G8, methodology, and the appendix with the exact A/B command recipe), then
+`results/campaign/*.md` (each banked experiment's record). This section is the experiments-side
+continuity; the thesis-writing handoff above still applies.
+
+## Banked (clock-independent → FINAL, no full-blast redo needed)
+
+| Result | Record | Commit |
+|---|---|---|
+| Per-asset cap table (4-asset lineup + WDAS spread) | `scripts/tools/caps_table.csv`, `tab:overlap` | `fd7479c`,`7933951` |
+| AS/IAS memory cloud+bunny (compaction demoted to S-mode) | `results/campaign/gas_memory.csv` | `3b65474`,`7aac675` |
+| RIS unbiasedness on the meadow (G3 correctness gate) | spec §G3 note | `db119e3` |
+| ncu profile + real roofline fig (our megakernel; latency-bound, 6.95/32 lanes) | `results/campaign/ncu_summary.md`, `roofline.csv`, `figures/roofline.pdf` | `ee11ad4`,`7badf7f` |
+| Mitsuba JIT/startup (#96 measurement; ours 0.39 s vs prb 0.85/2.28 s) | `results/campaign/jit_overhead.md` | `3c2b4a9` |
+| Active-set cap sensitivity nil (64↔128); Ch 4 sentence added | `results/campaign/caps_ab.md` | `7933951` |
+| Split overflow counters + positive "Cap check" log | code | `480f812` |
+
+## Remaining — runnable NOW (no full-blast window)
+
+1. **Peakiness script** — small committed script computing max/mean + energy-top-0.1% for the three
+   envs (flat 1× / studio ~700× / meadow ~2×10⁵) so `fig:ris-ksweep`'s x-axis is reproducible. The
+   RGBE decoder to reuse is inline in this conversation's history and trivial to rewrite (~40 lines).
+2. **G8 icosphere A/B — accuracy + GAS-size axes** (perf axis needs the window). Needs the §0.5 code
+   port from `eb5372f` (`Icosphere<N>` in `include/thesis/host/geometry/mesh.h`, `TriangleGAS` in
+   `gas.h`). **Kacper greenlit the concept; confirm before sinking the day.**
+3. **Mitsuba-parity gates** for bunny/tornado/explosion (spec §3): converged-mean energy-ratio method
+   (§8.25 template); fix the asset-camera vertical flip vs Mitsuba; constant-env first. Gates all
+   cross-renderer numbers for the new assets.
+4. **Per-asset cap recompiles**: tornado **112/432**, explosion **32/176**, bunny **320/496** —
+   each + a furnace/1-seed re-gate (spec §0.3). The new "Cap check" log line certifies each.
+5. **Validation-ladder montages** (Ch 5 figs) — assemble from renders (ours + Mitsuba), clock-indep.
+6. **Implementation plan** for the window (runner scripts: seed sweeps, inter-seed-noise/k extraction,
+   CSV emitters per spec §6). Spec is approved; superpowers `writing-plans` is the next step.
+
+## Window-only (needs Prybicki to lift the 150 W cap + lock clocks)
+
+G1 headline (incl. the **flat-env rung** — the ~5.5× deficit number), G2 merge-ladder ablations +
+RR sweep {5..16}, G3 K-sweep ×3 envs, G4 bunny re-profile (after 320/496), G6 wavefront
+(within-`feature/wavefront-phase1` A/B) + adaptive (converged-ref RMSE), G8 perf axis.
+
+## Hard-won gotchas (do not relearn these)
+
+- **GPU state poisons timing:** prybicki's desktop session made a day ~3× slower per spp; a naive
+  before/after showed a phantom 2× regression. Interleave any A/B; never compare across sessions;
+  all reported timings from the locked-clock window. (`caps_ab.md` tells the story.)
+- **Asset scenes IGNORE `--width/--height`** (scene-native 900×600 for `cloud_asset_*`). Env/camera
+  via env vars: `SG_ENV=meadow`, `SG_CAM=0`, `SG_PLY=<path>` (asset_validation; default bunny).
+- **`test_runner` HAS `--ris`/`--ris-candidates`** (plan-review act-3 checked the standalone app, which
+  lacks them — only fix if that binary ships). Adaptive is still compile-time.
+- **Multi-build A/B technique:** `OPTIXIR_PATH` is baked absolute → swap `build/device_program.optixir`
+  + exe pairs in place (recipe in the spec appendix). Canonical repo state = 128/128.
+- **ncu:** SASS FLOP counters return 0 on OptiX kernels — use pipe counters (`sm__inst_executed_pipe_fma`)
+  × avg-active-lanes; ncu base-clocks itself (fine, ratios); profile recipe in `ncu_summary.md`.
+- **Mitsuba runs** via `tools/refs/with_jorge_mitsuba.sh`; cold-cache by `env HOME=<tmpdir>`;
+  `tools/refs/jit_overhead_timing.py` takes `INTEGRATOR=prb|tomography`.
+- **exr_diff:** `tools/refs/.venv/bin/python tools/refs/exr_diff.py a.exr b.exr` (means + signed-mean).
+- Commit per result, NO AI mentions; `git push`/branch deletion are Kacper's. `deprecated-*` branches
+  hold every old experiment's code (incl. the orphan-recovered ones — do not `git gc`-prune carelessly).
+
+## Open decisions for Kacper
+
+G8 port greenlight (timing) · explosion's no-emission look (confirm with Jorge) · R3 `stress_N` sweep
+and Mitsuba-side peak VRAM: add or rescope Ch 7 · the Ch 6 rework queue (above) still pending his pass.
