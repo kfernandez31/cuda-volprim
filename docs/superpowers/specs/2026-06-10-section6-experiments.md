@@ -17,17 +17,32 @@ implementation plan. **Read §0 first — the run is invalid without those preco
 These are renderer-code + setup changes, not runner-script work. The run cannot produce its claims
 until they are done, in this order:
 
-1. **CLI status (corrected — review act-3 was checking the wrong binary).** The campaign runs through
-   **`test_runner`, whose CLI already exposes `--ris` and `--ris-candidates K`** (verified via
-   `--help`), so **G3 is runnable as-is**. The gap is only in the standalone app
+**STATUS (2026-06-11): §0.1, §0.2, §0.3 DONE** (clock-independent, runnable without the window).
+Record: `results/campaign/caps_per_asset.md`. §0.4 (clock lock) is window-only; §0.5 (icosphere port)
+is the `feature/icosphere-gas` branch.
+
+1. ✅ **CLI status (corrected — review act-3 was checking the wrong binary).** The campaign runs through
+   **`test_runner`, whose CLI already exposes `--ris` and `--ris-candidates K`** (verified at
+   `test/test_runner.cpp:125-126`), so **G3 is runnable as-is**. The gap is only in the standalone app
    (`src/thesis/host/app/config.cpp` lacks `--ris`); fix that *only if* that binary is shipped/used.
-   Adaptive sampling, however, is genuinely `constexpr` (`constants.cuh:187`) with no `test_runner`
-   flag — G6-adaptive needs the runtime flag restored or a rebuild-toggle.
-2. **Per-asset cap recompiles** (estimator-sized, `caps_table.csv`): bunny **320/496**, tornado
-   **112/432**, explosion **32/176** (both new assets overflow the stock 128 hit buffer). Cloud stays
-   128/128.
-3. **Re-gate every binary built in step 0** (CLI restore, caps recompile): furnace flat-test + a 1-seed
-   cloud diff vs a dev render. Converts "same binary we validated" from assumption to evidence; cheap.
+   Adaptive sampling is a clean **compile-time rebuild-toggle** (`ENABLE_ADAPTIVE_SAMPLING`,
+   `constants.cuh:187`) — exactly what the spec permits for the one-shot G6-adaptive autopsy; no runtime
+   flag needed (a converged-reference RMSE measurement is a single rebuild, not an interactive sweep).
+2. ✅ **Per-asset cap recompiles VERIFIED** (estimator-sized, `caps_table.csv`): bunny **320/496**,
+   tornado **112/432**, explosion **32/176**. Cloud stays 128/128. Each predicted cap is now
+   *necessary* (stock 128/128 overflows under the scattering stress) and *sufficient* (`Cap check: 0
+   overflows` at the predicted caps — and 0 drops ⟺ image identical to unbounded caps). The new assets
+   are converted from Jorge's native npy via `tools/refs/npy_asset_to_ply.py`. **Finding:** the
+   estimator is a conservative *whole-bbox* bound; explosion is clean at stock under absorption from all
+   views but shows its predicted *marginal* overflow (4 drops) under scattering — so **scattering is the
+   binding stress**, and caps are sized to the estimator for camera/path-independent safety. Full record:
+   `results/campaign/caps_per_asset.md`.
+3. ✅ **Re-gated every per-asset binary**: furnace (single-Gaussian albedo-1, constant env) @ 1024 spp
+   PASS (bias + structure) on each recompile, confirming the buffer-size edit didn't break correctness
+   (cap-independent; complements the `caps_ab.md` numerical-equivalence result). The cloud-diff half of
+   the original gate is moot for the new assets (each binary renders a *different* asset, and the
+   explosion build's 32 active is below the cloud's 45) — the per-asset 0-overflow log + furnace is the
+   correct gate.
 4. **Clock lock + stability check.** `nvidia-smi -lgc/-lmc` to the sustained full clock; a short repeated
    render to confirm frame-time variance < a few %. (Note: `ncu` ignores this and locks to *base* clock
    via `--clock-control`; its metrics are ratios, so fine — but record it, don't claim "full-blast" for
