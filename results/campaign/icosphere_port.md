@@ -74,12 +74,41 @@ here; the real cost is traversal **perf** (the window axis). **This flips the na
 sharpens the comparison: the large memory win of analytic-over-tessellated only materialises if the
 reference tessellates *per-primitive* instead of instancing one icosphere (the open Mitsuba lookup).
 
-## Remaining for G8
+## Perf axis (measured 2026-06-11, 350 W + clock lock) — HYPOTHESIS REFUTED: the icosphere is FASTER
 
-- **Perf axis (window-only):** frame time + equal-quality `k` per N, analytic vs icosphere — the
-  `frame_ms`/`k` columns in `icosphere.csv` are blank pending the locked-clock window. Hypothesis:
-  built-in HW sphere intersector beats triangle-BVH traversal; low-N icospheres may be faster but
-  faceted.
+Cloud scattering (`cloud_asset_scattering`, meadow, `SG_CAM=0`, 128 spp, 900×600), both arms at the
+shared production caps 128/128 (0 overflows both — fair). Fully interleaved
+(analytic→N0→N1→N2→N3 per round, 5 rounds), prebuilt exe+optixir pairs swapped in place. Median of 5,
+within-arm spread ≤1.5 %:
+
+| arm | median frame time | ratio vs analytic |
+|---|---|---|
+| analytic (built-in sphere) | 15.52 s | 1.00× |
+| icosphere N=0 (20 tris) | 9.80 s | **0.63×** |
+| icosphere N=1 (80) | 11.22 s | **0.72×** |
+| icosphere N=2 (320) | 11.99 s | **0.77×** |
+| icosphere N=3 (1280) | 13.23 s | **0.85×** |
+
+The spec's hypothesis ("analytic dominates — exact *and* faster") is **refuted on the perf half**:
+the tessellated icosphere is faster at *every* N, and the analytic sphere pays **1.17–1.58×** for its
+exactness. Cost grows monotonically with N, as expected. Likely mechanism: on RTX hardware, triangle
+intersection runs on the dedicated RT-core hardware path, while the "built-in" sphere primitive
+executes as a software intersection module on the traversal path — so the reference's tessellated
+choice has a genuine performance rationale on this hardware class.
+
+**Net G8 story — a real accuracy↔perf frontier, not a dominance result:** analytic = exact, at
+1.17–1.58× frame time; tessellated = faster but biased, with the accuracy sweet spot at N≈1–2
+(RMSE ~1e-3–1e-2, before the N=3 sliver reversal) and the perf sweet spot at N=0. Our analytic choice
+is the *correctness*-optimal one, and its cost is now quantified.
+
+**Operating-point caveat:** measured at 350 W with `-lgc 1800,1800` + `-lmc 9751,9751`, but the SM
+clock thermally settled at **median 1605 MHz** (p5 1560, min 1365, max 1800 — the lock caps boost, it
+does not prevent thermal pull-down). Within-arm jitter ≤1.5 % and full interleaving make the *ratios*
+robust; absolute times are "at ~1.6 GHz". Equal-quality `k` is deliberately not used between arms —
+the two converge to *different* images (faceting), so fixed-spp frame time is the clean
+geometry-cost metric (`k` columns stay blank).
+
+## Remaining for G8
 - **Mitsuba lookup:** icosphere degree + instanced-vs-per-primitive tessellation in
   `~/jorge/mitsuba3` ellipsoids plugin (determines the memory-comparison framing).
 - **Figure + Ch 6 reclassification:** moves the analytic-vs-tessellated row out of `tab:four-modes`'s
