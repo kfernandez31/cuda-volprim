@@ -46,6 +46,9 @@ add_custom_command(
         -DTHESIS_ENABLE_FAST_MATH
         # Opt-in approximate erf (empty unless -DTHESIS_ENABLE_FAST_ERF=ON at configure).
         ${THESIS_FAST_ERF_DEF}
+        # Tessellated-icosphere GAS A/B (empty unless -DTHESIS_ICOSPHERE=ON). Threads the
+        # toggle into the any-hit front-face filter; defined in cmake/Device.cmake.
+        ${THESIS_ICOSPHERE_DEF}
         -O3
         -arch=sm_${CUDA_ARCH}
         # Fast math flags for FMA and aggressive FP optimizations

@@ -27,6 +27,20 @@ extern "C" __global__ void __anyhit__ah() {
     using namespace thesis::device;
     namespace math = ::thesis::common::math;
 
+#ifdef THESIS_ICOSPHERE
+    // Tessellated-icosphere GAS (Ch 6 G8 A/B): the icosphere is convex, so a ray crosses
+    // each primitive through a front (entry) face and a back (exit) face. The built-in
+    // sphere reports a single entry hit; to match it we keep ONLY the entry (front) face
+    // and let the exit be derived analytically downstream as usual. Without this, COLLECT
+    // mode would enqueue every primitive twice (double-counting it in the argmin scatter
+    // sampler) — the entry/exit are identical Gaussians, so this is purely about hit
+    // multiplicity, not geometry. Winding is outward-CCW (see host/geometry/mesh.h).
+    if (optixIsTriangleBackFaceHit()) {
+        optixIgnoreIntersection();
+        return;
+    }
+#endif
+
     // Unpack AnyHit payload
     auto payload = payloads::AnyHit::unpackFromOptix();
 

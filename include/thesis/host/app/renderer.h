@@ -39,7 +39,11 @@ class Renderer {
     optix::Context optix_ctx_;
     cuda::StreamDAG streams_;
 
-    optix::SphereGAS gas_;
+#ifdef THESIS_ICOSPHERE
+    optix::IcosphereGAS gas_;  // tessellated icosphere (Ch 6 G8 A/B) — same interface as SphereGAS
+#else
+    optix::SphereGAS gas_;     // analytic built-in sphere (production default)
+#endif
     optix::IAS ias_;
     host::params::EnvironmentMap env_map_;
     host::params::Image image_;

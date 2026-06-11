@@ -8,6 +8,15 @@
 
 #include <span>
 
+#ifdef THESIS_ICOSPHERE
+#include "thesis/host/geometry/mesh.h"
+
+#include <cstring>
+#ifndef THESIS_ICOSPHERE_N
+#define THESIS_ICOSPHERE_N 3
+#endif
+#endif
+
 namespace thesis::host::optix {
 
 inline constexpr uint GAS_BUILD_FLAGS =
@@ -71,5 +80,71 @@ class SphereGAS {
 
     [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }
 };
+
+#ifdef THESIS_ICOSPHERE
+// Tessellated-icosphere GAS — the drop-in alternative to SphereGAS for the Chapter 6
+// analytic-vs-tessellated A/B (G8). Exposes the SAME (ctx, stream) construction and
+// build()/get() interface as SphereGAS, so renderer.cpp swaps the two via a single
+// typedef under the THESIS_ICOSPHERE guard; the IAS instancing, any-hit entry
+// collection and analytic optical-depth integration are all unchanged. The unit
+// icosphere is mapped to each Gaussian's 3σ ellipsoid by the same per-instance
+// localToWorld transform the analytic unit sphere uses. Subdivision level N is fixed at
+// compile time (THESIS_ICOSPHERE_N): N=0 → 20 tris / 12 verts … N=3 → 1280 tris / 642
+// verts. The built-in triangle intersector is used (no custom IS program); a ray crosses
+// each convex icosphere through a front (entry) and a back (exit) face, and the any-hit
+// keeps only the entry face (see device/entry/anyhit.cuh) so each primitive is collected
+// once, exactly as the single-hit built-in sphere is.
+class IcosphereGAS {
+    using Shape = geometry::Icosphere<THESIS_ICOSPHERE_N>;
+
+    cuda::AsyncBuffer<float3> vertices_;
+    cuda::AsyncBuffer<uint3> indices_;
+    GAS gas_;
+
+   public:
+    IcosphereGAS(CUcontext ctx, std::shared_ptr<cuda::Stream> stream)
+        : vertices_(Shape::NumVertices, ctx, stream, cuda::AllocType::OnBoth),
+          indices_(Shape::NumIndices, ctx, stream, cuda::AllocType::OnBoth),
+          gas_(ctx, std::move(stream)) {}
+
+    IcosphereGAS(IcosphereGAS&&) noexcept = default;
+    IcosphereGAS& operator=(IcosphereGAS&&) noexcept = default;
+
+    void build(CUcontext cuda_ctx, OptixDeviceContext optix_ctx) {
+        const Shape shape;  // host-built unit icosphere (vertices on the unit sphere)
+        const auto verts = shape.getVertices();
+        const auto inds = shape.getIndices();
+        std::memcpy(vertices_.host(), verts.data(), verts.size_bytes());
+        vertices_.upload();
+        std::memcpy(indices_.host(), inds.data(), inds.size_bytes());
+        indices_.upload();
+
+        static constexpr uint geomFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+
+        OptixBuildInput in{};
+        in.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+
+        CUdeviceptr vbuf = vertices_.cu_device_ptr();
+        in.triangleArray.vertexBuffers = &vbuf;
+        in.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+        in.triangleArray.vertexStrideInBytes = sizeof(float3);
+        in.triangleArray.numVertices = static_cast<uint>(vertices_.size());
+
+        in.triangleArray.indexBuffer = indices_.cu_device_ptr();
+        in.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+        in.triangleArray.indexStrideInBytes = sizeof(uint3);
+        in.triangleArray.numIndexTriplets = static_cast<uint>(indices_.size());
+
+        in.triangleArray.flags = geomFlags;
+        in.triangleArray.numSbtRecords = 1;
+
+        gas_.build(in, cuda_ctx, optix_ctx);
+        spdlog::info("Icosphere GAS built (N={}, {} verts, {} tris)", THESIS_ICOSPHERE_N,
+                     vertices_.size(), indices_.size());
+    }
+
+    [[nodiscard]] OptixTraversableHandle get() const noexcept { return gas_.get(); }
+};
+#endif  // THESIS_ICOSPHERE
 
 }  // namespace thesis::host::optix

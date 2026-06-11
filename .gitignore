@@ -39,3 +39,6 @@ test_results/
 *.ilg
 thesis/latex/thesis.pdf
 thesis/latex/thesis.ps
+
+# Icosphere A/B build dir (feature/icosphere-gas)
+build-ico/

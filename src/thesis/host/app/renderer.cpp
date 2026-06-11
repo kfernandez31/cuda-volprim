@@ -257,15 +257,22 @@ void Renderer::createPipeline(
     pco.numPayloadValues = device::payloads::MAX_PAYLOADS_IN_USE;
     pco.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING |
                                 OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+#ifdef THESIS_ICOSPHERE
+    pco.usesPrimitiveTypeFlags =
+        static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);  // tessellated icosphere (G8 A/B)
+#else
     pco.usesPrimitiveTypeFlags =
         static_cast<uint>(OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE);  // Using built-in spheres
+#endif
     pco.numAttributeValues = 0;
 
     // Complete async module load
     module_ = utils::try_unwrap_or_exit<optix::Module>(
         optix::Module::loadAsync(optix_ctx_.get(), std::move(module_file_future), pco));
 
-    // Get built-in sphere intersection module
+    // Get built-in sphere intersection module. Triangles (THESIS_ICOSPHERE) use the
+    // hardware built-in triangle intersector, which needs no IS module at all.
+#ifndef THESIS_ICOSPHERE
     OptixBuiltinISOptions builtin_is_options{};
     builtin_is_options.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
     builtin_is_options.usesMotionBlur = false;
@@ -285,6 +292,7 @@ void Renderer::createPipeline(
     builtin_is_module_ =
         optix::Module::createBuiltinIS(optix_ctx_.get(), builtin_mco, pco, builtin_is_options)
             .value();
+#endif  // !THESIS_ICOSPHERE
 
     // raygen
     raygen_pg_ = optix::ProgramGroup::createRaygen(optix_ctx_.get(), module_.get(),
@@ -294,11 +302,16 @@ void Renderer::createPipeline(
     miss_pg_ = optix::ProgramGroup::createMiss(optix_ctx_.get(), module_.get(),
                                                config_.miss_function_name_.c_str());
 
-    // Create hitgroup with anyhit + built-in sphere intersection
+    // Create hitgroup with anyhit + intersection. Sphere: built-in sphere IS module.
+    // Icosphere: nullptr IS → built-in hardware triangle intersection.
     // Closesthit disabled via OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT in trace.cuh
     hitgroup_pg_ = optix::ProgramGroup::createHitgroup(
         optix_ctx_.get(), module_.get(), config_.anyhit_function_name_.c_str(),
+#ifdef THESIS_ICOSPHERE
+        nullptr  // built-in triangle intersection (no IS module)
+#else
         builtin_is_module_.get()  // Built-in sphere intersection module
+#endif
     );
 
     // sbt
