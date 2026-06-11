@@ -47,9 +47,13 @@ else
      --out "$FIG/gas_memory.pdf"
 fi
 
-# --- 4. Roofline (Ch 6): arithmetic intensity vs achieved performance, showing latency/memory bound ---
-ph --title "Roofline" --note "arithmetic intensity vs achieved GFLOP/s (latency/memory bound)" \
-   --out "$FIG/roofline.pdf"
+# --- 4. Roofline (Ch 6): non-saturation argument (point far under both roofs -> latency-bound) ---
+if has_data "$RES/roofline.csv"; then
+  "$PY" "$ROOT/scripts/plots/roofline.py" --csv "$RES/roofline.csv" --out "$FIG/roofline.pdf"
+else
+  ph --title "Roofline" --note "arithmetic intensity vs achieved GFLOP/s (non-saturation -> latency-bound)" \
+     --out "$FIG/roofline.pdf"
+fi
 
 # --- 5-7. Validation montages (Ch 5): assembled from renders, placeholder until then ---
 ph --title "Absorption validation ladder" \
