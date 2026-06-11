@@ -67,11 +67,12 @@ struct THESIS_ALIGNMENT LaunchParams {
     // Runtime render knobs (depth, RR, firefly clamp, pixel filter, HG anisotropy).
     RenderParams render_;
 
-    // Device-side atomic counter for cap-overflow events (CompactSet active-prims or
-    // the primary-ray HitBuffer dropping an entry). Bumped from device code, read back
-    // by the host after the render to WARN that dense-overlap regions may be biased
-    // (under-absorption) — turning the previously SILENT overflow into a visible signal.
-    // Single element; null-guarded on device.
+    // Device-side atomic counters for cap-overflow events, split per cap so the host
+    // warning names the constant that was exceeded: [0] = HitBuffer drop (raise
+    // HIT_BUFFER_CAPACITY), [1] = active-set insert refused (raise MAX_ACTIVE_PRIMS).
+    // Indices match device::OVERFLOW_* in device/core/launch_params.cuh. Bumped on the
+    // overflow branch only; read back by the host after the render. Two elements;
+    // null-guarded on device.
     unsigned long long* overflow_counter_ = nullptr;
 };
 

@@ -188,10 +188,11 @@ void Renderer::initStaticParams() {
     // Image will be set by updateDynamicParams() before each batch
     par.image_ = image_.device_image();
 
-    // Single-element device counter for cap-overflow events (active-prims / hit-buffer
-    // drops). Zeroed here, read back after the render to warn about biased dense regions.
+    // Two-element device counter for cap-overflow events ([0] = hit-buffer drops,
+    // [1] = active-set drops; indices match device::OVERFLOW_*). Zeroed here, read back
+    // after the render so the warning can name the constant that was exceeded.
     overflow_counter_ = cuda::AsyncBuffer<unsigned long long>(
-        1, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
+        2, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
     overflow_counter_.memset_device(0);
     par.overflow_counter_ = overflow_counter_.device();
 
@@ -357,12 +358,25 @@ void Renderer::render() {
     streams_[cuda::StreamKind::Main]->synchronize();
     overflow_counter_.download();                      // async copy on the Main stream …
     streams_[cuda::StreamKind::Main]->synchronize();   // … so sync again before reading host
-    if (const auto overflows = overflow_counter_.host()[0]; overflows > 0) {
+    const auto hit_drops = overflow_counter_.host()[0];
+    const auto active_drops = overflow_counter_.host()[1];
+    if (hit_drops > 0) {
         spdlog::warn(
-            "Cap overflow: {} dropped active-prim/hit-buffer entries — dense-overlap "
-            "regions may be under-absorbed (too bright). Raise MAX_ACTIVE_PRIMS / "
-            "HIT_BUFFER_CAPACITY in device/core/constants.cuh for this scene.",
-            overflows);
+            "Cap overflow: {} hit-buffer entries dropped — raise HIT_BUFFER_CAPACITY in "
+            "device/core/constants.cuh for this scene (dense regions render under-absorbed, "
+            "too bright).",
+            hit_drops);
+    }
+    if (active_drops > 0) {
+        spdlog::warn(
+            "Cap overflow: {} active-set inserts dropped — raise MAX_ACTIVE_PRIMS in "
+            "device/core/constants.cuh for this scene (dense regions render under-absorbed, "
+            "too bright).",
+            active_drops);
+    }
+    if (hit_drops == 0 && active_drops == 0) {
+        spdlog::info("Cap check: 0 overflows (HIT_BUFFER_CAPACITY and MAX_ACTIVE_PRIMS "
+                     "sufficient for this run).");
     }
 
     spdlog::info("All batches complete, saving image...");

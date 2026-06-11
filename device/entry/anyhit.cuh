@@ -65,7 +65,7 @@ extern "C" __global__ void __anyhit__ah() {
     } else {
         // Buffer full: this entry is dropped → primary ray under-samples this dense
         // region. Record the overflow so the host can warn (was previously silent).
-        report_overflow();
+        report_overflow(OVERFLOW_HIT_BUFFER);
     }
     optixIgnoreIntersection();
 }
