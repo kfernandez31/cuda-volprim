@@ -54,3 +54,18 @@ sits far below both roofs), per the plan-review framing.
 is the cloud + meadow + MIS scattering showcase at 900×600 on the post-RIS binary: occupancy 31.2 %,
 SM 45.9 %, DRAM 16.5 % (env-map fetches + larger grid). Same qualitative verdict in both: pure
 latency-bound, scheduler-starved, divergence-dominated.
+
+## Full setup pin (run log)
+
+- **Binary:** `build/bin/Release/test_runner` built 2026-06-08 from `d44ad95` (post-RIS-merge); no
+  device/host source changes since (working tree clean for device/include/src). Release: `-O3`,
+  `--use_fast_math` (+`THESIS_ENABLE_FAST_MATH`), **exact erf** (`THESIS_ENABLE_FAST_ERF=OFF`),
+  precompiled OptiX-IR.
+- **Compile-time buffer constants (stock, cloud-tuned):** `MAX_PRIMITIVES=1024` (→ CompactSet active
+  set), `MAX_ACTIVE_PRIMS=128`, `HIT_BUFFER_CAPACITY=128`. Cloud worst case is 45/96 (estimator), so
+  no overflow; no overflow-counter warning fired in any profiled run.
+- **Render config:** σ-multiplier 7.5, PLY albedos, HG g=0.85, MIS (RIS off), max-depth 128, RR from
+  12 (max survival 0.99), no firefly clamp, box filter, no denoiser, seed 42, 16 spp (single launch),
+  camera cam_0000, scene-native 900×600 → grid (240,19,1)×(128,1,1) = 583,680 threads.
+- **Stack:** driver 580.95.05, CUDA 12.6 (V12.6.20), ncu 2024.3.0; ncu base-clocked
+  (`--clock-control` default), GPU otherwise idle.
