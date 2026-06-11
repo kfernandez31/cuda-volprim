@@ -255,10 +255,13 @@ structure whose representation is chosen at compile time by scene size: for up t
 \emph{bit vector} gives $O(1)$ insert, erase, and test in $N/8$ bytes; beyond that a compact unsorted
 array gives $O(k)$ operations in space proportional to the maximum overlap rather
 than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
-compile-time constants, and want to be as small as is safe: the hit buffer is the kernel's most
-expensive per-ray state, so an over-sized cap wastes local memory and depresses occupancy (on the
-sparse cloud, raising it well beyond need slowed rendering several-fold; on denser assets the effect is
-smaller). They are therefore sized to the worst-case $3\sigma$
+compile-time constants, and want to be as small as is safe---though the two differ sharply in how much
+tightness matters. The hit buffer (\SI{6}{\byte} per entry) is the binding one: oversizing it well
+beyond need slowed rendering on the sparse cloud severalfold. The active set (\SI{2}{\byte} per entry)
+tolerates headroom: doubling its capacity beyond the cloud's worst case measured as timing-neutral in
+an interleaved A/B (differences under the run-to-run jitter), with renders numerically equivalent. The
+estimator's tightness therefore matters mainly for the hit-buffer capacity; the active-set capacity
+needs only adequacy. They are therefore sized to the worst-case $3\sigma$
 overlap of the target asset---the same geometric bound the acceleration structure wraps---tight but
 sufficient. That overlap is predicted offline, before any build, by a standalone estimator: it
 Monte~Carlo-samples points and lines through the scene's bounding box, tests each against every

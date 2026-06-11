@@ -23,9 +23,9 @@ until they are done, in this order:
    (`src/thesis/host/app/config.cpp` lacks `--ris`); fix that *only if* that binary is shipped/used.
    Adaptive sampling, however, is genuinely `constexpr` (`constants.cuh:187`) with no `test_runner`
    flag — G6-adaptive needs the runtime flag restored or a rebuild-toggle.
-2. **Bunny cap recompile.** Estimator (`caps_table.csv`) says bunny needs
-   **`MAX_ACTIVE_PRIMS=320`, `HIT_BUFFER_CAPACITY=496`** (point overlap 245→320, ray entries 387→496 at
-   margin 1.25). *Not* 320/560 — 560 was the 24 576-prim WDAS row.
+2. **Per-asset cap recompiles** (estimator-sized, `caps_table.csv`): bunny **320/496**, tornado
+   **112/432**, explosion **32/176** (both new assets overflow the stock 128 hit buffer). Cloud stays
+   128/128.
 3. **Re-gate every binary built in step 0** (CLI restore, caps recompile): furnace flat-test + a 1-seed
    cloud diff vs a dev render. Converts "same binary we validated" from assumption to evidence; cheap.
 4. **Clock lock + stability check.** `nvidia-smi -lgc/-lmc` to the sustained full clock; a short repeated
@@ -67,10 +67,21 @@ reusing dev renders is legitimate, but say so (and either schedule the brute-for
 
 ## 3. Assets & scenes
 
-| Asset | Prims | Role | Caps |
+**Final lineup per Jorge (mail, 2026-06-11): "Disney Cloud, Bunny, Tornado, Explosion are a good mix
+with different levels of difficulty."** Caps per asset from `estimate_caps.py` (margin 1.25, ×16):
+
+| Asset | Prims | Role | Caps (active/hit) |
 |---|---|---|---|
-| Disney cloud | 652 | primary; scene-dependent experiments + flat-env headline | 128/128 (fits) |
-| Stanford bunny | 25 600 | scaling/stress; do the wins generalise | recompile to **320/496** (§0.2) |
+| Disney cloud | 652 | primary; scene-dependent experiments + flat-env headline | 128/128 (fits; active-set A/B 64↔128 measured timing-neutral, `caps_ab.md`) |
+| Stanford bunny | 25 600 | scaling/stress; do the wins generalise | recompile **320/496** |
+| Tornado | 768 | mid-difficulty; elongated funnel — worst ray-entry geometry (340 entries!) | recompile **112/432** |
+| Explosion | 1024 | mid-difficulty | recompile **32/176** (marginal hit-buffer overflow at 128) |
+
+**Both new assets overflow the stock 128 hit buffer** — per-asset recompiles are mandatory (§0.2), and
+the lineup gives the cap-estimator workflow four real datapoints. **Caveat (confirm with Jorge):** the
+explosion is a combustion asset; this renderer has no emission, so it renders as a scattering-only
+plume under env lighting — presumably intended (he knows the scope), but confirm the expected look.
+The Mitsuba-parity gate (below) applies to tornado/explosion as it does to the bunny.
 
 **Bunny gate (act-7):** before any cross-renderer bunny number, establish converged-mean agreement
 with Mitsuba (the §8.25 energy-ratio method, 0.9999 on wdas8, is the template). The asset-side Mitsuba
@@ -261,11 +272,11 @@ Plan an overnight (~8–12 h) window.
 
 ## 8. Open decision & out of scope
 
-- **[DECIDE] Ch 7 R-set reconciliation (act-9).** Ch 7's scaffold promises R2 (4-asset generalisation
-  incl. smoke/embergen), R3 (time/memory vs N scaling, `stress_N`), and R7's Mitsuba-side peak VRAM —
-  **none has an experiment here.** Either **rescope Ch 7** to the cloud+bunny+ladder this plan covers, or
-  **add the cells** (4-asset = more recompiles + Mitsuba parity work; N-scaling = a `stress_N` sweep).
-  Decide before the window; silent under-delivery resurfaces at writing time.
+- **Ch 7 R-set reconciliation (act-9) — PARTIALLY RESOLVED by Jorge's lineup (2026-06-11).** The asset
+  set is now fixed: **cloud, bunny, tornado, explosion** (replaces R2's smoke/embergen idea). G1/G5
+  extend to the two new assets after their cap recompiles + Mitsuba-parity gates. Still open: R3
+  (time/memory vs N `stress_N` sweep) and R7's Mitsuba-side peak VRAM — add or rescope before the
+  window.
 - **[DECIDE] G8 icosphere A/B (effort-gated).** High value — it turns the analytic-vs-tessellated choice
   from an *argued* (I)-mode item into a *measured* (M)-mode result that directly benchmarks the
   reference's tessellated approach. But it needs the §0.5 code port. Greenlight the port, or keep the
