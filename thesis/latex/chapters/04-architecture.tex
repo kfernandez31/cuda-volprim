@@ -257,24 +257,30 @@ structure whose representation is chosen at compile time by scene size: for up t
 \emph{bit vector} gives $O(1)$ insert, erase, and test in $N/8$ bytes; beyond that a compact unsorted
 array gives $O(k)$ operations in space proportional to the maximum overlap rather
 than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
-compile-time constants, and want to be as small as is safe---though the two differ sharply in how much
-tightness matters. The hit buffer (\SI{6}{\byte} per entry) is the binding one: oversizing it well
-beyond need slowed rendering on the sparse cloud severalfold. The active set (\SI{2}{\byte} per entry)
-tolerates headroom: doubling its capacity beyond the cloud's worst case measured as timing-neutral in
-an interleaved A/B (differences under the run-to-run jitter), with renders numerically equivalent. The
-estimator's tightness therefore matters mainly for the hit-buffer capacity; the active-set capacity
-needs only adequacy. They are therefore sized to the worst-case $3\sigma$
-overlap of the target asset---the same geometric bound the acceleration structure wraps---tight but
-sufficient. That overlap is predicted offline, before any build, by a standalone estimator: it
-Monte~Carlo-samples points and lines through the scene's bounding box, tests each against every
-primitive's exact $3\sigma$ ellipsoid (the renderer's own containment criterion), and reports the
-maximum number that simultaneously contain a point (the active-set bound) or that one ray crosses (the
-hit-buffer length). For the primary cloud scene the estimate---around \num{45}
-simultaneously overlapping primitives---sits well within the chosen capacity, and the runtime counter
-below records zero overflows. A substantially denser asset shows why estimating offline beats guessing:
-the \num{25600}-Gaussian bunny, an order of magnitude larger than the cloud's \num{652}, exceeds the
-cloud-tuned caps, and the estimator quantifies the larger capacities it needs so the build can be sized
-correctly without trial-and-error recompiles (\Cref{tab:overlap}). A deliberately degenerate collinear stress test
+compile-time constants, and want to be as small as is safe---though the two differ in how much
+tightness matters. The hit buffer (\SI{6}{\byte} per entry) is the binding one: a universal
+``safe'' build ($512/512$, the cap a user without tooling would pick) measured $+13\,\%$ frame time
+on the cloud, $+7\,\%$ on the explosion, and ${\sim}+3\,\%$ on the tornado and bunny against the
+per-asset-tuned builds. The active set (\SI{2}{\byte} per entry) tolerates headroom: doubling its
+capacity beyond the cloud's worst case measured as timing-neutral in an interleaved A/B (differences
+under the run-to-run jitter), with renders numerically equivalent. Tightness therefore matters mainly
+for the hit-buffer capacity; the active-set capacity needs only adequacy.
+
+Sizing is by \emph{measurement}, not guesswork: a \texttt{--measure-caps} render mode counts, with
+cap-independent counters (the collection shader counts \emph{dropped} hits too, and point-overlap is
+an exhaustive containment scan rather than the clipped active set), the true per-ray hit demand and
+per-vertex overlap of the actual workload; a one-command calibration wrapper measures the asset's
+binding stress on two seeds, writes the margined constants, rebuilds, and verifies zero overflow on a
+deliberately \emph{unmeasured} seed. For the primary cloud scene the measured worst case---\num{45}
+simultaneously overlapping primitives, \num{85} entries on the worst ray---sits comfortably inside
+the calibrated capacities, and the runtime counter below records zero overflows. A complementary
+offline estimator Monte~Carlo-samples points and lines through the scene's bounding box against each
+primitive's exact $3\sigma$ ellipsoid, giving a camera-independent \emph{ceiling} before any build
+(\Cref{tab:overlap}); measurement on the \num{25600}-Gaussian bunny shows why the in-render counters,
+not the estimator, are the sizing authority---the whole-bbox bound over-sized the bunny's active set
+four-fold (\num{320} suggested vs.\ \num{71} measured), while its sampled lines \emph{under}-shot the
+worst observed ray by ${\sim}20\,\%$ (\num{387} vs.\ \num{464}), surviving only on its safety margin.
+A deliberately degenerate collinear stress test
 exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed sufficient
 on every scene, a device-side overflow counter flags at runtime any ray that exceeds a capacity, so
 excess overlap is \emph{detected} rather than silently corrupting the image.

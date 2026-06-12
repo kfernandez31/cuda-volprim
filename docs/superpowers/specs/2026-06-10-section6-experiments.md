@@ -83,14 +83,23 @@ reusing dev renders is legitimate, but say so (and either schedule the brute-for
 ## 3. Assets & scenes
 
 **Final lineup per Jorge (mail, 2026-06-11): "Disney Cloud, Bunny, Tornado, Explosion are a good mix
-with different levels of difficulty."** Caps per asset from `estimate_caps.py` (margin 1.25, ×16):
+with different levels of difficulty."** Caps per asset — **CALIBRATED by measurement (2026-06-12),
+superseding the earlier `estimate_caps.py` values:**
 
 | Asset | Prims | Role | Caps (active/hit) |
 |---|---|---|---|
-| Disney cloud | 652 | primary; scene-dependent experiments + flat-env headline | 128/128 (fits; active-set A/B 64↔128 measured timing-neutral, `caps_ab.md`) |
-| Stanford bunny | 25 600 | scaling/stress; do the wins generalise | recompile **320/496** |
-| Tornado | 768 | mid-difficulty; elongated funnel — worst ray-entry geometry (340 entries!) | recompile **112/432** |
-| Explosion | 1024 | mid-difficulty | recompile **32/176** (marginal hit-buffer overflow at 128) |
+| Disney cloud | 652 | primary; scene-dependent experiments + flat-env headline | **64/96** calibrated (stock 128/128 also fits) |
+| Stanford bunny | 25 600 | scaling/stress; do the wins generalise | **80/528** calibrated |
+| Tornado | 768 | mid-difficulty; elongated funnel — worst ray-entry geometry (329 entries measured!) | **112/384** calibrated |
+| Explosion | 1024 | mid-difficulty | **32/160** calibrated (marginal hit-buffer overflow at 128) |
+
+Sizing authority is now `scripts/tools/calibrate_caps.sh` (`--measure-caps` in-render cap-independent
+counters on the binding scattering stress, 1.125 margin, verified zero-overflow on an *unmeasured*
+seed — `results/campaign/cap_calibration.md`, merged to `main`). The estimator survives only as a
+camera-independent ceiling (measured caveat: bunny active 4× over-bound, worst chord ~20 %
+under-sampled, margin-saved). **Window runs use the calibrated caps as the TUNED baseline**; the
+universal-safe alternative (512/512) costs +13 % cloud / +7 % explosion / ~+3 % tornado+bunny
+(`capfree_b_perf.md`, `feature/cap-free-streaming`).
 
 **Both new assets overflow the stock 128 hit buffer** — per-asset recompiles are mandatory (§0.2), and
 the lineup gives the cap-estimator workflow four real datapoints. **Caveat (confirm with Jorge):** the

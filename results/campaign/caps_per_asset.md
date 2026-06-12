@@ -90,3 +90,16 @@ git checkout device/core/constants.cuh   # restore canonical 128/128
 
 Canonical repo state stays **128/128/1024** (cloud). Per-asset builds are transient; the recipe above
 reproduces each for the window. The estimator predictions are now **verified**, not assumed.
+
+---
+
+## SUPERSEDED for sizing (2026-06-12) — measurement replaced estimation
+
+The cap-domain session on `main` added `--measure-caps` (in-render, cap-independent counters) +
+`scripts/tools/calibrate_caps.sh` (measure → write constants → rebuild → verify on an unmeasured
+seed). **That workflow supersedes `estimate_caps.py` as the sizing authority**; the calibrated caps
+are cloud **64/96**, tornado **112/384**, explosion **32/160**, bunny **80/528**
+(`results/campaign/cap_calibration.md`). This record's verification logic stands (necessity at stock,
+sufficiency via 0 overflows, scattering as the binding stress — calibration adopted that stress), but
+its estimator-based cap VALUES are obsolete; the estimator survives as a camera-independent ceiling
+with a measured caveat (bunny: active bound 4× over, worst chord ~20 % under — margin-saved).

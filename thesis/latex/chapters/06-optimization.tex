@@ -255,6 +255,24 @@ renderer does \emph{not} go.
   \item \textbf{Megakernel footprint reduction (§8.29).} SoA layouts, field reordering, and
   \texttt{\_\_ldg} hints were null: the data is already cache-resident, so the cost is load
   \emph{latency}, not footprint.
+  \item \textbf{Cap-free streaming scatter sampling --- the most rigorously killed.} The hit buffer
+  exists only to be \emph{re-read} after the argmin; a minimum is an order-independent reduction, so
+  in principle the buffer can be deleted: stream the argmin inside the any-hit shader, with the
+  free-flight draws made traversal-order-invariant by a stateless counter-based hash of (path, bounce,
+  primitive), leaving $O(1)$ per-ray sampling state and no hit-buffer capacity to tune. The
+  reformulation was validated to \emph{bit-exactness} against the buffered sampler (furnace plus all
+  four assets), rendered the entire lineup with one stock binary and zero overflows---and still lost
+  the interleaved A/B against the per-asset-tuned baseline: $+22\,\%$ frame time on the tornado,
+  $+16\,\%$ explosion, $+12\,\%$ cloud, $-2\,\%$ bunny. The profile explains why: local-memory
+  traffic fell ($-8\,\%$ L2 bytes) but instructions rose ($+6\,\%$) at \emph{unchanged} occupancy
+  ---the kernel is register-limited, so local-memory savings cannot buy parallelism, and the extra
+  bounded re-traversal plus per-hit any-hit transitions are pure added work on small assets.
+  \emph{Lesson:} a cleaner memory shape buys nothing when registers, not local memory, bound
+  occupancy. The gated rung ladder that killed it also paid for itself: its bit-exact gate
+  root-caused a genuine silent-bias bug in the \emph{buffered} path (a $\chi\!\approx\!0$
+  inverse-CDF undershoot that let the winning primitive be excluded from its own active set ---
+  since fixed) and established empirically that OptiX does not report hits at exactly
+  $t = t_{\max}$; both findings outlived the experiment.
   \item \textbf{Adaptive sampling (§8.30).} Per-pixel convergence stopping was a net loss
   ($\sim\!2\times$ slower at equal quality, plus firefly bias) on the high-variance cloud; kept,
   default-off.
