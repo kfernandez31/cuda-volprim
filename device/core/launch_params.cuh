@@ -12,6 +12,10 @@ namespace device {
 inline constexpr int OVERFLOW_HIT_BUFFER = 0;  // HIT_BUFFER_CAPACITY exceeded (anyhit drop)
 inline constexpr int OVERFLOW_ACTIVE_SET = 1;  // MAX_ACTIVE_PRIMS exceeded (insert refused)
 
+// Slot indices in LaunchParams::measure_buf_ (--measure-caps maxima).
+inline constexpr int MEASURE_HIT_MAX = 0;     // max COLLECT-anyhit invocations per ray
+inline constexpr int MEASURE_ACTIVE_MAX = 1;  // max point-overlap at a path vertex
+
 // Record one cap-overflow event for the given cap. Atomically bumps the host-visible
 // counter so a silently-biased dense-overlap render is surfaced as a warning. The atomic
 // sits on the overflow branch only, so a correctly-sized run pays nothing. Null-guarded

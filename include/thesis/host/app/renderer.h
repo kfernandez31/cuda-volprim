@@ -60,6 +60,10 @@ class Renderer {
     // drops). Read back after the render to warn about silently-biased dense regions.
     cuda::AsyncBuffer<unsigned long long> overflow_counter_;
 
+    // Two-slot maxima buffer for --measure-caps: [0]=max hits/ray, [1]=max point-overlap.
+    // Allocated only when config_.measure_caps_ is true; device side gated on render_.measure_caps_.
+    cuda::AsyncBuffer<uint32_t> measure_buf_;
+
     optix::Module module_;
     optix::Module builtin_is_module_;
     optix::ProgramGroup raygen_pg_;

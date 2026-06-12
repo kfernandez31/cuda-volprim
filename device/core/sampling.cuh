@@ -338,12 +338,17 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     if (first_bounce) {
         // Camera ray: no prior active set to inherit — scan all primitives.
         active_prims.clear();
+        uint32_t origin_overlap = 0;
         for (size_t i = 0; i < num_primitives; ++i) {
             const auto& prim = launch_params.primitives_[i];
             if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
+                ++origin_overlap;
                 if (!active_prims.insert(static_cast<prim_idx_t>(i)))
                     report_overflow(OVERFLOW_ACTIVE_SET);
             }
+        }
+        if (launch_params.render_.measure_caps_) {
+            atomicMax(&launch_params.measure_buf_[MEASURE_ACTIVE_MAX], origin_overlap);
         }
     }
     // else: active_prims already == origin-inside set (inherited from the previous bounce's
@@ -357,6 +362,9 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     }
 
     collect_hits(ray, hit_buffer, &miss);
+    if (launch_params.render_.measure_caps_) {
+        atomicMax(&launch_params.measure_buf_[MEASURE_HIT_MAX], hit_buffer.total_seen_);
+    }
 
     if (hit_buffer.empty() && active_prims.empty()) {
         // No primitives along the ray — escape with unit transmittance. Analog
@@ -392,7 +400,19 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         // Segment-restricted CDF: solves optical_depth(ray, hit_t, t_scatter) = tau_j.
         // Replaces the prior full-Gaussian inv_cdf + reject (t_scatter >= hit.t_hit),
         // which was biased — rejected samples were dropped rather than re-rolled.
-        const float t_scatter = prim.inv_cdf_segment(ray, hit_t, tau_j);
+        float t_scatter = prim.inv_cdf_segment(ray, hit_t, tau_j);
+
+        // Clamp FP undershoot: the true segment-CDF inverse is >= hit_t by construction
+        // (optical depth from hit_t to hit_t is 0), but the erf/erfinv round-trip can
+        // land a few ULPs below it (χ≈0 → τ≈0 → true solution == hit_t exactly). A
+        // sub-entry winner is then EXCLUDED from its own scatter's active set by the
+        // rebuild filter below (`hit_t > t_scatter_min → skip`), zeroing the albedo and
+        // silently killing the path. Mechanism proven at bit level during the cap-free
+        // streaming campaign (capfree_b_gate.md, branch feature/cap-free-streaming).
+        // NaN/±inf saturation values fail the `>= 0` guard below and stay rejected.
+        if (t_scatter >= 0.0f && t_scatter < hit_t) {
+            t_scatter = hit_t;
+        }
 
         // Guard t_scatter >= 0 (mirrors the active-prims loop above). A degenerate primitive
         // can make inv_cdf_segment saturate erfinv(±1) → ±inf / negative; without this guard a
@@ -453,6 +473,20 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
     }
 
     active_prims = final_active_prims;
+
+    // --measure-caps: true point-overlap at the scatter vertex, counted by the same
+    // containment predicate the bounce-0 scan uses — NOT final_active_prims.size(),
+    // which is clipped by the compiled MAX_ACTIVE_PRIMS. O(N) per scatter, gated.
+    if (launch_params.render_.measure_caps_) {
+        const float3 scatter_pos = ray.at(t_scatter_min);
+        uint32_t overlap = 0;
+        for (size_t i = 0; i < num_primitives; ++i) {
+            if (common::geometry::point_inside_bvh_bound(scatter_pos,
+                                                         launch_params.primitives_[i]))
+                ++overlap;
+        }
+        atomicMax(&launch_params.measure_buf_[MEASURE_ACTIVE_MAX], overlap);
+    }
 
     // Set the scattering event. Phase sampling uses the incoming ray direction so HG
     // (consts::HG_G != 0) produces correct forward/back-scattering. With g = 0 it reduces

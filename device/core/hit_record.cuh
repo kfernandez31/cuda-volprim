@@ -28,8 +28,14 @@ struct HitBufferSoA {
     prim_idx_t prim_idx_[Capacity];  // 2B/entry — primitive index
     size_t size_ = 0;
 
+    // Total COLLECT-anyhit invocations this trace — counts EVERY entry hit, including
+    // those dropped on overflow, so --measure-caps can read true per-ray demand from
+    // any binary regardless of its compiled cap (the anyhit always fires; only the
+    // push is capped). One local-memory add per hit; observation-only.
+    uint32_t total_seen_ = 0;
+
 #ifdef __CUDA_ARCH__
-    __device__ __forceinline__ void clear() { size_ = 0; }
+    __device__ __forceinline__ void clear() { size_ = 0; total_seen_ = 0; }
     __device__ __forceinline__ size_t size() const { return size_; }
     __device__ __forceinline__ bool empty() const { return size_ == 0; }
     __device__ __forceinline__ bool full() const { return size_ == Capacity; }

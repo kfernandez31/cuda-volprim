@@ -67,6 +67,7 @@ extern "C" __global__ void __anyhit__ah() {
 
     // COLLECT mode (primary/scatter rays): append entry hits to the buffer.
     auto* hit_buffer = unpack_ptr<HitBuffer>(payload.buffer_ptr_low, payload.buffer_ptr_high);
+    ++hit_buffer->total_seen_;  // true hit count, cap-independent (see hit_record.cuh)
 
     // Collect entry hits (exits computed on-demand in argmin approach).
     // On overflow: drop the excess hit but keep traversing so the miss shader
