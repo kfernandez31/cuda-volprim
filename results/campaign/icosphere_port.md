@@ -108,11 +108,47 @@ robust; absolute times are "at ~1.6 GHz". Equal-quality `k` is deliberately not 
 the two converge to *different* images (faceting), so fixed-spp frame time is the clean
 geometry-cost metric (`k` columns stay blank).
 
+## Scattering-path gate (2026-06-12) — PASS
+
+N=2 vs analytic, cloud scattering on the meadow (SG_CAM=0), 1024 spp both arms: converged means agree
+to **+2.34e-4 on a 0.321 mean (0.073 %)** — even tighter than absorption's 0.16 %, sign flipped by the
+scattering physics (smaller shell ⇒ less in-scatter here). Per-pixel mean|Δ| 2.8e-2 is decorrelated MC
+noise between the arms, not bias. This exercises the full pipeline through triangles — argmin scatter
+sampling, NEE/MIS shadow rays (TRANSMITTANCE-mode anyhit with the front-face filter) — so the port is
+correct in scattering, not just absorption. Frame times en passant: analytic 196.5 s vs N=2 97.2 s at
+1024 spp (the 2× here is *not* a clean ratio — arms ran sequentially, not interleaved; the interleaved
+table above is the citable number).
+
+## Reference-side shells (DSYG paper + shipped code) — lookup RESOLVED
+
+- **Paper (DSYG §6.2 + Fig. 12):** custom ray-ellipsoid IS abandoned as "significantly less performant
+  than a hardware-accelerated ray-triangle intersection test"; tessellated shells **duplicated per
+  primitive** (instancing explicitly rejected: "reintroduces the problem of axis-aligned bounding boxes
+  … in the instances BVH"); average **×4.96** speedup; shells tested: boxes 12△, icospheres **80△
+  (=N1) / 320△ (=N2)**, UV spheres 42△/100△ — **best = 320△ icosphere**, never finer (consistent with
+  our N=3 reversal).
+- **Shipped code:** `mitsuba3/src/shapes/ellipsoidsmesh.cpp` **defaults to `ico_sphere` = 20△ (our
+  N=0)**; the analytic-IS plugin (`ellipsoids.cpp`) exists separately.
+- **Our own reference harness** (`tools/refs/render_*_via_prb.py`): defaults to
+  **`ellipsoidsmesh` + `uv_sphere` (72△)** unless `SG_SHAPE=ellipsoids`. So the Mitsuba GT renders we
+  gate against carry a (small) reference-side shell-faceting of their own. **Cheap follow-up:** re-run
+  one strict energy gate with `SG_SHAPE=ellipsoids` (analytic reference shell) and see whether
+  agreement tightens — quantifies the reference-side shell bias with zero new code.
+- **Memory framing settled:** they duplicate per primitive (no instancing) → tessellation costs them
+  O(N·tris); our instanced single-GAS keeps any shell at one copy (1.4–41.5 KB total). Their stated
+  reason (instance-AABB quality) is a perf concern our A/B partially refutes at the 652-prim scale —
+  our *instanced* icosphere still beat our *instanced* analytic sphere; instanced-vs-duplicated
+  tessellation remains unmeasured (would need a duplicated-geometry GAS build).
+
 ## Remaining for G8
-- **Mitsuba lookup:** icosphere degree + instanced-vs-per-primitive tessellation in
-  `~/jorge/mitsuba3` ellipsoids plugin (determines the memory-comparison framing).
-- **Figure + Ch 6 reclassification:** moves the analytic-vs-tessellated row out of `tab:four-modes`'s
-  (I) "infeasible to ablate" column into a measured (M) result.
+- ~~Mitsuba lookup~~ RESOLVED above.
+- ~~Figure + Ch 6 reclassification~~ DONE 2026-06-12: `sec:icosphere` + `tab:icosphere` added to Ch 6,
+  `tab:four-modes` (I) row emptied, `sec:reasoned` rewritten, Ch 4 hardware-intersector claim corrected
+  (built-in sphere is *not* RT-core-accelerated). Optional: a dedicated frontier *figure* (RMSE vs
+  frame time) if Ch 6 wants a visual; the table carries the data.
+- (new, cheap) `SG_SHAPE=ellipsoids` reference-side re-gate, per above.
+- (optional) duplicated-vs-instanced tessellation arm, only if the thesis wants to fully reproduce
+  DSYG's geometry regime.
 
 ## Reproduce
 

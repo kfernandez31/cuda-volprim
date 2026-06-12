@@ -238,8 +238,10 @@ kernel launch, amortising launch overhead and keeping the accumulator in registe
 
 \paragraph{Acceleration structure.} The scene is built as a two-level OptiX structure. A single
 geometry acceleration structure (GAS) holds one \emph{unit sphere}, built from OptiX's~\cite{Optix} built-in sphere
-primitive (\texttt{OPTIX\_BUILD\_INPUT\_TYPE\_SPHERES}) so that ray--sphere intersection runs on the
-hardware intersector with no custom program. Each Gaussian primitive is then an \emph{instance} of that
+primitive (\texttt{OPTIX\_BUILD\_INPUT\_TYPE\_SPHERES}) so that ray--sphere intersection uses the
+vendor-optimised built-in intersector rather than a custom program. (The built-in sphere is exact but,
+unlike triangle intersection, does not execute on the dedicated ray-tracing cores;
+\Cref{sec:icosphere} measures this choice against the reference's tessellated icospheres.) Each Gaussian primitive is then an \emph{instance} of that
 GAS in an instance acceleration structure (IAS), carrying the affine transform that maps the unit
 sphere to the primitive's centre, anisotropic scale, and orientation (from its rotation quaternion).
 Thousands of distinct ellipsoids thus share a single sphere GAS, and the per-primitive geometry lives

@@ -37,10 +37,10 @@ possible. Each optimisation in this chapter is therefore placed in one of four m
     \toprule
     Mode & When it applies & Examples \\
     \midrule
-    \textbf{(M) Measured} & genuine choice, non-obvious outcome & RIS, RR depth, adaptive, denoiser, autopsies \\
+    \textbf{(M) Measured} & genuine choice, non-obvious outcome & RIS, RR depth, shell geometry, autopsies \\
     \textbf{(C) Complexity-argued} & naive baseline $\to$ obvious form & scan fixes, argmin, $O(1)$ sets, compact buffer \\
     \textbf{(S) Standard practice} & textbook; cite, don't measure & multi-stream, FMA, coalescing, fast-math \\
-    \textbf{(I) Infeasible} & no valid A/B possible & analytic vs tessellated spheres \\
+    \textbf{(I) Infeasible} & no valid A/B possible & (emptied --- see \Cref{sec:icosphere}) \\
     \bottomrule
   \end{tabular}
   \caption{The four justification modes. The chapter measures what is informative, complexity-argues
@@ -146,11 +146,80 @@ which removes the reference's per-bounce sort and root-find outright.
 Some choices are deliberately \emph{not} measured. Standard-practice optimisations---multiple CUDA
 streams with asynchronous transfers, fused multiply-adds and loop unrolling, \texttt{float4}-coalesced
 buffers, the fast-math flag set, GAS compaction and \texttt{PREFER\_FAST\_TRACE}---are cited rather than
-ablated, because regressing to ``everything on one stream'' would re-derive a textbook result. The
-analytic-versus-tessellated-sphere choice is \emph{infeasible} to ablate: the tessellated path was
-abandoned before the current architecture existed, so a fair A/B would require resurrecting a
-non-comparable codebase; it is justified instead by exactness (no tessellation error, no BVH bloat) and
-by the cross-renderer comparison of \Cref{ch:results}.
+ablated, because regressing to ``everything on one stream'' would re-derive a textbook result. One
+choice originally filed here as \emph{infeasible}---analytic versus tessellated sphere geometry, whose
+tessellated half predated the current architecture---turned out to be measurable after all: porting
+only the historical icosphere mesh into the current renderer behind a build switch yields an A/B in
+which the per-primitive geometry is the \emph{only} difference. \Cref{sec:icosphere} reports that
+experiment; its outcome refutes the expectation this section once recorded.
+
+\section{Analytic versus tessellated primitive geometry}
+\label{sec:icosphere}
+
+The reference implementation faced this exact choice and went the other way: its authors first
+implemented a custom ray-ellipsoid intersection program in OptiX, found it ``significantly less
+performant than a hardware-accelerated ray-triangle intersection test'', and switched to tessellated
+icospheres---duplicated per primitive rather than instanced---reporting an average $4.96\times$
+speedup, with their highest-tessellated shell (a \num{320}-triangle icosphere) performing
+best~\cite{DSYG}. This
+renderer instead uses OptiX's built-in analytic sphere over a single instanced unit GAS. The A/B ports
+the historical icosphere mesh (subdivision $N$: \num{20}, \num{80}, \num{320}, \num{1280} triangles)
+into the current renderer behind a compile switch; the IAS instancing, the any-hit entry collection,
+and the analytic optical-depth integration are untouched, with one addition---a convex shell is
+entered through a front face and left through a back face, so the any-hit keeps only front-face hits,
+preserving the one-entry-per-primitive contract the sphere provides natively.
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}lrrrrrr@{}}
+    \toprule
+    & & \multicolumn{2}{c}{frame time (cloud)} & \multicolumn{3}{c}{RMSE vs analytic} \\
+    \cmidrule(lr){3-4} \cmidrule(l){5-7}
+    Shell & tris & abs. & rel. & cloud & tornado & bunny \\
+    \midrule
+    analytic sphere & --- & \SI{15.52}{\second} & $1.00\times$ & 0 & 0 & 0 \\
+    icosphere $N{=}0$ & 20   & \SI{9.80}{\second}  & $0.63\times$ & $4.0\times10^{-2}$ & $9.4\times10^{-3}$ & $1.2\times10^{-2}$ \\
+    icosphere $N{=}1$ & 80   & \SI{11.22}{\second} & $0.72\times$ & $1.0\times10^{-2}$ & $1.9\times10^{-3}$ & $2.5\times10^{-3}$ \\
+    icosphere $N{=}2$ & 320  & \SI{11.99}{\second} & $0.77\times$ & $2.5\times10^{-3}$ & $4.6\times10^{-4}$ & $5.8\times10^{-4}$ \\
+    icosphere $N{=}3$ & 1280 & \SI{13.23}{\second} & $0.85\times$ & $8.2\times10^{-3}$ & $4.6\times10^{-3}$ & $4.4\times10^{-3}$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Analytic built-in sphere versus tessellated icosphere, with only the per-primitive geometry
+  differing. Frame times: cloud scattering under the environment-lit showcase, \num{128} spp, median of
+  five interleaved rounds at locked clocks (within-arm spread ${\le}1.5\,\%$). RMSE: converged
+  absorption renders against the analytic render, which is exact here---the instanced primitive
+  \emph{is} a sphere---so the residual is pure tessellation error.}
+  \label{tab:icosphere}
+\end{table}
+
+The outcome (\Cref{tab:icosphere}) refutes the hypothesis under which the analytic sphere was chosen.
+The tessellated shell is \emph{faster at every tessellation level}: the analytic sphere pays
+$1.17$--$1.58\times$ in frame time for its exactness. The mechanism is the one the reference named:
+on RTX-class hardware, ray-triangle intersection executes on dedicated ray-tracing cores, whereas the
+``built-in'' sphere primitive is a software intersection module on the traversal path. The magnitude
+here is smaller than the reference's $4.96\times$ because the baselines differ---their analytic arm
+was a custom ellipsoid intersector over per-primitive world-space bounds, where anisotropic primitives
+inflate axis-aligned boxes, while this renderer's analytic arm already benefits from the instanced
+unit-sphere GAS with per-instance transforms.
+
+Accuracy tells the opposite story, and a non-monotone one. From $N{=}0$ to $N{=}2$ the error falls
+${\sim}4\times$ per subdivision with the physically expected sign (the inscribed shell is slightly
+smaller than the true $3\sigma$ ellipsoid, so renders are marginally too bright). At $N{=}3$ the
+error \emph{rises} on all three assets and flips sign: a localised population of sliver triangles
+mis-places entry points for near-grazing rays, and the count of affected pixels tracks per-primitive
+screen footprint rather than anisotropy (the round-primitive cloud is hit hardest). Past $N{\approx}2$,
+finer tessellation buys worse accuracy at higher cost---consistent with the reference never going
+beyond \num{320} triangles.
+
+The decision, then, is a genuine accuracy-versus-performance trade, and this renderer keeps the
+analytic sphere \emph{for correctness, at a now-quantified price}. The faceting bias at the best
+tessellation ($N{=}2$, ${\sim}0.16\,\%$ systematic brightening on the cloud) is invisible in an image
+but is an order of magnitude above the $10^{-4}$-level energy agreement that the validation gates of
+\Cref{ch:validation} hold the renderer to; the analytic shell is what makes those gates attainable.
+Where raw throughput matters more than validation-grade exactness, the measured frontier says
+$N{=}2$---matching the reference's choice of a \num{320}-triangle icosphere---is the right shell, and
+the instanced single-GAS design keeps even that choice memory-trivial (\SI{9.6}{\kilo\byte} compacted,
+versus per-primitive duplication in the reference).
 
 \section{Negative results: an autopsy ledger}
 \label{sec:autopsies}
