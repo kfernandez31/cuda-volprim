@@ -193,6 +193,10 @@ continuity; the thesis-writing handoff above still applies.
 | Mitsuba JIT/startup (#96 measurement; ours 0.39 s vs prb 0.85/2.28 s) | `results/campaign/jit_overhead.md` | `3c2b4a9` |
 | Active-set cap sensitivity nil (64↔128); Ch 4 sentence added | `results/campaign/caps_ab.md` | `7933951` |
 | Split overflow counters + positive "Cap check" log | code | `480f812` |
+| Per-asset caps VERIFIED necessary+sufficient (tornado 112/432, explosion 32/176, bunny 320/496; furnace re-gates; scattering = binding stress) — §0.1–0.3 DONE | `results/campaign/caps_per_asset.md` | `f09811d` |
+| G8 icosphere (branch `feature/icosphere-gas`): compile-guarded port; accuracy on 3 assets (optimum N=2, universal N=3 sliver reversal); perf REFUTES hypothesis — analytic pays 1.17–1.58× (RT-core triangles vs software sphere IS); scattering gate 0.073 %; DSYG/Mitsuba shell lookups resolved; Ch 6 `sec:icosphere` + `tab:icosphere`, (I) row emptied, Ch 4 corrected | `results/campaign/icosphere_port.md`, `icosphere.csv` | `c61fbbd`…`9c6e791` |
+| G2 RR-depth sweep (window): shallow 8–12 efficiency basin (min 10); dev-era "11 %" → +3.4 % ± 2 % (Ch 6 softened, real `fig:rr-depth`); k FINAL, absolutes provisional → optional timing-only rerun reuses EXRs | `results/campaign/rr_depth.{md,csv}`, EXRs `rr_seeds/` (gitignored) | `799c3f2` + |
+| G3 K-sweep MEADOW rung (window, contention-free → absolutes final): RIS 1.481× [1.467,1.490], K=4–6 plateau tied → K=6 default survives; −21 % time + −14 % variance; MIS-arm k replicates RR sweep to 4 decimals; Ch 6 `sec:ris` updated. Flat + studio rungs REMAIN (studio needs `SG_ENV` wiring) | `results/campaign/ris_ksweep.md`, `ris_ksweep_meadow.csv`, EXRs `ris_seeds_meadow/` | this commit |
 
 ## Remaining — runnable NOW (no full-blast window)
 

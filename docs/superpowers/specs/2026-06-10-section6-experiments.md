@@ -208,6 +208,21 @@ scattering on the meadow, MIS vs RIS-K6 at 1024 spp: converged means agree to wi
 gate.** Ch 6 `sec:ris` can strengthen "validated unbiased … on a constant environment" → "…and on the
 environment-lit showcase" (Ch 6 pass).
 
+**MEADOW RUNG: DONE (2026-06-12, 350 W + clock lock, contention-free — absolutes publication-clean).**
+*Setup as run:* 7 arms (MIS + `--ris --ris-candidates K`, K∈{1,2,4,6,8,12}) × 16 seeds, cloud-meadow
+scattering, `SG_CAM=0`, 64 spp pinned, arm-interleaved per seed block; k = inter-seed variance × spp;
+speedup = eff_MIS/eff_K; 50-resample seed-bootstrap CIs. *Findings:* **1.481× [1.467, 1.490] at K=4 ≈
+1.475× [1.467, 1.483] at K=6 — a statistically tied plateau** ("peaking near K=6" survives; K=6 stays
+default); turnover beyond (K=12: 1.397×). Decomposition: −21 % time (1 shadow ray vs 2) + −14 %
+variance; K=1 anchor = 1.186× on time alone despite higher k. Replication: MIS-arm k = 1.9842
+reproduces the RR sweep's depth-12 k (1.98417) across independent runs. **Ch 6 `sec:ris` updated with
+the measured numbers + the showcase-unbiasedness strengthening (DONE 2026-06-12).** Artifacts:
+`results/campaign/ris_ksweep.md`, `ris_ksweep_meadow.csv`, per-seed EXRs in
+`results/campaign/ris_seeds_meadow/` (gitignored). *Remaining:* **flat rung** (runnable now, no code
+change — the scene-dependence anchor; fig caption's "net loss on flat" still cites the dev ~2.5×) and
+**studio rung** (needs the 5-line `SG_ENV` wiring in `test/scenes/cloud_validation.cpp`);
+`ris_ksweep.csv` stays header-only until all three env columns exist (figure builder plots all three).
+
 ### G4 — Profiling & boundedness → `sec:bottleneck`, `fig:roofline`
 **`ncu` is the load-bearing source** (cloud + bunny @256²): occupancy ~22 %, eligible-warps,
 long_scoreboard-dominant stalls, SOL SM%/DRAM%, 114 regs, 82–98 % cache residency (§8.28). **Drop the

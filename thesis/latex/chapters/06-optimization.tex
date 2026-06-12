@@ -106,21 +106,28 @@ one shadow ray per scattering vertex on an environment sample drawn by luminance
 sampling~\cite{Talbot2005} instead draws $K$ environment candidates, resamples one in proportion to a
 cheap target (phase value $\times$ environment luminance) via a weighted reservoir~\cite{Bitterli2020},
 and traces a shadow ray only for the survivor---paying $K$ cheap evaluations to make the single
-expensive shadow ray count. With $K=6$ this gives about $1.4\times$ at equal quality on
-environment-map scenes. Crucially it is \emph{scene-dependent}: on a flat (constant) environment, where
-the candidates are interchangeable, the resampling overhead makes it $\sim\!2.5\times$ \emph{worse}. It
-is therefore shipped behind a runtime flag (default off, plain MIS), not as an unconditional change
-(\Cref{fig:ris-ksweep}).
+expensive shadow ray count. The controlled $16$-seed sweep on the environment-lit showcase measures the
+win at $1.48\times$ at equal quality (bootstrap $95\,\%$ CI $[1.47, 1.49]$), on a \emph{plateau}
+spanning $K=4$--$6$ (statistically tied) with a genuine turnover beyond: candidate cost rises
+monotonically with $K$ while variance falls, and their product peaks where the proposal quality
+saturates. The win decomposes into both halves---one shadow ray instead of two ($-21\,\%$ frame time)
+\emph{plus} lower variance from the resampling ($-14\,\%$ noise constant); the $K{=}1$ anchor (plain
+environment-IS NEE) already wins $1.19\times$ on time alone, \emph{despite} higher variance, which
+isolates the resampling's contribution. Crucially the technique is \emph{scene-dependent}: on a flat
+(constant) environment, where the candidates are interchangeable, the resampling overhead makes it
+$\sim\!2.5\times$ \emph{worse}. It is therefore shipped behind a runtime flag (default off, plain MIS;
+$K=6$ the measured default), not as an unconditional change (\Cref{fig:ris-ksweep}).
 The result was validated unbiased against the Mitsuba-analog ground truth on a constant environment
-(furnace-clean), and---being a single-strategy estimator---it surfaced and forced the fix of a latent
+(furnace-clean) \emph{and} on the environment-lit showcase (converged means within the Monte-Carlo
+noise floor), and---being a single-strategy estimator---it surfaced and forced the fix of a latent
 environment-sampling bug (a texel-centre quantisation that the prior MIS had masked).
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=0.8\linewidth]{figures/ris_ksweep.pdf}
   \caption{Volumetric product-RIS versus plain MIS at equal quality, as the candidate count $K$ varies.
-  On an environment map RIS wins (peaking near $K=6$); on a flat environment the resampling overhead
-  makes it a net loss---hence the runtime flag.}
+  On an environment map RIS wins (a measured plateau at $K=4$--$6$, $1.48\times$ on the showcase); on a
+  flat environment the resampling overhead makes it a net loss---hence the runtime flag.}
   \label{fig:ris-ksweep}
 \end{figure}
 
