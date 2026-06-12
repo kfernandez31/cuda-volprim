@@ -392,7 +392,19 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         // Segment-restricted CDF: solves optical_depth(ray, hit_t, t_scatter) = tau_j.
         // Replaces the prior full-Gaussian inv_cdf + reject (t_scatter >= hit.t_hit),
         // which was biased — rejected samples were dropped rather than re-rolled.
-        const float t_scatter = prim.inv_cdf_segment(ray, hit_t, tau_j);
+        float t_scatter = prim.inv_cdf_segment(ray, hit_t, tau_j);
+
+        // Clamp FP undershoot: the true segment-CDF inverse is >= hit_t by construction
+        // (optical depth from hit_t to hit_t is 0), but the erf/erfinv round-trip can
+        // land a few ULPs below it (χ≈0 → τ≈0 → true solution == hit_t exactly). A
+        // sub-entry winner is then EXCLUDED from its own scatter's active set by the
+        // rebuild filter below (`hit_t > t_scatter_min → skip`), zeroing the albedo and
+        // silently killing the path. Mechanism proven at bit level during the cap-free
+        // streaming campaign (capfree_b_gate.md, branch feature/cap-free-streaming).
+        // NaN/±inf saturation values fail the `>= 0` guard below and stay rejected.
+        if (t_scatter >= 0.0f && t_scatter < hit_t) {
+            t_scatter = hit_t;
+        }
 
         // Guard t_scatter >= 0 (mirrors the active-prims loop above). A degenerate primitive
         // can make inv_cdf_segment saturate erfinv(±1) → ±inf / negative; without this guard a
