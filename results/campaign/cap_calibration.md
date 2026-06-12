@@ -94,3 +94,19 @@ estimator:
   bounds *any* camera. Size production builds by measurement; consult the estimator when the camera
   is unknown — with the bunny row as the caveat that its raw maxima are themselves Monte Carlo and
   rely on its 1.25 margin for slack.
+
+## Closing the cap domain
+
+**Branch state** (`feature/cap-calibration`, off `main` @ `f62101a`): `572e8ad` spec → `b4c92ca` plan →
+`c89719f` sub-entry clamp (dead-path fix, footprint 3 channel-values at 9e-9) → `f34b00d` device
+counters → `b53082f` `--measure-caps` (bit-identical no-perturbation gate) → `2b13379` wrapper +
+this doc. Suite 43/43 at stock 128/128 throughout; nothing merges without explicit approval.
+
+**Merging this branch gives:** the clamp correctness fix, the `--measure-caps` mode, and the
+one-command `calibrate_caps.sh` workflow. The render path is otherwise byte-identical (clamp
+footprint aside) — no algorithmic change.
+
+**Cross-reference for the thesis:** the abandoned streaming alternative and its full evidence trail
+(probe, bit-exact gates, four-hypothesis debugging cascade, perf verdict) live on
+`feature/cap-free-streaming` under `results/campaign/capfree_*.md` — the negative result that
+motivated keeping the buffered design and measuring its caps instead.
