@@ -44,6 +44,7 @@ struct Config {
     float hg_g_ = 0.85f;                  // --hg-g (Henyey-Greenstein anisotropy)
     bool use_ris_ = false;                // --ris (product-RIS NEE instead of MIS; default off = MIS, §8.37 scene-dependent)
     uint32_t ris_num_candidates_ = 6;     // --ris-candidates (K for product-RIS NEE; only used with --ris)
+    bool measure_caps_ = false;           // --measure-caps: in-render atomicMax of hits/ray and point-overlap; print suggestions
 
     [[nodiscard]] static utils::Result<Config> parse(int argc, char* argv[]) noexcept;
 };

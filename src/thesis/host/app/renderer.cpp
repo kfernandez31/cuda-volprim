@@ -195,6 +195,15 @@ void Renderer::initStaticParams() {
     overflow_counter_.memset_device(0);
     par.overflow_counter_ = overflow_counter_.device();
 
+    // 2-slot maxima buffer for --measure-caps ([0]=hits/ray, [1]=point-overlap).
+    // Allocated only when measuring; the device gates on render_.measure_caps_.
+    if (config_.measure_caps_) {
+        measure_buf_ = cuda::AsyncBuffer<uint32_t>(
+            2, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
+        measure_buf_.memset_device(0);
+        par.measure_buf_ = measure_buf_.device();
+    }
+
     // Runtime render params (promoted from constants.cuh). Defaults mirror the constants;
     // a default config reproduces the prior compile-time path's math (unbiased, but not
     // bit-exact under fast-math — see RenderParams note in launch_params.h).
@@ -206,6 +215,7 @@ void Renderer::initStaticParams() {
     rp.pixel_filter_stddev_ = config_.pixel_filter_stddev_;
     rp.use_ris_ = config_.use_ris_;
     rp.ris_num_candidates_ = config_.ris_num_candidates_;
+    rp.measure_caps_ = config_.measure_caps_;
 
     // Pre-fold the Henyey-Greenstein constants exactly as the device constexpr did, so the
     // per-sample arithmetic (and thus the render) is bit-identical for a given g. eval uses
@@ -363,6 +373,21 @@ void Renderer::render() {
             "regions may be under-absorbed (too bright). Raise MAX_ACTIVE_PRIMS / "
             "HIT_BUFFER_CAPACITY in device/core/constants.cuh for this scene.",
             overflows);
+    }
+
+    if (config_.measure_caps_) {
+        measure_buf_.download();
+        streams_[cuda::StreamKind::Main]->synchronize();
+        const auto hit_max = measure_buf_.host()[0];
+        const auto active_max = measure_buf_.host()[1];
+        const auto suggest = [](uint32_t v) {  // ceil(1.125*v), rounded up to a multiple of 16
+            const auto margined = (v * 9 + 7) / 8;
+            return ((margined + 15) / 16) * 16;
+        };
+        spdlog::info("Cap measurement: max hits/ray = {}, max point-overlap = {}", hit_max,
+                     active_max);
+        spdlog::info("Suggested caps: HIT_BUFFER_CAPACITY = {}, MAX_ACTIVE_PRIMS = {}",
+                     suggest(hit_max), suggest(active_max));
     }
 
     spdlog::info("All batches complete, saving image...");
