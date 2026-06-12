@@ -175,6 +175,15 @@ fast-erf, denoiser) + bare→final endpoints; semantics labelled (§4). **RR-dep
 16}** — include **5** (the anchor of the cited 5→12 claim, §8.33). fast-erf **bias** gate (converged
 mean, fast vs exact) shares the converged-reference machinery. Report frame-time + $k$ (final-validation).
 
+**RR-sweep status (2026-06-12): RUN ONCE, k FINAL, timings provisional — POSSIBLE TIMING-ONLY RERUN.**
+The 6×16-seed sweep ran at 350 W/locked clocks but a desktop-session burst (Prybicki's browser)
+contaminated blocks ~8–9 (block means 7.0→16.9 s, recovering by s10–12). Per-block-normalized relative
+times are clean (CV 3–5 %/depth, t16/t5 = 1.30 ± 0.06 SEM, 3/60 monotonicity violations) so the
+`fig:rr-depth` efficiency knee stands; **absolute** frame times are anchored to the cleanest
+pre-contention blocks only. *If* publication-clean absolutes are wanted: timing-only rerun on a quiet
+GPU, ~10 min, **reuses the banked per-seed EXRs for k** (k is image-derived, contention-immune — no
+re-derivation). Images + times: `/tmp/rr/` → banked record `results/campaign/rr_depth.md`.
+
 ### G3 — Volumetric product-RIS → `fig:ris-ksweep`, `sec:ris`
 K-sweep **{1, 2, 4, 6, 8, 12}** on the cloud across flat → studio → meadow; equal-quality speedup vs MIS
 **within each env** (same map both sides → no energy matching needed). K=1 = plain env-IS NEE

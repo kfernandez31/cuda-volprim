@@ -42,3 +42,5 @@ thesis/latex/thesis.ps
 
 # Icosphere A/B build dir (feature/icosphere-gas)
 build-ico/
+# RR-sweep per-seed EXRs (595MB; k re-derivable, timing rerunnable)
+results/campaign/rr_seeds/
