@@ -47,10 +47,10 @@ is the `feature/icosphere-gas` branch.
    render to confirm frame-time variance < a few %. (Note: `ncu` ignores this and locks to *base* clock
    via `--clock-control`; its metrics are ratios, so fine — but record it, don't claim "full-blast" for
    ncu rows.)
-5. **(Optional, G8 only) Port the icosphere GAS (CODE).** Lift `Icosphere<N>`
-   (`include/thesis/host/geometry/mesh.h`) + `TriangleGAS` (`gas.h`) from commit `eb5372f` into the
-   current renderer behind a build switch + subdivision level `N`; entries then come from triangle hits,
-   exits stay analytic. Real engineering, not a flag — greenlight before committing the window to it.
+5. ✅ **(G8) Icosphere GAS port — DONE** (`feature/icosphere-gas`, greenlit by Kacper 2026-06-11).
+   `Icosphere<N>` rewritten glm-free behind `-DTHESIS_ICOSPHERE=ON -DTHESIS_ICOSPHERE_N={0..3}`
+   (default OFF = analytic, byte-unaffected); triangle entries via hardware intersection + any-hit
+   front-face filter, exits analytic. All three G8 axes since measured — see §G8.
 
 ## 1. Goal
 
@@ -176,13 +176,23 @@ fast-erf, denoiser) + bare→final endpoints; semantics labelled (§4). **RR-dep
 mean, fast vs exact) shares the converged-reference machinery. Report frame-time + $k$ (final-validation).
 
 **RR-sweep status (2026-06-12): RUN ONCE, k FINAL, timings provisional — POSSIBLE TIMING-ONLY RERUN.**
-The 6×16-seed sweep ran at 350 W/locked clocks but a desktop-session burst (Prybicki's browser)
-contaminated blocks ~8–9 (block means 7.0→16.9 s, recovering by s10–12). Per-block-normalized relative
-times are clean (CV 3–5 %/depth, t16/t5 = 1.30 ± 0.06 SEM, 3/60 monotonicity violations) so the
-`fig:rr-depth` efficiency knee stands; **absolute** frame times are anchored to the cleanest
-pre-contention blocks only. *If* publication-clean absolutes are wanted: timing-only rerun on a quiet
-GPU, ~10 min, **reuses the banked per-seed EXRs for k** (k is image-derived, contention-immune — no
-re-derivation). Images + times: `/tmp/rr/` → banked record `results/campaign/rr_depth.md`.
+*Setup as run:* cloud scattering, meadow, `SG_CAM=0`, **64 spp pinned**, MIS (no RIS), seeds 1–16 ×
+depths {5,6,8,10,12,16}, depth-interleaved within each seed block; 350 W/locked clocks. k = per-pixel
+inter-seed variance across 16 seeds, mean over pixels+channels, ×spp; eff = k × median
+per-block-normalized time. A desktop-session burst contaminated blocks ~8–9 (block means 7.0→16.9 s,
+recovering by s10–12); per-block-normalized relative times are clean (CV 3–5 %/depth, t16/t5 =
+1.30 ± 0.06 SEM, 3/60 monotonicity violations); **absolute** frame times anchored to the 5 cleanest
+blocks only. *If* publication-clean absolutes are wanted: timing-only rerun on a quiet GPU, ~10 min,
+**reuses the banked per-seed EXRs for k** (image-derived, contention-immune). Artifacts:
+`results/campaign/rr_depth.{md,csv}`; EXRs in `results/campaign/rr_seeds/` (gitignored, 595 MB).
+
+**Findings:** k falls monotonically with depth (2.461→1.877), time rises (t_rel 0.887→1.175); the
+efficiency k·t is a **shallow basin over depths 8–12** (≤1.2 % spread, nominal min at 10), penalties
+outside (5: +4.7 %, 16: +5.8 %). **The dev-era §8.33 "depth-12 ≈ 11 % over depth-5" does NOT
+reproduce: measured +3.4 % (± ~2 %)** at this operating point. Direction survives (12 in-basin; 5→12
+was right), magnitude doesn't. **Ch 6 updated accordingly (DONE 2026-06-12):** `fig:rr-depth` is now
+the real plot from `rr_depth.csv`; `tab:wins` RR row +3.4 % sourced to the sweep; prose and captions
+state the basin and the revised magnitude.
 
 ### G3 — Volumetric product-RIS → `fig:ris-ksweep`, `sec:ris`
 K-sweep **{1, 2, 4, 6, 8, 12}** on the cloud across flat → studio → meadow; equal-quality speedup vs MIS
@@ -243,29 +253,43 @@ instancing, any-hit entry collection, analytic exit, optical-depth integration) 
 fair A/B where *only the per-primitive geometry differs*. Resurrect `Icosphere<N>`
 (`include/thesis/host/geometry/mesh.h`) + `TriangleGAS` (`gas.h`), both at commit **`eb5372f`** (the
 pre-anyhit checkpoint), behind a build switch + subdivision level `N`.
-- **Sweep** `N ∈ {0,1,2,3}` (12 → 642 vertices) vs the analytic sphere, same cloud scene/seeds.
-- **Three axes:** (a) **perf** — frame time + equal-quality `k` (built-in HW sphere intersector vs
-  triangle-BVH traversal); **clock-dependent → in the window**. (b) **accuracy** — RMSE vs the analytic
-  render, which is the *exact* ground truth here (the primitive truly is a sphere), so the discrepancy is
-  pure faceting error at each `N`; **clock-independent → runnable now**. (c) **GAS size** per `N`;
-  clock-independent.
-- **Expected shape (hypothesis; let the data decide):** analytic dominates — exact *and* faster — but the
-  measured magnitude is the result, and low-`N` icospheres may be faster-but-faceted (the accuracy×perf
-  trade is the story). Directly benchmarks our choice against the reference's.
-- **Memory caveat (what the standalone G5 result does *not* answer).** The G5 `gas_memory.csv`
-  (cloud+bunny, analytic, compacted) is the *analytic-self* half (uncompacted→compacted), **not** an
-  analytic-vs-tessellated result. **Compaction is a wash:** Mitsuba compacts with the *same* flags
-  (`ALLOW_COMPACTION | PREFER_FAST_TRACE` + an `optixAccelCompact` pass — verified in
-  `~/jorge/mitsuba3/include/mitsuba/render/optix/shapes.h:153,180-214` and
-  `src/render/scene_optix.inl:166`), so it is standard practice, not a differentiator. The real
-  memory comparison is the **geometry**: our tiny analytic builtin-sphere GAS (instanced) vs the
-  tessellated icosphere. **TODO when G8 runs:** determine Mitsuba's icosphere **degree** and whether it
-  **instances one icosphere or tessellates per-primitive** (the latter → ~N× geometry, a large analytic
-  win) from the `ellipsoids` shape plugin in `~/jorge/mitsuba3` (source is local → determinable now,
-  no guessing); the IAS numbers already measured carry over unchanged (instance records are
-  geometry-independent).
-- **This is a code task (§0.5), not a flag flip.** If the port proves costly, fall back to the existing
-  (I)-mode argument and leave the item infeasible.
+**STATUS (2026-06-12): RUN — all three axes measured; hypothesis REFUTED on perf. Full record:
+`results/campaign/icosphere_port.md` + `icosphere.csv`; thesis writeup DONE (`sec:icosphere` +
+`tab:icosphere` in Ch 6; `tab:four-modes` (I) row emptied; Ch 4 hardware-intersector claim corrected).**
+
+- **Setup as run.** Port landed on `feature/icosphere-gas` behind `-DTHESIS_ICOSPHERE=ON
+  -DTHESIS_ICOSPHERE_N={0..3}` (default OFF = analytic, byte-unaffected); `Icosphere<N>` rewritten
+  glm-free; `IcosphereGAS` drop-in for `SphereGAS`; pipeline TRIANGLE flags + null IS (hardware
+  triangle intersection); **any-hit front-face filter** (convex shell → entry+exit faces; keep entry
+  only) preserves the one-entry-per-primitive contract; exits stay analytic. *Accuracy:* absorption,
+  constant env, 64 spp, RMSE vs the analytic render (exact GT), cloud+tornado+bunny, built at 320/496
+  (0 drops → pure faceting). *Perf:* cloud scattering, meadow, `SG_CAM=0`, 128 spp, both arms at
+  128/128 (0 overflows both), 5 fully-interleaved rounds (analytic→N0→N1→N2→N3), prebuilt
+  exe+optixir pairs, 350 W + clock lock (SM thermally ~1605; ratios robust, jitter ≤1.5 %).
+  *Correctness:* furnace-class scattering gate, N=2 vs analytic @1024 spp.
+- **Findings.**
+  - **Perf (hypothesis refuted):** icosphere FASTER at every N — analytic 15.52 s vs 9.80/11.22/11.99/13.23 s
+    (N=0..3) → **analytic pays 1.17–1.58× for exactness**. Mechanism: triangles ride the RT cores; the
+    built-in sphere is a software IS module on the traversal path. Independently confirms DSYG §6.2
+    (their ×4.96 is vs a weaker custom-IS, non-instanced baseline).
+  - **Accuracy (non-monotone):** RMSE falls ~4×/subdivision N=0→2 on all three assets (inscribed shell →
+    brighter, correct sign; cloud 4.0e-2→2.5e-3), then **reverses at N=3** (cloud 8.2e-3, sign flips
+    darker) — a localized sliver-triangle population (px>0.05: cloud 3170, tornado 475, bunny 185)
+    tracking per-primitive **screen footprint**, not anisotropy (initial anisotropy hypothesis was
+    wrong; the multi-asset run corrected it). **Accuracy optimum N=2; finer is worse and slower.**
+  - **Scattering gate PASS:** N=2 vs analytic converged means agree to **0.073 %** (absorption 0.16 %) —
+    pipeline through triangles fully correct; the residual is the quantified faceting bias, invisible
+    visually but ~10× the 1e-4 energy gates → **analytic stays for validation; N=2 (= DSYG's 320△ best)
+    is the shell when perf-first**.
+  - **Memory (lookup RESOLVED):** instancing makes any shell trivial (GAS 1.4–41.5 KB compacted, N=0–3).
+    DSYG **duplicates per primitive** (instancing explicitly rejected in §6.2 over instance-AABB
+    quality); shipped `ellipsoidsmesh.cpp` defaults to **ico_sphere 20△ (= N=0)**; **our own reference
+    harness defaults to `uv_sphere` 72△** → small reference-side faceting in our Mitsuba GT.
+    *(Compaction itself is a wash — Mitsuba compacts with the same flags; verified earlier.)*
+- **Remaining (optional):** `SG_SHAPE=ellipsoids` reference-side re-gate (cheap; quantifies the GT
+  shell bias); duplicated-vs-instanced tessellation arm (only to fully reproduce DSYG's geometry
+  regime); a dedicated RMSE-vs-frame-time frontier figure if Ch 6 wants a visual beyond
+  `tab:icosphere`.
 
 ## 6. Output artifacts (→ figure pipeline)
 

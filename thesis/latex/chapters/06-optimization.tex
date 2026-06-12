@@ -54,7 +54,13 @@ possible. Each optimisation in this chapter is therefore placed in one of four m
 The kept speedups, each a controlled ablation against the validated baseline, are summarised in
 \Cref{tab:wins}. The single largest was eliminating a redundant per-bounce $O(N)$ containment scan;
 the most dramatic in relative terms was a smarter shadow-ray transmittance evaluation. Russian-roulette
-depth, a free efficiency knob, was tuned from $5$ to $12$ (\Cref{fig:rr-depth}). After these, the
+start depth, a free efficiency knob, was raised from the inherited surface-rendering default of $5$ to
+$12$; the controlled sweep (\Cref{fig:rr-depth}) shows \emph{why} this is the right setting while also
+revising the magnitude of the win: variance falls and frame time rises monotonically with depth, and
+their product is a \emph{shallow basin} spanning depths $8$--$12$ (within $1.2\,\%$ of each other,
+nominal minimum at $10$), with real penalties outside it ($5$: $+4.7\,\%$; $16$: $+5.8\,\%$). The
+shipped default $12$ sits inside the basin; the development-time estimate of ${\sim}11\,\%$ over
+depth~$5$ measured as $+3.4\,\%$ ($\pm{\sim}2\,\%$) under the controlled protocol. After these, the
 equal-quality comparison against Mitsuba inverts: the renderer reaches the same noise level in less time
 (\Cref{ch:results}).
 
@@ -66,24 +72,29 @@ equal-quality comparison against Mitsuba inverts: the renderer reaches the same 
     \midrule
     Shadow-ray transmittance         & $\sim$\,12--15$\times$ (shadow kernel) & §8.16 \\
     Skip per-bounce containment scan & $\sim$\,16\% frame                     & §8.23 \\
-    Russian-roulette depth $5\to12$  & $\sim$\,11\%                           & §8.33 \\
+    Russian-roulette depth $5\to12$  & $+3.4$\,\% (basin $8$--$12$; \Cref{fig:rr-depth}) & sweep \\
     Dedup bounce-0 scan              & $\sim$\,8\%                            & §8.19 \\
     Any-hit transmittance fusion     & $\sim$\,3\%                            & §8.18 \\
     Fast \texttt{erf} in the hot path & $\sim$\,1.5\%                          & §8.21 \\
     OptiX denoiser (showcase)        & $\sim$\,30$\times$ effective           & §8.22 \\
     \bottomrule
   \end{tabular}
-  \caption{Measured (M-mode) optimisations kept in the renderer. Each is a controlled on/off ablation;
-  effects are on the scattering cloud at the fixed operating point.}
+  \caption{Measured (M-mode) optimisations kept in the renderer. Each is a controlled on/off ablation
+  on the scattering cloud; §-referenced rows are development-time measurements, and the RR-depth row is
+  the controlled $16$-seed sweep of \Cref{fig:rr-depth}, which revised the development-time
+  ${\sim}11\,\%$ estimate downward.}
   \label{tab:wins}
 \end{table}
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=0.8\linewidth]{figures/rr_depth.pdf}
-  \caption{Russian-roulette efficiency on the scattering cloud: frame time against the RR start depth at
-  matched quality. The chosen depth ($12$) sits at the efficiency knee; deeper paths buy negligible
-  variance reduction for added cost.}
+  \caption{Russian-roulette efficiency on the scattering cloud: $k\cdot t$ (inter-seed noise constant
+  $\times$ relative frame time, lower is better) against the RR start depth; $16$ seeds per depth at
+  \num{64} spp under the environment-lit showcase. Variance falls and cost rises monotonically with
+  depth; their product forms a shallow basin over depths $8$--$12$ (nominal minimum at $10$, spread
+  ${\le}1.2\,\%$), with both extremes measurably worse ($5$: $+4.7\,\%$, $16$: $+5.8\,\%$). The shipped
+  default ($12$) lies inside the basin.}
   \label{fig:rr-depth}
 \end{figure}
 

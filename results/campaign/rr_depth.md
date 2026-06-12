@@ -37,9 +37,10 @@ never hurts; 12 sits inside the optimal basin) and therefore the shipped default
 dev-era operating point/GPU state, different spp, and the basin being shallow enough that small
 condition changes move the apparent gain.
 
-**Ch 6 action (queue for the Ch 6 pass):** `fig:rr-depth` plots eff from `rr_depth.csv`; soften the
-5→12 claim to "a shallow efficiency basin spans depths 8–12 (~3–5 % over the extremes); 12 was kept"
-and drop/replace the 11 % figure. tab:wins row, if it quotes 11 %, needs the same edit.
+**Ch 6 action — DONE (2026-06-12):** `fig:rr-depth` regenerated as the real plot from `rr_depth.csv`
+(`build_figures.sh`); `sec:wins` prose now states the basin + the revised +3.4 % magnitude; `tab:wins`
+RR row updated (+3.4 %, sourced to the sweep, caption notes the downward revision); figure caption
+rewritten to the measured shape.
 
 ## Reproduce
 
