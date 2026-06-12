@@ -42,6 +42,8 @@ struct RenderParams {
     float pixel_filter_stddev_ = 0.0f;    // was consts::PIXEL_FILTER_STDDEV (0 = box)
     bool use_ris_ = false;                // --ris: product-RIS NEE instead of MIS (default off = MIS; §8.37 scene-dependent)
     uint32_t ris_num_candidates_ = 6;     // K for product-RIS NEE (was consts::RIS_NUM_CANDIDATES); --ris-candidates
+    bool measure_caps_ = false;           // --measure-caps: record launch-wide maxima of
+                                          // hits/ray and point-overlap into measure_buf_
 
     bool hg_isotropic_ = false;           // |g| < eps → isotropic branch (host decides)
     float hg_g_ = 0.85f;                  // user-facing g (eval uses +g); was consts::HG_G
@@ -73,6 +75,12 @@ struct THESIS_ALIGNMENT LaunchParams {
     // (under-absorption) — turning the previously SILENT overflow into a visible signal.
     // Single element; null-guarded on device.
     unsigned long long* overflow_counter_ = nullptr;
+
+    // Device-side maxima for --measure-caps ([0] = max COLLECT hits per ray,
+    // [1] = max point-overlap at a path vertex). Null unless measurement is on;
+    // written via atomicMax under the render_.measure_caps_ gate. Observation-only:
+    // allocating/reading it never perturbs the render (bit-identical images).
+    uint32_t* measure_buf_ = nullptr;
 };
 
 }  // namespace params

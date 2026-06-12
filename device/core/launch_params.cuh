@@ -7,6 +7,10 @@ extern "C" __constant__ thesis::common::params::LaunchParams launch_params;
 namespace thesis {
 namespace device {
 
+// Slot indices in LaunchParams::measure_buf_ (--measure-caps maxima).
+inline constexpr int MEASURE_HIT_MAX = 0;     // max COLLECT-anyhit invocations per ray
+inline constexpr int MEASURE_ACTIVE_MAX = 1;  // max point-overlap at a path vertex
+
 // Record one cap-overflow event (active-prims CompactSet full, or HitBuffer full).
 // Atomically bumps the host-visible counter so a silently-biased dense-overlap render
 // is surfaced as a warning. Null-guarded so it is a no-op if the counter is unset.
