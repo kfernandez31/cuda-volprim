@@ -110,3 +110,25 @@ footprint aside) — no algorithmic change.
 (probe, bit-exact gates, four-hypothesis debugging cascade, perf verdict) live on
 `feature/cap-free-streaming` under `results/campaign/capfree_*.md` — the negative result that
 motivated keeping the buffered design and measuring its caps instead.
+
+## Addendum 2026-06-13 — campaign re-measurement; bunny chord is FP-fragile
+
+Re-ran `calibrate_caps.sh` for all four assets on the campaign branch (`feature/icosphere-gas`,
+analytic mode) to stash the TUNED binaries for the Section-6 timing runs. Three reproduced the
+2026-06-12 caps exactly: **cloud 64/96, tornado 112/384, explosion 32/160**. Bunny did **not**:
+
+| run (branch) | bunny seed 42 | seed 43 | → HIT cap |
+|---|---|---|---|
+| 2026-06-12 (`main`/cap-calibration) | 464 | 464 | 528 |
+| 2026-06-13 driver (`icosphere-gas`, build A) | ~435 | — | 496 |
+| 2026-06-13 direct re-measure (build B) | 423 | 418 | (→480) |
+
+Same seeds, same PLY, **stable overlap (71) but max hits/ray wobbling 418–464.** Cause: bunny's worst
+chord is a near-grazing ray through the 25 600-Gaussian shell where ±1 entry hit flips under FMA
+reorder across recompiles (the same grazing-sliver mechanism behind the icosphere N=3 reversal). So
+bunny's hit demand is not merely under-sampled (the §"Conclusion" caveat) but **build-fragile**.
+
+**Decision:** bunny stays at the conservative **80/528** — it bounds the worst value observed on any
+build (464) with margin; the tighter per-build values (480/496) would risk a silent overflow drop on a
+different build. Tornado/explosion/cloud are stable, so their measured caps stand. The always-on
+`Cap overflow:` warning remains the backstop if a campaign workload exceeds 528.
