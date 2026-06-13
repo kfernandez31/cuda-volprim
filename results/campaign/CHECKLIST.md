@@ -89,7 +89,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] **icosphere N=3 sliver-artifact crop** vs smooth analytic → `figures/icosphere_sliver.pdf` (`icosphere_sliver.py`; absorption, pure-geometry diff, 3149 px |Δ|>0.05)
 - [x] **denoiser** before/after/GT triptych → `figures/denoise.pdf` (`denoise_triptych.py`; RMSE 0.353→0.049, 7.2× lower)
 - skip (not visual): RR-depth, fast-erf (numerically identical), ncu/roofline (already a plot)
-- **NOTE:** the 4 new figure PDFs are rendered but **not yet \includegraphics-wired into the .tex** — that's the next thesis edit (reviewable). G5b VRAM table likewise un-wired.
+- **WIRING STATUS:** RIS noise → `sec:ris` (06) ✅; icosphere sliver → `sec:icosphere` (06) ✅; G5b VRAM → `sec:gpu-impl` caps prose (04) ✅ — all built clean (59 pp, 0 undefined). **G1 bias triptych + denoiser triptych await Ch7** (`07-results.tex` is still a SCAFFOLD; they're the planned R5 firefly-3-way + R4 showcase — authoring Ch7 is the next thesis task, Kacper-reviewed).
 
 ## E. Deprecated-branch reruns
 - [x] cap-staleness audit done — **no extra reruns**: cap-sensitive numbers are already covered by G2/G3/G6; the rest are cap-robust (ratios/counts/RMSE/huge-margin). **Watch:** `incremental-active-prims` (~16%, §8.23) in the G2 ladder may shrink at the smaller active cap.

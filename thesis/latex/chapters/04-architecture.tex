@@ -261,7 +261,14 @@ compile-time constants, and want to be as small as is safe---though the two diff
 tightness matters. The hit buffer (\SI{6}{\byte} per entry) is the binding one: a universal
 ``safe'' build ($512/512$, the cap a user without tooling would pick) measured $+13\,\%$ frame time
 on the cloud, $+7\,\%$ on the explosion, and ${\sim}+3\,\%$ on the tornado and bunny against the
-per-asset-tuned builds. The active set (\SI{2}{\byte} per entry) tolerates headroom: doubling its
+per-asset-tuned builds. It costs memory too: the per-ray buffers live in thread-local memory, which
+the driver reserves for the device's maximum resident thread count, so the compiled cap sets a
+scene-independent floor on device memory. The safe build reserves a flat $1200\,$MiB on every asset,
+whereas the per-asset-tuned builds use $578$--$900\,$MiB---a saving of $0.30$--$0.62\,$GiB
+($25$--$52\,\%$). The effect is large enough to flip the cross-renderer memory comparison: tuned, the
+renderer's peak device memory on the cloud ($578\,$MiB) sits \emph{below} the Mitsuba reference's
+($838\,$MiB) on the same scene, while the untuned safe build ($1200\,$MiB) exceeds it. The active set
+(\SI{2}{\byte} per entry) tolerates headroom: doubling its
 capacity beyond the cloud's worst case measured as timing-neutral in an interleaved A/B (differences
 under the run-to-run jitter), with renders numerically equivalent. Tightness therefore matters mainly
 for the hit-buffer capacity; the active-set capacity needs only adequacy.

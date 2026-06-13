@@ -159,6 +159,22 @@ environment-sampling bug (a texel-centre quantisation that the prior MIS had mas
   \label{fig:ris-ksweep}
 \end{figure}
 
+The per-sample variance reduction behind this speedup is visible directly (\Cref{fig:ris-noise}): at
+an equal \num{64}-sample budget on the showcase, product-RIS reaches a lower image-space RMSE than
+plain MIS \emph{and} costs less per sample, and the two effects compound to the equal-quality
+$1.48\times$ above (the RMSE ratio squared, times the per-sample time ratio).
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/ris_noise.pdf}
+  \caption{Volumetric product-RIS ($K=6$) versus plain MIS on the environment-lit showcase at an equal
+  \num{64}-sample budget, against a ${\sim}\num{2048}$-sample reference (both estimators are unbiased
+  here and converge to it). RIS lowers the per-sample RMSE ($0.16$ vs.\ $0.17$, median of \num{16}
+  seeds) and renders faster per sample; inset crops show the firefly suppression. The combined
+  equal-quality gain is the $1.48\times$ of \Cref{fig:ris-ksweep}.}
+  \label{fig:ris-noise}
+\end{figure}
+
 \section{Complexity-argued improvements}
 \label{sec:complexity}
 
@@ -251,7 +267,8 @@ unit-sphere GAS with per-instance transforms.
 Accuracy tells the opposite story, and a non-monotone one. From $N{=}0$ to $N{=}2$ the error falls
 ${\sim}4\times$ per subdivision with the physically expected sign (the inscribed shell is slightly
 smaller than the true $3\sigma$ ellipsoid, so renders are marginally too bright). At $N{=}3$ the
-error \emph{rises} on all three assets and flips sign: a localised population of sliver triangles
+error \emph{rises} on all three assets and flips sign (\Cref{fig:icosphere-sliver}): a localised
+population of sliver triangles
 mis-places entry points for near-grazing rays, and the count of affected pixels tracks per-primitive
 screen footprint rather than anisotropy (the round-primitive cloud is hit hardest). Past $N{\approx}2$,
 finer tessellation buys worse accuracy at higher cost---consistent with the reference never going
@@ -266,6 +283,18 @@ Where raw throughput matters more than validation-grade exactness, the measured 
 $N{=}2$---matching the reference's choice of a \num{320}-triangle icosphere---is the right shell, and
 the instanced single-GAS design keeps even that choice memory-trivial (\SI{9.6}{\kilo\byte} compacted,
 versus per-primitive duplication in the reference).
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/icosphere_sliver.pdf}
+  \caption{The $N{=}3$ sliver artifact (cloud, pure absorption, so transmittance is deterministic and
+  every difference is geometric, not Monte-Carlo noise). Left: the analytic sphere, exact. Centre: the
+  \num{1280}-triangle icosphere; the inset crop shows faceted slivers where the analytic shell is
+  smooth. Right: $|\Delta|$ (amplified $4\times$)---the error is a thin, silhouette-localised population
+  (${\sim}\num{3150}$ pixels at $|\Delta|>0.05$, peak $|\Delta|\approx0.25$), the near-grazing rays
+  whose faceted entry points the finest tessellation mis-places.}
+  \label{fig:icosphere-sliver}
+\end{figure}
 
 \section{Negative results: an autopsy ledger}
 \label{sec:autopsies}
