@@ -159,3 +159,42 @@ SG_ENV=white_constant build-ico/bin/Release/test_runner --scene cloud_asset_vali
 # diff vs the analytic render from the canonical build/ (default OFF)
 tools/refs/.venv/bin/python tools/refs/exr_diff.py /tmp/analytic_cloud.exr test_results/cloud_asset_validation/0000.exr
 ```
+
+## Perf re-anchor at calibrated caps (64/96) — 2026-06-13, 350 W + clock lock
+
+Re-ran the perf A/B at the **calibrated analytic caps 64/96** (vs the original shared 128/128), cloud-meadow
+128 spp, seed 1, 5 interleaved rounds, analytic (`exe_cloud`) vs icosphere N=0..3 (built at 64/96). Clock
+p50 1605 MHz. **The standing per-render overflow check fired on N=3** — see below.
+
+| arm | t_med (64/96) | analytic pays | original 128/128 | overflow? |
+|---|---|---|---|---|
+| analytic | 16.284 s | 1.00× | 15.52 s | 0 |
+| ico N=0 | 10.091 s | **1.61×** | 1.58× | 0 |
+| ico N=1 | 11.828 s | **1.38×** | 1.38× | 0 |
+| ico N=2 | 13.250 s | **1.23×** | 1.29× | 0 |
+| ico N=3 | 14.629 s | (1.11×) | 1.17× | **5 hit-buffer entries dropped** |
+
+(Absolutes shifted vs the 2026-06-11 run — different session/thermal state, p50 1605 — but the **ratios
+reproduce**: icosphere faster at every N, analytic pays ~1.2–1.6×. The re-anchor confirms the finding at
+the calibrated caps for N≤2.)
+
+### Finding — N=3 icosphere overflows the analytic hit cap (a new, quantified sliver result)
+
+The N=3 arm dropped 5 hit-buffer entries at 96. Direct `--measure-caps` (meadow, seed 1):
+
+| build | max hits/ray | max overlap |
+|---|---|---|
+| analytic | 87 | 45 |
+| ico N=3 | 95 (16 spp) → **~101** (the 128-spp worst chord that overflowed 96) | 45 |
+
+So **N=3's grazing slivers add ~14 hits/ray over the analytic sphere** (worst chord ~101 vs 87) — the same
+fine-tessellation pathology behind the N=3 *accuracy* reversal now shows up as a *cap* overflow: the N=3
+shell cannot even reuse the analytic-calibrated caps (it needs ≥112 hit buffer). N=0/1/2 stay at/under the
+analytic demand (coarser → no extra slivers), so they fit 64/96 cleanly. The N=3 perf cell above is on a
+5-entry-truncated render (perf impact negligible, render slightly under-absorbed) — the **canonical N=3 perf
+remains the valid 128/128 number (1.17×)**; N=3 is non-recommended regardless (sliver reversal).
+
+**Net:** re-anchor *confirms* "icosphere faster at every N, analytic pays ~1.2–1.6×" at calibrated caps for
+N≤2; the recommended **N=2 fits 64/96 and confirms analytic pays 1.23×**. The overflow protocol did its job
+(caught a contaminated render before it could enter the table). Builds in `build-icoN0..3/` (gitignored).
+

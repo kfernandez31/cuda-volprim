@@ -1,6 +1,6 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 14:42 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 15:00 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
@@ -60,7 +60,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 ### G8 — analytic vs icosphere
 - [x] accuracy (3 assets, RMSE)
 - [x] perf (cloud, 128/128 — ratio cap-robust)
-- [ ] perf re-anchor at calibrated caps  ← optional/cosmetic
+- [x] perf re-anchor at 64/96 — ratios confirmed (analytic pays 1.2–1.6×) for N≤2; **N=3 overflows the analytic hit cap** (~101 vs 87 hits/ray, sliver pathology) — `icosphere_port.md`
 
 ### G10 — Mitsuba parity gates (cross-renderer eligibility)
 - [ ] tornado parity (energy-ratio, absorption)  ← post-window 150W (power-immune)
@@ -78,5 +78,5 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] cap-staleness audit done — **no extra reruns**: cap-sensitive numbers are already covered by G2/G3/G6; the rest are cap-robust (ratios/counts/RMSE/huge-margin). **Watch:** `incremental-active-prims` (~16%, §8.23) in the G2 ladder may shrink at the smaller active cap.
 
 ## Standing protocol
-- [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive)
-- **next action:** thesis prose edits (sec:ris numbers, Ch3/G7 JIT, tab:wins RR row) — non-GPU; then post-window cap-immune work (G4 bunny ncu, G6, G10, ladder/wavefront/adaptive builds). fast-erf + G1 + ladder A/B await a new max-perf window.
+- [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive) — **fired once: G8 N=3 @64/96 (5 entries dropped)** → acted on: documented as the sliver-pathology finding; N=3 perf kept at the valid 128/128.
+- **next action:** thesis prose wiring (`sec:ris`, Ch3/G7 JIT, `tab:wins`, `tab:icosphere`) — awaiting greenlight; then cap-immune work (G4 bunny ncu, G6, G10) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window.
