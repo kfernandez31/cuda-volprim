@@ -20,7 +20,12 @@ against analytic ground truth---and that doubles as the unbiasedness evidence fo
 systematic \emph{performance-engineering study} (\Cref{ch:optimization}) that contributed a second,
 scene-dependent win (volumetric product-RIS direct lighting---$1.4\times$ at equal quality under
 environment lighting, default off) and a rigorously characterised ledger of negative results, and that closed the initial $\sim\!5\times$ equal-quality gap and overtook the
-reference on the showcase, free of its fireflies.
+reference on the showcase, free of its fireflies. The advantage is not confined to frame time: at equal
+conditions the reference's faster direct-lighting estimator is energy-biased on dense media while this
+renderer's is not (\Cref{sec:results-firefly}), per-asset cap calibration puts the renderer's peak
+device memory below the reference's on the showcase (\Cref{sec:results-memory}), and its
+ahead-of-time-compiled pipeline starts in roughly half the reference's warm start
+(\Cref{sec:results-startup}).
 
 \section{Limitations}
 \label{sec:limitations}
