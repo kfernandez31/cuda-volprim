@@ -45,3 +45,6 @@ build-ico/
 # RR-sweep per-seed EXRs (595MB; k re-derivable, timing rerunnable)
 results/campaign/rr_seeds/
 results/campaign/ris_seeds_meadow/
+build-ferf/
+results/campaign/*.log
+results/campaign/.*.status
