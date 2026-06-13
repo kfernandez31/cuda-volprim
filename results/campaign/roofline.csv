@@ -1,2 +1,3 @@
 kernel,arith_intensity,achieved_gflops
 render_megakernel_cloud_meadow,6.75,1012
+render_megakernel_bunny_meadow,24.4,404

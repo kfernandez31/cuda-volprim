@@ -1,6 +1,6 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 15:30 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 15:40 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
@@ -44,7 +44,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ### G4 — bottleneck profile (ncu)
 - [x] cloud profile (`ncu_summary.md`, `roofline.csv`)
-- [ ] bunny profile  ← post-window 150W (ncu self-locks clocks)
+- [x] bunny profile — **more latency-bound than cloud**: occ 20.9%, sched-idle 70%, 5.42 active lanes, DRAM 1.8%; roofline AI 24.4 / 404 GFLOP/s — `ncu_summary.md`
 
 ### G5 — GAS / VRAM memory
 - [x] done (`gas_memory.csv`; cap-independent)
@@ -74,7 +74,8 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] Ch 3 JIT sentence → measured magnitude (0.4 vs 0.8/2.2 s) — **G7 documented**
 - [x] `tab:icosphere` — decided: unchanged (valid 128/128; re-anchor confirmed ratios, N=3 not re-anchored)
 - [ ] `tab:wins` ladder rows (shadow/skip-scan/dedup/fusion) — still dev §-numbers; re-measure = G2 ladder
-- [ ] `sec:bottleneck` bunny + `roofline.pdf` (after G4b)
+- [x] `roofline.pdf` regenerated (cloud + bunny points)
+- [ ] `sec:bottleneck` prose → bunny vs cloud contrast (Kacper's WIP section; numbers ready in `ncu_summary.md`)
 - thesis builds clean: 59 pp, 0 errors/undefined (commit `d48564b`)
 
 ## E. Deprecated-branch reruns
@@ -83,4 +84,4 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 ## Standing protocol
 - [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive). [G8 N=3 didn't fit the analytic's caps → N=3 left at its valid 128/128 figure; not a reported result.]
 - **thesis prose wiring DONE** (G3/RR/fast-erf/G7 → committed `d48564b`, 59 pp clean).
-- **next action:** cap-immune experiments (G4 bunny ncu, G6 wavefront/adaptive, G10 parity) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window.
+- **next action:** G6 wavefront/adaptive confirms + G10 parity gates (both cap-immune) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window. (G4 bunny ncu ✅ done.)

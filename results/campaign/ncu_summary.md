@@ -69,3 +69,44 @@ latency-bound, scheduler-starved, divergence-dominated.
   camera cam_0000, scene-native 900×600 → grid (240,19,1)×(128,1,1) = 583,680 threads.
 - **Stack:** driver 580.95.05, CUDA 12.6 (V12.6.20), ncu 2024.3.0; ncu base-clocked
   (`--clock-control` default), GPU otherwise idle.
+
+---
+
+# Bunny profile (G4b) — 2026-06-13
+
+`asset_validation`, bunny PLY (25,600 Gaussians), calibrated caps **80/528**, meadow HDR, albedo 0.9,
+`SG_RES=256`, 4 spp, render megakernel (`regex:optixLaunch`, 1 launch), grid (128,1,1)×(512,1,1). ncu
+base-clocked (cap-immune). Same megakernel as the cloud profile (registers/thread ≈ 114).
+
+| metric | cloud (meadow, 900×600) | **bunny (256², 25.6k prims)** |
+|---|---|---|
+| Achieved occupancy | 31.2 % | **20.9 %** (10.05 warps/SM) |
+| Compute (SM) throughput | 45.9 % | **24.7 %** |
+| Memory throughput | 37.3 % | 24.7 % |
+| DRAM throughput | 16.5 % | **1.8 %** |
+| No-eligible (scheduler idle) | 52.9 % | **70.4 %** |
+| Eligible warps / scheduler | 0.72 | **0.38** |
+| Issued warps / scheduler | 0.47 | 0.30 |
+| Warp cycles / issued inst | 7.98 | **9.16** |
+| Avg active threads / warp | 6.95 / 32 | **5.42 / 32** |
+
+**Bunny is even more severely latency-bound and divergence-dominated than the cloud.** Its 25,600 tiny
+primitives + 528-deep hit buffer starve the scheduler **70 %** of cycles (vs 53 % cloud), drop occupancy
+to **20.9 %**, and push divergence to **5.42 active lanes** (vs 6.95) — only ~17 % of each warp alive.
+DRAM is **negligible (1.8 %)**: unlike the cloud's env-map-driven 16.5 %, bunny's cost is pure
+traversal/instruction latency, not bandwidth. Same qualitative verdict, more extreme.
+
+### Roofline point (same estimation method as the cloud)
+| quantity | value |
+|---|---|
+| DRAM traffic | 17.43 GB over 1.055 s → 16.5 GB/s (1.8 % of 936) |
+| FMA-pipe warp-instructions | 52.38e9 |
+| FLOPs (est.) | 52.38e9 × 5.42 active × 1.5 ≈ **0.426 TFLOP** |
+| Achieved | **≈ 404 GFLOP/s** (1.1 % of 35.6 TFLOP/s FP32 peak) |
+| Arithmetic intensity | **≈ 24.4 FLOP/B** |
+
+Bunny sits even further below both roofs than the cloud (1.1 % of compute peak, 1.8 % of bandwidth) —
+*higher* AI (24.4 vs 6.75) because the dense-shell traversal is instruction-heavy with almost no DRAM
+traffic. The non-saturation / latency-bound argument holds *a fortiori*. (FLOPs via pipe counters ×
+active lanes × 1.5 mix factor, as for the cloud; transcendental erf on the XU pipe uncounted → an
+undercount. Raw: `g4_bunny_sections_*.txt`, `g4_bunny_roofline_*.csv`.)
