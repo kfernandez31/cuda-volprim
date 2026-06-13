@@ -1,10 +1,10 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 14:25 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 14:42 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
-> **Window status:** Piotr's 11:30–13:30 max-perf window is **CLOSED**. The fast-timing bucket (RR + meadow-RIS re-anchors, G3 flat + studio) completed inside it, 0 overflows. Remaining timed work (fast-erf A/B, G1, G2 ladder) needs a **new window**. Cap-immune work (G4/G6/G10 + builds) runs anytime.
+> **Window status:** Piotr extended the max-perf window. Done inside it (0 overflows): fast-timing bucket (G3 flat/studio + RR/meadow re-anchors) ✅ and **fast-erf A/B** ✅. Remaining timed work (G1, G2 ladder, optional G8 perf re-anchor) needs builds/pre-flight first. Cap-immune work (G4/G6/G10 + builds) runs anytime.
 
 ---
 
@@ -32,7 +32,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 ### G2 — optimization ablations → `tab:wins`, `fig:rr-depth`
 - [x] RR-depth timing re-anchor — **min at depth 12**, +4.7 % vs d5; `rr_depth.csv`/`fig:rr-depth` updated; provisional flag cleared
 - [ ] merge-ladder: shadow-transmittance · skip-scan · dedup-bounce0 · any-hit fusion  ← needs worktree builds (post-window) then next window
-- [ ] fast-erf A/B + bias check  ← next window (build-ferf ready; window closed before it ran)
+- [x] fast-erf A/B — numerically free (max\|Δ\| 1.2e-6); **+0.9 %** time (within noise; dev ~1.5%) — `fast_erf.md`
 - [ ] denoiser effective-RMSE vs 2048-spp GT
 
 ### G3 — RIS scene-dependence → `fig:ris-ksweep`  ✅ COMPLETE
