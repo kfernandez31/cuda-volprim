@@ -1,6 +1,6 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 15:00 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 15:30 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
@@ -68,15 +68,19 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ## D. Thesis wiring (figures / tables / prose)
 - [x] `fig:ris-ksweep` (3 envs, regenerated)
-- [x] `rr_depth.csv` absolutes + `fig:rr-depth` (re-anchored)
-- [ ] `sec:ris` prose/caption → flat-loses / studio-1.45× / meadow-1.49× (numbers ready)  ← thesis edit
-- [ ] `tab:wins` rows: RR (+4.7 %) · RIS · fast-erf · ladder
-- [ ] Ch 3 JIT sentence → measured magnitude; G7 line in results/limitations
+- [x] `rr_depth.csv` absolutes + `fig:rr-depth` (re-anchored, caption updated)
+- [x] `sec:ris` prose + caption → flat loses / studio 1.45× / meadow 1.48× / saturation / peak K=6
+- [x] `tab:wins` RR (+4.7%, min d12) + fast-erf (numerically free, ~1%)
+- [x] Ch 3 JIT sentence → measured magnitude (0.4 vs 0.8/2.2 s) — **G7 documented**
+- [x] `tab:icosphere` — decided: unchanged (valid 128/128; re-anchor confirmed ratios, N=3 not re-anchored)
+- [ ] `tab:wins` ladder rows (shadow/skip-scan/dedup/fusion) — still dev §-numbers; re-measure = G2 ladder
 - [ ] `sec:bottleneck` bunny + `roofline.pdf` (after G4b)
+- thesis builds clean: 59 pp, 0 errors/undefined (commit `d48564b`)
 
 ## E. Deprecated-branch reruns
 - [x] cap-staleness audit done — **no extra reruns**: cap-sensitive numbers are already covered by G2/G3/G6; the rest are cap-robust (ratios/counts/RMSE/huge-margin). **Watch:** `incremental-active-prims` (~16%, §8.23) in the G2 ladder may shrink at the smaller active cap.
 
 ## Standing protocol
 - [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive). [G8 N=3 didn't fit the analytic's caps → N=3 left at its valid 128/128 figure; not a reported result.]
-- **next action:** thesis prose wiring (`sec:ris`, Ch3/G7 JIT, `tab:wins`, `tab:icosphere`) — awaiting greenlight; then cap-immune work (G4 bunny ncu, G6, G10) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window.
+- **thesis prose wiring DONE** (G3/RR/fast-erf/G7 → committed `d48564b`, 59 pp clean).
+- **next action:** cap-immune experiments (G4 bunny ncu, G6 wavefront/adaptive, G10 parity) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window.
