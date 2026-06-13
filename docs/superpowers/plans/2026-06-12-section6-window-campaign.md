@@ -43,6 +43,28 @@
 
 ---
 
+## Execution strategy — 150 W prep vs 350 W window (added 2026-06-13)
+
+The campaign splits cleanly by what actually needs the power window. **Builds (CPU `nvcc`/OptiX-IR), correctness/count gates, `ncu` (self-locks clocks), and huge-margin confirms are power-immune**; only absolute wall-clock timings need ≥300 W + a quiet GPU.
+
+**Phase A — 150 W, runnable anytime (compile-dominated, headless):**
+- Prep: `extract_k.py` (+regression test, reproduces banked d12=1.98417), `env_peakiness.py` (measured: white 1×/0.6%, studio 538.8×/39.7%, meadow 1.53e5×/78.1%), studio-env wiring — **DONE + committed 2026-06-13**.
+- All builds, stashed to `~/winbins/` as exe+optixir **pairs** (rule R3): 4 calibrated assets + stock, the 4 ladder pairs + fast-erf + BARE (worktrees), wavefront ON/OFF, adaptive. (cloud calibrated pair + fast-erf `build-ferf/` **DONE 2026-06-13** via `scripts/campaign/build_prewindow.sh`.)
+- Cap-immune experiments: G4 bunny ncu, G6 wavefront+adaptive, G10 Mitsuba parity gates, G5 VRAM.
+
+**Phase B — ≥300 W + quiet GPU (pure timing):**
+- Re-anchors (RR, meadow RIS — k banked per R8, time-only), G3 flat/studio rungs, G2 ladder A/B + fast-erf, G1 headline (the 3–5 h pole — its own long/overnight window).
+
+**Window triage (2-h slots, e.g. Piotr's 11:30–13:30).** A 2-h slot can't hold Phase B (~5–6.5 h), so pack it with the *fast-timing bucket* and pre-build its inputs at 150 W beforehand. Fits in ~40 min core + buffer: **RR re-anchor + meadow RIS re-anchor + G3 flat rung + G3 studio rung** → completes `fig:ris-ksweep` and clears the RR/RIS "provisional" flags (fast-erf A/B optional if time, runs `build-ferf/` directly per R3). Driver `scripts/campaign/run_window.sh` aborts if power <300 W, has env-leak guards on the flat/studio rungs, and runs a clock sentinel. Does NOT fit, want their own long window: **G1 headline**, **G2 ladder A/B** (needs ~2–3 h of worktree builds first).
+
+**Headless launch (survives SSH drop):**
+```bash
+setsid nohup bash scripts/campaign/<driver>.sh >/dev/null 2>&1 </dev/null &   # tees its own log + writes results/campaign/.<name>.status
+tail -f results/campaign/<name>.log
+```
+
+---
+
 ### Task 0: Verify state + window preconditions
 
 **Files:** none (verification only)
@@ -542,3 +564,33 @@ Build BARE in a worktree (Task 9 pattern, keep worktree alive); furnace-gate it 
 | 12 (ncu bunny) | ~30 min |
 | 13 (G6) | ~1 h |
 | **Total** | **~10–12 h** → plan an overnight window; Tasks 5–9 and 11 need it, 10/12 don't |
+
+---
+
+## Deprecated-branch conclusions — cap-staleness audit (added 2026-06-13)
+
+The ~18 `deprecated-*` branches carry documented conclusions measured at OLD caps (stock 128/128 or the older estimator), not the calibrated per-asset caps. Per rule **R8**, a number is **cap-sensitive only if it is an absolute timing**; equal-quality *ratios* (both arms share the build), *counts*, *accuracy/RMSE*, and *huge-margin negatives* are cap-robust (image class is bit-identical at 0 overflows; ratios shift together). Audit (numbers from `thesis/FINDINGS.md` §8.x):
+
+| Branch | Feature | Verdict | Documented № | Type | On | Src | Cap-sensitive? |
+|---|---|---|---|---|---|---|---|
+| shadow-transmittance-opt | per-prim shadow τ (no sort) | win | ~12–15× shadow kernel; ~7× per-spp | TIMING | cloud const | §8.16-17 | **yes → G2 ladder** |
+| incremental-active-prims (skip-scan) | reuse bounce-0 active set | win | **~16%** | TIMING | cloud | §8.23 | **yes (most) → G2 ladder** |
+| dedup-bounce0-scan | dedup origin-inside set | win | ~8% | TIMING | cloud | §8.19 | **yes → G2 ladder** |
+| anyhit-transmittance-fusion | shadow τ in anyhit | win | ~3% | TIMING | cloud 128spp | §8.18 | **yes → G2 ladder** |
+| fast-erf | approx erf hot path | win (opt-in) | ~1.5% | TIMING | cloud meadow | §8.21 | **yes → G2b** |
+| volumetric-ris | product-RIS direct light | win (gated) | ~1.4× env; ~2.5× worse flat | RATIO | cloud meadow/flat | §8.37 | ratio-robust → **G3 re-measures** |
+| wavefront / -phase1 | host-driven per-bounce | rejected | 100–1400× slower | TIMING (huge) | single-G, asset | §8.34 | no (margin) → G6 confirm |
+| adaptive-sampling | per-pixel stop | rejected | ~2× slower; −5e-4 bias | RATIO | cloud σ7.5 | §8.30 | no (margin) → G6 confirm |
+| a1-per-step-rb | per-step Rao-Black. | rejected | ~3× var flat-only, 0× showcase | RATIO | single-G, cloud | §8.27,8.5 | no (ratio, dead-end) |
+| sobol-sampling | Owen-scrambled Sobol' | rejected | −0.1%..+0.8% RMSE (no win) | RMSE | cloud meadow | §8.20 | no (ratio) |
+| env-is-alias-table | Walker/Vose alias | deferred | <1% (−0.8..+0.4%) | TIMING | cloud meadow | §8.36 | no (sub-jitter, dropped) |
+| denoiser | OptiX HDR denoiser | win | ~30× effective | RMSE ratio | cloud 16 vs 512 | §8.22 | no (ratio) → G2b re-touches |
+| asset-nan | negative-t guard | bugfix | NaN 8→0 | COUNT | embergen 24k | §8.26 | no (count) |
+| robustness-fixes | uint32 spp + overflow detect | bugfix | wrap fixed | COUNT | cloud | §9 | no (count) |
+| showcase-quality | firefly clamp + recon filter | win (beauty) | firefly max↓1.36 | COUNT/qual | cloud meadow | §8.24 | no (count/image-only) |
+| path-guiding | learned 32³ guide | deferred | no payoff | diagnostic | scaffold | §8.38 | no |
+| analog-indirect-diagnostic | variance-gap diagnostic | diagnostic | estimator id'd | RATIO | single-G | §8.27 | no |
+
+**Verdict — the cap-sensitive conclusions are already in the lineup.** Every deprecated number that is a genuine cloud absolute-timing speedup is re-measured at calibrated caps by a planned experiment: shadow-transmittance, skip-scan, dedup-bounce0, anyhit-fusion → **G2 merge-ladder (Task 9)**; fast-erf → **G2b (Task 9 Step 3)**; volumetric-RIS → **G3 (Tasks 5–7)**; wavefront, adaptive → **G6 (Task 13)**. **No extra reruns are needed for the rest** — they are cap-robust (counts, accuracy/RMSE ratios, equal-quality ratios, huge-margin negatives, or the sub-jitter/dropped alias table).
+
+**One to watch in G2 (Task 9):** `incremental-active-prims` (~16%, §8.23) is the *most* cap-coupled conclusion — it removes a per-bounce scan over the active-prim set, whose cost scales with `MAX_ACTIVE_PRIMS`. Cloud's active cap dropped **128→64**, so the scan it skips is now half as large and the ~16% may shrink. Its ladder pair (`174777d~1 ↔ 174777d`) measures the calibrated-cap value directly — report honestly if it deviates >2× (precedent: RR's 11%→3.4%).
