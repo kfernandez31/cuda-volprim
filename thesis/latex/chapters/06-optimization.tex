@@ -15,13 +15,35 @@ performance ceiling of this class of renderer and are themselves a contribution.
 
 Optimisation began with profiling, not guessing. NSight Compute locates the bottleneck firmly in
 \emph{memory latency}: the kernel is latency-bound on scattered global loads of the per-primitive
-\texttt{Primitive} struct, at roughly $22\%$ occupancy, itself capped by the code-intrinsic register
+\texttt{Primitive} struct, at $21$--$31\%$ occupancy (asset-dependent), itself capped by the code-intrinsic register
 pressure of the erf and phase-function chains. The primitive data is already $82$--$98\%$
 cache-resident, so reducing its \emph{footprint} cannot help much---the cost is in the latency of
 gathering scattered primitives, not in bandwidth. The structural reading of this is the same one that
 shaped the architecture (\Cref{sec:gpu-impl}): the per-bounce arithmetic is cheap but the per-ray state
 is large and persistent, so the algorithm is \emph{megakernel-shaped}. This single fact predicts
 several of the null results in \Cref{sec:autopsies}.
+
+Profiling the production binary quantifies this across two workloads (NSight Compute, base-clocked). On
+the environment-lit cloud the render megakernel reaches $31.2\%$ occupancy at $45.9\%$ SM and $16.5\%$
+DRAM throughput; on the \num{25600}-primitive bunny it is harsher---$20.9\%$ occupancy, the scheduler
+with no eligible warp $70\%$ of cycles, DRAM at $1.8\%$---and ray divergence leaves only $5.4$--$6.9$ of
+$32$ lanes active per warp. Neither workload approaches either roof of the arithmetic roofline
+(\Cref{fig:roofline}): both sit at $1$--$3\%$ of the RTX~3090's FP32 compute peak and from $1.8\%$
+(bunny) to $16.5\%$ (cloud) of its bandwidth. The regime is unambiguously \emph{latency-bound} and
+divergence-dominated---not compute- or bandwidth-bound---with the bunny the more extreme point because
+its dense, finely-divided shell maximises traversal divergence while touching almost no DRAM.
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{figures/roofline.pdf}
+  \caption{Arithmetic roofline (RTX~3090: ${\approx}35.6$~TFLOP/s FP32, ${\approx}936$~GB/s) for the
+  render megakernel on two workloads. Both points sit far below both roofs---cloud at
+  ${\approx}1.0$~TFLOP/s (arithmetic intensity ${\approx}6.8$~FLOP/B), bunny at ${\approx}0.4$~TFLOP/s
+  (${\approx}24$~FLOP/B)---a non-saturation argument for the latency-bound diagnosis. FLOPs are estimated
+  from pipe counters $\times$ average active lanes; the transcendental \texttt{erf} on the XU pipe is
+  uncounted, so the figure undercounts true arithmetic.}
+  \label{fig:roofline}
+\end{figure}
 
 \section{A taxonomy of optimisations}
 \label{sec:four-modes}
