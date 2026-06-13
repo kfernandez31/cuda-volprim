@@ -54,3 +54,6 @@ build-ico*/
 results/campaign/*.exr
 results/campaign/g1_seeds/
 results/campaign/g1_bunny_seeds/
+results/campaign/ico_fig/
+results/campaign/denoise/
+results/campaign/g6_adaptive/*.exr

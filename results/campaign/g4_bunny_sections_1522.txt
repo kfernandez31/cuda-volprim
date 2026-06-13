@@ -1,0 +1,81 @@
+[15:22:16.350] [info] Starting application, logging enabled.
+[15:22:16.351] [info] Loading asset PLY: assets/models/bunny/bunny_pyr0.ply
+[15:22:16.352] [info] Loaded 25600 asset primitives
+==PROF== Connected to process 110965 (/home/kacper/thesis/build/bin/Release/test_runner)
+
+════════════════════════════════════════════════════════
+Running multi-view test: asset_validation
+Description: Generic Gaussian asset: assets/models/bunny/bunny_pyr0.ply
+Primitives: 25600
+Cameras: 1
+SPP: 4
+════════════════════════════════════════════════════════
+
+  [1/1] Rendering camera 0 → test_results/asset_validation/0000.exr
+    Resolution: 256×256 (perspective)
+[15:22:16.629] [info] Created CUDA context for device 0 (NVIDIA GeForce RTX 3090), compute capability 8.6
+[15:22:16.673] [info] Loading environment map from 'assets/environment_maps/meadow_2_4k.hdr'
+[15:22:16.729] [info] Successfully loaded environment map: 4096x2048x4
+[15:22:16.766] [info] IAS compaction issued (7718656 -> 3967872 bytes)
+[15:22:16.776] [info] OptiX pipeline built
+[15:22:16.777] [info] Render params: max_depth=128 rr_depth=12 rr_max_survival=0.990 hg_g=0.850 firefly_clamp=0 filter_stddev=0 (box) seed=42 denoise=false
+[15:22:16.777] [info] Launching OptiX pipeline - will render 25600 Gaussians in 1 batches (4 spp total)...
+[15:22:16.777] [info] Rendering batch 1/1: samples [0, 4)
+==PROF== Profiling "optixLaunch": 0%....50%....100% - 14 passes
+[15:22:32.933] [info] Cap check: 0 overflows (HIT_BUFFER_CAPACITY and MAX_ACTIVE_PRIMS sufficient for this run).
+[15:22:32.933] [info] All batches complete, saving image...
+[15:22:32.933] [info] Saving render (256x256, 4 spp)
+[15:22:32.934] [info] Saving to 'test_results/asset_validation/0000.exr'
+[15:22:32.935] [info] Rendering complete - Total time: 16.158s (16158 ms)
+    ✓ Camera 0 completed
+
+✓ Multi-view test completed successfully
+  Output directory: test_results/asset_validation
+==PROF== Disconnected from process 110965
+[110965] test_runner@127.0.0.1
+  optixLaunch (512, 1, 1)x(128, 1, 1), Context 1, Device 0, CC 8.6
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ----------------
+    Metric Name             Metric Unit     Metric Value
+    ----------------------- ----------- ----------------
+    DRAM Frequency                  Ghz             9,48
+    SM Frequency                    Ghz             1,39
+    Elapsed Cycles                cycle    1 488 319 251
+    Memory Throughput                 %            24,73
+    DRAM Throughput                   %             1,80
+    Duration                          s             1,07
+    L1/TEX Cache Throughput           %            34,04
+    L2 Cache Throughput               %             9,72
+    SM Active Cycles              cycle 1 086 080 700,28
+    Compute (SM) Throughput           %            24,73
+    ----------------------- ----------- ----------------
+
+    Section: Scheduler Statistics
+    ---------------------------- ----------- ------------
+    Metric Name                  Metric Unit Metric Value
+    ---------------------------- ----------- ------------
+    One or More Eligible                   %        29,63
+    Issued Warp Per Scheduler                        0,30
+    No Eligible                            %        70,37
+    Active Warps Per Scheduler          warp         2,72
+    Eligible Warps Per Scheduler        warp         0,38
+    ---------------------------- ----------- ------------
+
+    Section: Warp State Statistics
+    ---------------------------------------- ----------- ------------
+    Metric Name                              Metric Unit Metric Value
+    ---------------------------------------- ----------- ------------
+    Warp Cycles Per Issued Instruction             cycle         9,16
+    Warp Cycles Per Executed Instruction           cycle         9,18
+    Avg. Active Threads Per Warp                                 5,42
+    Avg. Not Predicated Off Threads Per Warp                     5,32
+    ---------------------------------------- ----------- ------------
+
+    Section: Occupancy
+    ---------------------------- ----------- ------------
+    Metric Name                  Metric Unit Metric Value
+    ---------------------------- ----------- ------------
+    Achieved Occupancy                     %        20,94
+    Achieved Active Warps Per SM        warp        10,05
+    ---------------------------- ----------- ------------
+

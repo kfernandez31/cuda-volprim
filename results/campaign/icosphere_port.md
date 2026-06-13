@@ -183,3 +183,11 @@ The thesis perf table stays on the 128/128 numbers (one shared cap across all de
 is just a robustness check that the ratios survive at the calibrated caps. Builds in `build-icoN0..3/`
 (gitignored).
 
+
+## Figure (2026-06-13): N=3 sliver-artifact crop
+`scripts/plots/icosphere_sliver.py` → `thesis/latex/figures/icosphere_sliver.pdf`. Re-rendered the
+analytic vs icoN3 absorption pair (`cloud_asset_validation`, white_constant, 64 spp, both 0 overflow →
+pure geometry) and reproduced the recorded diff exactly: RMSE 8.18e-3, signed-mean +9.1e-4, 3149 px
+|Δ|>0.05, max |Δ|=0.249. The figure (analytic | icoN3 | |Δ|×4, with a worst-region zoom inset) shows
+the localised silhouette slivers vs the smooth analytic — the quality argument for the analytic sphere.
+Source EXRs in `results/campaign/ico_fig/`.

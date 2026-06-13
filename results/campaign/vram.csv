@@ -1,0 +1,10 @@
+asset,build,caps_active_hit,peak_vram_mib,res,overflow
+cloud,calibrated,64/96,578,900x600,0
+cloud,safe512,512/512,1200,900x600,0
+tornado,calibrated,112/384,818,512x512,0
+tornado,safe512,512/512,1200,512x512,0
+explosion,calibrated,32/160,600,512x512,0
+explosion,safe512,512/512,1200,512x512,0
+bunny,calibrated,80/528,900,512x512,0
+bunny,safe512,512/512,1200,512x512,0
+cloud,mitsuba,n/a,838,900x600,0

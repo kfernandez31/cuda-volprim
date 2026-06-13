@@ -1,0 +1,5 @@
+scene,arm,spp,time_s,note
+single_gaussian_validation,mega,4,NA,
+single_gaussian_validation,wf,4,>=240,TIMEOUT(lower-bound)
+cloud_asset_scattering,mega,1,NA,
+cloud_asset_scattering,wf,1,>=240,TIMEOUT(lower-bound)

@@ -1,0 +1,40 @@
+[15:22:33.221] [info] Starting application, logging enabled.
+[15:22:33.222] [info] Loading asset PLY: assets/models/bunny/bunny_pyr0.ply
+[15:22:33.223] [info] Loaded 25600 asset primitives
+==PROF== Connected to process 111131 (/home/kacper/thesis/build/bin/Release/test_runner)
+
+════════════════════════════════════════════════════════
+Running multi-view test: asset_validation
+Description: Generic Gaussian asset: assets/models/bunny/bunny_pyr0.ply
+Primitives: 25600
+Cameras: 1
+SPP: 4
+════════════════════════════════════════════════════════
+
+  [1/1] Rendering camera 0 → test_results/asset_validation/0000.exr
+    Resolution: 256×256 (perspective)
+[15:22:33.493] [info] Created CUDA context for device 0 (NVIDIA GeForce RTX 3090), compute capability 8.6
+[15:22:33.534] [info] Loading environment map from 'assets/environment_maps/meadow_2_4k.hdr'
+[15:22:33.592] [info] Successfully loaded environment map: 4096x2048x4
+[15:22:33.628] [info] IAS compaction issued (7718656 -> 3967872 bytes)
+[15:22:33.639] [info] OptiX pipeline built
+[15:22:33.639] [info] Render params: max_depth=128 rr_depth=12 rr_max_survival=0.990 hg_g=0.850 firefly_clamp=0 filter_stddev=0 (box) seed=42 denoise=false
+[15:22:33.640] [info] Launching OptiX pipeline - will render 25600 Gaussians in 1 batches (4 spp total)...
+[15:22:33.640] [info] Rendering batch 1/1: samples [0, 4)
+[15:22:42.960] [info] Cap check: 0 overflows (HIT_BUFFER_CAPACITY and MAX_ACTIVE_PRIMS sufficient for this run).
+[15:22:42.960] [info] All batches complete, saving image...
+[15:22:42.960] [info] Saving render (256x256, 4 spp)
+[15:22:42.961] [info] Saving to 'test_results/asset_validation/0000.exr'
+[15:22:42.962] [info] Rendering complete - Total time: 9.322s (9322 ms)
+    ✓ Camera 0 completed
+
+✓ Multi-view test completed successfully
+  Output directory: test_results/asset_validation
+==PROF== Disconnected from process 111131
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","111131","test_runner","127.0.0.1","optixLaunch","1","13","(128, 1, 1)","(512, 1, 1)","0","8.6","Command line profiler metrics","dram__bytes.sum","byte","17 432 319 360"
+"0","111131","test_runner","127.0.0.1","optixLaunch","1","13","(128, 1, 1)","(512, 1, 1)","0","8.6","Command line profiler metrics","gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed","%","1,81"
+"0","111131","test_runner","127.0.0.1","optixLaunch","1","13","(128, 1, 1)","(512, 1, 1)","0","8.6","Command line profiler metrics","gpu__time_duration.sum","ns","1 055 358 880"
+"0","111131","test_runner","127.0.0.1","optixLaunch","1","13","(128, 1, 1)","(512, 1, 1)","0","8.6","Command line profiler metrics","sm__inst_executed_pipe_fma.sum","inst","52 384 650 506"
+"0","111131","test_runner","127.0.0.1","optixLaunch","1","13","(128, 1, 1)","(512, 1, 1)","0","8.6","Command line profiler metrics","sm__throughput.avg.pct_of_peak_sustained_elapsed","%","24,44"
+"0","111131","test_runner","127.0.0.1","optixLaunch","1","13","(128, 1, 1)","(512, 1, 1)","0","8.6","Command line profiler metrics","smsp__thread_inst_executed_per_inst_executed.ratio","","5,42"

@@ -49,11 +49,11 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ### G5 — GAS / VRAM memory
 - [x] GAS sizes (`gas_memory.csv`; cap-independent)
-- [ ] **G5b — peak VRAM (GAP flagged by Kacper 2026-06-13):** per-process peak VRAM per asset (ours), calibrated-vs-SAFE-512 **cap savings** (the cap work's MB payoff, so far unquantified), and ours-vs-Mitsuba. Renderer only self-reports GAS/IAS → needs an `nvidia-smi --query-compute-apps=used_memory` poll. Cap-immune → runnable now.
+- [x] **G5b — peak VRAM (GAP flagged by Kacper 2026-06-13):** DONE (`vram.md`/`vram.csv`). Calibrated vs SAFE-512: cloud 578/1200 (−622), tornado 818/1200 (−382), explosion 600/1200 (−600), bunny 900/1200 (−300) MiB → cap calibration saves **0.30–0.62 GiB (25–52%)**. SAFE-512 is a flat 1200 MiB (reservation dominates, asset-independent). ours-vs-Mitsuba cloud: ours-calibrated **578** vs Mitsuba **838** (31% less); ours-512 1200 (43% more) → calibration is what beats the reference on memory.
 
-### G6 — negative-result confirms
-- [ ] wavefront ON/OFF (one point)  ← post-window 150W
-- [ ] adaptive effective  ← post-window 150W
+### G6 — negative-result confirms  ✅ (`g6.md`)
+- [~] wavefront ON/OFF — re-run BLOCKED: `deprecated-wavefront-phase1` binaries fault (illegal mem access, even single_gaussian/white_constant) on the current toolchain (branch predates asset/env reorg + OptiX). Cite dev §8.34 (100–1400× slower); megakernel is production. Branch preserved.
+- [x] adaptive effective — CONFIRMED net loss: cloud-meadow 64spp, adaptive vs uniform **identical RMSE 0.1706**, adaptive 0.9% slower + extra W·H·16B buffer (at 1% threshold nothing early-stops on high-variance cloud → degenerates to uniform). Confirms §8.30.
 
 ### G7 — Mitsuba JIT/startup (#96)
 - [x] measured (`jit_overhead.md`: ours 0.39 s vs Mitsuba 0.78 s warm / 2.20 s cold)
@@ -83,11 +83,13 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ## F. Render figures (graphics-thesis visuals — Kacper, 2026-06-13)
 - [~] **Mitsuba comparison triptychs** (ours | Mitsuba | diff): **G10 tornado/explosion ✅ done** (`g10_triptych.png`; diff is 256-spp noise — thesis-final wants converged renders for a clean diff). Remaining: Ch5 cloud absorption/scattering (`fig:absorption-ladder`/`fig:scattering-ladder`), G1 cloud headline + firefly-crop vs Mitsuba-MIS
-- [ ] **showcase beauty montage** — 4 assets env-lit, final-showcase config → `fig:showcase`
-- [ ] **RIS equal-time noise + firefly crop** (meadow; banked `ris_seeds_meadow/` EXRs)
-- [ ] **icosphere N=3 sliver-artifact crop** vs smooth analytic (visual quality argument)
-- [ ] **denoiser** before/after/GT triptych
+- [x] **G1 bias triptych** — ours-MIS (+0.4%) | Mitsuba-NEE (+156% over-bright) | Mitsuba-analog GT → `figures/g1_bias.pdf` (`g1_bias_triptych.py`, 16-seed means)
+- [ ] **showcase beauty montage** — 4 assets env-lit → would be a NEW figure (`fig:showcase` is already the Ch5 cloud showcase); needs a thesis home + Kacper's nod before adding
+- [x] **RIS equal-quality noise + firefly crop** (meadow) → `figures/ris_noise.pdf` (`ris_noise.py`; MIS|RIS K=6|ref, RMSE 0.173 vs 0.160 → variance²×time reconciles to 1.49×)
+- [x] **icosphere N=3 sliver-artifact crop** vs smooth analytic → `figures/icosphere_sliver.pdf` (`icosphere_sliver.py`; absorption, pure-geometry diff, 3149 px |Δ|>0.05)
+- [x] **denoiser** before/after/GT triptych → `figures/denoise.pdf` (`denoise_triptych.py`; RMSE 0.353→0.049, 7.2× lower)
 - skip (not visual): RR-depth, fast-erf (numerically identical), ncu/roofline (already a plot)
+- **NOTE:** the 4 new figure PDFs are rendered but **not yet \includegraphics-wired into the .tex** — that's the next thesis edit (reviewable). G5b VRAM table likewise un-wired.
 
 ## E. Deprecated-branch reruns
 - [x] cap-staleness audit done — **no extra reruns**: cap-sensitive numbers are already covered by G2/G3/G6; the rest are cap-robust (ratios/counts/RMSE/huge-margin). **Watch:** `incremental-active-prims` (~16%, §8.23) in the G2 ladder may shrink at the smaller active cap.
