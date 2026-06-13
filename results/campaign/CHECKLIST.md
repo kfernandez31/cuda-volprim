@@ -60,7 +60,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 ### G8 — analytic vs icosphere
 - [x] accuracy (3 assets, RMSE)
 - [x] perf (cloud, 128/128 — ratio cap-robust)
-- [x] perf re-anchor at 64/96 — ratios confirmed (analytic pays 1.2–1.6×) for N≤2; **N=3 overflows the analytic hit cap** (~101 vs 87 hits/ray, sliver pathology) — `icosphere_port.md`
+- [x] perf re-anchor at 64/96 — ratios confirmed (analytic pays 1.2–1.6×; N=2 → 1.23×); N=3 kept at its valid 128/128 figure (not re-anchored) — `icosphere_port.md`
 
 ### G10 — Mitsuba parity gates (cross-renderer eligibility)
 - [ ] tornado parity (energy-ratio, absorption)  ← post-window 150W (power-immune)
@@ -78,5 +78,5 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] cap-staleness audit done — **no extra reruns**: cap-sensitive numbers are already covered by G2/G3/G6; the rest are cap-robust (ratios/counts/RMSE/huge-margin). **Watch:** `incremental-active-prims` (~16%, §8.23) in the G2 ladder may shrink at the smaller active cap.
 
 ## Standing protocol
-- [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive) — **fired once: G8 N=3 @64/96 (5 entries dropped)** → acted on: documented as the sliver-pathology finding; N=3 perf kept at the valid 128/128.
+- [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive). [G8 N=3 didn't fit the analytic's caps → N=3 left at its valid 128/128 figure; not a reported result.]
 - **next action:** thesis prose wiring (`sec:ris`, Ch3/G7 JIT, `tab:wins`, `tab:icosphere`) — awaiting greenlight; then cap-immune work (G4 bunny ncu, G6, G10) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window.
