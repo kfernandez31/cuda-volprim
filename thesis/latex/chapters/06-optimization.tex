@@ -1,10 +1,9 @@
 \chapter{Performance Engineering and Optimization}
 \label{ch:optimization}
 
-The renderer validated in \Cref{ch:validation} was, at first, slower than the Mitsuba reference it
-matched: on the scattering cloud it ran roughly $1.9\times$ slower per sample \emph{and} $2.9\times$
-noisier per sample---about $5\times$ at equal quality. Closing that gap, and then overtaking the
-reference, is the subject of this chapter. The work is presented not as a list of speedups but as a
+The renderer validated in \Cref{ch:validation} is fast by design: at equal quality on the scattering
+cloud it reaches the same noise level in less time than the Mitsuba reference (\Cref{ch:results}). The
+deliberate engineering behind that result is the subject of this chapter. The work is presented not as a list of speedups but as a
 \emph{method}: every candidate is classified by how it can honestly be justified, and only those whose
 outcome is genuinely informative are run as controlled ablations. Equally important is what did
 \emph{not} work---a ledger of dead ends (\Cref{sec:autopsies}) that together characterise the
@@ -83,8 +82,7 @@ their product is a \emph{shallow basin} spanning depths $8$--$12$ (within $1.2\,
 measured minimum---re-anchored at the calibrated caps on a quiet GPU---lands on the shipped default
 $12$, with real penalties outside it ($5$: $+5.0\,\%$; $16$: $+4.9\,\%$ relative to the minimum). The
 development-time estimate of ${\sim}11\,\%$ over depth~$5$ measured as $+4.7\,\%$ under the controlled
-protocol. After these, the
-equal-quality comparison against Mitsuba inverts: the renderer reaches the same noise level in less time
+protocol. With these wins in place, the renderer reaches the same noise level as Mitsuba in less time
 (\Cref{ch:results}).
 
 \begin{table}[htp]
