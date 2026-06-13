@@ -1,6 +1,6 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 15:40 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 16:00 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
@@ -62,9 +62,9 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] perf (cloud, 128/128 — ratio cap-robust)
 - [x] perf re-anchor at 64/96 — ratios confirmed (analytic pays 1.2–1.6×; N=2 → 1.23×); N=3 kept at its valid 128/128 figure (not re-anchored) — `icosphere_port.md`
 
-### G10 — Mitsuba parity gates (cross-renderer eligibility)
-- [ ] tornado parity (energy-ratio, absorption)  ← post-window 150W (power-immune)
-- [ ] explosion parity  ← post-window 150W
+### G10 — Mitsuba parity gates (cross-renderer eligibility) — **BLOCKED (Kacper's call)**
+- [ ] tornado/explosion parity — **blocked: no Jorge-native PLY** for these assets; Mitsuba volprim rejects our converter's PLY format (`Invalid structure in PLY file`). Needs an npy→Jorge-PLY converter (effort + convention-bug risk) **OR** scope tornado/explosion ours-internal (no cross-renderer claim).
+- note: **cloud parity already validated** — G1 uses the cloud as the cross-renderer headline; bunny additionally has the camera-flip caveat. So the cloud carries the Mitsuba comparison regardless.
 
 ## D. Thesis wiring (figures / tables / prose)
 - [x] `fig:ris-ksweep` (3 envs, regenerated)
@@ -75,7 +75,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] `tab:icosphere` — decided: unchanged (valid 128/128; re-anchor confirmed ratios, N=3 not re-anchored)
 - [ ] `tab:wins` ladder rows (shadow/skip-scan/dedup/fusion) — still dev §-numbers; re-measure = G2 ladder
 - [x] `roofline.pdf` regenerated (cloud + bunny points)
-- [ ] `sec:bottleneck` prose → bunny vs cloud contrast (Kacper's WIP section; numbers ready in `ncu_summary.md`)
+- [x] `sec:bottleneck` — measured cloud+bunny profile + `fig:roofline` wired in (commit `1f11a1d`)
 - thesis builds clean: 59 pp, 0 errors/undefined (commit `d48564b`)
 
 ## E. Deprecated-branch reruns
@@ -84,4 +84,4 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 ## Standing protocol
 - [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive). [G8 N=3 didn't fit the analytic's caps → N=3 left at its valid 128/128 figure; not a reported result.]
 - **thesis prose wiring DONE** (G3/RR/fast-erf/G7 → committed `d48564b`, 59 pp clean).
-- **next action:** G6 wavefront/adaptive confirms + G10 parity gates (both cap-immune) + prep builds (ladder/BARE/wavefront/adaptive). G1 + G2 ladder A/B await a new max-perf window. (G4 bunny ncu ✅ done.)
+- **next action:** G6 wavefront/adaptive confirms (cap-immune, needs a build) + prep builds (ladder/BARE/wavefront/adaptive). **G10 blocked** pending Kacper's call (PLY converter vs ours-internal scope). G1 + G2 ladder A/B await a new max-perf window. (G4 ✅ done + documented in thesis.)
