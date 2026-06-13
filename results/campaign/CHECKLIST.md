@@ -26,7 +26,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [ ] Mitsuba pre-flight (verify `cloud_meadow_seeds.sh`; match depth/res/cam/env; `SG_SHAPE=ellipsoids` re-gate)
 - [ ] flat rung — **ours-final vs Mitsuba-analog** (ours-final = banked RIS-MIS arm; **no BARE, no deficit framing** — clean final-vs-Mitsuba)
 - [ ] meadow showcase rung (+ Mitsuba-MIS for firefly/bias only)
-- [ ] bunny rung (cross-renderer via G10 native-PLY path, or ours-internal) — the ~14 min pole
+- [x] bunny rung (ours-internal) — t_median **50.4 s** @64spp/512²/meadow, k=0.647; **0 overflows** (80/528 cap validated)
 - [ ] money shots (final-showcase)
 - **config:** analytic baseline (NOT icosphere — that's G8-only); MIS; calibrated caps. Probe: Mitsuba-meadow-cloud **4 s/render**, ours-bunny **52 s**.
 
