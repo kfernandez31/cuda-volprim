@@ -1,6 +1,6 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 16:00 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 16:10 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
@@ -62,9 +62,10 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] perf (cloud, 128/128 — ratio cap-robust)
 - [x] perf re-anchor at 64/96 — ratios confirmed (analytic pays 1.2–1.6×; N=2 → 1.23×); N=3 kept at its valid 128/128 figure (not re-anchored) — `icosphere_port.md`
 
-### G10 — Mitsuba parity gates (cross-renderer eligibility) — **BLOCKED (Kacper's call)**
-- [ ] tornado/explosion parity — **blocked: no Jorge-native PLY** for these assets; Mitsuba volprim rejects our converter's PLY format (`Invalid structure in PLY file`). Needs an npy→Jorge-PLY converter (effort + convention-bug risk) **OR** scope tornado/explosion ours-internal (no cross-renderer claim).
-- note: **cloud parity already validated** — G1 uses the cloud as the cross-renderer headline; bunny additionally has the camera-flip caveat. So the cloud carries the Mitsuba comparison regardless.
+### G10 — Mitsuba parity gates (cross-renderer eligibility) — ✅ PASS
+- [x] tornado parity — ratio **0.99911** (ours 0.9661 / Mitsuba-analog 0.9670) — PASS
+- [x] explosion parity — ratio **1.00006** — PASS
+- unblock (Kacper was right): use Jorge's **native PLY** in `unpacked/<a>/optimized_asset_pyr0/data/` + value-preserving `opacities_0→sigma_t_0` rename (gate confirms it's correct). **tornado + explosion now eligible for G1 cross-renderer claims.** `asset_parity.md`
 
 ## D. Thesis wiring (figures / tables / prose)
 - [x] `fig:ris-ksweep` (3 envs, regenerated)
@@ -78,10 +79,18 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] `sec:bottleneck` — measured cloud+bunny profile + `fig:roofline` wired in (commit `1f11a1d`)
 - thesis builds clean: 59 pp, 0 errors/undefined (commit `d48564b`)
 
+## F. Render figures (graphics-thesis visuals — Kacper, 2026-06-13)
+- [ ] **Mitsuba comparison triptychs** (ours | Mitsuba | diff): Ch5 cloud absorption/scattering (`fig:absorption-ladder`/`fig:scattering-ladder`), **G10 tornado/explosion** (EXRs in hand), G1 cloud headline + firefly-crop vs Mitsuba-MIS
+- [ ] **showcase beauty montage** — 4 assets env-lit, final-showcase config → `fig:showcase`
+- [ ] **RIS equal-time noise + firefly crop** (meadow; banked `ris_seeds_meadow/` EXRs)
+- [ ] **icosphere N=3 sliver-artifact crop** vs smooth analytic (visual quality argument)
+- [ ] **denoiser** before/after/GT triptych
+- skip (not visual): RR-depth, fast-erf (numerically identical), ncu/roofline (already a plot)
+
 ## E. Deprecated-branch reruns
 - [x] cap-staleness audit done — **no extra reruns**: cap-sensitive numbers are already covered by G2/G3/G6; the rest are cap-robust (ratios/counts/RMSE/huge-margin). **Watch:** `incremental-active-prims` (~16%, §8.23) in the G2 ladder may shrink at the smaller active cap.
 
 ## Standing protocol
 - [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive). [G8 N=3 didn't fit the analytic's caps → N=3 left at its valid 128/128 figure; not a reported result.]
 - **thesis prose wiring DONE** (G3/RR/fast-erf/G7 → committed `d48564b`, 59 pp clean).
-- **next action:** G6 wavefront/adaptive confirms (cap-immune, needs a build) + prep builds (ladder/BARE/wavefront/adaptive). **G10 blocked** pending Kacper's call (PLY converter vs ours-internal scope). G1 + G2 ladder A/B await a new max-perf window. (G4 ✅ done + documented in thesis.)
+- **next action:** render figures (§F — start with the G10 triptych, EXRs in hand) + G6 confirms + prep builds. G1 + G2 ladder A/B await a new max-perf window. (G4 ✅ + G10 ✅ done. G10 unblocked — tornado/explosion validated vs Mitsuba.)

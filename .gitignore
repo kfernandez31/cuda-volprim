@@ -51,3 +51,4 @@ results/campaign/.*.status
 results/campaign/ris_seeds_flat/
 results/campaign/ris_seeds_studio/
 build-ico*/
+results/campaign/*.exr
