@@ -57,10 +57,11 @@ the most dramatic in relative terms was a smarter shadow-ray transmittance evalu
 start depth, a free efficiency knob, was raised from the inherited surface-rendering default of $5$ to
 $12$; the controlled sweep (\Cref{fig:rr-depth}) shows \emph{why} this is the right setting while also
 revising the magnitude of the win: variance falls and frame time rises monotonically with depth, and
-their product is a \emph{shallow basin} spanning depths $8$--$12$ (within $1.2\,\%$ of each other,
-nominal minimum at $10$), with real penalties outside it ($5$: $+4.7\,\%$; $16$: $+5.8\,\%$). The
-shipped default $12$ sits inside the basin; the development-time estimate of ${\sim}11\,\%$ over
-depth~$5$ measured as $+3.4\,\%$ ($\pm{\sim}2\,\%$) under the controlled protocol. After these, the
+their product is a \emph{shallow basin} spanning depths $8$--$12$ (within $1.2\,\%$ of each other) whose
+measured minimum---re-anchored at the calibrated caps on a quiet GPU---lands on the shipped default
+$12$, with real penalties outside it ($5$: $+5.0\,\%$; $16$: $+4.9\,\%$ relative to the minimum). The
+development-time estimate of ${\sim}11\,\%$ over depth~$5$ measured as $+4.7\,\%$ under the controlled
+protocol. After these, the
 equal-quality comparison against Mitsuba inverts: the renderer reaches the same noise level in less time
 (\Cref{ch:results}).
 
@@ -72,10 +73,10 @@ equal-quality comparison against Mitsuba inverts: the renderer reaches the same 
     \midrule
     Shadow-ray transmittance         & $\sim$\,12--15$\times$ (shadow kernel) & §8.16 \\
     Skip per-bounce containment scan & $\sim$\,16\% frame                     & §8.23 \\
-    Russian-roulette depth $5\to12$  & $+3.4$\,\% (basin $8$--$12$; \Cref{fig:rr-depth}) & sweep \\
+    Russian-roulette depth $5\to12$  & $+4.7$\,\% (basin $8$--$12$, min at $12$; \Cref{fig:rr-depth}) & sweep \\
     Dedup bounce-0 scan              & $\sim$\,8\%                            & §8.19 \\
     Any-hit transmittance fusion     & $\sim$\,3\%                            & §8.18 \\
-    Fast \texttt{erf} in the hot path & $\sim$\,1.5\%                          & §8.21 \\
+    Fast \texttt{erf} in the hot path & $\sim$\,1\% (numerically free; opt-in) & §8.21; sweep \\
     OptiX denoiser (showcase)        & $\sim$\,30$\times$ effective           & §8.22 \\
     \bottomrule
   \end{tabular}
@@ -92,9 +93,9 @@ equal-quality comparison against Mitsuba inverts: the renderer reaches the same 
   \caption{Russian-roulette efficiency on the scattering cloud: $k\cdot t$ (inter-seed noise constant
   $\times$ relative frame time, lower is better) against the RR start depth; $16$ seeds per depth at
   \num{64} spp under the environment-lit showcase. Variance falls and cost rises monotonically with
-  depth; their product forms a shallow basin over depths $8$--$12$ (nominal minimum at $10$, spread
-  ${\le}1.2\,\%$), with both extremes measurably worse ($5$: $+4.7\,\%$, $16$: $+5.8\,\%$). The shipped
-  default ($12$) lies inside the basin.}
+  depth; their product forms a shallow basin over depths $8$--$12$ (spread ${\le}1.2\,\%$) whose minimum
+  lands on the shipped default $12$, with both extremes measurably worse ($5$: $+5.0\,\%$, $16$:
+  $+4.9\,\%$ relative to the minimum).}
   \label{fig:rr-depth}
 \end{figure}
 
@@ -113,10 +114,15 @@ monotonically with $K$ while variance falls, and their product peaks where the p
 saturates. The win decomposes into both halves---one shadow ray instead of two ($-21\,\%$ frame time)
 \emph{plus} lower variance from the resampling ($-14\,\%$ noise constant); the $K{=}1$ anchor (plain
 environment-IS NEE) already wins $1.19\times$ on time alone, \emph{despite} higher variance, which
-isolates the resampling's contribution. Crucially the technique is \emph{scene-dependent}: on a flat
-(constant) environment, where the candidates are interchangeable, the resampling overhead makes it
-$\sim\!2.5\times$ \emph{worse}. It is therefore shipped behind a runtime flag (default off, plain MIS;
-$K=6$ the measured default), not as an unconditional change (\Cref{fig:ris-ksweep}).
+isolates the resampling's contribution. Crucially the technique is \emph{scene-dependent}, and a three-point peakiness ladder makes the
+dependence quantitative (\Cref{fig:ris-ksweep}): on a flat (constant) environment, where the candidates
+are interchangeable, it is a net loss at every $K$ (best case $1.8\times$ \emph{worse}, degrading to
+${\sim}12\times$ at $K{=}1$); on a mid-peak studio environment (${\sim}540\times$ peak) it already wins
+$1.45\times$; and on the high-peak showcase (${\sim}1.5{\times}10^{5}$) $1.48\times$. The win thus rises
+with environment peakiness and \emph{saturates} between the studio and showcase points despite a
+${\sim}300\times$ difference in peak, peaking at $K=6$ on both winning environments. It is therefore
+shipped behind a runtime flag (default off, plain MIS; $K=6$ the measured default), not as an
+unconditional change.
 The result was validated unbiased against the Mitsuba-analog ground truth on a constant environment
 (furnace-clean) \emph{and} on the environment-lit showcase (converged means within the Monte-Carlo
 noise floor), and---being a single-strategy estimator---it surfaced and forced the fix of a latent
@@ -125,9 +131,11 @@ environment-sampling bug (a texel-centre quantisation that the prior MIS had mas
 \begin{figure}[htp]
   \centering
   \includegraphics[width=0.8\linewidth]{figures/ris_ksweep.pdf}
-  \caption{Volumetric product-RIS versus plain MIS at equal quality, as the candidate count $K$ varies.
-  On an environment map RIS wins (a measured plateau at $K=4$--$6$, $1.48\times$ on the showcase); on a
-  flat environment the resampling overhead makes it a net loss---hence the runtime flag.}
+  \caption{Volumetric product-RIS versus plain MIS at equal quality, as the candidate count $K$ varies,
+  across a three-point environment-peakiness ladder. The speedup rises with peakiness: flat (constant) is
+  a net loss at every $K$, studio (${\sim}540\times$ peak) wins $1.45\times$, and the showcase
+  (${\sim}1.5{\times}10^{5}$) $1.48\times$---a plateau at $K=4$--$6$ that saturates between studio and
+  showcase. Hence the runtime flag (default plain MIS).}
   \label{fig:ris-ksweep}
 \end{figure}
 
