@@ -1,6 +1,6 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 16:10 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 16:35 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
 
@@ -22,12 +22,13 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ## C. Experiments
 
-### G1 — headline equal-quality vs Mitsuba  ← next window (3–5 h, cleanest GPU)
-- [ ] Mitsuba pre-flight (verify `cloud_meadow_seeds.sh`; match depth/res/cam/env; `SG_SHAPE=ellipsoids` re-gate)  ← post-window
-- [ ] flat rung (bare → final-validation → Mitsuba-analog)
-- [ ] meadow showcase rung (+ Mitsuba-MIS for time/firefly/bias only)
-- [ ] bunny rung (gated on G10 parity)
+### G1 — headline equal-quality vs Mitsuba  ← **~30–50 min** (measured probe), GPU window
+- [ ] Mitsuba pre-flight (verify `cloud_meadow_seeds.sh`; match depth/res/cam/env; `SG_SHAPE=ellipsoids` re-gate)
+- [ ] flat rung — **ours-final vs Mitsuba-analog** (ours-final = banked RIS-MIS arm; **no BARE, no deficit framing** — clean final-vs-Mitsuba)
+- [ ] meadow showcase rung (+ Mitsuba-MIS for firefly/bias only)
+- [ ] bunny rung (cross-renderer via G10 native-PLY path, or ours-internal) — the ~14 min pole
 - [ ] money shots (final-showcase)
+- **config:** analytic baseline (NOT icosphere — that's G8-only); MIS; calibrated caps. Probe: Mitsuba-meadow-cloud **4 s/render**, ours-bunny **52 s**.
 
 ### G2 — optimization ablations → `tab:wins`, `fig:rr-depth`
 - [x] RR-depth timing re-anchor — **min at depth 12**, +4.7 % vs d5; `rr_depth.csv`/`fig:rr-depth` updated; provisional flag cleared
@@ -47,7 +48,8 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] bunny profile — **more latency-bound than cloud**: occ 20.9%, sched-idle 70%, 5.42 active lanes, DRAM 1.8%; roofline AI 24.4 / 404 GFLOP/s — `ncu_summary.md`
 
 ### G5 — GAS / VRAM memory
-- [x] done (`gas_memory.csv`; cap-independent)
+- [x] GAS sizes (`gas_memory.csv`; cap-independent)
+- [ ] **G5b — peak VRAM (GAP flagged by Kacper 2026-06-13):** per-process peak VRAM per asset (ours), calibrated-vs-SAFE-512 **cap savings** (the cap work's MB payoff, so far unquantified), and ours-vs-Mitsuba. Renderer only self-reports GAS/IAS → needs an `nvidia-smi --query-compute-apps=used_memory` poll. Cap-immune → runnable now.
 
 ### G6 — negative-result confirms
 - [ ] wavefront ON/OFF (one point)  ← post-window 150W
@@ -80,7 +82,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - thesis builds clean: 59 pp, 0 errors/undefined (commit `d48564b`)
 
 ## F. Render figures (graphics-thesis visuals — Kacper, 2026-06-13)
-- [ ] **Mitsuba comparison triptychs** (ours | Mitsuba | diff): Ch5 cloud absorption/scattering (`fig:absorption-ladder`/`fig:scattering-ladder`), **G10 tornado/explosion** (EXRs in hand), G1 cloud headline + firefly-crop vs Mitsuba-MIS
+- [~] **Mitsuba comparison triptychs** (ours | Mitsuba | diff): **G10 tornado/explosion ✅ done** (`g10_triptych.png`; diff is 256-spp noise — thesis-final wants converged renders for a clean diff). Remaining: Ch5 cloud absorption/scattering (`fig:absorption-ladder`/`fig:scattering-ladder`), G1 cloud headline + firefly-crop vs Mitsuba-MIS
 - [ ] **showcase beauty montage** — 4 assets env-lit, final-showcase config → `fig:showcase`
 - [ ] **RIS equal-time noise + firefly crop** (meadow; banked `ris_seeds_meadow/` EXRs)
 - [ ] **icosphere N=3 sliver-artifact crop** vs smooth analytic (visual quality argument)
