@@ -1,8 +1,10 @@
 # Section-6 Experiment Campaign — Running Checklist
 
-**Updated:** 2026-06-13 11:40 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← running / ← this window / ← post-window 150W / ← next window)
+**Updated:** 2026-06-13 14:25 CEST · **Legend:** `[x]` done · `[ ]` pending (tag shows *when*: ← post-window 150W / ← next window)
 
 Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12-section6-window-campaign.md`. Records: `results/campaign/*.md`.
+
+> **Window status:** Piotr's 11:30–13:30 max-perf window is **CLOSED**. The fast-timing bucket (RR + meadow-RIS re-anchors, G3 flat + studio) completed inside it, 0 overflows. Remaining timed work (fast-erf A/B, G1, G2 ladder) needs a **new window**. Cap-immune work (G4/G6/G10 + builds) runs anytime.
 
 ---
 
@@ -15,7 +17,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [x] `main` fast-forwarded to campaign HEAD; plan updated (exec split + deprecated audit)
 
 ## B. GPU / bench settings
-- [x] 350 W · SM 1800 · mem 9751 · persistence (verified live)
+- [x] 350 W · SM 1800 · mem 9751 · persistence (verified live; window now closed)
 - [ ] CPU governor=performance  ← before G1 (Mitsuba/absolute numbers)
 
 ## C. Experiments
@@ -28,17 +30,17 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [ ] money shots (final-showcase)
 
 ### G2 — optimization ablations → `tab:wins`, `fig:rr-depth`
-- [ ] RR-depth timing re-anchor (k banked R8)  ← **running now**
+- [x] RR-depth timing re-anchor — **min at depth 12**, +4.7 % vs d5; `rr_depth.csv`/`fig:rr-depth` updated; provisional flag cleared
 - [ ] merge-ladder: shadow-transmittance · skip-scan · dedup-bounce0 · any-hit fusion  ← needs worktree builds (post-window) then next window
-- [ ] fast-erf A/B + bias check  ← **this window** (build-ferf ready)
+- [ ] fast-erf A/B + bias check  ← next window (build-ferf ready; window closed before it ran)
 - [ ] denoiser effective-RMSE vs 2048-spp GT
 
-### G3 — RIS scene-dependence → `fig:ris-ksweep`
+### G3 — RIS scene-dependence → `fig:ris-ksweep`  ✅ COMPLETE
 - [x] meadow rung (2026-06-12; 1.48× at K=4–6, CI'd; k banked)
-- [ ] meadow timing re-anchor  ← **running now**
-- [ ] flat rung (expect RIS loses)  ← **running now** (seed 9/16)
-- [ ] studio rung (expect mid)  ← this window (queued in batch)
-- [ ] assemble `fig:ris-ksweep` (3 envs)  ← post-batch analysis
+- [x] meadow timing re-anchor — re-confirmed **1.49× at K=4–6**, clean clocks
+- [x] flat rung — **RIS loses** (best 0.55× at K=12; ~12× worse at K=1)
+- [x] studio rung — **RIS wins 1.45×** (peak K=6)
+- [x] assemble `fig:ris-ksweep` (3 envs; peakiness-monotonic, saturates ~1.45–1.49×, peak K=6)
 
 ### G4 — bottleneck profile (ncu)
 - [x] cloud profile (`ncu_summary.md`, `roofline.csv`)
@@ -53,7 +55,7 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ### G7 — Mitsuba JIT/startup (#96)
 - [x] measured (`jit_overhead.md`: ours 0.39 s vs Mitsuba 0.78 s warm / 2.20 s cold)
-- [ ] wire numbers into Ch 3 + results/limitations (startup/iteration-latency advantage)  ← post-batch thesis edits
+- [ ] wire numbers into Ch 3 + results/limitations (startup/iteration-latency advantage)  ← thesis edit, pending
 
 ### G8 — analytic vs icosphere
 - [x] accuracy (3 assets, RMSE)
@@ -65,9 +67,10 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 - [ ] explosion parity  ← post-window 150W
 
 ## D. Thesis wiring (figures / tables / prose)
-- [ ] `fig:ris-ksweep` (after G3 flat+studio)
-- [ ] `rr_depth.csv` absolutes + `fig:rr-depth` (after RR re-anchor)
-- [ ] `tab:wins` rows: RR · RIS · fast-erf · ladder
+- [x] `fig:ris-ksweep` (3 envs, regenerated)
+- [x] `rr_depth.csv` absolutes + `fig:rr-depth` (re-anchored)
+- [ ] `sec:ris` prose/caption → flat-loses / studio-1.45× / meadow-1.49× (numbers ready)  ← thesis edit
+- [ ] `tab:wins` rows: RR (+4.7 %) · RIS · fast-erf · ladder
 - [ ] Ch 3 JIT sentence → measured magnitude; G7 line in results/limitations
 - [ ] `sec:bottleneck` bunny + `roofline.pdf` (after G4b)
 
@@ -76,4 +79,4 @@ Source of truth for progress. Full procedure: `docs/superpowers/plans/2026-06-12
 
 ## Standing protocol
 - [x] every render checked for `Cap overflow` (driver-enforced); act on any hit (Kacper's directive)
-- next action: monitor pings ~11:53 → analyze batch, build `fig:ris-ksweep`, do Ch3/G7 thesis edits, then fast-erf A/B in-window.
+- **next action:** thesis prose edits (sec:ris numbers, Ch3/G7 JIT, tab:wins RR row) — non-GPU; then post-window cap-immune work (G4 bunny ncu, G6, G10, ladder/wavefront/adaptive builds). fast-erf + G1 + ladder A/B await a new max-perf window.

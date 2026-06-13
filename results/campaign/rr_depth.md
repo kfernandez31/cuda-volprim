@@ -52,3 +52,24 @@ done; done
 # k: per-pixel inter-seed variance across the 16 seeds, mean over pixels+channels, ×64 (spp)
 # eff: k × median per-block-normalized time
 ```
+
+## Timing re-anchor at calibrated caps — DONE 2026-06-13 (provisional flag cleared)
+
+Re-ran timings only (banked k reused, rule R8) on the calibrated cloud pair (64/96) under the clean
+350 W + clock-locked window, meadow, seed 1, 5 interleaved rounds × depths {5,6,8,10,12,16}. This
+replaces the contention-rescued absolutes above; `rr_depth.csv` `t_*`/`eff`/`eff_clip` columns updated.
+
+| depth | t_med (new) | t_rel | k (banked) | eff = k·t_rel |
+|---|---|---|---|---|
+| 5  | 6.577 s | 0.8921 | 2.4611 | 2.1956 |
+| 6  | 6.649 s | 0.9018 | 2.3604 | 2.1286 |
+| 8  | 7.091 s | 0.9618 | 2.1939 | 2.1101 |
+| 10 | 7.527 s | 1.0209 | 2.0734 | 2.1167 |
+| 12 | 7.773 s | 1.0543 | 1.9842 | **2.0919** |
+| 16 | 8.619 s | 1.1690 | 1.8767 | 2.1939 |
+
+**Cleaner result than the contaminated run:** the efficiency minimum now lands **exactly at the shipped
+default depth 12** (was nominally 10 with 12 in-basin), with a shallow 8–12 basin (≤1.2 % spread).
+Depth 12 is **+4.7 % more efficient than depth 5** (clipped-k: +4.5 %, min also at 12) — the
+direction (5→12 helps) and the magnitude band (~3–5 %, vs the dev-era "11 %") both hold; only the
+nominal-min depth tightened onto 12. `fig:rr-depth` regenerated from the updated CSV. 0 cap overflows.
