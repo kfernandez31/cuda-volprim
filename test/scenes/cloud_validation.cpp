@@ -68,8 +68,11 @@ Result<MultiViewTestScene> build_cloud_scene(std::string name, std::string descr
     // calibrated in FINDINGS §8.6; mirrored on the Mitsuba side via
     // render_cloud_prb_absorption.py). Default keeps the constant env.
     const char* sg_env = std::getenv("SG_ENV");
-    scene.env_map_override = (sg_env && std::string_view(sg_env) == "meadow")
+    const std::string_view env_sel = sg_env ? std::string_view(sg_env) : std::string_view{};
+    scene.env_map_override = env_sel == "meadow"
                                  ? "assets/environment_maps/meadow_2_4k.hdr"
+                             : env_sel == "studio"
+                                 ? "assets/environment_maps/ferndale_studio_01_4k.hdr"
                                  : "assets/environment_maps/white_constant.hdr";
     return scene;
 }
@@ -126,8 +129,11 @@ Result<MultiViewTestScene> asset_validation(float sigma_multiplier) {
     scene.cameras.push_back({camera, res_, res_});
 
     const char* sg_env = std::getenv("SG_ENV");
-    scene.env_map_override = (sg_env && std::string_view(sg_env) == "meadow")
+    const std::string_view env_sel = sg_env ? std::string_view(sg_env) : std::string_view{};
+    scene.env_map_override = env_sel == "meadow"
                                  ? "assets/environment_maps/meadow_2_4k.hdr"
+                             : env_sel == "studio"
+                                 ? "assets/environment_maps/ferndale_studio_01_4k.hdr"
                                  : "assets/environment_maps/white_constant.hdr";
     return scene;
 }
