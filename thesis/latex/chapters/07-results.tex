@@ -27,7 +27,7 @@ production-mode figure: the configuration one would actually use.
 
 \paragraph{Isolating the sampler.} To separate the \emph{sampler} from the direct-lighting estimator,
 the two renderers can be compared in the \emph{same} (analog) mode---no NEE on either side. There the
-picture is different: this renderer samples roughly \(3\times\) faster per sample (the single-trace
+picture is different: this renderer samples faster per sample (the single-trace
 argmin needs no per-segment root-find or shadow connection), but its analog estimator carries somewhat
 higher per-pixel variance, so at \emph{equal quality} the two analog modes are \emph{on par}. The
 decisive equal-quality advantage above is therefore attributable to the correct, low-variance MIS
