@@ -12,7 +12,8 @@ renderers' direct-lighting estimators (\Cref{sec:results-firefly}), the practica
 post-process denoising (\Cref{sec:results-denoiser}), the device-memory footprint and what per-asset
 cap calibration saves (\Cref{sec:results-memory}), the start-up and iteration latency that matter for
 an interactive workflow (\Cref{sec:results-startup}), and a cross-renderer agreement check that
-qualifies further assets for comparison (\Cref{sec:results-generalisation}).
+qualifies further assets for comparison (\Cref{sec:results-generalisation}). A final section measures how
+render time and device memory scale with primitive count (\Cref{sec:results-scaling}).
 
 \section{Equal-quality performance versus Mitsuba}
 \label{sec:results-perf}
@@ -172,7 +173,51 @@ The ratio is \num{0.99911} on the tornado and \num{1.00006} on the explosion: cl
 within \num{0.01}--\num{0.09}\,\%. These gates confirm that the renderer's correctness is not
 cloud-specific and qualify both assets for the equal-quality timing comparison.
 
-% ---------------------------------------------------------------------------
-% PENDING (350 W): full equal-quality speed (R1), time/memory-vs-N scaling (R3),
-% beauty-montage showcase (R4 finals). Add once the timed window is run.
-% ---------------------------------------------------------------------------
+\section{Scaling with primitive count}
+\label{sec:results-scaling}
+
+A renderer organised around hardware ray tracing should pay for primitives the way the acceleration
+structure does---sub-linearly, because each ray integrates only the primitives it actually enters, not
+the whole scene. \Cref{fig:scaling} tests this on two fronts: a controlled synthetic sweep that isolates
+the primitive count, and the four production assets at their operating points. All timings are medians of
+three seeds at the pinned clocks of \Cref{sec:setup} (\num{512}\textsuperscript{2}, \num{64}\,spp).
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/scaling.pdf}
+  \caption{Render time (\emph{left}) and device memory (\emph{right}) versus primitive count \(N\),
+  log--log. \emph{Left:} a synthetic sweep of square \(k\times k\) Gaussian grids (\(N=16\) to
+  \num{4096}; constant \(1\!:\!1\) aspect, so screen coverage scales uniformly with \(N\)) grows as
+  \(t\propto N^{0.40}\)---a \(256\times\) increase in primitives costs only \(\sim\!10\times\) the time.
+  The four real assets at their operating points (matched scattering configuration: albedo \num{0.9},
+  white-constant environment, \(\sigma_t\) scale \num{10}) sit on a steeper but still strongly
+  sub-linear trend, \(t\propto N^{0.71}\): the larger assets are also optically denser, so they deepen
+  paths as well as add primitives. \emph{Right:} peak device memory is \emph{flat} in \(N\) at a fixed
+  cap (the synthetic sweep holds the \(512/512\) safe build at \SI{1200}{MiB} from \(N=16\) to
+  \num{8192}), because the per-ray local-memory reservation dominates (\Cref{sec:results-memory}); the
+  only \(N\)-dependent term, the compacted BVH, grows linearly at \(\sim\!\SI{0.16}{KB}\) per primitive
+  and stays two-to-three orders of magnitude below the reservation (\SI{0.10}{MB} at \num{652}
+  primitives to \SI{3.97}{MB} at \num{25600}).}
+  \label{fig:scaling}
+\end{figure}
+
+\paragraph{Time.} On the synthetic square grids---identical primitives, identical caps, only the count
+changing---render time scales as \(t\propto N^{0.40}\): doubling the primitive count adds roughly a
+third to the frame time, not double. Across the production assets the trend is steeper,
+\(t\propto N^{0.71}\), but still firmly sub-linear: the cloud (\num{652} primitives) renders in
+\SI{3.65}{\second} and the bunny (\num{25600}, a \num{39}\(\times\) jump) in \SI{53.9}{\second}, a
+\num{15}\(\times\) increase rather than the \num{39}\(\times\) a linear cost would imply. The gap
+between the two exponents is itself informative: it is not traversal overhead---the synthetic curve
+bounds that at \(N^{0.40}\)---but the fact that the heavier assets are denser media, so each ray
+scatters more often and carries a longer path. The acceleration structure keeps the per-ray
+\emph{geometry} cost sub-linear; what remains is the physics of the medium, not the size of the scene.
+
+\paragraph{Memory.} Device memory is effectively decoupled from \(N\). The dominant term, the per-ray
+state reserved for the kernel, is fixed by the compile-time caps and is scene-size independent: the
+safe \(512/512\) build holds a flat \SI{1200}{MiB} from \num{16} to \num{8192} primitives
+(\Cref{fig:scaling}, right). The only term that grows with \(N\)---the acceleration structure---is
+linear and negligible, \(\sim\!\SI{0.16}{KB}\) per primitive, ranging from \SI{0.10}{MB} on the cloud to
+\SI{3.97}{MB} on the bunny: two to three orders of magnitude under the reservation. Because the caps
+themselves track overlap density rather than count (\Cref{tab:overlap}), neither term ties device memory
+to the primitive count---a calibrated build's footprint is governed by how densely the medium packs, not
+how many Gaussians it contains.
