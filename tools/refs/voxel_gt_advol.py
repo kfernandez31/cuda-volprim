@@ -16,10 +16,38 @@ import advol
 advol.register()
 T = mi.ScalarTransform4f
 
+# --- halo-aware majorant fix (default on) --------------------------------------
+# AdVol's supervoxel majorant is a STRICT per-block max (no halo). Trilinear
+# interpolation near a block boundary reads voxels from the neighbouring block,
+# which can exceed this block's max -> majorant violation -> biased delta tracking
+# -> visible block artifacts. Dilating the field by one voxel (3^3 max) BEFORE the
+# block-max makes each block's majorant bound the interpolated field that reaches
+# into its neighbours. Only the "max" reduction (majorant) is dilated; "mean"
+# (the RRT control coefficient) is left untouched (it affects variance, not bias).
+if os.environ.get("ADVOL_HALO", "1") != "0":
+    import advol.supervoxel as _sv
+    _orig_block_reduce = _sv._block_reduce
+    def _halo_block_reduce(data, factor, op):
+        if op == "max" and factor > 1:
+            d = data
+            for ax in (0, 1, 2):
+                d = np.maximum(d, np.roll(d, 1, axis=ax))
+                d = np.maximum(d, np.roll(d, -1, axis=ax))
+            data = d
+        return _orig_block_reduce(data, factor, op)
+    _sv._block_reduce = _halo_block_reduce
+    print("[halo majorant fix ACTIVE]", flush=True)
+
 GRID = sys.argv[1]
 SPP = int(sys.argv[2]) if len(sys.argv) > 2 else 64
 NSEEDS = int(sys.argv[3]) if len(sys.argv) > 3 else 4
 MAXD = int(sys.argv[4]) if len(sys.argv) > 4 else 128
+# config knobs (env): distance sampler / transmittance estimator / majorant headroom / supervoxel block
+DS = os.environ.get("ADVOL_DS", "ff_local")
+TE = os.environ.get("ADVOL_TE", "rrt_local")
+MF = float(os.environ.get("ADVOL_MF", "1.01"))
+SVF = int(os.environ.get("ADVOL_SVF", "4"))
+TAGSUF = os.environ.get("ADVOL_TAG", "")
 ENV = "/home/kacper/thesis/assets/environment_maps/meadow_2_4k.hdr"
 
 d = np.load(GRID)
@@ -28,9 +56,10 @@ grid_m = np.ascontiguousarray(grid.transpose(2, 1, 0))   # our [X,Y,Z] -> [Z,Y,X
 print(f"grid {grid.shape} peak {grid.max():.1f} mean {grid.mean():.3f} UNCLAMPED spp={SPP} seeds={NSEEDS} maxd={MAXD}", flush=True)
 
 vd = advol.VolumeData.from_array(grid_m, bbox_min=tuple(lo.tolist()), bbox_max=tuple(hi.tolist()))
+print(f"config: DS={DS} TE={TE} majorant_factor={MF} supervoxel_factor={SVF}", flush=True)
 medium = advol.build_medium(
     sigma_t=vd, albedo=0.9, phase={"type": "hg", "g": 0.85},
-    majorant_factor=1.01, supervoxel_factor=4, medium_id="cloud",
+    majorant_factor=MF, supervoxel_factor=SVF, medium_id="cloud",
 )
 
 sys.path.insert(0, "assets/models/cloud")
@@ -40,8 +69,8 @@ scene_dict.update({k: vv for k, vv in cloud.OBJECTS.items() if k not in ("resour
 scene_dict.update({k: vv for k, vv in cloud.SENSORS.items() if k == "cam_0000"})
 scene_dict["environment"] = {"type": "envmap", "filename": ENV, "to_world": T().rotate(axis=[0, 1, 0], angle=90.0)}
 scene_dict["integrator"] = {
-    "type": "advol", "distance_sampler": "ff_local",
-    "transmittance_estimator": "rrt_local", "max_depth": MAXD, "supervoxel_factor": 4,
+    "type": "advol", "distance_sampler": DS,
+    "transmittance_estimator": TE, "max_depth": MAXD, "supervoxel_factor": SVF,
 }
 size = hi - lo
 scene_dict["cloud_grid"] = {
@@ -53,6 +82,7 @@ scene = mi.load_dict(scene_dict)
 
 tag = os.path.splitext(os.path.basename(GRID))[0]
 outdir = "results/campaign/advol_seeds"; os.makedirs(outdir, exist_ok=True)
+tag = tag + TAGSUF
 imgs = []
 for s in range(NSEEDS):
     raw = mi.render(scene, spp=SPP, seed=s)
@@ -63,6 +93,11 @@ for s in range(NSEEDS):
     imgs.append(img)
     print(f"  seed {s}: mean={img.mean():.4f} max={img.max():.1f}", flush=True)
 A = np.stack(imgs)
+if NSEEDS > 1:
+    import mitsuba as _mi
+    mean_img = A.mean(0).astype(np.float32)
+    _mi.util.write_bitmap(f"{outdir}/advol_{tag}_mean.exr", _mi.TensorXf(mean_img))
+    _mi.util.write_bitmap(f"{outdir}/advol_{tag}_mean.png", _mi.TensorXf(mean_img))
 kraw = float(A.var(0, ddof=1).mean() * SPP)
 P = np.percentile(A, 99.9)
 kclip = float(np.minimum(A, P).var(0, ddof=1).mean() * SPP)

@@ -37,3 +37,18 @@ low-density regions of the grid render — cosmetic, does not affect mean/RMSE.)
 ## Still gated
 Representation-fidelity GT (our fit vs the ORIGINAL Disney WDAS volume) still needs the source
 `wdas_cloud_eighth.npy` — referenced by `advol/examples/wdas_cornell.py` but not found on disk.
+
+## UPDATE: supervoxel majorant halo fix (2026-06-14)
+The first AdVol GT had faint rectangular "glitch" patches. Root cause: AdVol's supervoxel majorant is a
+STRICT per-block max (`_block_reduce(op="max")`, no halo). Trilinear interpolation near a block boundary
+reads voxels from the neighbouring block, which can exceed the block's majorant -> delta-tracking
+majorant violation -> biased (dark) blocks. Fix (monkeypatched in `voxel_gt_advol.py`, ADVOL_HALO=1):
+dilate the field by one voxel (3^3 max) before the block-max, so each block's majorant bounds the
+interpolated field reaching into neighbours (1 voxel = exactly trilinear's reach).
+
+Effect (200^3, halo off->on, 64spp seed0): changed 63k pixels (max local 1.9), mean 0.3259->0.3286
+(corrected upward; the dark-block bias had pulled it down), RMSE vs ours 0.147->0.145 (single seed).
+Converged 4-seed halo-on mean (384spp eff): mean 0.3286 (ratio 1.022), max 2.4, 0 fireflies, k 0.72,
+**RMSE 0.105**. Gross blocks removed; residual is the silhouette/edge resolution limit (like absorption).
+Thesis updated (numbers + a footnote on the halo requirement). A 400^3 grid would erase the faint
+residual entirely if a pristine figure is wanted.

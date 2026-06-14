@@ -12,7 +12,9 @@ import argparse, glob, os
 import numpy as np, OpenEXR, Imath
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 
-ADV = "results/campaign/advol_seeds/advol_cloud_200_ss1_seed0.exr"
+import os as _os
+_MEAN = "results/campaign/advol_seeds/advol_cloud_200_ss1_mean.exr"
+ADV = _MEAN if _os.path.exists(_MEAN) else "results/campaign/advol_seeds/advol_cloud_200_ss1_seed0.exr"
 OURS = "results/campaign/g1_seeds/cuda_seed*.exr"
 
 

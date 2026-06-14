@@ -111,15 +111,18 @@ tracker turns that dynamic range into extreme fireflies---the same high-variance
 unbiased analog reference firefly-prone. Rendering the same grid with \emph{local} supervoxel majorants
 and residual-ratio-tracking transmittance---the dense-grid baseline used by the representation's
 originators~\cite{DSYG}, here via their AdVol integrator---removes the fireflies entirely at the full,
-unclamped dynamic range: at \num{256}\,spp the grid render has a peak pixel of \num{2.5} and \emph{zero}
-fireflies, against the global-majorant tracker's thousands (a per-pixel variance lower by some three
-orders of magnitude). The independent grid render then agrees with the analytic renderer to
-\num{1.5}\,\% in the mean (\num{0.3261} versus \num{0.3214}), with a per-pixel RMSE of \num{0.114} that
-is resolution-limited exactly as in absorption---the $200^3$ grid blurs the sharp Gaussian cores (cf.\
-the absorption residual of \num{0.063} at the same resolution). Scattering thus gains the same
-independent, no-shared-code corroboration as absorption; it remains additionally anchored by the
-energy-conserving furnace invariant (\Cref{sec:scattering-ladder}) and the differential Mitsuba
-comparison.
+unclamped dynamic range: the grid render has a peak pixel of \num{2.4} and \emph{zero} fireflies,
+against the global-majorant tracker's thousands (a per-pixel variance lower by some three orders of
+magnitude).\footnote{The local majorants require one subtlety to stay unbiased: a supervoxel's majorant
+must bound the \emph{trilinearly interpolated} field, which near a block boundary reads voxels from the
+neighbouring block. Taking the block maximum over a one-voxel-dilated field (rather than the block alone)
+supplies that bound; without it, boundary blocks violate their majorant and render as visible
+rectangular artifacts.} The independent grid render then agrees with the analytic renderer to
+\num{2}\,\% in the mean (\num{0.3286} versus \num{0.3214}), with a per-pixel RMSE of \num{0.105} that is
+resolution-limited exactly as in absorption---the $200^3$ grid blurs the sharp Gaussian cores (cf.\ the
+absorption residual of \num{0.063} at the same resolution). Scattering thus gains the same independent,
+no-shared-code corroboration as absorption; it remains additionally anchored by the energy-conserving
+furnace invariant (\Cref{sec:scattering-ladder}) and the differential Mitsuba comparison.
 
 \begin{figure}[htp]
   \centering
@@ -141,8 +144,9 @@ comparison.
   \emph{Centre:} the same density field on a $200^3$ grid rendered by AdVol with local supervoxel
   majorants and residual ratio tracking (the dense-grid baseline of \cite{DSYG})---unclamped and
   firefly-free despite a peak $\sigma_t\approx\num{8900}$. \emph{Right:} $\lvert\Delta\rvert$ ($\times5$).
-  The means agree to \num{1.5}\,\% (ratio \num{1.015}); the per-pixel residual (RMSE \num{0.114}) is the
-  grid blurring the sub-voxel cores, resolution-limited as in absorption, not Monte-Carlo noise.}
+  The means agree to \num{2}\,\% (ratio \num{1.022}); the per-pixel residual (RMSE \num{0.105}) is
+  dominated by the silhouette rim where the grid blurs the sub-voxel cores---resolution-limited as in
+  absorption, not Monte-Carlo noise.}
   \label{fig:voxel-scatter-gt}
 \end{figure}
 
