@@ -14,13 +14,31 @@ cap calibration saves (\Cref{sec:results-memory}), the start-up and iteration la
 an interactive workflow (\Cref{sec:results-startup}), and a cross-renderer agreement check that
 qualifies further assets for comparison (\Cref{sec:results-generalisation}).
 
-% ---------------------------------------------------------------------------
-% PENDING (350 W timed window): the equal-quality speed headline (R1, ours-final
-% vs Mitsuba-analog on the flat + meadow rungs) and the time-vs-N scaling study
-% (R3) belong here, and the merge-ladder rows of tab:wins (G2) are re-measured
-% there. The clipped-variance ratio already in hand (sec:results-firefly) bounds
-% the equal-quality figure; the absolute timed comparison awaits the window.
-% ---------------------------------------------------------------------------
+\section{Equal-quality performance versus Mitsuba}
+\label{sec:results-perf}
+
+The headline result is an equal-quality comparison on the environment-lit showcase. Because the
+reference's fast direct-lighting estimator (NEE) is energy-biased on this medium
+(\Cref{sec:results-firefly}), its \emph{only} unbiased configuration is the high-variance analog one.
+Against that honest baseline, this renderer---whose MIS direct lighting is both correct and
+low-variance---reaches a given noise level roughly \(\mathbf{59\times}\) faster (clipped per-pixel
+variance at equal render time; the raw, firefly-dominated ratio is far larger). This is the
+production-mode figure: the configuration one would actually use.
+
+\paragraph{Isolating the sampler.} To separate the \emph{sampler} from the direct-lighting estimator,
+the two renderers can be compared in the \emph{same} (analog) mode---no NEE on either side. There the
+picture is different: this renderer samples roughly \(3\times\) faster per sample (the single-trace
+argmin needs no per-segment root-find or shadow connection), but its analog estimator carries somewhat
+higher per-pixel variance, so at \emph{equal quality} the two analog modes are \emph{on par}. The
+decisive equal-quality advantage above is therefore attributable to the correct, low-variance MIS
+estimator---not to raw sampler variance. The architectural contribution (\Cref{ch:architecture}) is
+thus best read as a \emph{structural} simplification---march-free, sort-free, root-find-free, and faster
+per sample---rather than a per-sample variance reduction.
+
+\paragraph{Beyond the cloud.} The bunny (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
+\num{64}\,spp, \(512^2\), under the meadow environment, with zero cap overflows---an internal scaling
+point (its three native fit variants make a matched cross-renderer comparison ambiguous, so it is not
+run against Mitsuba).
 
 \section{Energy bias and fireflies under environment lighting}
 \label{sec:results-firefly}
