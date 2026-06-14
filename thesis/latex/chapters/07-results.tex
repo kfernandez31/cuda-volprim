@@ -93,9 +93,11 @@ thread-local memory, which the driver reserves for the GPU's maximum resident th
 compile-time capacities therefore set a scene-independent floor on device memory, while the
 acceleration structure itself is comparatively negligible (the instanced unit-sphere GAS is
 \SI{0.10}{\mega\byte} compacted for the cloud, \SI{3.97}{\mega\byte} for the \num{25600}-Gaussian
-bunny). \Cref{tab:vram} measures the peak per-process device memory for each asset, comparing the
-per-asset calibrated build against the universal ``safe'' \(512/512\) build that a user without the
-calibration tooling would pick.
+bunny). The comparison that matters is against the reference: on the cloud, the renderer's peak device
+memory is \textbf{\SI{578}{MiB}---\num{31}\,\% below Mitsuba's \SI{838}{MiB}} on the identical scene.
+\Cref{tab:vram} reports the per-asset calibrated peak and, for context, what the calibration buys over a
+conservative \(512/512\) fallback (the smallest cap that is guaranteed not to overflow without per-asset
+measurement)---the difference between sitting below the reference on memory and above it.
 
 \begin{table}[htp]
   \centering
@@ -117,12 +119,11 @@ calibration tooling would pick.
   \label{tab:vram}
 \end{table}
 
-The saving is large enough to change the cross-renderer comparison. On the cloud, the calibrated build
-peaks at 578\,MiB---\emph{below} the reference's 838\,MiB on the same scene---whereas the
-untuned safe build, at 1200\,MiB, exceeds it by \num{43}\,\%. Per-asset cap calibration is thus
-what places this renderer below the reference on memory as well as keeping it below it on the frame time
-the same caps govern (\Cref{sec:gpu-impl}); without the tooling, the conservative sizing would forfeit
-both advantages.
+Calibration is what secures that win: the untuned \(512/512\) fallback would reserve 1200\,MiB on the
+cloud---\emph{exceeding} Mitsuba's 838\,MiB by \num{43}\,\%---so without per-asset measurement the
+renderer would sit above the reference on memory rather than below it, on the same caps that also govern
+its frame time (\Cref{sec:gpu-impl}). The per-asset savings range from \num{25} to \num{52}\,\%
+(\Cref{tab:vram}).
 
 \section{Startup and iteration latency}
 \label{sec:results-startup}
