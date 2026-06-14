@@ -172,9 +172,11 @@ metric is the converged-mean radiance ratio (flip-invariant, so the known camera
 The ratio is \num{0.99911} on the tornado and \num{1.00006} on the explosion: cloud-class agreement, to
 within \num{0.01}--\num{0.09}\,\%. \Cref{fig:generalisation} shows that the agreement is not merely a
 mean coincidence: the two renderers' images are visually indistinguishable, and their amplified
-difference carries no systematic structure---only Monte-Carlo noise. These gates confirm that the
-renderer's correctness is not cloud-specific and qualify both assets for the equal-quality timing
-comparison.
+difference is unstructured---it has no localised feature, which by the differential-validation criterion
+of \Cref{sec:reference-problem} (a \emph{structured} difference localises a discrepancy; an unstructured,
+mean-matching one is Monte-Carlo noise) is the signature of agreement rather than a residual bias. These
+gates confirm that the renderer's correctness is not cloud-specific and qualify both assets for the
+equal-quality timing comparison.
 
 \begin{figure}[htp]
   \centering
@@ -182,10 +184,11 @@ comparison.
   \caption{Cross-renderer generalisation on two further DSYG assets, absorption under a constant-white
   environment from a matched diagonal view, \num{256}\,spp. \emph{Left to right:} this renderer,
   Mitsuba-analog, and the absolute difference amplified \(10\times\). The converged-mean ratios are
-  \num{0.9991} (tornado, top) and \num{1.0001} (explosion, bottom); the amplified difference shows only
-  Monte-Carlo grain with no systematic structure, so the agreement is not specific to the cloud. (Our
-  frame is shown vertically flipped to match Mitsuba's orientation---the known asset-validation camera
-  flip, immaterial to the flip-invariant mean.)}
+  \num{0.9991} (tornado, top) and \num{1.0001} (explosion, bottom); the amplified difference is
+  unstructured grain with no localised feature---by the criterion of \Cref{sec:reference-problem} the
+  signature of Monte-Carlo noise, not a residual bias---so the agreement is not specific to the cloud.
+  (Our frame is shown vertically flipped to match Mitsuba's orientation---the known asset-validation
+  camera flip, immaterial to the flip-invariant mean.)}
   \label{fig:generalisation}
 \end{figure}
 
