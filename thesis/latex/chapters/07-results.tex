@@ -27,17 +27,29 @@ variance at equal render time; the raw, firefly-dominated ratio is far larger). 
 production-mode figure: the configuration one would actually use.
 
 \paragraph{Isolating the sampler.} To separate the \emph{sampler} from the direct-lighting estimator,
-the two renderers can be compared in the \emph{same} (analog) mode---no NEE on either side. There the
-picture is unstable: this renderer samples faster per sample (the single-trace
-argmin needs no per-segment root-find or shadow connection), but its analog variance is
-firefly-dominated, and the analog-vs-analog equal-quality comparison is acutely sensitive to firefly
-handling---raw per-pixel variance favours the reference, while firefly-clamped variance strongly favours
-this renderer, because its variance is concentrated in a few sparse extreme pixels that clamp away. No
-single stable equal-quality figure survives that sensitivity. The meaningful, stable comparison is
-therefore the production one above: the decisive advantage is the correct, low-variance MIS
-estimator, not the analog sampler. The architectural contribution (\Cref{ch:architecture}) is thus best
-read as a \emph{structural} simplification---march-free, sort-free, root-find-free, and faster per
-sample---rather than a per-sample variance change.
+the two renderers can be compared in the \emph{same} (analog) mode---no NEE on either side. Under the
+meadow environment this comparison is metric-unstable: this renderer's analog variance is
+firefly-dominated (rare bright-sun escapes), so raw per-pixel variance favours the reference while
+firefly-clamped variance favours this renderer, and no single equal-quality figure survives. A
+\emph{flat} (uniform) environment removes the fireflies on both sides and makes the comparison stable.
+There, at an equal sample count, this renderer is \(\mathbf{\sim\!3\times}\) faster per sample
+(\SI{2.85}{\second} versus \(\sim\)\SI{8.5}{\second} at \num{64}\,spp on the cloud)---the single-trace
+argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
+the per-sample variance (both estimators unbiased; the converged means agree to \num{0.02}\,\%), so the
+\emph{net} equal-quality figure is \(\sim\!0.6\times\). The architectural contribution
+(\Cref{ch:architecture}) is therefore a \emph{structural, throughput} simplification---march-free,
+sort-free, root-find-free, faster per sample---\emph{not} a per-sample variance reduction; the decisive
+equal-quality advantage is the correct, low-variance MIS estimator, not the bare sampler.
+
+\paragraph{The headline is environment importance sampling.} That \(59\times\) is specific to peaky
+illumination, and honestly so. On the same flat environment the MIS estimator carries no advantage at
+all: its per-vertex next-event estimation is wasted work when every direction returns the same radiance,
+leaving this renderer roughly an order of magnitude \emph{noisier} than the reference's analog mode at
+equal time. The \(59\times\) is thus the payoff of importance-sampling a peaky HDR environment---which
+our MIS does and the reference's only unbiased mode (analog) does not---rather than a generic sampler
+win. This mirrors the resampled direct-lighting result of \Cref{sec:ris}, where the very same
+environment-sampling machinery helps under peaky illumination and is counterproductive on flat: the
+renderer's advantage is concentrated exactly where production volumetric lighting lives.
 
 \paragraph{Beyond the cloud.} The bunny (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
 \num{64}\,spp, \(512^2\), under the meadow environment, with zero cap overflows---an internal scaling
