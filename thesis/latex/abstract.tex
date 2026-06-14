@@ -24,13 +24,16 @@ argmin---as the scattering event. Together they replace the reference's segment-
 root-finding outright.
 
 Correctness is established by a differential-validation methodology that compares the renderer against
-Mitsuba and, where a closed form exists, against analytic ground truth; the same ladder serves as the
-unbiasedness evidence for the new sampler. A systematic performance-engineering study, measured across
-time and image quality, contributes a second, scene-dependent win---volumetric product-resampled
-direct lighting, $1.4\times$ at equal quality under environment lighting---alongside a profiled ledger
-of negative results that maps where effort on this class of renderer does and does not pay off. The
-optimisations, chief among them a shadow-ray transmittance speedup, closed an initial roughly fivefold
-equal-quality deficit under flat lighting and left the renderer ahead of the reference on the
-environment-lit showcase, free of its fireflies.
+Mitsuba and, where a closed form exists, against analytic ground truth, and is cross-checked against an
+independent dense voxel-grid integrator; the same ladder serves as the unbiasedness evidence for the new
+sampler. On the environment-lit showcase the renderer is both correct and fast: its
+multiple-importance-sampled direct lighting matches the unbiased ground truth to within Monte-Carlo
+noise, whereas the reference's faster estimator is energy-biased on this medium---so measured against the
+reference's only unbiased (analog) configuration, it reaches a given noise level roughly $59\times$
+faster at equal quality, free of that configuration's fireflies, and on less device memory ($578$
+against $838$\,MiB on the same scene). A systematic performance-engineering study, measured across time
+and image quality, contributes a second, scene-dependent win---volumetric product-resampled direct
+lighting, $1.4\times$ at equal quality under environment lighting---alongside a profiled ledger of
+negative results that maps where effort on this class of renderer does and does not pay off.
 
 \end{abstract}
