@@ -42,6 +42,84 @@ bug. This turns an unfalsifiable ``does it look right?'' into a measurable gap, 
 of every result below. Where an even stronger check exists---a scene with a closed-form answer---the
 renderer is held to that analytic ground truth directly.
 
+\paragraph{A reference is only as good as its configuration.} A reference image carries no meaning
+without the exact configuration that produced it. The same cloud, rendered from the same camera, spans a
+more-than-threefold range of mean radiance depending \emph{solely} on render settings
+(\Cref{tab:ref-config}): the integrator (physically based path tracing versus the optimisation
+pipeline's tomographic line integral), the density scale (the $\sigma$-multiplier $7.5$ versus an
+exploratory $60$), and whether scattering is enabled. The optimisation-pipeline renders shipped
+alongside each asset (\texttt{reference\_pyrN} and \texttt{optimized\_pyrN}) are therefore \emph{not}
+valid targets for this renderer: they depict the fit's target volume and the fitted primitives in the
+optimiser's own tomographic convention, not a path-traced image under our configuration. Chasing them by
+tuning the density scale silently conflates an integrator mismatch, a convention mismatch, and---for the
+target render---the Gaussian \emph{fit} error, which is not the renderer's to absorb. Every comparison in
+this chapter is therefore made only against references regenerated under the renderer's own configuration
+(matched primitive-for-primitive: same integrator, $\sigma$-scale, camera, and lighting); the agreement
+those achieve is meaningful precisely because the configuration is controlled.
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}llc@{}}
+    \toprule
+    Integrator & Configuration & mean radiance \\
+    \midrule
+    path tracer & $\sigma$-scale $7.5$, scattering (env-lit) & $0.31$ \\
+    path tracer & $\sigma$-scale $7.5$, absorption           & $0.42$ \\
+    tomography  & optimisation-pipeline convention           & $0.53$ \\
+    path tracer & $\sigma$-scale $60$, scattering            & $1.04$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{The identical cloud asset, from the identical camera, yields mean radiance over a
+  $3.4\times$ range depending solely on the render configuration. A reference image is a valid
+  correctness target only when its full configuration is known and reproduced; the optimisation-pipeline
+  renders shipped with the assets use a different (tomographic) configuration and are not used here.}
+  \label{tab:ref-config}
+\end{table}
+
+\subsection{An independent integrator: a voxel-grid cross-check}
+\label{sec:voxel-gt}
+
+The Mitsuba comparison shares one assumption with this renderer: both integrate the medium as a sum of
+analytic Gaussian primitives, so a systematic error in that shared model---a wrong normalisation, a
+mis-stated kernel---could in principle survive in both. A stronger check breaks the shared assumption
+entirely. The Gaussian field is baked into a dense voxel grid in the renderer's own,
+mass-conserving density convention,
+\[
+  \sigma_t(\mathbf{x})=\sum_i M_i\,(2\pi)^{-3/2}\!\prod_j s_{ij}^{-1}\;
+  \exp\!\big(-\tfrac12\lVert S_i^{-1}R_i^{\!\top}(\mathbf{x}-\boldsymbol\mu_i)\rVert^2\big),
+\]
+and that grid is rendered by Mitsuba's \texttt{heterogeneous}/\texttt{gridvolume} path tracer via delta
+tracking---a method that shares no code and no Gaussian mathematics with either analytic renderer.
+
+In \emph{absorption} the cross-check is clean (\Cref{fig:voxel-gt}). The grid render matches the analytic
+render exactly through the opaque interior and the empty background---the median pixel difference is
+zero---and the only residual is a thin band on the silhouette, where the grid blurs the sub-voxel-sharp
+Gaussian boundary the analytic form resolves crisply. That residual shrinks monotonically as the grid is
+refined (from $128^3$ to $600^3$: RMSE $0.072\!\to\!0.057$, mean $0.394\!\to\!0.401$ toward the analytic
+$0.416$), confirming the analytic render is the limit of the grid renders as discretisation vanishes;
+more samples per pixel do not move it, so the residual is discretisation, not noise. The cross-check thus
+both corroborates the renderer and quantifies the edge fidelity the analytic primitive buys over a
+voxelised proxy.
+
+In \emph{scattering} the comparison agrees in the mean (to within ${\sim}6\,\%$) but cannot be driven to
+a clean per-pixel match: the dense cores produce extreme scattering fireflies---the same high-variance
+regime that makes the unbiased analog reference firefly-prone---so a converged per-pixel grid ground
+truth would demand prohibitive sample counts. Absorption therefore carries the independent check;
+scattering correctness continues to rest on the energy-conserving furnace invariant
+(\Cref{sec:scattering-ladder}) and the differential Mitsuba comparison.
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/voxel_gt.pdf}
+  \caption{Independent voxel-grid cross-check (cloud, absorption, same camera). \emph{Left:} the
+  analytic Gaussian renderer. \emph{Centre:} the same density field baked to a $600^3$ grid and rendered
+  by Mitsuba's dense-grid delta-tracking path tracer---no shared code or Gaussian mathematics.
+  \emph{Right:} $\lvert\Delta\rvert$ ($\times5$). Interior and background match exactly (median pixel
+  difference zero); the only residual is the silhouette band where the grid blurs the sharp Gaussian
+  boundary, and it shrinks monotonically with grid resolution.}
+  \label{fig:voxel-gt}
+\end{figure}
+
 \section{How to compare correctly}
 \label{sec:compare-correctly}
 
