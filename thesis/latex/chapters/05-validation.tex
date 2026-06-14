@@ -104,12 +104,22 @@ more samples per pixel do not move it, so the residual is discretisation, not no
 both corroborates the renderer and quantifies the edge fidelity the analytic primitive buys over a
 voxelised proxy.
 
-In \emph{scattering} the comparison agrees in the mean (to within ${\sim}6\,\%$) but cannot be driven to
-a clean per-pixel match: the dense cores produce extreme scattering fireflies---the same high-variance
-regime that makes the unbiased analog reference firefly-prone---so a converged per-pixel grid ground
-truth would demand prohibitive sample counts. Absorption therefore carries the independent check;
-scattering correctness continues to rest on the energy-conserving furnace invariant
-(\Cref{sec:scattering-ladder}) and the differential Mitsuba comparison.
+In \emph{scattering} the cross-check can be driven to a clean per-pixel match as well
+(\Cref{fig:voxel-scatter-gt}), but only with the right grid tracker. A naive dense-grid path tracer
+cannot: the cloud's sub-voxel cores reach $\sigma_t\approx\num{8900}$, and a global-majorant delta
+tracker turns that dynamic range into extreme fireflies---the same high-variance regime that makes the
+unbiased analog reference firefly-prone. Rendering the same grid with \emph{local} supervoxel majorants
+and residual-ratio-tracking transmittance---the dense-grid baseline used by the representation's
+originators~\cite{DSYG}, here via their AdVol integrator---removes the fireflies entirely at the full,
+unclamped dynamic range: at \num{256}\,spp the grid render has a peak pixel of \num{2.5} and \emph{zero}
+fireflies, against the global-majorant tracker's thousands (a per-pixel variance lower by some three
+orders of magnitude). The independent grid render then agrees with the analytic renderer to
+\num{1.5}\,\% in the mean (\num{0.3261} versus \num{0.3214}), with a per-pixel RMSE of \num{0.114} that
+is resolution-limited exactly as in absorption---the $200^3$ grid blurs the sharp Gaussian cores (cf.\
+the absorption residual of \num{0.063} at the same resolution). Scattering thus gains the same
+independent, no-shared-code corroboration as absorption; it remains additionally anchored by the
+energy-conserving furnace invariant (\Cref{sec:scattering-ladder}) and the differential Mitsuba
+comparison.
 
 \begin{figure}[htp]
   \centering
@@ -121,6 +131,19 @@ scattering correctness continues to rest on the energy-conserving furnace invari
   difference zero); the only residual is the silhouette band where the grid blurs the sharp Gaussian
   boundary, and it shrinks monotonically with grid resolution.}
   \label{fig:voxel-gt}
+\end{figure}
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/voxel_scatter_gt.pdf}
+  \caption{Independent voxel-grid cross-check under \emph{scattering} (cloud, meadow environment, albedo
+  \num{0.9}, Henyey--Greenstein $g=0.85$, same camera). \emph{Left:} the analytic Gaussian renderer.
+  \emph{Centre:} the same density field on a $200^3$ grid rendered by AdVol with local supervoxel
+  majorants and residual ratio tracking (the dense-grid baseline of \cite{DSYG})---unclamped and
+  firefly-free despite a peak $\sigma_t\approx\num{8900}$. \emph{Right:} $\lvert\Delta\rvert$ ($\times5$).
+  The means agree to \num{1.5}\,\% (ratio \num{1.015}); the per-pixel residual (RMSE \num{0.114}) is the
+  grid blurring the sub-voxel cores, resolution-limited as in absorption, not Monte-Carlo noise.}
+  \label{fig:voxel-scatter-gt}
 \end{figure}
 
 \section{How to compare correctly}
