@@ -35,7 +35,8 @@ firefly-clamped variance favours this renderer, and no single equal-quality figu
 There, at an equal sample count, this renderer is \(\mathbf{\sim\!3\times}\) faster per sample
 (\SI{2.85}{\second} versus \(\sim\)\SI{8.5}{\second} at \num{64}\,spp on the cloud)---the single-trace
 argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
-the per-sample variance (both estimators unbiased; the converged means agree to \num{0.02}\,\%), so the
+the per-sample variance (both estimators unbiased; the converged means agree to \num{0.02}\,\%; the gap
+is the collision- versus track-length-estimator trade-off dissected in \Cref{sec:autopsies}), so the
 \emph{net} equal-quality figure is \(\sim\!0.6\times\). The architectural contribution
 (\Cref{ch:architecture}) is therefore a \emph{structural, throughput} simplification---march-free,
 sort-free, root-find-free, faster per sample---\emph{not} a per-sample variance reduction; the decisive

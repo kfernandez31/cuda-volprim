@@ -339,8 +339,25 @@ renderer does \emph{not} go.
   \item \textbf{Adaptive sampling (§8.30).} Per-pixel convergence stopping was a net loss
   ($\sim\!2\times$ slower at equal quality, plus firefly bias) on the high-variance cloud; kept,
   default-off.
-  \item \textbf{Per-step Rao--Blackwellisation, ``A1'' (§8.27, \Cref{app:a1}).} A direct/indirect
-  variance trade-off that helps only on flat environments, where the renderer already wins; no net gain.
+  \item \textbf{Per-step Rao--Blackwellisation, ``A1'' (§8.27) --- the most instructive.} The renderer
+  is ${\sim}5\times$ noisier per sample than Mitsuba on the flat-lit scattering cloud
+  (\Cref{sec:results-perf}); the hypothesis blamed Mitsuba folding the analytic segment transmittance
+  into throughput at \emph{every} bounce versus only at the primary vertex here. A single-Gaussian depth
+  sweep (isolating the effect from overlap and from environment sampling --- disabling MIS moved the
+  noise by only $1.06\times$) confirmed a real gap but corrected its cause: the two are \emph{different
+  estimator classes}. Mitsuba is a \emph{track-length} estimator (transmittance folded into throughput,
+  every path a smoothly $T$-weighted escape); the argmin's binary scatter-versus-escape decision
+  (\Cref{sec:adt}) makes this a \emph{collision} estimator, which has higher variance for
+  transmittance-weighted estimands and a gap that \emph{widens with depth} --- under near-conservative
+  flat lighting almost every analog path escapes to the same constant, so Mitsuba self-averages while the
+  collision estimator's variance stays flat. The fix is declined on two grounds: the obvious patch
+  (adding the continuation escape as a second sampling strategy) replaces the existing \emph{analytic}
+  shadow-ray next-event estimator with a higher-variance \emph{stochastic} escape indicator (same
+  expectation, strictly worse); and folding transmittance into throughput at every bounce would abandon
+  the binary scatter/escape decision that \emph{is} the sort-free argmin. \emph{Lesson:} a characterised
+  trade-off, not a missed optimisation --- it helps only the flat regime, while the environment-lit
+  showcase (the target) is already won by MIS (\Cref{ch:results}); a hybrid that keeps the argmin yet
+  folds the analytic transmittance at all bounces is the open direction should the flat gap ever matter.
   \item \textbf{Density-contribution culling (§8.31)} --- redundant with the BVH's $3\sigma$ bound.
   \textbf{Track-length combine (§8.32)} --- unnecessary, the environment transmittance is already
   analytic. \textbf{Exit-caching (§8.35)} --- bit-identical, no win (the extra local state hit the
