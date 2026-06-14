@@ -170,8 +170,24 @@ geometry. Each is rendered in absorption under a constant-white environment from
 view (the configuration that makes the comparison reference-adjudicable, \Cref{sec:money-shot}), and the
 metric is the converged-mean radiance ratio (flip-invariant, so the known camera-flip is immaterial).
 The ratio is \num{0.99911} on the tornado and \num{1.00006} on the explosion: cloud-class agreement, to
-within \num{0.01}--\num{0.09}\,\%. These gates confirm that the renderer's correctness is not
-cloud-specific and qualify both assets for the equal-quality timing comparison.
+within \num{0.01}--\num{0.09}\,\%. \Cref{fig:generalisation} shows that the agreement is not merely a
+mean coincidence: the two renderers' images are visually indistinguishable, and their amplified
+difference carries no systematic structure---only Monte-Carlo noise. These gates confirm that the
+renderer's correctness is not cloud-specific and qualify both assets for the equal-quality timing
+comparison.
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/generalisation.pdf}
+  \caption{Cross-renderer generalisation on two further DSYG assets, absorption under a constant-white
+  environment from a matched diagonal view, \num{256}\,spp. \emph{Left to right:} this renderer,
+  Mitsuba-analog, and the absolute difference amplified \(10\times\). The converged-mean ratios are
+  \num{0.9991} (tornado, top) and \num{1.0001} (explosion, bottom); the amplified difference shows only
+  Monte-Carlo grain with no systematic structure, so the agreement is not specific to the cloud. (Our
+  frame is shown vertically flipped to match Mitsuba's orientation---the known asset-validation camera
+  flip, immaterial to the flip-invariant mean.)}
+  \label{fig:generalisation}
+\end{figure}
 
 \section{Scaling with primitive count}
 \label{sec:results-scaling}
