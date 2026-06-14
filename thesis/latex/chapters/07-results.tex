@@ -41,7 +41,11 @@ NEE estimator, and the reference's analog mode as an unbiased ground truth.
   \num{64}-spp seeds). \emph{Left:} this renderer's MIS estimator, \num{0.4}\,\% above the unbiased
   ground truth---correct to within Monte-Carlo noise. \emph{Centre:} the reference's NEE estimator,
   \num{156}\,\% too bright---a gross energy bias that washes the cloud out. \emph{Right:} the
-  reference's analog mode, the unbiased ground truth (and visibly the noisiest of the three).}
+  reference's analog mode, the unbiased ground truth (and visibly the noisiest of the three). All three
+  use the \emph{identical} scene and sample budget (\num{16}\,$\times$\,\num{64}\,spp), so the
+  comparison is fair: the brightness differences are estimator \emph{bias} and the noise differences are
+  estimator \emph{variance}---both intrinsic to the estimators, not artefacts of the setup. Our MIS
+  estimator is the only one that is simultaneously correct and clean.}
   \label{fig:g1-bias}
 \end{figure}
 
@@ -124,11 +128,14 @@ both advantages.
 \label{sec:results-startup}
 
 For an interactive or iterative workflow the relevant cost is not only the converged frame time but the
-fixed latency before the first pixel. The reference, built on Mitsuba's just-in-time-compiled Dr.Jit
+fixed latency before the first pixel. Both figures below are the time-to-first-render on the cloud scene
+(median of three fresh processes, isolated as first-render minus steady-state frame time). The
+reference, built on Mitsuba's just-in-time-compiled Dr.Jit
 backend, pays a one-time kernel-compilation cost on each fresh process: \SI{0.78}{\second} warm (cached
 kernels) and \SI{2.20}{\second} cold. This renderer's ahead-of-time-compiled OptiX-IR pipeline loads
 and launches in \SI{0.39}{\second}---roughly half the reference's warm start and an order of magnitude
-under its cold start. The advantage is structural (compilation happens at build time, not run time) and
+under its cold start. The advantage is structural (compilation happens at build time, not run time),
+asset-independent (it is pipeline setup, not scene work), and
 compounds across the many short renders a parameter sweep or a debugging session entails.
 
 \section{Cross-renderer generalisation}
@@ -136,10 +143,12 @@ compounds across the many short renders a parameter sweep or a debugging session
 
 Beyond the cloud, the renderer was checked against the reference on two further DSYG assets---a tornado
 and an explosion plume---using Jorge's native primitive files so that both renderers consume identical
-geometry. Comparing the converged-mean radiance (a flip-invariant energy ratio, \Cref{sec:money-shot})
-gives \num{0.99911} on the tornado and \num{1.00006} on the explosion: cloud-class agreement, to within
-\num{0.01}--\num{0.09}\,\%. These gates confirm that the renderer's correctness is not cloud-specific
-and qualify both assets for the equal-quality timing comparison.
+geometry. Each is rendered in absorption under a constant-white environment from a matched diagonal
+view (the configuration that makes the comparison reference-adjudicable, \Cref{sec:money-shot}), and the
+metric is the converged-mean radiance ratio (flip-invariant, so the known camera-flip is immaterial).
+The ratio is \num{0.99911} on the tornado and \num{1.00006} on the explosion: cloud-class agreement, to
+within \num{0.01}--\num{0.09}\,\%. These gates confirm that the renderer's correctness is not
+cloud-specific and qualify both assets for the equal-quality timing comparison.
 
 % ---------------------------------------------------------------------------
 % PENDING (350 W): full equal-quality speed (R1), time/memory-vs-N scaling (R3),

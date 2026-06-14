@@ -19,8 +19,9 @@ distance. This rests on two supporting pillars: a \emph{differential-validation 
 against analytic ground truth---and that doubles as the unbiasedness evidence for the new sampler; and a
 systematic \emph{performance-engineering study} (\Cref{ch:optimization}) that contributed a second,
 scene-dependent win (volumetric product-RIS direct lighting---$1.4\times$ at equal quality under
-environment lighting, default off) and a rigorously characterised ledger of negative results, and that closed the initial $\sim\!5\times$ equal-quality gap and overtook the
-reference on the showcase, free of its fireflies. The advantage is not confined to frame time: at equal
+environment lighting, default off) and a rigorously characterised ledger of negative results. At equal
+quality the renderer renders faster than the reference on the showcase, and free of the fireflies the
+reference exhibits there. The advantage is not confined to frame time: at equal
 conditions the reference's faster direct-lighting estimator is energy-biased on dense media while this
 renderer's is not (\Cref{sec:results-firefly}), per-asset cap calibration puts the renderer's peak
 device memory below the reference's on the showcase (\Cref{sec:results-memory}), and its
@@ -35,15 +36,18 @@ The renderer is deliberately scoped, and several limitations bound its current r
 \begin{itemize}
   \item \textbf{No emission.} It models absorption and scattering but not emissive media, so combustion
   assets render as dark plumes; the assets carry no emission data either.
-  \item \textbf{Pure-Gaussian fits only.} Assets fit with the Gabor-noise extension render only their
-  coarse Gaussian base; high-frequency Gabor detail is unsupported.
+  \item \textbf{Gaussian kernel only.} The closed-form optical depth (\Cref{sec:analytic-od}) is
+  Gaussian-specific, so other kernel families---e.g.\ the compactly-supported Epanechnikov kernel---are
+  unsupported; each would need its own closed-form integral, which the architecture could accommodate
+  but does not implement. Relatedly, assets fit with the Gabor-noise extension render only their coarse
+  Gaussian base; high-frequency Gabor detail is unsupported.
   \item \textbf{Static, single-frame.} There is no animation support.
   \item \textbf{Compile-time, asset-dependent caps.} The per-ray buffers (\Cref{sec:gpu-impl}) are sized
   at compile time; a substantially denser scene requires re-sizing and a rebuild. An offline estimator
   now predicts the required caps from an asset's geometry---the \num{25600}-Gaussian bunny, for one,
-  needs markedly larger caps than the \num{652}-primitive cloud---so the sizing is no longer guesswork,
-  but the caps remain static, and the runtime overflow counter only \emph{detects} an undersized cap
-  rather than fixing it.
+  needs markedly larger caps than the \num{652}-primitive cloud---so the sizing is determined by
+  measurement rather than assumption, but the caps remain static, and the runtime overflow counter only
+  \emph{detects} an undersized cap rather than fixing it.
   \item \textbf{Ampere hardware.} The one lever that directly targets the renderer's ray divergence,
   OptiX Shader Execution Reordering~\cite{NvidiaSER2022}, is Ada-only and unavailable on the RTX~3090
   used throughout.
@@ -58,8 +62,8 @@ The renderer is deliberately scoped, and several limitations bound its current r
 \section{Future work}
 \label{sec:future-work}
 
-The most direct continuations are the extensions envisioned in the original DSYG
-programme~\cite{DSYG}: a \emph{unified emissive/absorptive kernel} model that exploits closed-form
+The most direct continuations are natural extensions of the kernel-mixture representation, several
+suggested by Condor: a \emph{unified emissive/absorptive kernel} model that exploits closed-form
 integrals for accurate product sampling of light sources and BSDFs; \emph{SGGX and microflake} models
 to represent surface-like materials within the same primitive framework; \emph{parametric kernels} for
 more compact and accurate radiance fields; and a bridge from \emph{Lagrangian fluid simulation} directly
@@ -70,10 +74,14 @@ inverse rendering}: re-expressing the renderer with analytic backward passes or 
 SLANG.D~\cite{SLANG.D}, to recover scene parameters from images---the inverse-rendering capability the
 original proposal targeted. Second, \emph{Shader Execution Reordering on Ada}: the divergence lever that
 is unavailable here may recover part of the cost the megakernel pays on newer hardware, and is worth
-re-measuring there. Third, \emph{dynamic cap sizing}: the offline estimator introduced here predicts
-the per-ray buffer sizes an asset needs, but the buffers themselves are still compile-time constants;
-resizing them at load time from the estimate---or growing them on demand when the overflow counter
-fires---would remove the per-asset recompile entirely. Path guiding, deferred here for want of a cheap
+re-measuring there. Third, \emph{recompile-free capacity}: the per-ray buffers are compile-time constants whose size the
+offline estimator already predicts per asset (\Cref{tab:overlap}). Removing the fixed buffer
+\emph{entirely} was tried and abandoned---the cap-free streaming autopsy (\Cref{sec:autopsies}) was
+bit-exact but slower. An untried middle path keeps a \emph{small, fixed} buffer but, when it fills,
+re-issues the traversal from the last processed distance to gather the next chunk and repeats: this pays
+an extra re-traversal only on the rare overflowing ray, keeps the single-trace fast path for the common
+case, and removes the per-asset recompile without re-introducing the cap-free design's whole-render
+cost. Path guiding, deferred here for want of a cheap
 predictive test (\Cref{sec:autopsies}), would also merit a revisit with a full offline oracle.
 
 \section{Closing}

@@ -226,15 +226,13 @@ experiment; its outcome refutes the expectation this section once recorded.
 \section{Analytic versus tessellated primitive geometry}
 \label{sec:icosphere}
 
-The reference implementation faced this exact choice and went the other way: its authors first
-implemented a custom ray-ellipsoid intersection program in OptiX, found it ``significantly less
-performant than a hardware-accelerated ray-triangle intersection test'', and switched to tessellated
-icospheres---duplicated per primitive rather than instanced---reporting an average $4.96\times$
-speedup, with their highest-tessellated shell (a \num{320}-triangle icosphere) performing
-best~\cite{DSYG}. This
-renderer instead uses OptiX's built-in analytic sphere over a single instanced unit GAS. The A/B ports
-the historical icosphere mesh (subdivision $N$: \num{20}, \num{80}, \num{320}, \num{1280} triangles)
-into the current renderer behind a compile switch; the IAS instancing, the any-hit entry collection,
+The reference~\cite{DSYG} renders each primitive as a \emph{tessellated icosphere} (duplicated per
+primitive), reporting a $4.96\times$ speedup over its own custom ray-ellipsoid intersector and a
+\num{320}-triangle shell as best. This renderer instead uses OptiX's built-in \emph{analytic} sphere
+over a single instanced unit GAS---and also supports the tessellated icosphere behind a compile switch,
+so the two geometries can be measured head-to-head with the per-primitive geometry the \emph{only}
+difference. The A/B ports the icosphere mesh (subdivision $N$: \num{20}, \num{80}, \num{320},
+\num{1280} triangles); the IAS instancing, the any-hit entry collection,
 and the analytic optical-depth integration are untouched, with one addition---a convex shell is
 entered through a front face and left through a back face, so the any-hit keeps only front-face hits,
 preserving the one-entry-per-primitive contract the sphere provides natively.
@@ -388,15 +386,20 @@ and require a larger compile-time cap (which the estimator sizes ahead of the bu
     Asset & Primitives & Max point overlap & Max ray entries \\
     \midrule
     Disney cloud (primary) & \num{652}   & \num{45}  & \num{96}  \\
-    WDAS cloud fit         & \num{768}   & \num{19}  & \num{108} \\
-    WDAS cloud fit         & \num{4096}  & \num{529} & \num{706} \\
-    WDAS cloud fit         & \num{24576} & \num{57}  & \num{437} \\
+    WDAS cloud, coarse fit & \num{768}   & \num{19}  & \num{108} \\
+    WDAS cloud, dense fit  & \num{4096}  & \num{529} & \num{706} \\
+    WDAS cloud, fine fit   & \num{24576} & \num{57}  & \num{437} \\
+    Tornado                & \num{768}   & \num{84}  & \num{340} \\
+    Explosion              & \num{1024}  & \num{23}  & \num{136} \\
     Stanford bunny         & \num{25600} & \num{245} & \num{387} \\
     \bottomrule
   \end{tabular}
   \caption{Worst-case $3\sigma$ overlap per asset, predicted offline by the cap estimator (point
   overlap sizes \texttt{MAX\_ACTIVE\_PRIMS}; ray entries size \texttt{HIT\_BUFFER\_CAPACITY}). Overlap
   spans more than $25\times$ and is independent of primitive count, so the caps are necessarily
-  asset-dependent. The three WDAS rows are distinct density fits of the Disney cloud.}
+  asset-dependent. The three WDAS rows are distinct density fits of the Disney cloud: the \emph{fine}
+  fit packs $32\times$ more primitives than the \emph{dense} fit yet overlaps an order of magnitude
+  \emph{less}, because the extra primitives are smaller and less densely stacked---overlap is set by
+  local packing, not primitive count.}
   \label{tab:overlap}
 \end{table}
