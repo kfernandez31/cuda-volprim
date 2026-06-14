@@ -1,0 +1,5 @@
+pair,before_med_s,after_med_s,ratio,before_mean,after_mean,n
+shadow-transmittance,0.014,0.014,1,000,,,5
+anyhit-fusion,0.013,0.013,1,000,,,5
+dedup-bounce0,19.411,19.479,0,997,,,5
+skip-scan,19.326,19.297,1,002,,,5

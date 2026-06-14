@@ -60,3 +60,4 @@ results/campaign/g6_adaptive/*.exr
 results/campaign/voxgrids/
 results/campaign/voxgt_*.exr
 results/campaign/voxel_*.exr
+results/campaign/g2_denoise/
