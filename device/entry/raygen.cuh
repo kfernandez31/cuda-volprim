@@ -267,13 +267,13 @@ extern "C" __global__ void __raygen__rg() {
                                                                  event.active_prims_);
                     radiance += base * env * T;
                 }
-            } else {
-                // Unoccluded single-scatter (overestimates direct lighting in dense media —
-                // ignores occlusion). For phase-IS-sampled directions phase/pdf_phase == 1,
-                // so the contribution is throughput · albedo · env(ω) — no PHASE_VALUE factor.
-                const auto env = launch_params.env_map_.sample(event.direction_);
-                radiance += throughput * albedo * env;
             }
+            // else (NEE off): pure analog — NO direct-lighting term at a scatter vertex. Env
+            // radiance is gathered only when the path escapes to the environment (the escape-add
+            // above), carrying the accumulated throughput. The former unoccluded single-scatter
+            // term added env·albedo at every vertex while ignoring occlusion, over-counting direct
+            // lighting ~17x in dense media; removing it makes ENABLE_NEE=false a true analog
+            // estimator (validated: furnace-flat, cloud-meadow mean matches Mitsuba-analog).
             throughput *= albedo;
 
             // Russian Roulette
