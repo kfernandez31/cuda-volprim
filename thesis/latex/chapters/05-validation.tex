@@ -273,7 +273,11 @@ builds: every optimisation there is required to preserve this image, and is reve
   \centering
   \includegraphics[width=\linewidth]{figures/showcase.pdf}
   \caption{The combined showcase: the full cloud under a measured HDR environment with forward
-  Henyey--Greenstein scattering ($g = 0.85$) and MIS direct lighting. At equal quality the renderer
-  matches Mitsuba-analog while remaining free of the fireflies the reference exhibits on this scene.}
+  Henyey--Greenstein scattering ($g = 0.85$). \emph{Left:} our MIS renderer; \emph{right:} Mitsuba's
+  only unbiased mode (analog)---each a single \num{64}-spp frame at matched render time
+  ($\approx\SI{9}{\second}$). The two agree on the converged image (means \num{0.321} versus
+  \num{0.321}; the systematic brightness check is \Cref{fig:g1-bias}), yet at this budget ours is
+  firefly-free while the reference's analog mode is dominated by fireflies---the difference is variance,
+  not bias, and its equal-quality cost is quantified in \Cref{ch:results}.}
   \label{fig:showcase}
 \end{figure}
