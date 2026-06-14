@@ -74,14 +74,11 @@ def main() -> None:
     b, a = np.polyfit(np.log(Ns), np.log(ts), 1)  # log t = b log N + a
     xfit = np.array([Ns.min(), Ns.max()])
     axT.plot(xfit, np.exp(a) * xfit ** b, ls="--", color="0.5", lw=1.2, zorder=1,
-             label=f"synthetic fit  $t\\propto N^{{{b:.2f}}}$")
-    axT.scatter(Ns, ts, s=36, color="C0", zorder=4, label="synthetic stress grid")
-
-    axT.scatter(N[real], t[real], s=52, color="C3", marker="D", zorder=5,
-                label="real assets (operating point)")
-    for i in np.where(real)[0]:
-        axT.annotate(label[i], xy=(N[i], t[i]), xytext=(N[i] * 0.62, t[i] * 1.18),
-                     fontsize=8, color="C3")
+             label=f"power-law fit  $t\\propto N^{{{b:.2f}}}$")
+    axT.scatter(Ns, ts, s=44, color="C0", zorder=4,
+                label="square grid (identical Gaussians)")
+    # Real assets are NOT plotted as a scaling series: they confound N with packing
+    # density and extent (Table~\ref{tab:overlap}); their costs are tabulated separately.
 
     axT.set_xscale("log")
     axT.set_yscale("log")
