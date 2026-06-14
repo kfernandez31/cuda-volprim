@@ -23,14 +23,17 @@ is large and persistent, so the algorithm is \emph{megakernel-shaped}. This sing
 several of the null results in \Cref{sec:autopsies}.
 
 Profiling the production binary quantifies this across two workloads (NSight Compute, base-clocked). On
-the environment-lit cloud the render megakernel reaches $31.2\%$ occupancy at $45.9\%$ SM and $16.5\%$
-DRAM throughput; on the \num{25600}-primitive bunny it is harsher---$20.9\%$ occupancy, the scheduler
+the showcase cloud under the measured meadow environment the render megakernel reaches $31.2\%$
+occupancy at $45.9\%$ SM and $16.5\%$ DRAM throughput; on the \num{25600}-primitive bunny it is harsher---$20.9\%$ occupancy, the scheduler
 with no eligible warp $70\%$ of cycles, DRAM at $1.8\%$---and ray divergence leaves only $5.4$--$6.9$ of
 $32$ lanes active per warp. Neither workload approaches either roof of the arithmetic roofline
 (\Cref{fig:roofline}): both sit at $1$--$3\%$ of the RTX~3090's FP32 compute peak and from $1.8\%$
 (bunny) to $16.5\%$ (cloud) of its bandwidth. The regime is unambiguously \emph{latency-bound} and
 divergence-dominated---not compute- or bandwidth-bound---with the bunny the more extreme point because
-its dense, finely-divided shell maximises traversal divergence while touching almost no DRAM.
+its dense, finely-divided shell maximises traversal divergence while touching almost no DRAM. The
+divergence is exactly what OptiX Shader Execution Reordering~\cite{NvidiaSER2022} targets---regrouping
+threads between traversal and shading to restore warp coherence---but it is an Ada-generation feature,
+unavailable on the Ampere RTX~3090 used here, so it cannot be brought to bear (\Cref{sec:autopsies}).
 
 \begin{figure}[htp]
   \centering
@@ -54,6 +57,7 @@ possible. Each optimisation in this chapter is therefore placed in one of four m
 
 \begin{table}[htp]
   \centering
+  \resizebox{\linewidth}{!}{%
   \begin{tabular}{@{}lll@{}}
     \toprule
     Mode & When it applies & Examples \\
@@ -63,7 +67,8 @@ possible. Each optimisation in this chapter is therefore placed in one of four m
     \textbf{(S) Standard practice} & textbook; cite, don't measure & multi-stream, FMA, coalescing, fast-math \\
     \textbf{(I) Infeasible} & no valid A/B possible & (emptied --- see \Cref{sec:icosphere}) \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
   \caption{The four justification modes. The chapter measures what is informative, complexity-argues
   what was merely made-correct, cites the standard, and states plainly what could not be tested.}
   \label{tab:four-modes}
@@ -87,6 +92,7 @@ protocol. With these wins in place, the renderer reaches the same noise level as
 
 \begin{table}[htp]
   \centering
+  \resizebox{\linewidth}{!}{%
   \begin{tabular}{@{}llc@{}}
     \toprule
     Optimisation & Effect & FINDINGS \\
@@ -99,7 +105,8 @@ protocol. With these wins in place, the renderer reaches the same noise level as
     Fast \texttt{erf} in the hot path & $\sim$\,1\% (numerically free; opt-in) & §8.21; sweep \\
     OptiX denoiser (showcase)        & $\sim$\,30$\times$ effective           & §8.22 \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
   \caption{Measured (M-mode) optimisations kept in the renderer. Each is a controlled on/off ablation
   on the scattering cloud; §-referenced rows are development-time measurements, and the RR-depth row is
   the controlled $16$-seed sweep of \Cref{fig:rr-depth}, which revised the development-time
@@ -112,7 +119,8 @@ protocol. With these wins in place, the renderer reaches the same noise level as
   \includegraphics[width=0.8\linewidth]{figures/rr_depth.pdf}
   \caption{Russian-roulette efficiency on the scattering cloud: $k\cdot t$ (inter-seed noise constant
   $\times$ relative frame time, lower is better) against the RR start depth; $16$ seeds per depth at
-  \num{64} spp under the environment-lit showcase. Variance falls and cost rises monotonically with
+  \num{64} spp under the meadow-lit showcase, sampled at depths $\{5, 6, 8, 10, 12, 16\}$ (a coarsening
+  sweep---the gaps, e.g.\ at $14$, are unsampled, not missing). Variance falls and cost rises monotonically with
   depth; their product forms a shallow basin over depths $8$--$12$ (spread ${\le}1.2\,\%$) whose minimum
   lands on the shipped default $12$, with both extremes measurably worse ($5$: $+5.0\,\%$, $16$:
   $+4.9\,\%$ relative to the minimum).}
@@ -122,7 +130,7 @@ protocol. With these wins in place, the renderer reaches the same noise level as
 \section{The algorithmic highlight: volumetric product-RIS}
 \label{sec:ris}
 
-The one \emph{studied} algorithmic win is in direct lighting. The baseline next-event estimator spends
+The chapter's headline algorithmic win---a genuine, measured one---is in direct lighting. The baseline next-event estimator spends
 one shadow ray per scattering vertex on an environment sample drawn by luminance. Resampled importance
 sampling~\cite{Talbot2005} instead draws $K$ environment candidates, resamples one in proportion to a
 cheap target (phase value $\times$ environment luminance) via a weighted reservoir~\cite{Bitterli2020},

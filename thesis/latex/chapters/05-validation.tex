@@ -25,7 +25,10 @@ release configuration (\texttt{-O3}, \texttt{-{}-use\_fast\_math}). The Mitsuba~
 same GPU through its CUDA backend, so cross-renderer comparisons are on identical hardware. Unless noted
 otherwise, every timing figure is taken at a single fixed operating point---the card's sustained full
 clock---to avoid clock-throttling artefacts (\Cref{sec:compare-correctly}); the equal-quality metric,
-being a ratio, is robust to the operating point regardless.
+being a ratio, is robust to the operating point regardless. Every timing A/B additionally
+\emph{interleaves} its two arms within each seed block (arm~A, arm~B, arm~A, \ldots) rather than running
+one arm fully and then the other, so that any residual clock or thermal drift affects both arms equally
+and cancels in the comparison.
 
 \section{Differential validation}
 \label{sec:reference-problem}
@@ -165,21 +168,28 @@ pixel. The renderer matches this analytic value to about $10^{-5}$---the pixel-f
 the ray--primitive transform, the erf-based optical depth, and the camera model; the small residual
 that remains is pixel-filter variance, not bias.
 
-\paragraph{Overlap ladder.} Stacking primitives tests the additivity of optical depth and the
-active-set bookkeeping that the argmin sampler depends on. Up to the active-set capacity the renderer
-matches the analytic transmittance of the combined medium to $\sim\!10^{-4}$. A deliberately degenerate
-\emph{collinear} stress test---$K$ identical Gaussians stacked so the exact answer is a single
-$K$-fold-denser Gaussian---exposed, and then confirmed the fix for, the cap-overflow behaviour discussed
+\paragraph{Overlapping primitives.} The next rung stacks primitives so their Gaussians overlap, testing
+two things the single-Gaussian rung cannot: that the optical depths of overlapping primitives \emph{add}
+correctly along a ray, and that the active-set bookkeeping the argmin sampler relies on
+(\Cref{sec:adt})---which primitives a point lies inside---is maintained correctly. Up to the active-set
+capacity the renderer matches the analytic transmittance of the combined medium to $\sim\!10^{-4}$.
+Pushed past that capacity by a deliberately degenerate \emph{collinear} stress test---$K$ identical
+Gaussians stacked so the exact answer is a single
+$K$-fold-denser Gaussian---it exposed, and then confirmed the fix for, the cap-overflow behaviour discussed
 in \Cref{sec:gpu-impl}: past the old capacity the active set silently dropped primitives, producing a
 predictable under-absorption that matched $\exp(-\min(\text{cap},K)/K \cdot \tau_0)$ to $10^{-4}$. The
 same stress test surfaced a \emph{reference} limitation---Mitsuba's volumetric primitive integrator
 itself under-absorbs as identical primitives are stacked---a reminder that "differential" cuts both
 ways and that the analytic check is the final arbiter.
 
-\paragraph{The cloud.} The full $652$-primitive cloud matches the reference across all $24$ camera
-views---against Mitsuba, with a float64 brute-force analytic transmittance adjudicating the edge band
-on a representative view---establishing absorption correctness at scene scale before scattering, and
-hence multiple sampled bounces, was introduced. \Cref{fig:absorption-ladder} collects the ladder.
+\paragraph{The cloud.} The top rung is the full \num{652}-primitive Disney cloud (the headline asset
+throughout this thesis: Gaussians fit to the Disney/WDAS cloud volume). It matches the reference across
+all $24$ camera views---against Mitsuba, with a float64 brute-force analytic transmittance adjudicating
+the edge band on a representative view---establishing absorption correctness at scene scale before
+scattering, and hence multiple sampled bounces, was introduced. The absorption ladder is therefore
+three rungs---single Gaussian (analytic), overlapping primitives (analytic + reference), full cloud
+(reference + analytic spot-check)---each adding one source of complexity over the last;
+\Cref{fig:absorption-ladder} collects them.
 
 \begin{figure}[htp]
   \centering
@@ -230,9 +240,12 @@ methodology resolves a $10^{-4}$ effect at all is itself a measure of its sensit
 
 Each rendering feature is validated against the reference before it is trusted in combination:
 environment-map illumination, the Henyey--Greenstein phase function (forward scattering, $g = 0.85$),
-multiple importance sampling, and per-channel coloured albedo. Each matches the reference
-to within Monte~Carlo noise, with one exception---coloured albedo leaves a small channel-dependent
-residual, documented as a known limitation (\Cref{ch:conclusion}).
+multiple importance sampling, and per-channel coloured albedo---a medium that scatters a different
+fraction of light per RGB channel (a tinted, rather than grey, albedo). Each matches the reference to
+within Monte~Carlo noise, with one exception: coloured albedo leaves a small channel-dependent residual.
+It is the only \emph{feature-validation} exception; together with the overlap-region scattering residual
+of \Cref{sec:scattering-ladder} and a low-density brightness systematic, it is one of three small
+residuals documented as known limitations (\Cref{ch:conclusion}).
 
 One validation lesson generalises beyond this renderer and is worth stating: an environment-map
 \emph{orientation} error is invisible to a constant or isotropic test scene and to an equatorial view;

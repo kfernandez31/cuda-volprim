@@ -49,7 +49,7 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
     \draw[black!55] (r3.south west)--(r3.north east);
     % This renderer's pipeline
     \node[box, below=14mm of r1] (o1) {Single any-hit\\ trace};
-    \node[box, right=of o1]      (o2) {Collect entries;\\ exits analytic};
+    \node[box, right=of o1]      (o2) {Entries kept;\\ exits closed-form};
     \node[box, right=of o2]      (o3) {Argmin of\\ free flights};
     \node[box, right=of o3]      (o4) {Scatter\\ at $t$};
     \draw[->] (o1)--(o2); \draw[->] (o2)--(o3); \draw[->] (o3)--(o4);
@@ -80,8 +80,8 @@ Concretely, the scene is traced once per scattering event with an \emph{any-hit}
 closest-hit program (the ray flag \texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak DISABLE\_\allowbreak CLOSESTHIT}). Because any-hit
 fires for every intersection without terminating the ray, a single trace visits every primitive the
 ray meets. Back-face culling (\texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak CULL\_\allowbreak BACK\_\allowbreak FACING\_\allowbreak TRIANGLES}) discards the
-exit intersections, so the any-hit program records only \emph{entries}---each as a
-\((t_{\text{hit}},\,\text{primitive index})\) pair appended to a per-ray buffer. The matching exit of
+exit intersections, so the any-hit program records only \emph{entries}---each a pair of hit distance
+$t_{\text{hit}}$ and primitive index, appended to a per-ray buffer. The matching exit of
 any primitive is not traced at all: since the primitive's geometry is known, the exit distance follows
 in closed form from the ray--sphere intersection. One traversal therefore replaces the reference's
 $N$, and the buffer holds exactly the data the scatter sampler needs.
@@ -167,7 +167,7 @@ $(t_{\text{entry}}, k)$ from one trace
 \EndFor
 \ForAll{$(t_{\text{entry}}, k) \in H$} \Comment{entered mid-segment: invert from $t_{\text{entry}}$}
   \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
-  \State $t_k \gets \textproc{inv\_cdf\_seg}(\bm{r}, t_{\text{entry}}, \tau_k)$
+  \State $t_k \gets \textproc{inv\_cdf\_segment}(\bm{r}, t_{\text{entry}}, \tau_k)$
   \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
     \State $t^\star \gets t_k$
   \EndIf
@@ -192,9 +192,9 @@ splatting~\cite{StochasticSplats2025} on the rasterisation side. The contributio
 \emph{synthesis}: applying analog decomposition tracking to ray-traced Gaussian kernel-mixture volumes,
 so that the analytic per-primitive inverse makes each component's free flight a closed-form draw and
 the argmin replaces the reference's marching and root-finding entirely. The approach was suggested by
-Condor (the reference's co-author; personal communication)---a direction the reference's authors
-anticipated but had not implemented---and is
-realised and validated here, to the author's knowledge for the first time for this representation.
+Condor, a co-author of the reference~\cite{DSYG}---a direction its authors anticipated but had not
+implemented---and is realised and validated here, to the author's knowledge for the first time for this
+representation.
 
 \paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
 active set against the scene's $N$ primitives, plus an $O(A + H)$ pass over the $A$ active and $H$
@@ -307,6 +307,12 @@ global memory is fatal for an algorithm whose per-bounce compute is otherwise so
 \paragraph{Implementation.} Beyond OptiX and a few small header-only utilities (PLY and EXR I/O,
 logging, and command-line parsing), the renderer has no external dependencies---in particular no
 rendering framework---which keeps the codebase compact and straightforward to extend. Optional
-features are toggleable without touching the core renderer: the OptiX denoiser via a runtime flag
-(\texttt{--denoise}), and adaptive sampling, a fast-math $\operatorname{erf}$, and volumetric
-product-RIS via compile-time switches.
+features are toggleable without touching the core renderer: the OptiX denoiser (\texttt{--denoise}) and
+volumetric product-RIS (\texttt{--ris}, with candidate count \texttt{--ris-candidates}) are
+\emph{runtime} flags, while adaptive sampling and a fast-math $\operatorname{erf}$ are compile-time
+switches. The rendering parameters themselves are likewise exposed on the command line---samples per
+pixel (\texttt{--spp}), RNG seed (\texttt{--seed}), the density scale (\texttt{--sigma-multiplier}),
+phase anisotropy (\texttt{--hg-g}), maximum depth and Russian-roulette schedule
+(\texttt{--max-depth}, \texttt{--rr-depth}, \texttt{--rr-max-survival}), an optional firefly clamp and
+pixel filter (\texttt{--firefly-clamp}, \texttt{--filter-stddev}), and the cap-measurement mode
+(\texttt{--measure-caps})---so an experiment is specified entirely by its invocation.
