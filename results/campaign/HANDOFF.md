@@ -3,17 +3,38 @@
 Read this first. Self-contained pickup point after a context compaction.
 
 ## State
-- **Branch `main`**, latest commit `e59456e`. Thesis builds **clean at 69 pp** (`cd thesis/latex && latexmk -pdf thesis.tex`; 0 errors, 0 undefined refs).
+- **Branch `main`**, latest commit `cc5abf1` (R3 + abstract + showcase + generalisation, this session). Thesis builds **clean at 69 pp** (`cd thesis/latex && latexmk -pdf thesis.tex`; 0 errors, 0 undefined refs). All Results gaps now closed; remaining items are a user decision + optional polish (see below).
 - **GPU clocks ARE NOW LOCKED** (SM pinned 1800, mem 9751, 350 W). Verified: light kernels hold p50/max 1800. `applications.gr` reads N/A — that's normal for `-lgc` (don't worry). Re-lock if needed: `bash scripts/campaign/lock_clocks.sh` (needs the USER to run it via `! ` — sudo).
 - Records live in `results/campaign/*.md`. Calibrated binaries in `~/winbins/` (exe_{cloud,tornado,explosion,bunny,stock,analog} + ir_*).
 - Standing constraints (still in force): NO AI mentions / NO Co-Authored-By in commits; `git push` / branch deletion / merge-to-main are the USER's actions; do NOT `git gc`/`prune`/`reflog expire` (orphan-recovered deprecated-* branches). latexmk must be clean before any thesis commit.
 
+## DONE since this handoff was written (2026-06-14, post-compaction session)
+- **Ch7 R3 — scaling study DONE** (commit `3234391`). New §7.7 `sec:results-scaling` + `fig:scaling`
+  (two panels). Synthetic square-grid sweep → t∝N^0.40; 4 real assets at operating point → t∝N^0.71
+  (both strongly sub-linear); memory decoupled from N (flat 1200 MiB reservation; GAS ~0.16 KB/prim,
+  2–3 orders below). Driver `scripts/campaign/run_g3_scaling.sh`, plot `scripts/plots/scaling.py`,
+  data `scaling.{csv,md}`. Ran at locked 1800/9751.
+- **Abstract DONE** (commit `75253cf`). Dropped the "fivefold deficit" framing; now leads with
+  correctness + ~59× equal-quality headline + memory win (578<838) + voxel-GT cross-check; RIS 1.4×
+  kept as second win.
+- **fig:showcase MADE REAL** (commit `a93d28d`). The climactic §5.5/§5.7 combined-showcase placeholder
+  is now a real equal-time money shot (ours-MIS clean vs Mitsuba-analog fireflies, seed 02, means
+  0.321 vs 0.321). `scripts/plots/showcase.py`.
+- **fig:generalisation ADDED** (commit `cc5abf1`, bonus). The previously figure-less §7.6 now has the
+  tornado+explosion parity triptych (ours | Mitsuba-analog | |diff|×10) from the G10 renders.
+
 ## What's MISSING in the thesis (priority order)
-1. **Ch7 R3 — scaling study** (the real remaining results gap). Time AND memory vs primitive count: the 4 assets as points (cloud 652, tornado, explosion, bunny 25600) + optionally a stress_N sweep. Placeholder at `chapters/07-results.tex` line ~176. Needs a handful of timed renders — clocks are locked, so straightforward. Per-asset memory already measured (`vram.md`); just needs the time-vs-N points + a short section + figure.
-2. **Abstract check** — `thesis/latex/abstract.tex` exists + is included but NOT re-verified against the final story. Make sure it states: the march/sort/root-find-free architecture; correctness via differential + voxel-GT; the ~59× equal-quality headline; the memory win (578<838 MiB); the negative-results map. Read + update.
-3. **Appendix A placement decision (USER)** — `chapters/appendix-a-a1.tex` (per-step Rao–Blackwellisation, full investigation) is still in. User wanted to decide keep / shorten / cut. The §6.9 autopsy bullet + §8.27 reference it.
-4. **Ch7 R4 — beauty/showcase montage** (polish): 4 assets env-lit, "money shots". Needs renders, no analysis. Low-priority visual.
-5. **G1 flat rung** (optional, supporting): ours vs Mitsuba-analog on a FLAT env — "speedup without the env-lighting advantage". Not essential.
+1. **Appendix A placement decision (USER)** — `chapters/appendix-a-a1.tex` (per-step
+   Rao–Blackwellisation, full investigation) is still in. User wanted to decide keep / shorten / cut.
+   The §6.9 autopsy bullet + §8.27 reference it.
+2. **Ch7 R4 — 4-asset env-lit beauty montage** (OPTIONAL polish): the cloud showcase is now real and
+   tornado/explosion have the parity figure, so a 4-asset env-lit gallery would be additional/somewhat
+   redundant + carries untuned-framing risk. Offer to user; don't do blind.
+3. **G1 flat rung** (optional, supporting): ours vs Mitsuba-analog on a FLAT env. Not essential.
+4. **(low) Confirm 4-view archive** — §5.5 claims the cloud "matches across four well-separated views".
+   The machinery is real (cloud scene = 24 ortho views, `run_multiview`; campaign used `SG_CAM=0`).
+   Claim is plausibly backed by pre-campaign validation; just confirm those renders are archived if a
+   committee asks. NOT an overclaim — do not soften without checking with Kacper.
 
 ## What's DONE (don't redo)
 - **Ch1–6, 8 written + TWICE review-passed** (Kacper's two review rounds folded in: icosphere reframe, tab overflows fixed via resizebox, reference-config methodology, Epanechnikov limitation, dropped "initial gap"/"DSYG programme" framing, etc.).
