@@ -57,3 +57,6 @@ results/campaign/g1_bunny_seeds/
 results/campaign/ico_fig/
 results/campaign/denoise/
 results/campaign/g6_adaptive/*.exr
+results/campaign/voxgrids/
+results/campaign/voxgt_*.exr
+results/campaign/voxel_*.exr
