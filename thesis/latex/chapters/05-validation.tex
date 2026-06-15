@@ -185,9 +185,13 @@ methodology resolves a $10^{-4}$ effect at all is itself a measure of its sensit
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/scattering_ladder.pdf}
-  \caption{Scattering validation against Mitsuba-analog up the same ladder (single Gaussian, cluster,
-  full cloud; albedo $0.9$). The converged means agree to within noise outside a small overlap-region
-  residual ($\le 0.2\%$ of peak, an open item), evidence the sampler is unbiased to within ${\sim}10^{-4}$.}
+  \caption{Scattering unbiasedness on the full cloud (meadow, albedo $0.9$, $g=0.85$): the converged
+  mean radiance of this renderer (MIS) and Mitsuba-analog agree to \num{0.4}\,\% (both unbiased), while
+  the \emph{estimate} of that mean tightens ${\sim}68\times$ faster here---the analog reference's firefly
+  variance makes its mean-estimate standard error ${\sim}68\times$ wider at equal sample count (bands are
+  the s.e.\ of the mean at each budget). The single-Gaussian and cluster rungs agree the same way in the
+  mean; their per-pixel images are uninformative because scattering under a near-constant environment is
+  almost invisible and the analog reference is firefly-limited.}
   \label{fig:scattering-ladder}
 \end{figure}
 
