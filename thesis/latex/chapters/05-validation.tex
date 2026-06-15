@@ -79,6 +79,47 @@ those achieve is meaningful precisely because the configuration is controlled.
   \label{tab:ref-config}
 \end{table}
 
+\subsection{An independent integrator: a voxel-grid cross-check}
+\label{sec:voxel-gt}
+
+The Mitsuba comparison shares one assumption with this renderer: both integrate the medium as a sum of
+analytic Gaussian primitives, so a systematic error in that shared model---a wrong normalisation, a
+mis-stated kernel---could in principle survive in both. A stronger check breaks the shared assumption
+entirely. The Gaussian field is baked into a dense voxel grid in the renderer's own, mass-conserving
+density convention,
+\[
+  \sigma_t(\mathbf{x})=\sum_i M_i\,(2\pi)^{-3/2}\!\prod_j s_{ij}^{-1}\;
+  \exp\!\big(-\tfrac12\lVert S_i^{-1}R_i^{\!\top}(\mathbf{x}-\boldsymbol\mu_i)\rVert^2\big),
+\]
+and that grid is rendered by Mitsuba's \texttt{heterogeneous}/\texttt{gridvolume} path tracer via delta
+tracking---a method that shares no code and no Gaussian mathematics with either analytic renderer.
+
+In \emph{absorption}---where the image depends only on transmittance, with no scattering variance---the
+cross-check is clean (\Cref{fig:voxel-gt}). The grid render matches the analytic render exactly through
+the opaque interior and the empty background---the median pixel difference is zero---and the only
+residual is a thin band on the silhouette, where the grid blurs the sub-voxel-sharp Gaussian boundary
+the analytic form resolves crisply. That residual shrinks monotonically as the grid is refined (from
+$128^3$ to $600^3$: RMSE $0.072\!\to\!0.057$, mean $0.394\!\to\!0.401$ toward the analytic $0.416$),
+confirming the analytic render is the limit of the grid renders as discretisation vanishes; more samples
+per pixel do not move it, so the residual is discretisation, not noise. The cross-check thus both
+corroborates the renderer and quantifies the edge fidelity the analytic primitive buys over a voxelised
+proxy. (Scattering is deliberately not cross-checked this way: a dense-grid scattering reference for this
+high-dynamic-range medium is either block-biased, with a coarse local majorant, or firefly-limited, with
+an exact global one, so scattering correctness rests on the furnace invariant of
+\Cref{sec:scattering-ladder} and the Mitsuba-analog comparison.)
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/voxel_gt.pdf}
+  \caption{Independent voxel-grid cross-check (cloud, absorption, same camera). \emph{Left:} the
+  analytic Gaussian renderer. \emph{Centre:} the same density field baked to a $600^3$ grid and rendered
+  by Mitsuba's dense-grid delta-tracking path tracer---no shared code or Gaussian mathematics.
+  \emph{Right:} $\lvert\Delta\rvert$ ($\times5$). Interior and background match exactly (median pixel
+  difference zero); the only residual is the silhouette band where the grid blurs the sharp Gaussian
+  boundary, and it shrinks monotonically with grid resolution.}
+  \label{fig:voxel-gt}
+\end{figure}
+
 \section{How to compare correctly}
 \label{sec:compare-correctly}
 
