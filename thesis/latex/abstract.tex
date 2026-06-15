@@ -24,9 +24,8 @@ argmin---as the scattering event. Together they replace the reference's segment-
 root-finding outright.
 
 Correctness is established by a differential-validation methodology that compares the renderer against
-Mitsuba and, where a closed form exists, against analytic ground truth, and is cross-checked against an
-independent dense voxel-grid integrator; the same ladder serves as the unbiasedness evidence for the new
-sampler. On the environment-lit showcase the renderer is both correct and fast: its
+Mitsuba and, where a closed form exists, against analytic ground truth; the same ladder serves as the
+unbiasedness evidence for the new sampler. On the environment-lit showcase the renderer is both correct and fast: its
 multiple-importance-sampled direct lighting matches the unbiased ground truth to within Monte-Carlo
 noise, whereas the reference's faster estimator is energy-biased on this medium---so measured against the
 reference's only unbiased (analog) configuration, it reaches a given noise level roughly $59\times$
