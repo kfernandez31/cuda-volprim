@@ -47,13 +47,18 @@ DS = os.environ.get("ADVOL_DS", "ff_local")
 TE = os.environ.get("ADVOL_TE", "rrt_local")
 MF = float(os.environ.get("ADVOL_MF", "1.01"))
 SVF = int(os.environ.get("ADVOL_SVF", "4"))
+CLAMP = float(os.environ.get("ADVOL_CLAMP", "0"))   # 0 = unclamped; else cap sigma_t (lowers global majorant)
 TAGSUF = os.environ.get("ADVOL_TAG", "")
 ENV = "/home/kacper/thesis/assets/environment_maps/meadow_2_4k.hdr"
 
 d = np.load(GRID)
 grid, lo, hi = d["grid"], d["lo"], d["hi"]
+raw_peak = float(grid.max())
+if CLAMP > 0:
+    grid = np.minimum(grid, CLAMP).astype(np.float32)
 grid_m = np.ascontiguousarray(grid.transpose(2, 1, 0))   # our [X,Y,Z] -> [Z,Y,X]
-print(f"grid {grid.shape} peak {grid.max():.1f} mean {grid.mean():.3f} UNCLAMPED spp={SPP} seeds={NSEEDS} maxd={MAXD}", flush=True)
+print(f"grid {grid.shape} raw_peak {raw_peak:.1f} CLAMP {CLAMP} -> peak {grid.max():.1f} mean {grid.mean():.3f} "
+      f"spp={SPP} seeds={NSEEDS} maxd={MAXD}", flush=True)
 
 vd = advol.VolumeData.from_array(grid_m, bbox_min=tuple(lo.tolist()), bbox_max=tuple(hi.tolist()))
 print(f"config: DS={DS} TE={TE} majorant_factor={MF} supervoxel_factor={SVF}", flush=True)
