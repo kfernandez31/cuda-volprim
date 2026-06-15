@@ -101,24 +101,36 @@ hit buffer. The sampler in \Cref{sec:adt} draws candidates from both.
 \label{sec:analytic-od}
 
 The property that makes both single-trace collection and closed-form scatter sampling possible is the
-analytic optical depth of a single Gaussian (\Cref{sec:kernel-mixture}). Restricting primitive $k$'s
-Gaussian to the ray and integrating yields, in closed form,
+analytic optical depth of a single Gaussian (\Cref{sec:kernel-mixture}). Write primitive $k$'s extinction
+as $\sigma_{t,k}(\bm{x}) = C_k\,\exp\!\big(-\tfrac12\lVert S_k^{-1}R_k^{\!\top}(\bm{x}-\bm{\mu}_k)\rVert^2\big)$,
+with rotation $R_k$, per-axis scales in $S_k=\operatorname{diag}(s_{ki})$, and peak extinction
+$C_k=\sigma_{t,k}\big((2\pi)^{3/2}\prod_i s_{ki}\big)^{-1}$. Substituting the ray $\bm{r}(s)=\bm{o}+s\bm{\omega}$
+and \emph{whitening}---$\bm{y}(s)=S_k^{-1}R_k^{\!\top}(\bm{r}(s)-\bm{\mu}_k)=\bm{a}+s\bm{b}$ with
+$\bm{a}=S_k^{-1}R_k^{\!\top}(\bm{o}-\bm{\mu}_k)$ and $\bm{b}=S_k^{-1}R_k^{\!\top}\bm{\omega}$---reduces the exponent
+to a one-dimensional quadratic. Completing the square in $s$,
 \[
-  \tau_k(t_0, t_1) = \int_{t_0}^{t_1} \sigma_{t,k}\big(\bm{r}(s)\big)\,\mathrm{d}s
-  \;\propto\; \sigma_{t,k}\, e^{-\tfrac{1}{2}d_\perp^2}\,
-  \big[\operatorname{erf}(u_1) - \operatorname{erf}(u_0)\big],
+  \tfrac12\lVert\bm{y}(s)\rVert^2 = \tfrac12 w^2 (s-s^\star)^2 + \tfrac12 d_\perp^2,\qquad
+  w=\lVert\bm{b}\rVert,\quad s^\star=-\frac{\bm{a}\cdot\bm{b}}{w^2},\quad
+  d_\perp^2=\lVert\bm{a}\rVert^2-\frac{(\bm{a}\cdot\bm{b})^2}{w^2},
 \]
-where $d_\perp$ is the (whitened) perpendicular distance from the primitive centre to the ray and
-$u_0,u_1$ are the whitened endpoints of the interval. The renderer folds the per-primitive normalisation
-$\big((2\pi)^{3/2}\textstyle\prod_i s_i\big)^{-1}$ into a precomputed constant, so that $\tau_k$ costs
-one exponential and two error-function evaluations. Crucially this expression is \emph{monotonic and
-invertible} in $t_1$: given a target optical depth $\tau$, the distance at which a primitive
-accumulates it is recovered by a single inverse error function,
+where $s^\star$ is the ray's closest approach to the whitened centre, $w$ its whitened speed, and
+$d_\perp$ the whitened perpendicular distance. The remaining integral is Gaussian and evaluates to an
+error function:
 \[
-  t(\tau) \;=\; \text{(ray geometry)} \;+\; \tfrac{1}{w}\,\operatorname{erf}^{-1}\!\big(\operatorname{erf}(u_0) + \tau/C_k\big),
+  \tau_k(t_0, t_1) = \int_{t_0}^{t_1}\! \sigma_{t,k}\big(\bm{r}(s)\big)\,\mathrm{d}s
+  = \underbrace{C_k\, e^{-\tfrac12 d_\perp^2}\,\sqrt{\tfrac{\pi}{2}}\,\tfrac1w}_{\displaystyle C_k'}
+  \big[\operatorname{erf}(u_1) - \operatorname{erf}(u_0)\big],\qquad u_i=\tfrac{w}{\sqrt2}(t_i-s^\star).
 \]
-with $C_k$ a per-ray constant built from a precomputed per-primitive factor. This closed-form inverse is what the next section
-turns into a sampler.
+The prefactor $C_k'$ is a per-ray constant (the per-primitive part of which is precomputed), so each
+$\tau_k$ costs one exponential and two error-function evaluations. Because $\operatorname{erf}$ is
+strictly monotonic, $\tau_k$ is \emph{monotonic and invertible} in $t_1$: given a target optical depth
+$\tau$, the distance at which primitive $k$ alone accumulates it follows from a single inverse error
+function,
+\[
+  t(\tau) \;=\; s^\star + \tfrac{\sqrt2}{w}\,
+  \operatorname{erf}^{-1}\!\Big(\operatorname{erf}(u_0) + \tau/C_k'\Big),
+\]
+the closed-form inverse the next section turns into a sampler.
 
 \section{Sort-free scatter sampling}
 \label{sec:adt}
@@ -149,6 +161,21 @@ identity, not an approximation), and the scatter \emph{distance} $t^\star$ is th
 pass (\Cref{alg:argmin}). The scatter point's albedo is then a $\sigma_t$-weighted mixture over the
 primitives that contain it, and the active set for the next bounce is rebuilt by a second linear pass
 over the same candidates---no new trace.
+
+\paragraph{Why the minimum is exact.} The identity is a one-line consequence of independence. Each $t_k$
+is drawn from primitive $k$'s own free-flight law, so $\Pr[t_k > t] = e^{-\tau_k(t)}$---its
+transmittance. The per-primitive draws use independent uniforms $\xi_k$, hence
+\[
+  \Pr\!\big[\min_k t_k > t\big] = \prod_k \Pr[t_k > t] = \prod_k e^{-\tau_k(t)}
+  = \exp\!\Big(-\!\sum_k \tau_k(t)\Big) = e^{-\tau(t)} = T(t),
+\]
+the transmittance of the \emph{combined} medium $\sigma_t=\sum_k\sigma_{t,k}$ (optical depth is additive
+over overlapping primitives). So $t_{\text{scatter}}=\min_k t_k$ has exactly the combined free-flight
+distribution with c.d.f.\ $1-T(t)$: the argmin is an exact sample from the mixture, not an
+approximation. Unlike the delta/null-tracking that decomposition tracking normally requires, no majorant
+and no null-scattering events appear here, because every per-primitive free flight is itself drawn in
+closed form (\Cref{sec:analytic-od})---the analytic invertibility is what removes the stochastic
+tracking entirely.
 
 \begin{algorithm}[htp]
 \caption{Argmin scatter sampling for one ray segment.}
