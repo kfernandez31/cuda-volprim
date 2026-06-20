@@ -28,16 +28,8 @@ is directly editable, but it carries two costs relevant here. First, appearance 
 Gaussian stores a view-dependent colour fitted under the capture illumination, so the scene cannot be
 relit. Second, correct alpha-blending requires a \emph{global depth sort} of the primitives, recomputed
 per view; as the viewpoint moves the sort order changes discontinuously, producing the flickering and
-popping characteristic of splatting (\Cref{fig:flicker}). Both limitations point toward rendering the
+popping characteristic of splatting. Both limitations point toward rendering the
 same primitives by ray tracing instead of rasterisation.
-
-\begin{figure}[htp]
-  \centering
-  \includegraphics[width=11cm]{images/flicker.png}
-  \caption{Flickering and popping artefacts of rasterised Gaussian splatting, caused by the
-  view-dependent global depth sort changing order discontinuously as the camera moves.}
-  \label{fig:flicker}
-\end{figure}
 
 \section{Ray-traced Gaussian primitives: Don't Splat Your Gaussians}
 \label{sec:dsyg}
@@ -57,6 +49,18 @@ the next boundary by a running minimum---accumulating optical depth and solving 
 with a root-find (Newton or bisection) within each multi-primitive segment. That segment-by-segment
 march and the per-segment root-find are precisely what \Cref{ch:architecture} removes, replacing them
 with a single-trace collection pass and closed-form per-primitive free-flight sampling.
+
+\paragraph{Concurrent ray-traced Gaussian methods.} Two concurrent works (2024) also ray-trace
+Gaussian primitives, but toward radiance-field \emph{appearance} rather than physically-based
+transport. 3D Gaussian Ray Tracing~\cite{3DGRT} replaces 3DGS rasterisation with a hardware-accelerated
+BVH traversal over Gaussian particles, enabling secondary rays---reflections, refraction, distorted
+cameras---while keeping 3DGS's alpha-composited, view-dependent colour model. EVER~\cite{EVER} renders
+ellipsoids with \emph{exact} volumetric integration, removing the popping that approximate per-Gaussian
+sorting introduces, but as an emissive--absorptive density field rather than a scattering medium with a
+full light-transport path. This thesis instead accelerates DSYG's physically-based
+\emph{multiple-scattering} path tracing of relightable participating media; its two contributions
+(single-trace collection, argmin scatter sampling) target that transport problem, which neither
+concurrent method addresses.
 
 \section{Volumetric Monte Carlo and tracking}
 \label{sec:volumetric-mc}

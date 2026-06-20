@@ -28,18 +28,26 @@ architecture, free of the reference's marching and root-finding.
 \paragraph{Contributions.} This thesis contributes:
 \begin{itemize}
   \item a single-trace, march- and root-find-free rendering architecture for ray-traced Gaussian
-  kernel-mixture volumes---realising, for this representation, an approach the reference's authors
-  anticipated but did not implement---in two complementary halves: single-trace any-hit collection with
+  kernel-mixture volumes---realising, for this representation, an approach suggested by Condor, the
+  lead author of the reference (personal communication)---in two complementary halves: single-trace any-hit collection with
   analytic exits, and analog-decomposition (argmin) scatter sampling (\Cref{ch:architecture});
   \item a from-scratch CUDA/OptiX path tracer realising it, with no rendering-framework dependency
   beyond OptiX;
   \item a differential-validation methodology against Mitsuba and, where a closed form exists, against
   analytic ground truth---which doubles as the unbiasedness evidence for the new sampler
-  (\Cref{ch:validation}); and
+  (\Cref{ch:validation});
   \item a systematic GPU performance-engineering study, contributing a second, scene-dependent win
   (volumetric product resampled importance sampling, RIS) and a profiled ledger of negative results,
-  measured across time and image quality (\Cref{ch:optimization,ch:results}).
+  measured across time and image quality (\Cref{ch:optimization,ch:results}); and
+  \item a cross-architecture characterisation of how this workload maps onto GPU hardware---its roofline
+  placement (latency-bound, not compute- or bandwidth-bound), the ray-tracing-core versus
+  software-intersection trade-off, and Shader Execution Reordering---exercised and measured directly on
+  both the Ampere and Ada generations, the latter including a divergence lever the reference's compiled
+  pipeline cannot use (\Cref{ch:optimization}).
 \end{itemize}
+
+On Ada specifically, that reordering recovers a further \num{1.1}--\num{1.7}$\times$ at equal quality,
+image-identical---a lever the reference's Dr.Jit backend cannot emit (\Cref{sec:ser}).
 
 \paragraph{Structure.} \Cref{ch:background} reviews the volumetric light-transport and GPU ray-tracing
 background, and \Cref{ch:related-work} positions the work against Gaussian splatting and prior

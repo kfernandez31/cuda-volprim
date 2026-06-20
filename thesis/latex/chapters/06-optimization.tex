@@ -12,7 +12,7 @@ performance ceiling of this class of renderer and are themselves a contribution.
 \section{The starting gap and the bottleneck}
 \label{sec:bottleneck}
 
-Optimisation began with profiling, not guessing. NSight Compute locates the bottleneck firmly in
+NSight Compute locates the bottleneck firmly in
 \emph{memory latency}: the kernel is latency-bound on scattered global loads of the per-primitive
 \texttt{Primitive} struct, at $21$--$31\%$ occupancy (asset-dependent), itself capped by the code-intrinsic register
 pressure of the erf and phase-function chains. The primitive data is already $82$--$98\%$
@@ -22,28 +22,31 @@ shaped the architecture (\Cref{sec:gpu-impl}): the per-bounce arithmetic is chea
 is large and persistent, so the algorithm is \emph{megakernel-shaped}. This single fact predicts
 several of the null results in \Cref{sec:autopsies}.
 
-Profiling the production binary quantifies this across two workloads (NSight Compute, base-clocked). On
+Profiling the production binary quantifies this (NSight Compute, base-clocked). On
 the showcase cloud under the measured meadow environment the render megakernel reaches $31.2\%$
 occupancy at $45.9\%$ SM and $16.5\%$ DRAM throughput; on the \num{25600}-primitive bunny it is harsher---$20.9\%$ occupancy, the scheduler
 with no eligible warp $70\%$ of cycles, DRAM at $1.8\%$---and ray divergence leaves only $5.4$--$6.9$ of
-$32$ lanes active per warp. Neither workload approaches either roof of the arithmetic roofline
-(\Cref{fig:roofline}): both sit at $1$--$3\%$ of the RTX~3090's FP32 compute peak and from $1.8\%$
-(bunny) to $16.5\%$ (cloud) of its bandwidth. The regime is unambiguously \emph{latency-bound} and
-divergence-dominated---not compute- or bandwidth-bound---with the bunny the more extreme point because
-its dense, finely-divided shell maximises traversal divergence while touching almost no DRAM. The
+$32$ lanes active per warp. None of the four production assets approaches either roof of the arithmetic
+roofline (\Cref{fig:roofline}): all sit at $0.2$--$3\%$ of the RTX~3090's FP32 compute peak and from
+$0.6\%$ (tornado) to $16.5\%$ (cloud) of its bandwidth. The regime is unambiguously \emph{latency-bound}
+and divergence-dominated---not compute- or bandwidth-bound. Of the two fully profiled, the bunny is the
+more extreme because its dense, finely-divided shell maximises traversal divergence while touching almost
+no DRAM (the sparse tornado sits lower still on the roofline). The
 divergence is exactly what OptiX Shader Execution Reordering~\cite{NvidiaSER2022} targets---regrouping
-threads between traversal and shading to restore warp coherence---but it is an Ada-generation feature,
-unavailable on the Ampere RTX~3090 used here, so it cannot be brought to bear (\Cref{sec:autopsies}).
+threads between traversal and shading to restore warp coherence---an Ada-generation feature unavailable on
+the Ampere RTX~3090 the development and validation use here. Its effect is therefore measured separately,
+directly on an Ada GPU, in \Cref{sec:ser}.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=0.7\linewidth]{figures/roofline.pdf}
   \caption{Arithmetic roofline (RTX~3090: ${\approx}35.6$~TFLOP/s FP32, ${\approx}936$~GB/s) for the
-  render megakernel on two workloads. Both points sit far below both roofs---cloud at
-  ${\approx}1.0$~TFLOP/s (arithmetic intensity ${\approx}6.8$~FLOP/B), bunny at ${\approx}0.4$~TFLOP/s
-  (${\approx}24$~FLOP/B)---a non-saturation argument for the latency-bound diagnosis. FLOPs are estimated
-  from pipe counters $\times$ average active lanes; the transcendental \texttt{erf} on the XU pipe is
-  uncounted, so the figure undercounts true arithmetic.}
+  render megakernel across the four production assets. All sit far below both roofs---achieving
+  ${\approx}0.07$--$1.0$~TFLOP/s at arithmetic intensities of ${\approx}7$--$24$~FLOP/B---a
+  non-saturation argument for the latency-bound diagnosis. FLOPs are estimated from pipe counters
+  $\times$ average active lanes; the transcendental \texttt{erf} on the XU pipe is uncounted, so the
+  figure undercounts true arithmetic. Cloud is the scattering showcase ($900\times600$, \num{16}~spp);
+  tornado, explosion, and bunny use the asset-validation recipe ($256^2$, \num{4}~spp).}
   \label{fig:roofline}
 \end{figure}
 
@@ -52,8 +55,8 @@ unavailable on the Ampere RTX~3090 used here, so it cannot be brought to bear (\
 
 Whether to \emph{measure} an optimisation is itself a decision. A controlled on/off ablation is worth
 running only when its outcome is not a foregone conclusion; otherwise the honest justification is a
-complexity argument, a citation to standard practice, or a statement of why no fair experiment is
-possible. Each optimisation in this chapter is therefore placed in one of four modes:
+complexity argument or a citation to standard practice. Each optimisation in this chapter is therefore
+placed in one of three modes:
 
 \begin{table}[htp]
   \centering
@@ -63,21 +66,21 @@ possible. Each optimisation in this chapter is therefore placed in one of four m
     Mode & When it applies & Examples \\
     \midrule
     \textbf{(M) Measured} & genuine choice, non-obvious outcome & RIS, RR depth, shell geometry, autopsies \\
-    \textbf{(C) Complexity-argued} & naive baseline $\to$ obvious form & scan fixes, argmin, $O(1)$ sets, compact buffer \\
+    \textbf{(C) Complexity-argued} & asymptotically better; argue the bound & argmin sampler, $O(1)$ active set \\
     \textbf{(S) Standard practice} & textbook; cite, don't measure & multi-stream, FMA, coalescing, fast-math \\
-    \textbf{(I) Infeasible} & no valid A/B possible & (emptied --- see \Cref{sec:icosphere}) \\
     \bottomrule
   \end{tabular}%
   }
-  \caption{The four justification modes. The chapter measures what is informative, complexity-argues
-  what was merely made-correct, cites the standard, and states plainly what could not be tested.}
+  \caption{The three justification modes: the chapter measures what is informative, complexity-argues
+  what is bounded, and cites the standard.}
   \label{tab:four-modes}
 \end{table}
 
 \section{Measured wins}
 \label{sec:wins}
 
-The kept speedups, each a controlled ablation against the validated baseline, are summarised in
+The kept speedups---all measured \emph{within this renderer}, each a controlled on/off ablation against
+its own validated baseline rather than against the reference---are summarised in
 \Cref{tab:wins}. The single largest was eliminating a redundant per-bounce $O(N)$ containment scan;
 the most dramatic in relative terms was a smarter shadow-ray transmittance evaluation. Russian-roulette
 start depth, a free efficiency knob, was raised from the inherited surface-rendering default of $5$ to
@@ -86,8 +89,10 @@ revising the magnitude of the win: variance falls and frame time rises monotonic
 their product is a \emph{shallow basin} spanning depths $8$--$12$ (within $1.2\,\%$ of each other) whose
 measured minimum---re-anchored at the calibrated caps on a quiet GPU---lands on the shipped default
 $12$, with real penalties outside it ($5$: $+5.0\,\%$; $16$: $+4.9\,\%$ relative to the minimum). The
-development-time estimate of ${\sim}11\,\%$ over depth~$5$ measured as $+4.7\,\%$ under the controlled
-protocol. With these wins in place, the renderer reaches the same noise level as Mitsuba in less time
+informal development-time measurement had put the depth-$5\!\to\!12$ gain at ${\sim}11\,\%$; the
+controlled \num{16}-seed sweep revises that to $+4.7\,\%$ (depth $5$'s frame-time penalty over the
+depth-$12$ minimum). With these wins, and the MIS direct-lighting estimator of \Cref{sec:ris}, in
+place, the renderer reaches Mitsuba's noise level in less time on the environment-lit showcase
 (\Cref{ch:results}).
 
 \begin{table}[htp]
@@ -103,7 +108,6 @@ protocol. With these wins in place, the renderer reaches the same noise level as
     Dedup bounce-0 scan              & $\sim$\,8\%                            & §8.19 \\
     Any-hit transmittance fusion     & $\sim$\,3\%                            & §8.18 \\
     Fast \texttt{erf} in the hot path & $\sim$\,1\% (numerically free; opt-in) & §8.21; sweep \\
-    OptiX denoiser (showcase)        & $\sim$\,30$\times$ effective           & §8.22 \\
     \bottomrule
   \end{tabular}%
   }
@@ -142,19 +146,20 @@ monotonically with $K$ while variance falls, and their product peaks where the p
 saturates. The win decomposes into both halves---one shadow ray instead of two ($-21\,\%$ frame time)
 \emph{plus} lower variance from the resampling ($-14\,\%$ noise constant); the $K{=}1$ anchor (plain
 environment-IS NEE) already wins $1.19\times$ on time alone, \emph{despite} higher variance, which
-isolates the resampling's contribution. Crucially the technique is \emph{scene-dependent}, and a three-point peakiness ladder makes the
+isolates the resampling's contribution. Crucially the technique is \emph{scene-dependent}, and a three-point peakiness ladder---peakiness being
+each environment's peak radiance relative to its mean---makes the
 dependence quantitative (\Cref{fig:ris-ksweep}): on a flat (constant) environment, where the candidates
 are interchangeable, it is a net loss at every $K$ (best case $1.8\times$ \emph{worse}, degrading to
-${\sim}12\times$ at $K{=}1$); on a mid-peak studio environment (${\sim}540\times$ peak) it already wins
-$1.45\times$; and on the high-peak showcase (${\sim}1.5{\times}10^{5}$) $1.48\times$. The win thus rises
+${\sim}12\times$ at $K{=}1$); on a mid-peak studio environment (peak ${\sim}540\times$ the mean) it already wins
+$1.45\times$; and on the high-peak showcase (${\sim}1.5{\times}10^{5}\times$ the mean) $1.48\times$. The win thus rises
 with environment peakiness and \emph{saturates} between the studio and showcase points despite a
-${\sim}300\times$ difference in peak, peaking at $K=6$ on both winning environments. It is therefore
-shipped behind a runtime flag (default off, plain MIS; $K=6$ the measured default), not as an
+${\sim}300\times$ difference in peak, on a $K{=}4$--$6$ plateau where the point estimates are
+statistically tied. It is therefore
+shipped behind a runtime flag (default off, plain MIS; $K=6$ the conservative default), not as an
 unconditional change.
 The result was validated unbiased against the Mitsuba-analog ground truth on a constant environment
 (furnace-clean) \emph{and} on the environment-lit showcase (converged means within the Monte-Carlo
-noise floor), and---being a single-strategy estimator---it surfaced and forced the fix of a latent
-environment-sampling bug (a texel-centre quantisation that the prior MIS had masked).
+noise floor).
 
 \begin{figure}[htp]
   \centering
@@ -186,27 +191,34 @@ $1.48\times$ above (the RMSE ratio squared, times the per-sample time ratio).
 \section{Complexity-argued improvements}
 \label{sec:complexity}
 
-Several changes are not ablations because their ``before'' was a naive or accidental baseline, not a
-defended design; regressing to it would only re-derive that doing things the slow way is slow. They are
-justified by complexity (\Cref{tab:complexity}) and reported with whatever incidental speedup they
-brought. The most consequential is the architecture's own argmin scatter sampler (\Cref{sec:adt}),
-which removes the reference's per-bounce sort and root-find outright.
+The architecture's argmin scatter sampler (\Cref{sec:adt}) improves on the reference asymptotically
+rather than by a tuned constant, so it is argued by complexity rather than ablated: there is no on/off
+switch to flip---the reference's segment-by-segment marcher is a different algorithm, and re-running it
+would only re-confirm that $H$ re-traversals, an ordered $O(H^2)$ boundary march, and a per-segment
+root-find cost more than a single unordered argmin over closed-form free flights (\Cref{tab:complexity}).
+The supporting $O(1)$ bit-vector active set is justified the same way (\Cref{sec:gpu-impl}); the
+active-set inheritance that removes the residual per-bounce $O(N)$ containment scan is, by contrast, a
+measured win (\Cref{tab:wins}).
 
 \begin{table}[htp]
   \centering
   \begin{tabular}{@{}lll@{}}
     \toprule
-    Step & Before & After \\
+    Per-bounce step & Reference (marching) & This renderer (argmin) \\
     \midrule
-    Per scatter bounce       & $O(N + A^2)$              & $O(N + A)$ \\
-    Boundary sort (scatter)  & $O(H^2)$ / $O(H\log^2 H)$ & eliminated \\
-    Scatter distance         & bisection / Newton       & closed-form $\operatorname{erf}^{-1}$ \\
-    Active-set insert/test   & $O(\log A)$               & $O(1)$ (bit vector) \\
-    Hit record               & 20\,B (unified)          & 6\,B (structure-of-arrays) \\
+    Traversals          & $H$ (one per entry)      & $1$ (single any-hit) \\
+    Boundary selection  & $O(H^2)$ running minimum & eliminated (unordered) \\
+    Scatter distance    & bisection / Newton       & closed-form $\operatorname{erf}^{-1}$ \\
     \bottomrule
   \end{tabular}
-  \caption{Complexity-argued (C-mode) improvements. The argmin sampler and the data-structure choices
-  reduce per-bounce work asymptotically; these are justified by the bound, not by a regression ablation.}
+  \caption{Complexity-argued (C-mode) advantage of the argmin sampler over the reference's
+  segment-by-segment marcher, for one ray crossing $H$ primitives (\Cref{fig:pipeline}). Each row is
+  justified by the bound, not a regression ablation: the single any-hit traversal replaces the reference's
+  $H$ re-traversals, the argmin needs no ordering of boundaries, and the per-primitive scatter distance
+  inverts the optical depth in closed form (\Cref{sec:analytic-od}). The active-set inheritance that
+  removes the residual per-bounce $O(N)$ containment scan is a \emph{measured} win (\Cref{tab:wins}); the
+  $O(1)$ bit-vector membership and compact $6$-byte hit record are implementation choices
+  (\Cref{sec:gpu-impl}).}
   \label{tab:complexity}
 \end{table}
 
@@ -217,11 +229,9 @@ Some choices are deliberately \emph{not} measured. Standard-practice optimisatio
 streams with asynchronous transfers, fused multiply-adds and loop unrolling, \texttt{float4}-coalesced
 buffers, the fast-math flag set, GAS compaction and \texttt{PREFER\_FAST\_TRACE}---are cited rather than
 ablated, because regressing to ``everything on one stream'' would re-derive a textbook result. One
-choice originally filed here as \emph{infeasible}---analytic versus tessellated sphere geometry, whose
-tessellated half predated the current architecture---turned out to be measurable after all: porting
-only the historical icosphere mesh into the current renderer behind a build switch yields an A/B in
-which the per-primitive geometry is the \emph{only} difference. \Cref{sec:icosphere} reports that
-experiment; its outcome refutes the expectation this section once recorded.
+design decision, by contrast, deserves a direct measurement rather than an argument: analytic versus
+tessellated sphere geometry. Porting the historical icosphere mesh into the current renderer behind a
+build switch yields a clean A/B in which only the per-primitive geometry differs (\Cref{sec:icosphere}).
 
 \section{Analytic versus tessellated primitive geometry}
 \label{sec:icosphere}
@@ -231,7 +241,7 @@ primitive), reporting a $4.96\times$ speedup over its own custom ray-ellipsoid i
 \num{320}-triangle shell as best. This renderer instead uses OptiX's built-in \emph{analytic} sphere
 over a single instanced unit GAS---and also supports the tessellated icosphere behind a compile switch,
 so the two geometries can be measured head-to-head with the per-primitive geometry the \emph{only}
-difference. The A/B ports the icosphere mesh (subdivision $N$: \num{20}, \num{80}, \num{320},
+difference. The A/B ports the icosphere mesh (subdivision level $\ell$: \num{20}, \num{80}, \num{320},
 \num{1280} triangles); the IAS instancing, the any-hit entry collection,
 and the analytic optical-depth integration are untouched, with one addition---a convex shell is
 entered through a front face and left through a back face, so the any-hit keeps only front-face hits,
@@ -239,61 +249,67 @@ preserving the one-entry-per-primitive contract the sphere provides natively.
 
 \begin{table}[htp]
   \centering
+  \setlength{\tabcolsep}{4pt}%
   \begin{tabular}{@{}lrrrrrr@{}}
     \toprule
     & & \multicolumn{2}{c}{frame time (cloud)} & \multicolumn{3}{c}{RMSE vs analytic} \\
     \cmidrule(lr){3-4} \cmidrule(l){5-7}
     Shell & tris & abs. & rel. & cloud & tornado & bunny \\
     \midrule
-    analytic sphere & --- & \SI{15.52}{\second} & $1.00\times$ & 0 & 0 & 0 \\
-    icosphere $N{=}0$ & 20   & \SI{9.80}{\second}  & $0.63\times$ & $4.0\times10^{-2}$ & $9.4\times10^{-3}$ & $1.2\times10^{-2}$ \\
-    icosphere $N{=}1$ & 80   & \SI{11.22}{\second} & $0.72\times$ & $1.0\times10^{-2}$ & $1.9\times10^{-3}$ & $2.5\times10^{-3}$ \\
-    icosphere $N{=}2$ & 320  & \SI{11.99}{\second} & $0.77\times$ & $2.5\times10^{-3}$ & $4.6\times10^{-4}$ & $5.8\times10^{-4}$ \\
-    icosphere $N{=}3$ & 1280 & \SI{13.23}{\second} & $0.85\times$ & $8.2\times10^{-3}$ & $4.6\times10^{-3}$ & $4.4\times10^{-3}$ \\
+    \textbf{analytic sphere} & --- & \textbf{\SI{15.52}{\second}} & \textbf{$1.00\times$} & \textbf{0} & \textbf{0} & \textbf{0} \\
+    icosphere $\ell{=}0$ & 20   & \SI{9.80}{\second}  & $0.63\times$ & $4.0\times10^{-2}$ & $9.4\times10^{-3}$ & $1.2\times10^{-2}$ \\
+    icosphere $\ell{=}1$ & 80   & \SI{11.22}{\second} & $0.72\times$ & $1.0\times10^{-2}$ & $1.9\times10^{-3}$ & $2.5\times10^{-3}$ \\
+    icosphere $\ell{=}2$ & 320  & \SI{11.99}{\second} & $0.77\times$ & $2.5\times10^{-3}$ & $4.6\times10^{-4}$ & $5.8\times10^{-4}$ \\
+    icosphere $\ell{=}3$ & 1280 & \SI{13.23}{\second} & $0.85\times$ & $8.2\times10^{-3}$ & $4.6\times10^{-3}$ & $4.4\times10^{-3}$ \\
     \bottomrule
   \end{tabular}
   \caption{Analytic built-in sphere versus tessellated icosphere, with only the per-primitive geometry
-  differing. Frame times: cloud scattering under the environment-lit showcase, \num{128} spp, median of
-  five interleaved rounds at locked clocks (within-arm spread ${\le}1.5\,\%$). RMSE: converged
-  absorption renders against the analytic render, which is exact here---the instanced primitive
-  \emph{is} a sphere---so the residual is pure tessellation error.}
+  differing. The shipped configuration (\textbf{analytic sphere}, bold) is kept for its exactness despite
+  the $1.17$--$1.58\times$ frame-time premium every tessellation level avoids. Frame times: cloud
+  scattering under the environment-lit showcase, \num{128} spp, median of five interleaved rounds at
+  locked clocks (within-arm spread ${\le}1.5\,\%$). RMSE: converged absorption renders against the
+  analytic render, which is exact here---the instanced primitive \emph{is} a sphere---so the residual is
+  pure tessellation error.}
   \label{tab:icosphere}
 \end{table}
 
-The outcome (\Cref{tab:icosphere}) refutes the hypothesis under which the analytic sphere was chosen.
-The tessellated shell is \emph{faster at every tessellation level}: the analytic sphere pays
-$1.17$--$1.58\times$ in frame time for its exactness. The mechanism is the one the reference named:
-on RTX-class hardware, ray-triangle intersection executes on dedicated ray-tracing cores, whereas the
-``built-in'' sphere primitive is a software intersection module on the traversal path. The magnitude
+The analytic sphere was chosen expecting it to be the cheaper path: a single instanced unit-sphere
+GAS---one primitive, transformed per instance, rather than a mesh duplicated per primitive---intersected
+by OptiX's built-in sphere routine, which we trusted to be efficient. The measurement
+(\Cref{tab:icosphere}) refutes that expectation. The tessellated shell is \emph{faster at every
+tessellation level}: the analytic sphere pays $1.17$--$1.58\times$ in frame time for its exactness. The
+mechanism is the one the reference named: on RTX-class hardware, ray-triangle intersection runs on the
+dedicated ray-tracing cores, whereas the built-in sphere is intersected by a \emph{software} routine on
+the otherwise hardware-accelerated traversal path. The magnitude
 here is smaller than the reference's $4.96\times$ because the baselines differ---their analytic arm
 was a custom ellipsoid intersector over per-primitive world-space bounds, where anisotropic primitives
 inflate axis-aligned boxes, while this renderer's analytic arm already benefits from the instanced
 unit-sphere GAS with per-instance transforms.
 
-Accuracy tells the opposite story, and a non-monotone one. From $N{=}0$ to $N{=}2$ the error falls
+Accuracy tells the opposite story, and a non-monotone one. From $\ell{=}0$ to $\ell{=}2$ the error falls
 ${\sim}4\times$ per subdivision with the physically expected sign (the inscribed shell is slightly
-smaller than the true $3\sigma$ ellipsoid, so renders are marginally too bright). At $N{=}3$ the
+smaller than the true $3\sigma$ ellipsoid, so renders are marginally too bright). At $\ell{=}3$ the
 error \emph{rises} on all three assets and flips sign (\Cref{fig:icosphere-sliver}): a localised
 population of sliver triangles
 mis-places entry points for near-grazing rays, and the count of affected pixels tracks per-primitive
-screen footprint rather than anisotropy (the round-primitive cloud is hit hardest). Past $N{\approx}2$,
+screen footprint rather than anisotropy (the round-primitive cloud is hit hardest). Past $\ell{\approx}2$,
 finer tessellation buys worse accuracy at higher cost---consistent with the reference never going
 beyond \num{320} triangles.
 
 The decision, then, is a genuine accuracy-versus-performance trade, and this renderer keeps the
 analytic sphere \emph{for correctness, at a now-quantified price}. The faceting bias at the best
-tessellation ($N{=}2$, ${\sim}0.16\,\%$ systematic brightening on the cloud) is invisible in an image
+tessellation ($\ell{=}2$, ${\sim}0.16\,\%$ systematic brightening on the cloud) is invisible in an image
 but is an order of magnitude above the $10^{-4}$-level energy agreement that the validation gates of
 \Cref{ch:validation} hold the renderer to; the analytic shell is what makes those gates attainable.
 Where raw throughput matters more than validation-grade exactness, the measured frontier says
-$N{=}2$---matching the reference's choice of a \num{320}-triangle icosphere---is the right shell, and
+$\ell{=}2$---matching the reference's choice of a \num{320}-triangle icosphere---is the right shell, and
 the instanced single-GAS design keeps even that choice memory-trivial (\SI{9.6}{\kilo\byte} compacted,
 versus per-primitive duplication in the reference).
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/icosphere_sliver.pdf}
-  \caption{The $N{=}3$ sliver artifact (cloud, pure absorption, so transmittance is deterministic and
+  \caption{The $\ell{=}3$ sliver artifact (cloud, pure absorption, so transmittance is deterministic and
   every difference is geometric, not Monte-Carlo noise). Left: the analytic sphere, exact. Centre: the
   \num{1280}-triangle icosphere; the inset crop shows faceted slivers where the analytic shell is
   smooth. Right: $|\Delta|$ (amplified $4\times$)---the error is a thin, silhouette-localised population
@@ -311,7 +327,9 @@ renderer does \emph{not} go.
 
 \begin{itemize}
   \item \textbf{Wavefront refactor (§8.34) --- the big one.} Splitting the megakernel into per-stage
-  kernels was $100$--$1400\times$ \emph{slower}: the ${\sim}352$\,B/ray state must stream through DRAM
+  kernels was, in a development-time measurement, $100$--$1400\times$ \emph{slower} (a wide range across
+  configurations; the branch no longer builds on the current toolchain, so this stands as a one-time
+  figure): the ${\sim}352$\,B/ray state must stream through DRAM
   every bounce and goes super-linear once the working set exceeds L2. \emph{Lesson:} moving persistent
   per-ray state to global memory is fatal for this workload---it is megakernel-shaped, and this rules
   out a whole family of designs (wavefront, ray-sorting, neural caches).
@@ -336,9 +354,11 @@ renderer does \emph{not} go.
   inverse-CDF undershoot that let the winning primitive be excluded from its own active set ---
   since fixed) and established empirically that OptiX does not report hits at exactly
   $t = t_{\max}$; both findings outlived the experiment.
-  \item \textbf{Adaptive sampling (§8.30).} Per-pixel convergence stopping was a net loss
-  ($\sim\!2\times$ slower at equal quality, plus firefly bias) on the high-variance cloud; kept,
-  default-off.
+  \item \textbf{Adaptive sampling (§8.30).} Per-pixel convergence stopping was a net loss: at the
+  working threshold nothing early-stops on the high-variance cloud, so it matches uniform sampling at
+  identical quality but runs \num{0.9}\,\% slower (\num{0.7}\,\% on the calibrated-caps re-confirmation)
+and reserves an extra per-pixel variance buffer; a
+  more aggressive threshold only trades that overhead for firefly bias. Kept, default-off.
   \item \textbf{Per-step Rao--Blackwellisation, ``A1'' (§8.27) --- the most instructive.} The renderer
   is ${\sim}5\times$ noisier per sample than Mitsuba on the flat-lit scattering cloud
   (\Cref{sec:results-perf}); the hypothesis blamed Mitsuba folding the analytic segment transmittance
@@ -373,7 +393,118 @@ renderer does \emph{not} go.
 The unifying lesson is the bottleneck of \Cref{sec:bottleneck}: at low occupancy bound by global-load
 latency, footprint and cache micro-optimisations are near-null, and any restructuring that externalises
 per-ray state backfires. The one true hardware lever for this divergence---OptiX Shader Execution
-Reordering~\cite{NvidiaSER2022}---is Ada-only and therefore unavailable on the Ampere RTX~3090 used here.
+Reordering~\cite{NvidiaSER2022}---is Ada-only and therefore unavailable on the Ampere RTX~3090 used here;
+\Cref{sec:ser} brings it to bear on an Ada GPU and measures what it recovers.
+
+\section{Shader Execution Reordering: a cross-architecture probe}
+\label{sec:ser}
+
+The divergence lever named above---OptiX Shader Execution Reordering (SER)---is unavailable on the
+Ampere RTX~3090 this thesis is pinned to, but its effect can be \emph{measured} on Ada-generation
+hardware. SER is a hardware feature (Ada, compute capability~8.9, and later) that, at a
+programmer-inserted point, repartitions the in-flight threads of a launch into fresh warps grouped by a
+coherence key and resumes them: a warp left incoherent by a divergent trace becomes coherent for the
+shading and next-bounce work that follows, restoring lane utilisation and coalescing the scattered
+\texttt{Primitive} loads that \Cref{sec:bottleneck} identified as the bottleneck. Two properties make it
+a clean test of that diagnosis. It is \emph{pure scheduling}---it changes which threads co-execute, not
+what each computes, so the image is bit-identical; and it is a lever the reference cannot reach---Mitsuba
+renders through Dr.Jit, which compiles one fused megakernel from a high-level trace and emits no reorder
+points, whereas this renderer's hand-written argmin megakernel can place a single \texttt{optixReorder}
+after the scatter event precisely because it controls its own trace structure.
+
+The renderer was built with SER enabled (one reorder per bounce, keyed on a hash of the quantised scatter
+cell) and run against the identical SER-off build on a rented RTX~4090 (Ada), at each asset's calibrated
+caps. Because the rented host restricted the profiling counters, the comparison is wall-clock (warm-up
+plus eleven interleaved off/on repetitions, \num{64}\,spp, reporting the median; every SER-on image is
+bit-identical to its SER-off counterpart---SER reorders \emph{which} threads co-execute, not the
+per-thread arithmetic, so each pixel is computed by the same operations either way---and the wall-clock
+ratio is therefore also the equal-quality ratio).
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Asset & SER-off (s) & SER-on (s) & Speedup \\
+    \midrule
+    cloud     & 3.27  & 2.30  & $1.42\times$ \\
+    explosion & 2.64  & 1.88  & $1.41\times$ \\
+    tornado   & 3.06  & 2.73  & $1.12\times$ \\
+    bunny     & 22.67 & 13.49 & $\mathbf{1.68\times}$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Shader Execution Reordering on an RTX~4090 (Ada), per asset at calibrated caps, \num{64}\,spp,
+  median of eleven interleaved wall-clock repetitions. Every SER-on image is bit-identical to SER-off, so
+  each speedup is also an equal-quality speedup. SER is unavailable on the Ampere RTX~3090 used elsewhere
+  in this thesis and is inaccessible to the reference's Dr.Jit pipeline (which emits no reorder points).
+  Cloud hint ablation: the \num{8}-cell spatial key gives $1.42\times$ versus $1.25\times$ for the
+  no-hint \texttt{optixReorder()} and $1.10\times$ for reordering only at the first bounce; under
+  product-RIS the cloud win is $1.35\times$.}
+  \label{tab:ser}
+\end{table}
+
+SER helps on every asset---\num{1.12} to \num{1.68}$\times$, image-identical (\Cref{tab:ser})---and the
+magnitude tracks the amount of divergent \emph{shading} work rather than raw sparsity: it is largest on
+the dense, deeply-overlapped bunny ($1.68\times$) and smallest on the thin, mostly-empty tornado
+($1.12\times$), whose rays escape quickly and leave little shading to regroup. The coherence
+hint is a deliberate design choice, not the default call: the hintless \texttt{optixReorder()} already
+helps ($1.25\times$ on the cloud, the hardware grouping by hit alone), but encoding a domain-specific
+key---a hash of the scatter cell, so rays that scattered near one another regroup---lifts it to
+$1.42\times$. Reordering at \emph{every} bounce, not just the first, is likewise what carries the gain
+($1.10\times$ for bounce-0 alone). The win persists under the production direct-lighting estimator
+($1.35\times$ with product-RIS). Two things follow. The result \emph{confirms the
+\Cref{sec:bottleneck} diagnosis directly}: the one mechanism designed for this exact failure mode---warp
+divergence on scattered loads---recovers a third to two-thirds of the frame time. And it exposes an
+\emph{architectural} advantage: on SER-capable hardware this renderer pulls further ahead of the
+reference precisely because its hand-authored kernel can use a lever the reference's compiled pipeline
+cannot. These figures are an Ada cross-architecture probe and do not modify the 3090-based results
+reported elsewhere.
+
+\paragraph{From a lever to an end-to-end advantage.}
+The architectural gap that SER widens can be measured directly, by re-running the headline equal-quality
+comparison (\Cref{sec:results-perf}) on the Ada host against the \emph{same} reference build---Mitsuba
+with \texttt{volprim}, the \texttt{volprim\_prb} integrator in its only unbiased (\texttt{use\_nee=false})
+analog mode---recompiled there. The estimator's noise constant $k$ is a property of the sampler and the
+scene, not the GPU: the Ada measurement reproduced the \num{3090} values exactly
+($k_{\text{clip}}=\num{1.887}$ for this renderer, \num{110.6} for the analog reference), so only the
+per-sample time differs across architectures and the speedup is fully traceable. The same MIS
+configuration that reaches a given noise level $\approx\!59\times$ faster than the analog reference on the
+\num{3090} (\Cref{sec:results-perf}) does so $77\times$ faster on the \num{4090}---the hand-written
+megakernel scales onto Ada more fully than the reference's Dr.Jit pipeline---and SER lifts this to
+$110\times$. With the renderer's best \emph{unbiased} configuration (product-RIS direct lighting,
+\Cref{sec:ris}, and the approximate-erf hot path, both inside the validation gates of
+\Cref{ch:validation}) the equal-quality advantage reaches $151\times$; additionally enabling the
+throughput-optimal icosphere shell (\Cref{sec:icosphere}, which trades a ${\sim}\num{0.1}\%$ systematic
+for ray-triangle intersection) reaches $179\times$ (\Cref{tab:ser-eq}). All four are equal-quality
+figures---this renderer reaches the reference's noise level in that fraction of the time, most of the
+factor coming from the estimator's lower variance rather than from raw per-sample speed. The pinned
+headline remains the validation-grade $59\times$ on the \num{3090}; these Ada figures corroborate it and
+do not replace it.
+
+\begin{table}[htp]
+  \centering
+  \begin{tabular}{@{}llrr@{}}
+    \toprule
+    GPU & this renderer's configuration & render (s) & vs.\ analog reference \\
+    \midrule
+    RTX 3090 & MIS                          & ---  & $\approx\!59\times$ \\
+    RTX 4090 & MIS, no SER                  & 3.29 & $77\times$ \\
+    RTX 4090 & MIS $+$ SER                  & 2.31 & $\mathbf{110\times}$ \\
+    RTX 4090 & RIS $+$ fast-erf $+$ SER     & 1.92 & $\mathbf{151\times}$ \\
+    RTX 4090 & \quad$+$ icosphere $\ell{=}2$ & 1.63 & $179\times$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{End-to-end equal-quality speedup over the unbiased reference (Mitsuba \texttt{volprim\_prb},
+  analog) on the cloud--meadow showcase: \num{64}\,spp, \num{16} seeds, clipped noise constant $k$
+  (radiance clipped at the \num{99.9}th percentile, as \Cref{sec:results-perf}); times are median
+  steady-state render. \emph{MIS} is the pinned-headline estimator (the 3090 row, ${\approx}59\times$, is
+  repeated for reference); \emph{RIS$+$fast-erf$+$SER} is the maximal \emph{unbiased} configuration, and
+  \emph{$+$icosphere $\ell{=}2$} the maximal-throughput one. The Ada rows use the same reference build
+  recompiled on the Ada host. The two unbiased Ada rows ($110\times$, $151\times$) stay within the
+  validation gates of \Cref{ch:validation}; the icosphere row ($179\times$) trades a ${\sim}\num{0.1}\%$
+  systematic for speed (\Cref{sec:icosphere}). Cross-architecture probe---does not modify the 3090
+  results.}
+  \label{tab:ser-eq}
+\end{table}
 
 \section{Memory}
 \label{sec:opt-memory}
@@ -390,10 +521,11 @@ the per-ray state.
 \paragraph{Per-asset capacity budgets.} The per-ray buffers are bounded by the worst-case primitive
 overlap a scene presents, which the offline estimator of \Cref{sec:gpu-impl} predicts from geometry
 alone. \Cref{tab:overlap} reports that estimate across assets. The overlap varies by more than
-$25\times$ and---crucially---does not track the primitive count: a \num{4096}-primitive WDAS cloud fit
-demands an order of magnitude more capacity than a \num{24576}-primitive one, because overlap is set by
+$25\times$ and---crucially---does not track the primitive count: a \num{4096}-primitive cloud fit
+demands an order of magnitude more \emph{active-set} capacity (point overlap \num{529} vs \num{57}) than
+a \num{24576}-primitive one, because overlap is set by
 how densely the Gaussians pack, not how many there are. No single static cap fits every scene: the
-\num{128}-entry buffers suit the primary cloud, but the denser fits and the bunny would overflow them
+calibrated \num{64}/\num{96} buffers suit the primary cloud, but the denser fits and the bunny would overflow them
 and require a larger compile-time cap (which the estimator sizes ahead of the build).
 
 \begin{table}[htp]
@@ -402,10 +534,10 @@ and require a larger compile-time cap (which the estimator sizes ahead of the bu
     \toprule
     Asset & Primitives & Max point overlap & Max ray entries \\
     \midrule
-    Disney cloud (primary) & \num{652}   & \num{45}  & \num{96}  \\
-    WDAS cloud, coarse fit & \num{768}   & \num{19}  & \num{108} \\
-    WDAS cloud, dense fit  & \num{4096}  & \num{529} & \num{706} \\
-    WDAS cloud, fine fit   & \num{24576} & \num{57}  & \num{437} \\
+    Disney cloud, primary fit & \num{652}   & \num{45}  & \num{96}  \\
+    Disney cloud, coarse fit  & \num{768}   & \num{19}  & \num{108} \\
+    Disney cloud, dense fit   & \num{4096}  & \num{529} & \num{706} \\
+    Disney cloud, fine fit    & \num{24576} & \num{57}  & \num{437} \\
     Tornado                & \num{768}   & \num{84}  & \num{340} \\
     Explosion              & \num{1024}  & \num{23}  & \num{136} \\
     Stanford bunny         & \num{25600} & \num{245} & \num{387} \\
@@ -414,8 +546,8 @@ and require a larger compile-time cap (which the estimator sizes ahead of the bu
   \caption{Worst-case $3\sigma$ overlap per asset, predicted offline by the cap estimator (point
   overlap sizes \texttt{MAX\_ACTIVE\_PRIMS}; ray entries size \texttt{HIT\_BUFFER\_CAPACITY}). Overlap
   spans more than $25\times$ and is independent of primitive count, so the caps are necessarily
-  asset-dependent. The three WDAS rows are distinct density fits of the Disney cloud: the \emph{fine}
-  fit packs $32\times$ more primitives than the \emph{dense} fit yet overlaps an order of magnitude
+  asset-dependent. The four cloud rows are distinct density fits of the same Disney cloud volume: the \emph{fine}
+  fit packs $6\times$ more primitives than the \emph{dense} fit yet overlaps an order of magnitude
   \emph{less}, because the extra primitives are smaller and less densely stacked---overlap is set by
   local packing, not primitive count.}
   \label{tab:overlap}

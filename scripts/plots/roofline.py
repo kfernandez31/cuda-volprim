@@ -51,8 +51,9 @@ def main() -> None:
     for row in data:
         x, y = float(row["arith_intensity"]), float(row["achieved_gflops"])
         ax.scatter([x], [y], zorder=5, s=45, color="C3")
-        lbl = str(row["kernel"]).replace("render_megakernel_", "").replace("_", " · ")
-        ax.annotate(lbl, xy=(x, y), xytext=(x * 1.25, y * 1.6), fontsize=9)
+        lbl = (str(row["kernel"]).replace("render_megakernel_", "")
+               .replace("_meadow", "").replace("_", " "))
+        ax.annotate(lbl, xy=(x, y), xytext=(x * 1.18, y), fontsize=9, ha="left", va="center")
         # dotted guides up to each roof to visualise the head-room
         ax.plot([x, x], [y, min(PEAK_GFLOPS, x * PEAK_BW_GBS)], ls=":", color="C3", lw=1)
 

@@ -4,8 +4,8 @@
 This chapter describes the renderer itself: a from-scratch CUDA/OptiX volumetric path tracer for the
 Gaussian kernel-mixture volumes of \Cref{sec:kernel-mixture}. Its design answers one question
 differently from the reference: \emph{given a camera ray, how is the next scattering event found?}
-The reference~\cite{DSYG} marches the ray segment by segment through the sorted sequence of primitive
-boundaries and root-finds the scatter distance; this renderer instead collects all of a ray's
+The reference~\cite{DSYG} marches the ray segment by segment, advancing from one primitive
+boundary to the next by a running minimum, and root-finds the scatter distance; this renderer instead collects all of a ray's
 primitives in a \emph{single} acceleration-structure traversal and samples the scatter distance in
 \emph{closed form}, with no sorting, no marching, and no root-finding. The two halves of that
 design---single-trace collection (\Cref{sec:collection}) and analog-decomposition scatter sampling
@@ -39,20 +39,21 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
       >=Stealth, node distance=6mm and 7mm,
     ]
     % Reference pipeline
-    \node[box]               (r1) {Trace + march\\ ($\times N$)};
+    \node[box]               (r1) {Trace + march\\ ($\times H$)};
     \node[gone, right=of r1] (r2) {Select next\\ boundary};
     \node[gone, right=of r2] (r3) {Bisection /\\ Newton};
     \node[box,  right=of r3] (r4) {Scatter\\ at $t$};
     \draw[->] (r1)--(r2); \draw[->] (r2)--(r3); \draw[->] (r3)--(r4);
     \node[anchor=east] at ([xshift=-4mm]r1.west) {\textbf{Reference}};
-    \draw[black!55] (r2.south west)--(r2.north east);
-    \draw[black!55] (r3.south west)--(r3.north east);
+    \node[font=\scriptsize\itshape, text=black!55, above=1.5mm of r2, xshift=13.5mm]
+         {eliminated by the argmin sampler};
     % This renderer's pipeline
     \node[box, below=14mm of r1] (o1) {Single any-hit\\ trace};
-    \node[box, right=of o1]      (o2) {Entries kept;\\ exits closed-form};
+    \node[box, right=of o1]      (o2) {Keep entries,\\ exits analytic};
     \node[box, right=of o2]      (o3) {Argmin of\\ free flights};
     \node[box, right=of o3]      (o4) {Scatter\\ at $t$};
     \draw[->] (o1)--(o2); \draw[->] (o2)--(o3); \draw[->] (o3)--(o4);
+    \node[font=\scriptsize, below=0.5mm of o3] {$O(A{+}H)$, unordered};
     \node[anchor=east] at ([xshift=-4mm]o1.west) {\textbf{This renderer}};
   \end{tikzpicture}%
   }
@@ -71,7 +72,7 @@ workload. \Cref{fig:pipeline} contrasts the per-bounce work of the reference wit
 To sample a scattering event along a ray, the renderer must know which primitives the ray passes
 through and over what intervals. The reference constructs this information incrementally, advancing the
 ray from one primitive boundary to the next and issuing a fresh acceleration-structure query at each
-step; for a ray crossing $N$ overlapping primitives this is $O(N)$ traversals. The observation behind
+step; for a ray crossing $H$ overlapping primitives this is $O(H)$ traversals. The observation behind
 this renderer's collection scheme is that, because every primitive is a bounded convex region (a
 transformed unit sphere, \Cref{sec:gpu-impl}), \emph{all} of the ray's entry points can be gathered in
 a \emph{single} traversal, and the corresponding exits then computed analytically.
@@ -79,9 +80,11 @@ a \emph{single} traversal, and the corresponding exits then computed analyticall
 Concretely, the scene is traced once per scattering event with an \emph{any-hit} program and no
 closest-hit program (the ray flag \texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak DISABLE\_\allowbreak CLOSESTHIT}). Because any-hit
 fires for every intersection without terminating the ray, a single trace visits every primitive the
-ray meets. Back-face culling (\texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak CULL\_\allowbreak BACK\_\allowbreak FACING\_\allowbreak TRIANGLES}) discards the
-exit intersections, so the any-hit program records only \emph{entries}---each a pair of hit distance
-$t_{\text{hit}}$ and primitive index, appended to a per-ray buffer. The matching exit of
+ray meets. OptiX's built-in sphere intersector provides one entry hit per primitive natively (the
+one-entry-per-primitive contract revisited in \Cref{ch:optimization}), so the any-hit program records
+only \emph{entries}---each a pair of hit distance $t_{\text{hit}}$ and primitive index, appended to a
+per-ray buffer. (Back-face culling, \texttt{OPTIX\_\allowbreak RAY\_\allowbreak FLAG\_\allowbreak CULL\_\allowbreak BACK\_\allowbreak FACING\_\allowbreak TRIANGLES}, serves
+the same role only for the tessellated-icosphere variant of \Cref{ch:optimization}.) The matching exit of
 any primitive is not traced at all: since the primitive's geometry is known, the exit distance follows
 in closed form from the ray--sphere intersection. One traversal therefore replaces the reference's
 $N$, and the buffer holds exactly the data the scatter sampler needs.
@@ -101,26 +104,32 @@ hit buffer. The sampler in \Cref{sec:adt} draws candidates from both.
 \label{sec:analytic-od}
 
 The property that makes both single-trace collection and closed-form scatter sampling possible is the
-analytic optical depth of a single Gaussian (\Cref{sec:kernel-mixture}). Write primitive $k$'s extinction
+analytic optical depth of a single Gaussian (\Cref{sec:kernel-mixture}); the whitened-space derivation
+below follows the reference~\cite{DSYG}, recast in the notation used throughout. Write primitive $k$'s extinction
 as $\sigma_{t,k}(\bm{x}) = C_k\,\exp\!\big(-\tfrac12\lVert S_k^{-1}R_k^{\!\top}(\bm{x}-\bm{\mu}_k)\rVert^2\big)$,
-with rotation $R_k$, per-axis scales in $S_k=\operatorname{diag}(s_{ki})$, and peak extinction
+with rotation $R_k$, per-axis scales $s_{ki}$ (the Gaussian's standard deviation along principal axis
+$i\in\{1,2,3\}$) collected in $S_k=\operatorname{diag}(s_{ki})$, and peak extinction
 $C_k=\sigma_{t,k}\big((2\pi)^{3/2}\prod_i s_{ki}\big)^{-1}$. Substituting the ray $\bm{r}(s)=\bm{o}+s\bm{\omega}$
 and \emph{whitening}---$\bm{y}(s)=S_k^{-1}R_k^{\!\top}(\bm{r}(s)-\bm{\mu}_k)=\bm{a}+s\bm{b}$ with
 $\bm{a}=S_k^{-1}R_k^{\!\top}(\bm{o}-\bm{\mu}_k)$ and $\bm{b}=S_k^{-1}R_k^{\!\top}\bm{\omega}$---reduces the exponent
-to a one-dimensional quadratic. Completing the square in $s$,
+to a one-dimensional quadratic. Whitening is the affine change of coordinates that carries primitive
+$k$'s anisotropic Gaussian to the \emph{standard} isotropic Gaussian (unit variance, centred at the
+origin); it is a bijection because $R_k$ is orthogonal and $S_k$ diagonal with positive entries, so the
+ray stays a straight line $\bm{a}+s\bm{b}$ and the extinction along it becomes a one-dimensional standard
+Gaussian whose integral is an error function. Completing the square in $s$,
 \[
-  \tfrac12\lVert\bm{y}(s)\rVert^2 = \tfrac12 w^2 (s-s^\star)^2 + \tfrac12 d_\perp^2,\qquad
-  w=\lVert\bm{b}\rVert,\quad s^\star=-\frac{\bm{a}\cdot\bm{b}}{w^2},\quad
-  d_\perp^2=\lVert\bm{a}\rVert^2-\frac{(\bm{a}\cdot\bm{b})^2}{w^2},
+  \tfrac12\lVert\bm{y}(s)\rVert^2 = \tfrac12 w^2 (s-s^\star)^2 + \tfrac12 d_\perp^2,
 \]
-where $s^\star$ is the ray's closest approach to the whitened centre, $w$ its whitened speed, and
-$d_\perp$ the whitened perpendicular distance. The remaining integral is Gaussian and evaluates to an
+where $w=\lVert\bm{b}\rVert$ is the whitened ray speed, $s^\star=-(\bm{a}\cdot\bm{b})/w^2$ the ray's
+closest approach to the whitened centre, and $d_\perp^2=\lVert\bm{a}\rVert^2-(\bm{a}\cdot\bm{b})^2/w^2$
+its squared perpendicular distance there. The remaining integral is Gaussian and evaluates to an
 error function:
 \[
   \tau_k(t_0, t_1) = \int_{t_0}^{t_1}\! \sigma_{t,k}\big(\bm{r}(s)\big)\,\mathrm{d}s
   = \underbrace{C_k\, e^{-\tfrac12 d_\perp^2}\,\sqrt{\tfrac{\pi}{2}}\,\tfrac1w}_{\displaystyle C_k'}
-  \big[\operatorname{erf}(u_1) - \operatorname{erf}(u_0)\big],\qquad u_i=\tfrac{w}{\sqrt2}(t_i-s^\star).
+  \big[\operatorname{erf}(u_1) - \operatorname{erf}(u_0)\big],
 \]
+with whitened integration limits $u_i=\tfrac{w}{\sqrt2}(t_i-s^\star)$.
 The prefactor $C_k'$ is a per-ray constant (the per-primitive part of which is precomputed), so each
 $\tau_k$ costs one exponential and two error-function evaluations. Because $\operatorname{erf}$ is
 strictly monotonic, $\tau_k$ is \emph{monotonic and invertible} in $t_1$: given a target optical depth
@@ -130,36 +139,60 @@ function,
   t(\tau) \;=\; s^\star + \tfrac{\sqrt2}{w}\,
   \operatorname{erf}^{-1}\!\Big(\operatorname{erf}(u_0) + \tau/C_k'\Big),
 \]
-the closed-form inverse the next section turns into a sampler.
+This $t(\tau)$ is a genuine inverse of $\tau_k$: substituting it back gives
+$\tau_k\big(t_0,t(\tau)\big)=\tau$ exactly, because $\operatorname{erf}^{-1}$ undoes $\operatorname{erf}$
+and the whitening is a bijection. It is the closed-form inverse the next section turns into a sampler.
 
 \begin{figure}[htp]
   \centering
+  \resizebox{\linewidth}{!}{%
   \begin{tikzpicture}[every node/.style={font=\small}]
-    % whitened Gaussian: unit isotropic (circles), centre at origin
-    \fill[blue!9]  (0,0) circle (1.7);
-    \fill[blue!18] (0,0) circle (1.0);
-    \draw[blue!50] (0,0) circle (1.0);
-    \draw[blue!30,dashed] (0,0) circle (1.7);
-    \fill (0,0) circle (1.4pt) node[above right=-1pt] {$\tilde{\bm{\mu}}_k$};
-    % whitened ray at perpendicular distance d_perp
-    \def\yray{-0.75}
-    \draw[->,very thick] (-3,\yray) -- (3.3,\yray) node[below right] {whitened ray $\bm{a}+s\bm{b}$};
-    % closest approach s* (foot of perpendicular at s minimising |y|)
-    \fill[red] (0,\yray) circle (1.5pt);
-    \node[red,below=2pt] at (0,\yray) {$s^\star$};
-    % perpendicular distance d_perp + right-angle marker
-    \draw[<->,red!75] (0,-0.02) -- (0,\yray+0.02) node[midway,right] {$d_\perp$};
-    \draw[red!75,thin] (0.16,\yray) -- (0.16,\yray+0.16) -- (0,\yray+0.16);
-    % integration endpoints u0,u1
-    \fill (-1.55,\yray) circle (1.2pt) node[above=1pt] {$u_0$};
-    \fill ( 1.55,\yray) circle (1.2pt) node[above=1pt] {$u_1$};
-  \end{tikzpicture}
-  \caption{Geometry of the analytic optical depth, shown in the primitive's \emph{whitened} frame where
-  the Gaussian is unit-isotropic (\Cref{sec:analytic-od}). Whitening maps the ray to $\bm{a}+s\bm{b}$;
-  completing the square gives the closest approach $s^\star$, the whitened speed $w=\lVert\bm{b}\rVert$,
-  and the perpendicular distance $d_\perp$. The optical depth accumulated between whitened endpoints
-  $u_0,u_1$ is then $C_k'\,[\operatorname{erf}(u_1)-\operatorname{erf}(u_0)]$, monotonic in the endpoint
-  and hence invertible by a single $\operatorname{erf}^{-1}$.}
+    % ============ LEFT: real space (anisotropic, tilted) ============
+    \node[font=\footnotesize] at (0.3,2.45) {real space};
+    \begin{scope}[shift={(0.3,0.2)}, rotate=-28]
+      \fill[blue!9]  (0,0) ellipse (1.75 and 0.8);
+      \fill[blue!18] (0,0) ellipse (1.0 and 0.46);
+      \draw[blue!50] (0,0) ellipse (1.0 and 0.46);
+      \draw[blue!30,dashed] (0,0) ellipse (1.75 and 0.8);
+      \draw[blue!55,->] (0,0) -- (1.0,0) node[pos=1.18,font=\scriptsize] {$s_{k1}$};
+      \draw[blue!55,->] (0,0) -- (0,0.46) node[pos=1.4,font=\scriptsize] {$s_{k2}$};
+    \end{scope}
+    \fill (0.3,0.2) circle (1.3pt) node[above right=-2pt] {$\bm{\mu}_k$};
+    \draw[->,very thick] (-2.1,-1.35) -- (2.5,1.1) node[right] {ray $\bm{r}(s)$};
+    \fill (-2.1,-1.35) circle (1.3pt) node[below=1pt] {$\bm{o}$};
+    % ============ whitening arrow ============
+    \draw[->,thick] (3.6,0.1) -- (5.4,0.1);
+    \node[align=center,font=\footnotesize] at (4.5,0.95)
+      {whiten\\[-1pt] $\bm{y}=S_k^{-1}R_k^{\!\top}(\bm{x}-\bm{\mu}_k)$};
+    % ============ RIGHT: whitened space (isotropic) ============
+    \begin{scope}[shift={(8.2,0)}]
+      \node[font=\footnotesize] at (0,2.45) {whitened space};
+      \fill[blue!9]  (0,0) circle (1.7);
+      \fill[blue!18] (0,0) circle (1.0);
+      \draw[blue!50] (0,0) circle (1.0);
+      \draw[blue!30,dashed] (0,0) circle (1.7);
+      \fill (0,0) circle (1.4pt) node[above right=-1pt] {$\tilde{\bm{\mu}}_k$};
+      \def\yray{-0.78}
+      \draw[->,very thick] (-2.6,\yray) -- (2.9,\yray) node[below right] {$\bm{a}+s\bm{b}$};
+      \fill[red] (0,\yray) circle (1.5pt);
+      \node[red,below=2pt] at (0,\yray) {$s^\star$};
+      \draw[<->,red!75] (0,-0.02) -- (0,\yray+0.02) node[midway,right] {$d_\perp$};
+      \draw[red!75,thin] (0.16,\yray) -- (0.16,\yray+0.16) -- (0,\yray+0.16);
+      \fill (-1.55,\yray) circle (1.2pt) node[above=1pt] {$u_0$};
+      \fill ( 1.55,\yray) circle (1.2pt) node[above=1pt] {$u_1$};
+    \end{scope}
+  \end{tikzpicture}%
+  }
+  \caption{Analytic optical depth via whitening. \emph{Left:} in real space primitive $k$ is an
+  anisotropic Gaussian (rotation $R_k$, per-axis scales $s_{ki}$, centre $\bm{\mu}_k$) and the ray
+  $\bm{r}(s)$ cuts it at an angle. \emph{Right:} whitening
+  $\bm{y}=S_k^{-1}R_k^{\!\top}(\bm{x}-\bm{\mu}_k)$ maps the primitive to a unit-isotropic Gaussian at
+  the origin and the ray to $\bm{a}+s\bm{b}$; the density now depends only on distance from the origin,
+  so completing the square splits it into a constant peak set by the perpendicular distance $d_\perp$
+  (closest approach $s^\star$, whitened speed $w=\lVert\bm{b}\rVert$) and a one-dimensional Gaussian
+  along the ray. The optical depth between whitened endpoints $u_0,u_1$ is then
+  $C_k'\,[\operatorname{erf}(u_1)-\operatorname{erf}(u_0)]$, monotonic in the endpoint and hence
+  invertible by a single $\operatorname{erf}^{-1}$ (\Cref{sec:analytic-od}).}
   \label{fig:optical-depth}
 \end{figure}
 
@@ -197,89 +230,57 @@ over the same candidates---no new trace.
 is drawn from primitive $k$'s own free-flight law, so $\Pr[t_k > t] = e^{-\tau_k(t)}$---its
 transmittance. The per-primitive draws use independent uniforms $\xi_k$, hence
 \[
-  \Pr\!\big[\min_k t_k > t\big] = \prod_k \Pr[t_k > t] = \prod_k e^{-\tau_k(t)}
-  = \exp\!\Big(-\!\sum_k \tau_k(t)\Big) = e^{-\tau(t)} = T(t),
+\begin{aligned}
+  \Pr\!\big[\min_k t_k > t\big]
+  &= \prod_k \Pr[t_k > t] = \prod_k e^{-\tau_k(t)} \\
+  &= \exp\!\Big(-\!\sum_k \tau_k(t)\Big) = e^{-\tau(t)} = T(t),
+\end{aligned}
 \]
 the transmittance of the \emph{combined} medium $\sigma_t=\sum_k\sigma_{t,k}$ (optical depth is additive
 over overlapping primitives). So $t_{\text{scatter}}=\min_k t_k$ has exactly the combined free-flight
 distribution with c.d.f.\ $1-T(t)$: the argmin is an exact sample from the mixture, not an
-approximation. Unlike the delta/null-tracking that decomposition tracking normally requires, no majorant
+approximation (exact for the $3\sigma$-bounded kernel both renderers use; \Cref{ch:validation} reports a
+small convergence-stable residual at heavy overlap, where this independence assumption or its
+finite-precision realisation is stressed). Unlike the delta/null-tracking that decomposition tracking normally requires, no majorant
 and no null-scattering events appear here, because every per-primitive free flight is itself drawn in
 closed form (\Cref{sec:analytic-od})---the analytic invertibility is what removes the stochastic
 tracking entirely.
 
-\begin{figure}[htp]
-  \centering
-  \begin{tikzpicture}[every node/.style={font=\small}]
-    % overlapping Gaussians the ray pierces (drawn first, under the ray)
-    \fill[blue!16]   (3.0, 0.25) ellipse (1.3 and 0.85);
-    \fill[orange!18] (4.6,-0.10) ellipse (1.05 and 0.95);
-    \fill[teal!16]   (7.1, 0.15) ellipse (1.4 and 0.70);
-    \draw[blue!55]   (3.0, 0.25) ellipse (1.3 and 0.85);
-    \draw[orange!70] (4.6,-0.10) ellipse (1.05 and 0.95);
-    \draw[teal!60]   (7.1, 0.15) ellipse (1.4 and 0.70);
-    \node[blue!60!black]   at (2.2, 1.05) {$\sigma_{t,1}$};
-    \node[orange!60!black] at (5.5,-1.05) {$\sigma_{t,2}$};
-    \node[teal!50!black]   at (8.1, 0.80) {$\sigma_{t,3}$};
-    % the ray
-    \draw[->,very thick] (-0.2,0) -- (9.9,0) node[below right] {ray $\bm{r}(t)$};
-    \node[left] at (-0.2,0) {camera};
-    % per-primitive closed-form free flights t_k (independent draws)
-    \draw[blue,  thick] (2.9, 0.22) -- (2.9,-0.22);
-    \draw[orange,thick] (4.2, 0.22) -- (4.2,-0.22);
-    \draw[teal,  thick] (6.7, 0.22) -- (6.7,-0.22);
-    \node[blue]   at (2.9, 0.48) {$t_1$};
-    \node[orange] at (4.2,-0.48) {$t_2$};
-    \node[teal]   at (6.7, 0.48) {$t_3$};
-    % argmin = scatter event (t_1 is nearest)
-    \fill[black] (2.9,0) circle (2.4pt);
-    \draw[->] (2.9,-0.95) -- (2.9,-0.30);
-    \node[align=center] at (2.9,-1.25) {$t_{\text{scatter}}=\min_k t_k$};
-  \end{tikzpicture}
-  \caption{Sort-free scatter sampling. A ray pierces several overlapping Gaussians collected in one
-  traversal (\Cref{sec:collection}). Each primitive $k$ independently draws a closed-form free flight to
-  a distance $t_k$ (one $\operatorname{erf}^{-1}$ each, \Cref{sec:analytic-od}); the scattering event is
-  simply the nearest, $t_{\text{scatter}}=\min_k t_k$, found in a single linear pass. This reproduces the
-  combined medium's free-flight distribution \emph{exactly} (the decomposition-tracking identity above),
-  replacing the reference's segment-by-segment marching and per-segment root-finding with one argmin over
-  exact per-primitive flights---no marching, no root-finding, no majorant.}
-  \label{fig:argmin}
-\end{figure}
-
 \begin{algorithm}[htp]
-\caption{Argmin scatter sampling for one ray segment.}
+\caption{Argmin scatter sampling for one ray (one path bounce).}
 \label{alg:argmin}
 \begin{algorithmic}[1]
 \Require ray $\bm{r}$; active set $A$ (primitives containing the origin); hit buffer $H$ of entries
-$(t_{\text{entry}}, k)$ from one trace
+$(t_{\text{entry}}, k)$ from one trace; per-primitive analytic exit $t_{\text{exit}}(k)$ (\Cref{sec:collection})
 \Ensure scatter distance $t^\star$, or \textsc{Escape}
 \State $t^\star \gets +\infty$
-\ForAll{$k \in A$} \Comment{origin inside: invert from $t_0 = 0$}
-  \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
-  \State $t_k \gets \textproc{inv\_cdf}(\bm{r}, \tau_k)$
-  \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
-    \State $t^\star \gets t_k$
+\Function{Try}{$k$, $t_{\text{start}}$} \Comment{free flight of primitive $k$, measured from $t_{\text{start}}$}
+  \State $\tau \gets -\ln(1-\xi)$, \quad $\xi \sim \mathcal{U}[0,1)$ \Comment{drawn independently each call}
+  \State $t \gets \textproc{inv\_cdf\_span}(\bm{r}, t_{\text{start}}, \tau)$ \Comment{span-restricted inverse from $t_{\text{start}}$}
+  \If{$t_{\text{start}} \le t \le t_{\text{exit}}(k)$ \textbf{ and } $t < t^\star$}
+    \State $t^\star \gets t$ \Comment{nearest collision so far (the argmin)}
   \EndIf
+\EndFunction
+\ForAll{$k \in A$}
+  \State \Call{Try}{$k$, $0$} \Comment{origin inside: start at $0$}
 \EndFor
-\ForAll{$(t_{\text{entry}}, k) \in H$} \Comment{entered mid-segment: invert from $t_{\text{entry}}$}
-  \State $\tau_k \gets -\ln(1-\xi_k)$, \quad $\xi_k \sim \mathcal{U}[0,1)$
-  \State $t_k \gets \textproc{inv\_cdf\_segment}(\bm{r}, t_{\text{entry}}, \tau_k)$
-  \If{$0 \le t_k \le t_{\text{exit}}(k)$ \textbf{ and } $t_k < t^\star$}
-    \State $t^\star \gets t_k$
-  \EndIf
+\ForAll{$(t_{\text{entry}}, k) \in H$}
+  \State \Call{Try}{$k$, $t_{\text{entry}}$} \Comment{entered mid-ray: start at the entry}
 \EndFor
 \If{$t^\star = +\infty$} \State \Return \textsc{Escape} \EndIf
 \State \Return $t^\star$
 \end{algorithmic}
 \end{algorithm}
 
-\paragraph{Avoiding a rejection bias.} The two candidate categories are handled with slightly different
-inverses. A primitive the ray is already inside is inverted from the segment start ($t_0 = 0$). A
-primitive entered mid-segment must be inverted from its \emph{entry} distance, not from the ray origin;
-using the full-Gaussian inverse and rejecting samples that land before the entry would bias the result.
-The renderer therefore uses a segment-restricted inverse that solves $\tau_k(t_{\text{entry}}, t) =
-\tau_k$ directly, shifting the error-function reference to the entry point. This keeps every candidate
-unbiased by construction.
+\paragraph{Avoiding a rejection bias.} Both candidate categories use the same span-restricted inverse
+\textproc{inv\_cdf\_span}$(\bm{r}, t_{\text{start}}, \tau)$, which solves $\tau_k(t_{\text{start}}, t) =
+\tau$ directly for the distance $t$. A primitive the ray is already inside starts at $t_{\text{start}}=0$;
+a primitive entered mid-ray starts at its \emph{entry} distance, $t_{\text{start}}=t_{\text{entry}}$. The
+alternative---using the unrestricted full-Gaussian inverse and rejecting samples that land before the
+entry---would bias the result, because the rejected probability mass is dropped rather than re-rolled.
+Shifting the error-function reference to $t_{\text{start}}$ instead keeps every candidate unbiased by
+construction. (The implementation specialises $t_{\text{start}}=0$ to a separate \textproc{inv\_cdf}, a
+minor optimisation.)
 
 \paragraph{Novelty and prior art.} The components of this scheme are individually known: the
 minimum-of-free-flights identity is decomposition tracking~\cite{Kutz2017}; the closed-form Gaussian
@@ -288,18 +289,18 @@ splatting~\cite{StochasticSplats2025} on the rasterisation side. The contributio
 \emph{synthesis}: applying analog decomposition tracking to ray-traced Gaussian kernel-mixture volumes,
 so that the analytic per-primitive inverse makes each component's free flight a closed-form draw and
 the argmin replaces the reference's marching and root-finding entirely. The approach was suggested by
-Condor, a co-author of the reference~\cite{DSYG}---a direction its authors anticipated but had not
-implemented---and is realised and validated here, to the author's knowledge for the first time for this
-representation.
+Condor, the lead author of the reference~\cite{DSYG} (personal communication), and is realised and
+validated here, to the author's knowledge for the first time for this representation.
 
 \paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
 active set against the scene's $N$ primitives, plus an $O(A + H)$ pass over the $A$ active and $H$
 newly entered primitives to take the argmin. This replaces the reference's per-bounce boundary
-marching---an $O(A^2)$ running-minimum selection across segments---and its per-segment root-find with
+marching---an $O(H^2)$ running-minimum selection across segments---and its per-segment root-find with
 closed-form work, and---because the argmin needs no ordering---removes ordered boundary processing
-from the common (scattering) path altogether. The residual $O(N)$ active-set
-scan is the dominant per-bounce cost and the subject of one of the optimisations in
-\Cref{ch:optimization}.
+from the common (scattering) path altogether. The $O(N)$ active-set
+scan is the dominant per-bounce cost of the \emph{base} algorithm; \Cref{ch:optimization} runs the full
+scan only at the first bounce and inherits the active set thereafter, so the optimised renderer is no
+longer $O(N)$ per bounce.
 
 \section{Direct lighting and the path-tracing loop}
 \label{sec:direct-lighting}
@@ -318,9 +319,11 @@ resampled-importance-sampling variant that traces a single shadow ray, keeping t
 The primary (camera) ray's direct contribution is treated specially: rather than relying on the path to
 escape the medium and hit the environment, the renderer adds the analytic camera-to-environment term
 $T_{\text{cam}}\,L_{\text{env}}$ at bounce zero, where $T_{\text{cam}}$ is the closed-form transmittance
-through the medium along the view ray. This Rao--Blackwellises~\cite{Rao1945,Blackwell1947} the otherwise high-variance escape
-contribution---replacing a stochastically-sampled escape with its analytic expectation, which can only
-lower variance---for the cost of a single transmittance ray. Paths are terminated by Russian roulette beyond a configurable depth,
+through the medium along the view ray. This \emph{Rao--Blackwellises} the otherwise high-variance escape contribution: by the Rao--Blackwell
+theorem~\cite{Rao1945,Blackwell1947}, replacing a random estimator---here, whether a
+stochastically-sampled path happens to escape the medium and reach the environment---by its analytic
+conditional expectation ($T_{\text{cam}}\,L_{\text{env}}$) can only lower variance, and here it costs
+just one extra transmittance ray. Paths are terminated by Russian roulette beyond a configurable depth,
 with survival probability the throughput's largest channel clamped to \num{0.99}; surviving throughput
 is reweighted to keep the estimator unbiased.
 
@@ -354,50 +357,27 @@ structure whose representation is chosen at compile time by scene size: for up t
 array gives $O(k)$ operations in space proportional to the maximum overlap rather
 than the scene size. The relevant capacities---the active-set bound and the hit-buffer length---are
 compile-time constants, and want to be as small as is safe---though the two differ in how much
-tightness matters. The hit buffer (\SI{6}{\byte} per entry) is the binding one: a universal
-``safe'' build ($512/512$, the cap a user without tooling would pick) measured $+13\,\%$ frame time
-on the cloud, $+7\,\%$ on the explosion, and ${\sim}+3\,\%$ on the tornado and bunny against the
-per-asset-tuned builds. It costs memory too: the per-ray buffers live in thread-local memory, which
-the driver reserves for the device's maximum resident thread count, so the compiled cap sets a
-scene-independent floor on device memory. The safe build reserves a flat $1200\,$MiB on every asset,
+tightness matters. Both costs flow from one fact: the per-ray hit buffer and active set live in thread-local memory,
+which the driver reserves for the device's maximum resident thread count, so an oversized cap both
+lowers occupancy and sets a scene-independent floor on device memory. Against the per-asset-tuned
+builds, a universal ``safe'' build ($512/512$, the cap a user without tooling would pick) measured
+(interleaved, at locked clocks) $+14\,\%$ frame time on the cloud, $+8\,\%$ on the explosion, and
+$+7\,\%$ on the bunny,\footnote{The bunny figure used the \num{80}/\num{496} build; the canonical
+bunny cap is \num{80}/\num{528} (\Cref{tab:vram}), but the penalty is dominated by the active-set
+inflation ($80\to512$ below) and is insensitive to the hit cap at this level.} and was within
+run-to-run jitter on the tornado. The cost is not extra
+computation but reduced occupancy: a larger per-ray reservation lets fewer rays run on the GPU at once,
+so it hides less of the memory-access latency that dominates this kernel (\Cref{sec:bottleneck}). The
+effect is asset-dependent and does not reduce to any single cap. The safe build reserves a flat $1200\,$MiB on every asset,
 whereas the per-asset-tuned builds use $578$--$900\,$MiB---a saving of $0.30$--$0.62\,$GiB
 ($25$--$52\,\%$). The effect is large enough to flip the cross-renderer memory comparison: tuned, the
 renderer's peak device memory on the cloud ($578\,$MiB) sits \emph{below} the Mitsuba reference's
 ($838\,$MiB) on the same scene, while the untuned safe build ($1200\,$MiB) exceeds it. The active set
-(\SI{2}{\byte} per entry) tolerates headroom: doubling its
+(\SI{2}{\byte} per entry) tolerates \emph{modest} headroom: doubling its
 capacity beyond the cloud's worst case measured as timing-neutral in an interleaved A/B (differences
-under the run-to-run jitter), with renders numerically equivalent. Tightness therefore matters mainly
-for the hit-buffer capacity; the active-set capacity needs only adequacy.
-
-\begin{figure}[htp]
-  \centering
-  \begin{tikzpicture}[every node/.style={font=\footnotesize}, cell/.style={draw, minimum height=6mm}]
-    % hit buffer row
-    \node[anchor=east] at (-0.2, 0.9) {hit buffer ($H{\times}6$\,B)};
-    \foreach \i [count=\j from 0] in {0,1,2,3,4} {
-      \node[cell, minimum width=13mm, fill=blue!10] (h\j) at (\j*1.35, 0.9) {\scriptsize $(t,\,\text{idx})$};
-    }
-    \node[cell, minimum width=13mm, draw=gray!50, fill=gray!6] at (5*1.35,0.9) {\scriptsize $\cdots$};
-    \node[gray] at (2.7,1.55) {\scriptsize capacity $H$ (compile-time)};
-    % active set row
-    \node[anchor=east] at (-0.2, 0) {active set ($A{\times}2$\,B)};
-    \foreach \j in {0,1,2,3,4,5} {
-      \node[cell, minimum width=7mm, fill=orange!12] at (\j*0.78, 0) {\scriptsize idx};
-    }
-    \node at (5.0, 0) {\scriptsize bit-vector / compact array};
-    % per-thread annotation
-    \draw[->] (3.0,-0.55) -- (3.0,-0.30);
-    \node[align=center] at (3.0,-0.85)
-      {reserved \emph{per resident thread} $\Rightarrow$ scene-independent VRAM floor};
-  \end{tikzpicture}
-  \caption{Per-ray state, the kernel's dominant footprint. Each thread holds a fixed-capacity hit buffer
-  ($H$ entries of $(t_{\text{hit}},\text{primitive index})$ at \SI{6}{\byte}) and a small active-set
-  membership structure ($A$ entries at \SI{2}{\byte}). Both capacities are compile-time constants;
-  because thread-local memory is reserved for the device's maximum resident thread count, the hit-buffer
-  cap $H$ sets a \emph{scene-independent} device-memory floor (the safe $512$ build reserves
-  \SI{1200}{MiB}; per-asset tuning cuts this to \SIrange{578}{900}{MiB}, \Cref{sec:results-memory}).}
-  \label{fig:per-ray-state}
-\end{figure}
+under the run-to-run jitter), with renders numerically equivalent. What ultimately matters is the total
+reserved bytes per ray, not which cap: the hit buffer consumes them three times faster per entry and is
+the more sensitive cap, but a large active-set increase ($80\to512$ on the bunny) is not free either.
 
 Sizing is by \emph{measurement}, not guesswork: a \texttt{--measure-caps} render mode counts, with
 cap-independent counters (the collection shader counts \emph{dropped} hits too, and point-overlap is
@@ -408,10 +388,11 @@ deliberately \emph{unmeasured} seed. For the primary cloud scene the measured wo
 simultaneously overlapping primitives, \num{85} entries on the worst ray---sits comfortably inside
 the calibrated capacities, and the runtime counter below records zero overflows. A complementary
 offline estimator Monte~Carlo-samples points and lines through the scene's bounding box against each
-primitive's exact $3\sigma$ ellipsoid, giving a camera-independent \emph{ceiling} before any build
-(\Cref{tab:overlap}); measurement on the \num{25600}-Gaussian bunny shows why the in-render counters,
-not the estimator, are the sizing authority---the whole-bbox bound over-sized the bunny's active set
-four-fold (\num{320} suggested vs.\ \num{71} measured), while its sampled lines \emph{under}-shot the
+primitive's $3\sigma$ ellipsoid, giving a cheap camera-independent \emph{estimate} before any build
+(\Cref{tab:overlap}). It is an estimate, not a guaranteed bound: measurement on the \num{25600}-Gaussian
+bunny shows why the in-render counters, not the estimator, are the sizing authority---the whole-bbox bound over-sized the bunny's active set
+four-fold (a margined cap of \num{320} from the \num{245} predicted overlap of \Cref{tab:overlap}, vs.\
+\num{71} measured), while its sampled lines \emph{under}-shot the
 worst observed ray by ${\sim}20\,\%$ (\num{387} vs.\ \num{464}), surviving only on its safety margin.
 A deliberately degenerate collinear stress test
 exercises the overflow path (\Cref{ch:validation}). Because no static cap can be guaranteed sufficient
@@ -436,9 +417,14 @@ rendering framework---which keeps the codebase compact and straightforward to ex
 features are toggleable without touching the core renderer: the OptiX denoiser (\texttt{--denoise}) and
 volumetric product-RIS (\texttt{--ris}, with candidate count \texttt{--ris-candidates}) are
 \emph{runtime} flags, while adaptive sampling and a fast-math $\operatorname{erf}$ are compile-time
-switches. The rendering parameters themselves are likewise exposed on the command line---samples per
-pixel (\texttt{--spp}), RNG seed (\texttt{--seed}), the density scale (\texttt{--sigma-multiplier}),
-phase anisotropy (\texttt{--hg-g}), maximum depth and Russian-roulette schedule
-(\texttt{--max-depth}, \texttt{--rr-depth}, \texttt{--rr-max-survival}), an optional firefly clamp and
-pixel filter (\texttt{--firefly-clamp}, \texttt{--filter-stddev}), and the cap-measurement mode
-(\texttt{--measure-caps})---so an experiment is specified entirely by its invocation.
+switches. The rendering parameters themselves are likewise exposed on the command line, so an experiment is
+specified entirely by its invocation:
+\begin{itemize}\sloppy
+  \item samples per pixel (\texttt{--spp}) and RNG seed (\texttt{--seed});
+  \item the density scale (\texttt{--sigma-multiplier}) and phase anisotropy (\texttt{--phase-g});
+  \item maximum path depth and the Russian-roulette schedule (\texttt{--max-depth},
+  \texttt{--rr-depth}, \texttt{--rr-max-survival});
+  \item an optional firefly clamp (\texttt{--firefly-clamp}) and pixel filter
+  (\texttt{--filter-width}); and
+  \item the cap-measurement mode (\texttt{--measure-caps}).
+\end{itemize}

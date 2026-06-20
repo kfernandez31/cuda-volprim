@@ -5,9 +5,9 @@ The validation of \Cref{ch:validation} established that the renderer is \emph{co
 measures what that correctness costs and what it buys. All numbers are taken at the renderer's
 operating point---the analytic built-in sphere, multiple-importance-sampled direct lighting, per-asset
 calibrated caps, exact \(\operatorname{erf}\)---on the RTX~3090 described in \Cref{sec:setup}, and the
-reference throughout is Jorge Condor's Mitsuba \texttt{volprim} implementation of
-DSYG~\cite{DSYG} on the same GPU. The chapter reports four axes on which the renderer can be compared to
-that reference independently of raw frame time: the energy bias and firefly behaviour of the two
+reference throughout is Condor's Mitsuba \texttt{volprim} implementation of
+DSYG~\cite{DSYG} on the same GPU. Beyond the headline equal-quality result (\Cref{sec:results-perf}),
+the chapter reports five axes on which the renderer can be compared to that reference independently of raw frame time: the energy bias and firefly behaviour of the two
 renderers' direct-lighting estimators (\Cref{sec:results-firefly}), the practical noise reduction of
 post-process denoising (\Cref{sec:results-denoiser}), the device-memory footprint and what per-asset
 cap calibration saves (\Cref{sec:results-memory}), the start-up and iteration latency that matter for
@@ -22,9 +22,14 @@ The headline result is an equal-quality comparison on the environment-lit showca
 reference's fast direct-lighting estimator (NEE) is energy-biased on this medium
 (\Cref{sec:results-firefly}), its \emph{only} unbiased configuration is the high-variance analog one.
 Against that honest baseline, this renderer---whose MIS direct lighting is both correct and
-low-variance---reaches a given noise level roughly \(\mathbf{59\times}\) faster (clipped per-pixel
-variance at equal render time; the raw, firefly-dominated ratio is far larger). This is the
-production-mode figure: the configuration one would actually use.
+low-variance---reaches a given noise level roughly \(\mathbf{59\times}\) faster at equal render
+time.\footnote{Equal-quality basis throughout this chapter (as introduced in \Cref{ch:validation}):
+the noise constant $k=\bar v\cdot\mathrm{spp}$, with $\bar v$ the mean per-pixel variance across
+independent seeds; the equal-quality speedup is the ratio of $k\cdot t$ (render time $t$). The
+\num{59} uses \emph{clipped} $k$---radiance clipped at the \num{99.9}th percentile of the whole image
+set (a single global threshold) before $\bar v$, which discounts the sparse fireflies; the raw,
+firefly-dominated ratio is far larger ($\approx\!2000\times$).} This
+is the production-mode figure: the configuration one would actually use.
 
 \paragraph{Isolating the sampler.} To separate the \emph{sampler} from the direct-lighting estimator,
 the two renderers can be compared in the \emph{same} (analog) mode---no NEE on either side. Under the
@@ -33,14 +38,18 @@ firefly-dominated (rare bright-sun escapes), so raw per-pixel variance favours t
 firefly-clamped variance favours this renderer, and no single equal-quality figure survives. A
 \emph{flat} (uniform) environment removes the fireflies on both sides and makes the comparison stable.
 There, at an equal sample count, this renderer is \(\mathbf{\sim\!3\times}\) faster per sample
-(\SI{2.85}{\second} versus \(\sim\)\SI{8.5}{\second} at \num{64}\,spp on the cloud)---the single-trace
-argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
+(\SI{2.90}{\second} versus \(\sim\)\SI{8.5}{\second} at \num{64}\,spp on the cloud)\footnote{The
+flat-env Mitsuba-analog frame time was not separately recorded; \SI{8.5}{\second} is the
+meadow-analog steady state reused, which the flat-env case can only match or beat, so the
+\(\sim\!3\times\) is if anything conservative. The \SI{2.90}{\second} is our locked-clock
+median.}---the single-trace argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
 the per-sample variance (both estimators unbiased; the converged means agree to \num{0.02}\,\%; the gap
 is the collision- versus track-length-estimator trade-off dissected in \Cref{sec:autopsies}), so the
 \emph{net} equal-quality figure is \(\sim\!0.6\times\). The architectural contribution
 (\Cref{ch:architecture}) is therefore a \emph{structural, throughput} simplification---march-free,
-sort-free, root-find-free, faster per sample---\emph{not} a per-sample variance reduction; the decisive
-equal-quality advantage is the correct, low-variance MIS estimator, not the bare sampler.
+sort-free, root-find-free, faster per sample---\emph{not} a per-sample variance reduction. What actually wins at
+equal quality is the MIS direct-lighting estimator---low-variance under the peaky environments that
+matter (\Cref{sec:ris})---not the argmin sampler on its own.
 
 \paragraph{The headline is environment importance sampling.} That \(59\times\) is specific to peaky
 illumination, and honestly so. On the same flat environment the MIS estimator carries no advantage at
@@ -53,9 +62,11 @@ environment-sampling machinery helps under peaky illumination and is counterprod
 renderer's advantage is concentrated exactly where production volumetric lighting lives.
 
 \paragraph{Beyond the cloud.} The bunny (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
-\num{64}\,spp, \(512^2\), under the meadow environment, with zero cap overflows---an internal scaling
+\num{64}\,spp, \(512^2\), under the meadow environment (the white-constant scattering configuration of
+\Cref{tab:asset-cost} is \SI{53.9}{\second}; same order), with zero cap overflows---an internal scaling
 point (its three native fit variants make a matched cross-renderer comparison ambiguous, so it is not
-run against Mitsuba).
+run against Mitsuba for the \emph{quality} comparison of \Cref{sec:results-generalisation}; its memory
+is still compared in \Cref{tab:vram}, where the fit choice is immaterial).
 
 \section{Energy bias and fireflies under environment lighting}
 \label{sec:results-firefly}
@@ -63,7 +74,9 @@ run against Mitsuba).
 The most consequential cross-renderer difference is not speed but \emph{correctness under production
 settings}. Both renderers offer an unbiased analog mode (direct lighting gathered only when a path
 escapes to the environment) and a faster mode that estimates direct lighting explicitly at each scatter
-vertex---next-event estimation (NEE) in the reference, multiple importance sampling (MIS) here. On a
+vertex: next-event estimation (NEE) in the reference, and here that same next-event estimation combined
+with phase-function sampling under multiple importance sampling (MIS)---so this renderer also performs
+NEE, but MIS-weighted with phase sampling rather than alone. On a
 dense scattering medium these are not interchangeable. \Cref{fig:g1-bias} renders the showcase cloud
 under the measured meadow environment three ways, each the mean of \num{16} independent \num{64}-spp
 seeds so that the differences are systematic, not noise: this renderer's MIS estimator, the reference's
@@ -101,14 +114,15 @@ firefly-prone analog one.
 \section{Denoising}
 \label{sec:results-denoiser}
 
-Where a converged image is not required, the integrated OptiX denoiser (a runtime flag,
-\Cref{sec:gpu-impl}; not part of the unbiased pipeline) is an effective post-process.
-\Cref{fig:denoise} denoises a \num{16}-spp cloud render against a \num{1024}-spp reference: the
-image-space RMSE falls from \num{0.353} to \num{0.049}, a \(7.2\times\) reduction, removing the
-fireflies and most of the stochastic grain while preserving the silhouette and the large-scale shading.
-As a learned post-process the denoiser trades a controlled, content-dependent bias for this noise
-reduction---it is reported as a practical option, not as part of the validated estimator---and its
-equal-quality effective-sample gain on the showcase is recorded in \Cref{tab:wins}.
+The optimisations so far are the renderer's own. NVIDIA's OptiX denoiser is a bonus of a different
+kind: a single library call wired in behind a runtime flag (\Cref{sec:gpu-impl}) at essentially no
+engineering cost, sitting entirely outside the unbiased estimator---but a large practical win wherever a
+converged image is not required. \Cref{fig:denoise} denoises a \num{16}-spp cloud render against a
+\num{1024}-spp reference: the image-space RMSE falls from \num{0.353} to \num{0.049}, a \(7.2\times\)
+reduction, removing the fireflies and most of the stochastic grain while preserving the silhouette and
+the large-scale shading---an effective ${\sim}30\times$ sample-equivalent on the showcase. As a learned
+post-process it trades a controlled, content-dependent bias for this noise reduction, so it is reported
+as a practical accelerator for beauty renders, not as part of the validated estimator.
 
 \begin{figure}[htp]
   \centering
@@ -130,27 +144,38 @@ acceleration structure itself is comparatively negligible (the instanced unit-sp
 \SI{0.10}{\mega\byte} compacted for the cloud, \SI{3.97}{\mega\byte} for the \num{25600}-Gaussian
 bunny). The comparison that matters is against the reference: on the cloud, the renderer's peak device
 memory is \textbf{\SI{578}{MiB}---\num{31}\,\% below Mitsuba's \SI{838}{MiB}} on the identical scene.
+Across the suite the picture is mixed, and worth stating plainly: the calibrated build sits below Mitsuba
+on the cloud and explosion (\num{31}\,\% and \num{26}\,\% less) but \emph{above} it on the denser tornado
+and bunny (\SI{818}{MiB} vs \SI{806}{MiB}, and \SI{900}{MiB} vs \SI{806}{MiB}), whose heavy overlap and
+\num{25600} primitives force the largest per-ray hit-buffer reservations. The memory win is therefore real
+where the worst-case per-ray hit count is modest and turns into a small premium on the densest assets---a
+direct consequence of the per-ray-reservation model (\Cref{sec:gpu-impl}), not of scene geometry.
 \Cref{tab:vram} reports the per-asset calibrated peak and, for context, what the calibration buys over a
 conservative \(512/512\) fallback (the smallest cap that is guaranteed not to overflow without per-asset
 measurement)---the difference between sitting below the reference on memory and above it.
 
 \begin{table}[htp]
   \centering
-  \begin{tabular}{@{}lrrrr@{}}
+  \begin{tabular}{@{}lrrrrr@{}}
     \toprule
-    Asset & caps (active/hit) & calibrated & safe \(512/512\) & saved \\
+    Asset & caps (act/hit) & ours & Mitsuba & safe \(512\) & saved \\
     \midrule
-    cloud     & \(64/96\)   & 578\,MiB & 1200\,MiB & 622\,MiB (52\,\%) \\
-    tornado   & \(112/384\) & 818\,MiB & 1200\,MiB & 382\,MiB (32\,\%) \\
-    explosion & \(32/160\)  & 600\,MiB & 1200\,MiB & 600\,MiB (50\,\%) \\
-    bunny     & \(80/528\)  & 900\,MiB & 1200\,MiB & 300\,MiB (25\,\%) \\
+    cloud     & 64/96   & 578 & 838 & 1200 & 622 (52\,\%) \\
+    tornado   & 112/384 & 818 & 806 & 1200 & 382 (32\,\%) \\
+    explosion & 32/160  & 600 & 806 & 1200 & 600 (50\,\%) \\
+    bunny     & 80/528  & 900 & 806 & 1200 & 300 (25\,\%) \\
     \bottomrule
   \end{tabular}
-  \caption{Peak device memory (per-process, polled during a render). The safe build reserves a flat
-  1200\,MiB on every asset---confirming the per-ray reservation, not the geometry, dominates.
-  Per-asset calibration cuts this to each asset's true demand, saving $0.30$--$0.62\,$GiB
-  ($25$--$52\,\%$); the saving tracks the hit-buffer cap (the near-\(512\) bunny saves
-  least).}
+  \caption{Peak device memory, all values in MiB (\(\text{saved}=\text{safe}-\text{ours}\)). Mitsuba is
+  measured on all four assets under each asset's matched config (the bunny via its Gaussian fit; the
+  fit ambiguity that keeps the bunny out of the cross-renderer \emph{quality} comparison does not affect
+  this memory one, which is fit-insensitive). Our figures are per-process (the \texttt{nvidia-smi} compute-apps query); Mitsuba's were
+  polled GPU-wide on an otherwise-idle GPU, so if anything they overstate Mitsuba's footprint (making the
+  cloud and explosion margins conservative). The safe build reserves a flat 1200\,MiB as $N$ varies \num{39}$\times$,
+  showing geometry does not drive VRAM; the calibrated-vs-safe delta at fixed geometry
+  (cloud $1200\to578\,$MiB, caps only) isolates the per-ray reservation as the dominant term. Per-asset
+  calibration saves $0.30$--$0.62\,$GiB ($25$--$52\,\%$); the saving tracks the hit-buffer cap (the
+  near-\(512\) bunny saves least).}
   \label{tab:vram}
 \end{table}
 
@@ -164,13 +189,13 @@ its frame time (\Cref{sec:gpu-impl}). The per-asset savings range from \num{25} 
 \label{sec:results-startup}
 
 For an interactive or iterative workflow the relevant cost is not only the converged frame time but the
-fixed latency before the first pixel. Both figures below are the time-to-first-render on the cloud scene
+fixed latency before the first pixel. The timings below are each the time-to-first-render on the cloud scene
 (median of three fresh processes, isolated as first-render minus steady-state frame time). The
 reference, built on Mitsuba's just-in-time-compiled Dr.Jit
 backend, pays a one-time kernel-compilation cost on each fresh process: \SI{0.78}{\second} warm (cached
 kernels) and \SI{2.20}{\second} cold. This renderer's ahead-of-time-compiled OptiX-IR pipeline loads
-and launches in \SI{0.39}{\second}---roughly half the reference's warm start and an order of magnitude
-under its cold start. The advantage is structural (compilation happens at build time, not run time),
+and launches in \SI{0.39}{\second}---roughly half the reference's warm start and about a fifth of its
+cold start. The advantage is structural (compilation happens at build time, not run time),
 asset-independent (it is pipeline setup, not scene work), and
 compounds across the many short renders a parameter sweep or a debugging session entails.
 
@@ -178,30 +203,30 @@ compounds across the many short renders a parameter sweep or a debugging session
 \label{sec:results-generalisation}
 
 Beyond the cloud, the renderer was checked against the reference on two further DSYG assets---a tornado
-and an explosion plume---using Jorge's native primitive files so that both renderers consume identical
-geometry. Each is rendered in absorption under a constant-white environment from a matched diagonal
+and an explosion plume---using Condor's native primitive files so that both renderers consume identical
+geometry. Each is rendered in uniform-albedo-\num{0.9} scattering under a constant-white environment from a matched diagonal
 view (the configuration that makes the comparison reference-adjudicable, \Cref{sec:money-shot}), and the
-metric is the converged-mean radiance ratio (flip-invariant, so the known camera-flip is immaterial).
+metric is the converged-mean radiance ratio.
 The ratio is \num{0.99911} on the tornado and \num{1.00006} on the explosion: cloud-class agreement, to
-within \num{0.01}--\num{0.09}\,\%. \Cref{fig:generalisation} shows that the agreement is not merely a
+within \num{0.006}--\num{0.09}\,\%. \Cref{fig:generalisation} shows that the agreement is not merely a
 mean coincidence: the two renderers' images are visually indistinguishable, and their amplified
 difference is unstructured---it has no localised feature, which by the differential-validation criterion
 of \Cref{sec:reference-problem} (a \emph{structured} difference localises a discrepancy; an unstructured,
-mean-matching one is Monte-Carlo noise) is the signature of agreement rather than a residual bias. These
+mean-matching one is consistent with Monte-Carlo noise) is the signature of agreement rather than a
+residual bias---bounding any systematic difference below the precision the test resolves, rather than
+proving it exactly zero. These
 gates confirm that the renderer's correctness is not cloud-specific and qualify both assets for the
 equal-quality timing comparison.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/generalisation.pdf}
-  \caption{Cross-renderer generalisation on two further DSYG assets, absorption under a constant-white
+  \caption{Cross-renderer generalisation on two further DSYG assets, uniform-albedo-\num{0.9} scattering under a constant-white
   environment from a matched diagonal view, \num{256}\,spp. \emph{Left to right:} this renderer,
   Mitsuba-analog, and the absolute difference amplified \(10\times\). The converged-mean ratios are
   \num{0.9991} (tornado, top) and \num{1.0001} (explosion, bottom); the amplified difference is
   unstructured grain with no localised feature---by the criterion of \Cref{sec:reference-problem} the
-  signature of Monte-Carlo noise, not a residual bias---so the agreement is not specific to the cloud.
-  (Our frame is shown vertically flipped to match Mitsuba's orientation---the known asset-validation
-  camera flip, immaterial to the flip-invariant mean.)}
+  signature of Monte-Carlo noise, not a residual bias---so the agreement is not specific to the cloud.}
   \label{fig:generalisation}
 \end{figure}
 
@@ -221,11 +246,14 @@ three seeds at the pinned clocks of \Cref{sec:setup} (\num{512}\textsuperscript{
   \centering
   \includegraphics[width=\linewidth]{figures/scaling.pdf}
   \caption{Render time (\emph{left}) and device memory (\emph{right}) versus primitive count \(N\),
-  log--log. \emph{Left:} a controlled synthetic sweep of square \(k\times k\) grids of \emph{identical}
-  Gaussians (\(N=16\) to \num{4096}; one fixed binary, constant caps, constant \(1\!:\!1\) aspect, so
-  only the count changes) grows as \(t\propto N^{0.40}\)---a \(256\times\) increase in primitives costs
-  only \(\sim\!10\times\) the time, the sub-linear behaviour the BVH affords. Production assets are not
-  plotted here (they confound \(N\) with packing density; their costs are in \Cref{tab:asset-cost}).
+  log--log. \emph{Left:} a controlled synthetic sweep of \(k\times k\) grids of \emph{identical}
+  Gaussians (one fixed binary, constant caps). The fit \(t\propto N^{0.40}\) (\(R^2=0.96\)) is over the
+  four \emph{square} grids \(N\in\{16,256,1024,4096\}\) (filled), which hold a constant \(1\!:\!1\)
+  aspect so only the count changes---a \(256\times\) increase in primitives costs only
+  \(\sim\!10\times\) the time, the sub-linear behaviour the BVH affords. The three \(1\!:\!2\)
+  rectangular grids up to \(N=8192\) (open markers) change aspect and screen coverage, confounding
+  \(N\), and are excluded from the fit. Production assets are not plotted here (they confound \(N\)
+  with packing density; their costs are in \Cref{tab:asset-cost}).
   \emph{Right:} peak device memory is \emph{flat} in \(N\) at a fixed
   cap (the synthetic sweep holds the \(512/512\) safe build at \SI{1200}{MiB} from \(N=16\) to
   \num{8192}), because the per-ray local-memory reservation dominates (\Cref{sec:results-memory}); the
@@ -235,10 +263,15 @@ three seeds at the pinned clocks of \Cref{sec:setup} (\num{512}\textsuperscript{
   \label{fig:scaling}
 \end{figure}
 
-\paragraph{Time.} On the synthetic square grids---identical Gaussians, identical caps, only the count
-changing---render time scales as \(t\propto N^{0.40}\): doubling the primitive count adds roughly a
-third to the frame time, not double, and a \(256\times\) increase in primitives costs only
-\(\sim\!10\times\) the time. This is the acceleration structure doing its job: per-ray work is bounded
+\paragraph{Time.} The synthetic sweep measured seven grids; the \emph{square} family alone---identical
+Gaussians, identical caps, constant \(1\!:\!1\) aspect, only the count changing
+(\(N\in\{16,256,1024,4096\}\))---isolates \(N\) cleanly, because the three \(1\!:\!2\) rectangular grids
+change aspect and screen coverage and so confound the count (the full series is non-monotonic). Over the
+four square grids render time fits a \emph{power law} \(t\propto N^{0.40}\)---a straight line in the
+log--log plot, \(\log t = b\log N + \mathrm{const}\) fitted by least squares, with exponent \(b=0.40\)
+(\(n=4\), \(R^2=0.96\)): the fitted exponent implies a per-doubling factor of \(\sim\!1.3\times\) rather
+than \(2\times\), and a \(256\times\)
+increase in primitives costs only \(\sim\!10\times\) the time. This is the acceleration structure doing its job: per-ray work is bounded
 by the primitives a ray actually traverses, not the scene total, so the geometry cost is firmly
 sub-linear in \(N\). \Cref{tab:asset-cost} lists the four production assets' costs under a matched
 configuration. They are deliberately \emph{not} read as a scaling curve: from the cloud (\num{652}) to

@@ -17,18 +17,18 @@ Most quantities in physically based rendering are integrals with no analytic sol
 (MC) integration estimates $\int_{\Omega} f(\bm{x})\,\mathrm{d}\bm{x}$ as a weighted average of the
 integrand at random sample points $\bm{x}_i$ drawn from a probability density $p$:
 \[
-  \langle F \rangle = \frac{1}{N}\sum_{i=1}^{N} \frac{f(\bm{x}_i)}{p(\bm{x}_i)},
+  \langle F \rangle = \frac{1}{n}\sum_{i=1}^{n} \frac{f(\bm{x}_i)}{p(\bm{x}_i)},
   \qquad \bm{x}_i \sim p .
 \]
 The estimator is unbiased---its expected value is exactly the integral, so its error is random noise
 that averages out rather than a systematic offset that does not---for any $p$ whose support covers that
-of $f$, and---crucially---its variance falls as $O(1/N)$ (when $f/p$ has finite variance), so the error falls as $O(1/\sqrt{N})$ \emph{independently of
+of $f$, and---crucially---its variance falls as $O(1/n)$ (when $f/p$ has finite variance), so the error falls as $O(1/\sqrt{n})$ \emph{independently of
 dimension}. This dimension-independence is why MC is the workhorse for the high-dimensional
 transport integrals below, where deterministic quadrature is hopeless.
 
-The constant hidden in that $1/\sqrt{N}$ rate is what every variance-reduction technique in this
+The constant hidden in that $1/\sqrt{n}$ rate is what every variance-reduction technique in this
 thesis targets. \emph{Importance sampling}---choosing $p$ to resemble $f$---shrinks it, vanishing
-entirely when $p \propto f$. Two consequences recur. First, because error scales as $1/\sqrt{N}$,
+entirely when $p \propto f$ (for non-negative $f$). Two consequences recur. First, because error scales as $1/\sqrt{n}$,
 halving the noise costs four times the samples; constant-factor variance reductions are therefore
 worth real effort (\Cref{ch:optimization}). Second, replacing pseudo-random points with a
 low-discrepancy sequence such as Sobol~\cite{Sobol1967} with Owen scrambling~\cite{Owen1998} can
@@ -37,9 +37,13 @@ does not adopt.
 
 \begin{figure}[htp]
   \centering
-  \includegraphics[width=11cm]{images/monte-carlo-integration-2.png}
-  \caption{Monte~Carlo integration of $f(x)=e^{-x^2/2}$: the estimate is the sample mean of
-  $f/p$, converging to the true integral as the number of samples grows.}
+  \includegraphics[width=\linewidth]{figures/mc_integ.pdf}
+  \caption{Monte~Carlo integration of $f(x)=e^{-x^2/2}$ (true value $\sqrt{2\pi}$), estimated by the
+  sample mean of $f/p$. \emph{Left:} one running estimate settles onto the true value as samples
+  accumulate, inside the shrinking $\pm1.96\,\sigma/\sqrt{n}$ band (a 95\,\% CLT confidence interval).
+  \emph{Right:} the RMS error over
+  \num{256} independent runs falls along a slope-$(-1/2)$ line---error $\propto 1/\sqrt{n}$, so halving
+  it costs four times the samples.}
   \label{fig:mc-integ}
 \end{figure}
 
@@ -154,7 +158,9 @@ extinction field is modelled as a weighted sum of $N$ Gaussian kernels, in gener
   \exp\!\Big(-\tfrac{1}{2}(\bm{x}-\bm{\mu})^{\!\top}\Sigma^{-1}(\bm{x}-\bm{\mu})\Big),
 \]
 where each kernel has a mean $\bm{\mu}_k$ (its centre), a covariance $\Sigma_k$ (its anisotropic
-extent and orientation), and a weight $w_k$ (a peak-extinction amplitude). Such mixtures are fit to a reference
+extent and orientation), and a weight $w_k$ (a peak-extinction amplitude; \Cref{ch:architecture} works
+with the equivalent mass-normalised form, in which the per-primitive $\sigma_t$ absorbs the
+$(2\pi)^{-3/2}\prod_i s_i^{-1}$ normalisation). Such mixtures are fit to a reference
 volume by expectation--maximisation or, in the radiance-field setting, by gradient descent against
 images; the primitives are the same anisotropic 3D Gaussians popularised by 3D Gaussian
 Splatting~\cite{3DGS} and carried into volumetric ray tracing by Condor et al.~\cite{DSYG}
@@ -178,14 +184,15 @@ form, eliminating the segment marching and root-finding the reference requires.
   \includegraphics[width=11cm]{images/dsyg-gmms.png}
   \caption{A ray traversing a Gaussian kernel mixture. Each primitive's contribution to the optical
   depth along the ray---and the overlap region of primitives $\mathcal{P}_2$ and
-  $\mathcal{P}_3$---is available in closed form, avoiding stochastic estimation of the extinction.}
+  $\mathcal{P}_3$---is available in closed form, avoiding stochastic estimation of the extinction.
+  Reproduced from~\cite{DSYG}.}
   \label{fig:gmms}
 \end{figure}
 
 Condor et al.~\cite{DSYG} additionally explore Epanechnikov kernels, which decay to exactly zero at
 a finite radius rather than asymptotically. Compact support reduces the average number of primitives
-overlapping a ray and packs more tightly into the acceleration structure, often improving both speed
-and fidelity; this thesis retains the Gaussian kernel (\Cref{ch:optimization} notes where the choice
+overlapping a ray and packs more tightly into the acceleration structure, which the reference reports
+can improve reconstruction efficiency; this thesis retains the Gaussian kernel (\Cref{ch:optimization} notes where the choice
 would matter) but the analytic machinery applies to either.
 
 \section{Ray tracing on the GPU}
@@ -194,19 +201,11 @@ would matter) but the analytic machinery applies to either.
 Rendering a kernel-mixture volume by ray tracing requires, for every camera ray, finding which
 primitives it intersects and in what order. A ray is the half-line $\bm{r}(t)=\bm{o}+t\bm{d}$, and
 testing it against a single bounded primitive is a cheap algebraic intersection; testing it against
-all $N$ primitives in a scene is not. \emph{Acceleration structures} reduce this from $O(N)$ to
-$O(\log N)$ by pruning whole groups of primitives at once. The dominant choice is the bounding
-volume hierarchy (BVH)~\cite{MacDonaldBooth1990,SpatialAccelerationStructures}, a tree of nested
-bounding volumes in which a ray that misses a node misses everything beneath it
-(\Cref{fig:bvh-dragon}).
-
-\begin{figure}[htp]
-  \centering
-  \includegraphics[width=11cm]{images/bvh-dragon.png}
-  \caption{A bounding volume hierarchy over a detailed model~\cite{ChineseDragon}: a ray that misses
-  a node's bounding box skips every primitive contained in that subtree.}
-  \label{fig:bvh-dragon}
-\end{figure}
+all $N$ primitives in a scene is not. \emph{Acceleration structures} reduce this from $O(N)$ to a typical
+$O(\log N)$ by pruning whole groups of primitives at once---the spatial analogue of a binary search.
+The dominant choice is the bounding
+volume hierarchy (BVH)~\cite{KayKajiya1986,MacDonaldBooth1990}, a tree of nested
+bounding volumes in which a ray that misses a node misses everything beneath it.
 
 Contemporary GPUs implement BVH traversal and ray--box/ray--primitive intersection in dedicated
 hardware, exposed through programmable pipelines such as NVIDIA OptiX~\cite{Optix}. An OptiX pipeline

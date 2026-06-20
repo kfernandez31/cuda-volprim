@@ -55,6 +55,9 @@ else
      --out "$FIG/roofline.pdf"
 fi
 
+# --- 4b. Monte-Carlo convergence (Ch 2 background): self-contained, no CSV ---
+"$PY" "$ROOT/scripts/plots/mc_integ.py" --out "$FIG/mc_integ.pdf"
+
 # --- 5-7. Validation montages (Ch 5): assembled from renders, placeholder until then ---
 ph --title "Absorption validation ladder" \
    --note "single / overlap / cloud: renderer vs analytic, with RMSE" \

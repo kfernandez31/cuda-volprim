@@ -19,10 +19,14 @@ furnace value and from the independently-correct Mitsuba-analog reference.
 \section{Experimental setup}
 \label{sec:setup}
 
-All results in this thesis were measured on a single workstation: an NVIDIA GeForce RTX~3090 (Ampere,
-compute capability~8.6, \SI{24}{\giga\byte}), with the renderer built on CUDA and OptiX~9 in its
-release configuration (\texttt{-O3}, \texttt{-{}-use\_fast\_math}). The Mitsuba~3 reference runs on the
-same GPU through its CUDA backend, so cross-renderer comparisons are on identical hardware. Unless noted
+All results in this thesis were measured on a single workstation---an NVIDIA GeForce RTX~3090 (Ampere,
+compute capability~8.6, \SI{24}{\giga\byte})---with one explicitly-scoped exception noted below. The
+renderer is built on CUDA and OptiX~9 in its release configuration (\texttt{-O3},
+\texttt{-{}-use\_fast\_math}). The Mitsuba~3 reference runs on the same GPU through its CUDA backend, so
+cross-renderer comparisons are on identical hardware. The lone exception is the Shader Execution
+Reordering probe of \Cref{sec:ser}, which requires Ada-generation hardware and was therefore run on a
+rented NVIDIA GeForce RTX~4090 (Ada, compute capability~8.9; CUDA~13.2, driver~595.58); those figures are
+marked throughout as a cross-architecture probe and feed into no 3090 result. Unless noted
 otherwise, every timing figure is taken at a single fixed operating point---the card's sustained full
 clock---to avoid clock-throttling artefacts (\Cref{sec:compare-correctly}); the equal-quality metric,
 being a ratio, is robust to the operating point regardless. Every timing A/B additionally
@@ -46,12 +50,13 @@ of every result below. Where an even stronger check exists---a scene with a clos
 renderer is held to that analytic ground truth directly.
 
 \paragraph{A reference is only as good as its configuration.} A reference image carries no meaning
-without the exact configuration that produced it. The same cloud, rendered from the same camera, spans a
-more-than-threefold range of mean radiance depending \emph{solely} on render settings
-(\Cref{tab:ref-config}): the integrator (physically based path tracing versus the optimisation
-pipeline's tomographic line integral), the density scale (the $\sigma$-multiplier $7.5$ versus an
-exploratory $60$), and whether scattering is enabled. The optimisation-pipeline renders shipped
-alongside each asset (\texttt{reference\_pyrN} and \texttt{optimized\_pyrN}) are therefore \emph{not}
+without the exact configuration that produced it---integrator, density scale, and lighting. The
+distinction that matters most is the \emph{integrator}: the optimisation-pipeline renders shipped
+alongside each asset (\texttt{reference\_pyrN} and \texttt{optimized\_pyrN}) come from a
+\emph{tomographic} line integral, not physically based path tracing. On the identical cloud from the
+identical camera, that shipped tomographic reference reads a mean radiance of $0.53$ against this
+renderer's path-traced $0.31$---roughly $1.7\times$ apart \emph{purely} from the convention difference,
+before scattering or any $\sigma$-scale choice enters. The shipped renders are therefore \emph{not}
 valid targets for this renderer: they depict the fit's target volume and the fitted primitives in the
 optimiser's own tomographic convention, not a path-traced image under our configuration. Chasing them by
 tuning the density scale silently conflates an integrator mismatch, a convention mismatch, and---for the
@@ -59,25 +64,6 @@ target render---the Gaussian \emph{fit} error, which is not the renderer's to ab
 this chapter is therefore made only against references regenerated under the renderer's own configuration
 (matched primitive-for-primitive: same integrator, $\sigma$-scale, camera, and lighting); the agreement
 those achieve is meaningful precisely because the configuration is controlled.
-
-\begin{table}[htp]
-  \centering
-  \begin{tabular}{@{}llc@{}}
-    \toprule
-    Integrator & Configuration & mean radiance \\
-    \midrule
-    path tracer & $\sigma$-scale $7.5$, scattering (env-lit) & $0.31$ \\
-    path tracer & $\sigma$-scale $7.5$, absorption           & $0.42$ \\
-    tomography  & optimisation-pipeline convention           & $0.53$ \\
-    path tracer & $\sigma$-scale $60$, scattering            & $1.04$ \\
-    \bottomrule
-  \end{tabular}
-  \caption{The identical cloud asset, from the identical camera, yields mean radiance over a
-  $3.4\times$ range depending solely on the render configuration. A reference image is a valid
-  correctness target only when its full configuration is known and reproduced; the optimisation-pipeline
-  renders shipped with the assets use a different (tomographic) configuration and are not used here.}
-  \label{tab:ref-config}
-\end{table}
 
 \subsection{An independent integrator: a voxel-grid cross-check}
 \label{sec:voxel-gt}
@@ -141,8 +127,9 @@ the bias term is zero to within the noise---the precise sense in which two rende
 \emph{converged} means---or, where available, against an analytic value---while \emph{efficiency} is
 compared separately and at \emph{equal quality}: since Monte~Carlo error falls as
 $O(1/\sqrt{N})$ (\Cref{sec:monte-carlo}), the meaningful quantity is the noise constant
-$k = \mathrm{RMSE}^2 \cdot N$, and one renderer is faster than another only if it reaches the same $k$
-in less time. Raw frame-time comparisons at fixed sample count are reported only alongside this
+$k = \mathrm{RMSE}^2 \cdot N$ (equivalently, inter-seed variance $\times$ spp---the two coincide when
+both estimators are unbiased, as they are here, and the headline figures of \Cref{ch:results} use the
+variance form), and one renderer is faster than another only if it reaches the same $k$ in less time. Raw frame-time comparisons at fixed sample count are reported only alongside this
 equal-quality figure (\Cref{ch:results}).
 
 Two further controls matter. \emph{Fireflies}---rare, very bright samples---inflate RMSE out of
@@ -161,22 +148,27 @@ mixture is the closed-form optical depth of \Cref{sec:analytic-od}---so the grou
 integration from the stochastic scattering logic.
 
 \paragraph{Single Gaussian.} A single primitive integrates to a closed-form transmittance at every
-pixel. The renderer matches this analytic value to about $10^{-5}$---the pixel-filter jitter floor---confirming
-the ray--primitive transform, the erf-based optical depth, and the camera model; the small residual
-that remains is pixel-filter variance, not bias.
+pixel. Against the renderer's own analytic self-check the converged agreement is $\sim\!2\times10^{-5}$,
+confirming the ray--primitive transform, the erf-based optical depth, and the camera model. The montage
+in \Cref{fig:absorption-ladder} instead compares against an independent reimplementation of the closed
+form, which carries a small one-sided offset (ratio $1.0007$, RMSE $\sim\!7\times10^{-4}$, present even
+in the near-transparent background)---an antialiasing and exposure mismatch in that reimplementation,
+not a transport error in the renderer.
 
 \paragraph{Overlapping primitives.} The next rung stacks primitives so their Gaussians overlap, testing
 two things the single-Gaussian rung cannot: that the optical depths of overlapping primitives \emph{add}
 correctly along a ray, and that the active-set bookkeeping the argmin sampler relies on
 (\Cref{sec:adt})---which primitives a point lies inside---is maintained correctly. Up to the active-set
-capacity the renderer matches the analytic transmittance of the combined medium to $\sim\!10^{-4}$.
-Pushed past that capacity by a deliberately degenerate \emph{collinear} stress test---$K$ identical
+capacity the renderer matches the reference for the combined medium to $\sim\!10^{-4}$ in the mean; the
+closed-form check on additive optical depth is carried by the single-Gaussian rung and the collinear
+stress test below, not by this plotted pair (whose banked reference is Mitsuba).
+Pushed past that capacity by a deliberately degenerate \emph{collinear} stress test---$m$ identical
 Gaussians stacked so the exact answer is a single
-$K$-fold-denser Gaussian---it exposed, and then confirmed the fix for, the cap-overflow behaviour discussed
+$m$-fold-denser Gaussian---it exposed, and then confirmed the fix for, the cap-overflow behaviour discussed
 in \Cref{sec:gpu-impl}: past the old capacity the active set silently dropped primitives, producing a
-predictable under-absorption that matched $\exp(-\min(\text{cap},K)/K \cdot \tau_0)$ to $10^{-4}$. The
+predictable under-absorption that matched $\exp(-\min(\text{cap},m)/m \cdot \tau_0)$ to $10^{-4}$. The
 same stress test surfaced a \emph{reference} limitation---Mitsuba's volumetric primitive integrator
-itself under-absorbs as identical primitives are stacked---a reminder that "differential" cuts both
+itself under-absorbs as identical primitives are stacked---a reminder that ``differential'' cuts both
 ways and that the analytic check is the final arbiter.
 
 \paragraph{The cloud.} The top rung is the full \num{652}-primitive Disney cloud (the headline asset
@@ -184,16 +176,22 @@ throughout this thesis: Gaussians fit to the Disney/WDAS cloud volume). It match
 all $24$ camera views---against Mitsuba, with a float64 brute-force analytic transmittance adjudicating
 the edge band on a representative view---establishing absorption correctness at scene scale before
 scattering, and hence multiple sampled bounces, was introduced. The absorption ladder is therefore
-three rungs---single Gaussian (analytic), overlapping primitives (analytic + reference), full cloud
-(reference + analytic spot-check)---each adding one source of complexity over the last;
+three rungs---single Gaussian (analytic), overlapping primitives (reference, with additivity checked
+analytically via the collinear test), full cloud (reference + analytic edge-band spot-check)---each
+adding one source of complexity over the last;
 \Cref{fig:absorption-ladder} collects them.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/absorption_ladder.pdf}
   \caption{Absorption-only validation up the complexity ladder: a single Gaussian, an overlapping pair,
-  and the full cloud. The single Gaussian is held to its closed-form transmittance; the pair and cloud
-  are compared against Mitsuba with analytic spot-checks. The renderer matches view-independently.}
+  and the full \num{652}-primitive cloud. The single Gaussian is held to its closed-form transmittance;
+  the pair and cloud are compared against Mitsuba (additivity checked analytically via the collinear
+  test, and the cloud additionally against a float64 analytic edge-band spot-check across its \num{24}
+  views). Each rung is annotated with the converged-mean ratio and the per-pixel RMSE; the RMSE carries
+  the montage's Monte-Carlo noise and a small reimplementation offset and so sits above the mean
+  agreement (the single Gaussian's converged agreement against the renderer's own check is
+  $\sim\!2\times10^{-5}$).}
   \label{fig:absorption-ladder}
 \end{figure}
 
@@ -217,7 +215,8 @@ matches to within noise; the cluster and cloud rungs match in the bulk but leave
 convergence-stable residual in the \emph{overlap} region---a $+2\times10^{-4}$ core difference on the
 cluster (about six standard errors), echoed as ${+}1\times10^{-4}$ in the densest part of the cloud.
 It is below $0.2\%$ of the peak and confined to vertices where many primitives overlap; its likely
-cause is the argmin free-flight distribution under heavy overlap (\Cref{sec:adt}), and it is recorded
+causes are the argmin free-flight distribution under heavy overlap (\Cref{sec:adt}) or next-event
+shadow-ray transmittance evaluated from a vertex inside overlapping primitives, and it is recorded
 as an open item (\Cref{ch:conclusion}). The agreement everywhere else is the empirical evidence that
 the sampler is unbiased to within ${\sim}10^{-4}$: a grossly wrong free-flight distribution would
 shift the converged mean far more, and it does not (\Cref{fig:scattering-ladder}). That the
@@ -226,13 +225,15 @@ methodology resolves a $10^{-4}$ effect at all is itself a measure of its sensit
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/scattering_ladder.pdf}
-  \caption{Scattering unbiasedness on the full cloud (meadow, albedo $0.9$, $g=0.85$): the converged
-  mean radiance of this renderer (MIS) and Mitsuba-analog agree to \num{0.4}\,\% (both unbiased), while
-  the \emph{estimate} of that mean tightens ${\sim}68\times$ faster here---the analog reference's firefly
-  variance makes its mean-estimate standard error ${\sim}68\times$ wider at equal sample count (bands are
-  the s.e.\ of the mean at each budget). The single-Gaussian and cluster rungs agree the same way in the
-  mean; their per-pixel images are uninformative because scattering under a near-constant environment is
-  almost invisible and the analog reference is firefly-limited.}
+  \caption{Scattering unbiasedness on the full cloud (meadow, albedo $0.9$, $g=0.85$): as independent
+  \num{64}-spp seeds accumulate, the running mean of this renderer (MIS) and of the Mitsuba-analog
+  reference converge to the same value ($0.321$ and $0.320$, agreeing to \num{0.4}\,\%, both unbiased).
+  Ours snaps to it from the first seed; the firefly-prone analog wiggles in. The faint dots are the
+  per-seed estimates being averaged---ours forms a tight band while the analog scatters ${\sim}68\times$
+  wider, so its mean-estimate standard error is ${\sim}68\times$ larger at equal sample count. The
+  single-Gaussian and cluster rungs agree the same way in the mean; their per-pixel images are
+  uninformative because scattering under a near-constant environment is almost invisible and the analog
+  reference is firefly-limited.}
   \label{fig:scattering-ladder}
 \end{figure}
 
@@ -245,7 +246,7 @@ multiple importance sampling, and per-channel coloured albedo---a medium that sc
 fraction of light per RGB channel (a tinted, rather than grey, albedo). Each matches the reference to
 within Monte~Carlo noise, with one exception: coloured albedo leaves a small channel-dependent residual.
 It is the only \emph{feature-validation} exception; together with the overlap-region scattering residual
-of \Cref{sec:scattering-ladder} and a low-density brightness systematic, it is one of three small
+of \Cref{sec:scattering-ladder} and a ${+}1.8\times10^{-4}$ brightness systematic in low-density interiors, it is one of three small
 residuals documented as known limitations (\Cref{ch:conclusion}).
 
 One validation lesson generalises beyond this renderer and is worth stating: an environment-map
@@ -263,7 +264,7 @@ what cost in time and quality, becomes a separate question---a performance-engin
 
 The features are finally exercised together---the full cloud, under the measured HDR environment, with
 forward-scattering Henyey--Greenstein ($g = 0.85$) and MIS direct lighting. Against Mitsuba-analog the
-renderer matches the converged image across four well-separated views and, at equal quality, reaches it
+renderer agrees with the reference to within ${\sim}1\,\%$ across four well-separated views and, at equal quality, reaches it
 in less time while remaining free of the fireflies that the reference exhibits on this scene
 (quantified in \Cref{ch:results}). This
 combined result is the correctness foundation on which the performance study of \Cref{ch:optimization}
@@ -275,8 +276,8 @@ builds: every optimisation there is required to preserve this image, and is reve
   \includegraphics[width=\linewidth]{figures/showcase.pdf}
   \caption{The combined showcase: the full cloud under a measured HDR environment with forward
   Henyey--Greenstein scattering ($g = 0.85$). \emph{Left:} our MIS renderer; \emph{right:} Mitsuba's
-  only unbiased mode (analog)---each a single \num{64}-spp frame at matched render time
-  ($\approx\SI{9}{\second}$). The two agree on the converged image (means \num{0.321} versus
+  only unbiased mode (analog)---each a single \num{64}-spp frame (our frame $\approx\SI{9}{\second}$;
+  the Mitsuba-analog frame $\approx\SI{13.6}{\second}$ wall, including JIT start-up). The two agree on the converged image (means \num{0.321} versus
   \num{0.321}; the systematic brightness check is \Cref{fig:g1-bias}), yet at this budget ours is
   firefly-free while the reference's analog mode is dominated by fireflies---the difference is variance,
   not bias, and its equal-quality cost is quantified in \Cref{ch:results}.}

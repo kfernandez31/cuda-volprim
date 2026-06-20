@@ -77,3 +77,16 @@ deficit-framing removed.
 **THESIS WIRING TODO:** G1 (B + 59×) → Ch7 headline; `tab:wins` ladder rows (after G2); render figures → Ch5/showcase; G5b → Ch4/results.
 
 **PENDING DECISIONS (Kacper):** G1 framing (lean: B + B-justified-59×; A optional via fix) — he was deciding; pure-analog code fix yes/no; merge `main` already done; deprecated-*/worktree cleanup is his.
+
+---
+## EXAMINER RE-VERIFICATION (2026-06-15, independent recompute from banked EXRs)
+Recomputed from g1_seeds/ (16 seeds, 64 spp, RGB-avg convention) with system python3+OpenEXR:
+- means: ours-MIS 0.3214, Mitsuba-analog 0.3201, Mitsuba-NEE 0.8199 — EXACT match.
+- bias vs analog GT: Mitsuba-NEE +156.1%, ours-MIS +0.4% — EXACT match.
+- k_raw: ours 1.985, mits 3898.6 -> raw ratio 1964x (~"2000x").
+- k_clip999 (DOCUMENTED method = clip raw radiance at 99.9th pct THEN variance, run_g1_flat.sh:49):
+  ours 1.887, mits 110.59 -> CLIP RATIO 58.6x = the 59x headline. REPRODUCES.
+  NOTE: a different clip (clipping the per-pixel k array, run_g1_analog.sh:41) gives ~1520x, NOT 59x;
+  the headline depends on the raw-radiance clip convention, which the flat/locked scripts use.
+- flat-env: ours-analog 2.98x faster/sample, 4.99x higher variance, net 0.60x — EXACT match to g1_flat.md.
+Verdict: headline + bias SUPPORTED, framing honest (env-IS scoped, NEE-bias disclosed, no hobble spin).

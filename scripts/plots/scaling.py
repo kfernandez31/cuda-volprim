@@ -77,6 +77,11 @@ def main() -> None:
              label=f"power-law fit  $t\\propto N^{{{b:.2f}}}$")
     axT.scatter(Ns, ts, s=44, color="C0", zorder=4,
                 label="square grid (identical Gaussians)")
+    # 1:2 rectangular grids: shown but excluded from the fit (aspect/coverage confounds N)
+    rect = (kind == "synthetic") & ~is_sq
+    if rect.any():
+        axT.scatter(N[rect], t[rect], s=44, facecolors="none", edgecolors="0.55", zorder=3,
+                    label="rectangular grid (excluded from fit)")
     # Real assets are NOT plotted as a scaling series: they confound N with packing
     # density and extent (Table~\ref{tab:overlap}); their costs are tabulated separately.
 
