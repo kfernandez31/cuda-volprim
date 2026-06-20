@@ -20,7 +20,7 @@ namespace params {
 // Runtime-configurable render parameters. These were compile-time constants in
 // device/core/constants.cuh; promoting them to launch params lets a single binary render
 // validation / beauty / parity configs without a rebuild (and kills the CUDA-vs-Mitsuba
-// rebuild asymmetry for --hg-g / --max-depth). Defaults MIRROR constants.cuh.
+// rebuild asymmetry for --phase-g / --max-depth). Defaults MIRROR constants.cuh.
 //
 // UNBIASED, NOT bit-exact vs the old constexpr build: with the defaults the math is identical,
 // but under -use_fast_math the optimizer's FMA-contraction/codegen differs by ~1 ULP when a

@@ -17,6 +17,23 @@ else()
     set(THESIS_FAST_ERF_DEF "")
 endif()
 
+# Opt-in: OptiX Shader Execution Reordering (SER) in the path-tracing loop. Inserts one
+# optixReorder per bounce, keyed on the quantised scatter cell, to regroup divergent threads
+# (Ada+ hardware; a no-op on Ampere/Turing). Pure scheduling — image is unchanged. Cross-arch
+# probe for the §6 divergence autopsy; OFF by default so all 3090 builds are bit-identical.
+option(THESIS_ENABLE_SER "Insert OptiX Shader Execution Reordering in the path loop (Ada+; no-op otherwise)" OFF)
+if(THESIS_ENABLE_SER)
+    set(THESIS_SER_DEF -DTHESIS_ENABLE_SER)
+    message(STATUS "THESIS_ENABLE_SER=ON — device build inserts optixReorder per bounce (SER)")
+else()
+    set(THESIS_SER_DEF "")
+endif()
+
+# Free-form extra device defines for experiments (per-asset caps, SER hint variants). Pass a
+# semicolon-separated CMake list of raw -D flags, e.g.
+#   -DTHESIS_DEVICE_DEFS="-DTHESIS_HIT_BUFFER_CAPACITY=528;-DTHESIS_MAX_PRIMITIVES=32768"
+set(THESIS_DEVICE_DEFS "" CACHE STRING "Extra raw -D flags for the device (optix-ir) compile")
+
 # Track all device headers so changes trigger rebuild
 file(GLOB_RECURSE DEVICE_HEADERS
     "${DEVICE_DIR}/*.cuh"
@@ -46,6 +63,10 @@ add_custom_command(
         -DTHESIS_ENABLE_FAST_MATH
         # Opt-in approximate erf (empty unless -DTHESIS_ENABLE_FAST_ERF=ON at configure).
         ${THESIS_FAST_ERF_DEF}
+        # Opt-in SER reorder in the path loop (empty unless -DTHESIS_ENABLE_SER=ON at configure).
+        ${THESIS_SER_DEF}
+        # Free-form experiment defines (per-asset caps, SER hint variants); empty by default.
+        ${THESIS_DEVICE_DEFS}
         # Tessellated-icosphere GAS A/B (empty unless -DTHESIS_ICOSPHERE=ON). Threads the
         # toggle into the any-hit front-face filter; defined in cmake/Device.cmake.
         ${THESIS_ICOSPHERE_DEF}

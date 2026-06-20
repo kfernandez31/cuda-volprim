@@ -28,7 +28,7 @@ class THESIS_ALIGNMENT Primitive {
     // FIELD ORDER IS PERF-CRITICAL (do not reorder casually). The renderer is
     // global-load-latency bound on scattered Primitive reads (FINDINGS §8.29: ncu
     // long_scoreboard 3.65, 12.5B global loads vs 0.15B local). Every device hot-path
-    // method (transform_*_local, pdf, inv_cdf[_segment], optical_depth, evaluate_albedo)
+    // method (transform_*_local, pdf, inv_cdf[_span], optical_depth, evaluate_albedo)
     // reads center_, rot_quat_, rcp_scale_, density_norm_factor_, inv_cdf_factor_,
     // albedo_, optical_thickness_ — exactly 64 B — but NEVER scale_ (transforms use
     // rcp_scale_; scale_ is host-only, for the BVH localToWorld / PLY export). So the hot
@@ -188,14 +188,14 @@ class THESIS_ALIGNMENT Primitive {
     // Gaussian CDF and rejecting t < t_offset is biased: rejected samples are
     // dropped rather than re-rolled, so the primitive systematically
     // under-contributes scatter events. This variant samples directly from the
-    // segment-restricted CDF, yielding unbiased free-flight per SDTracking §4.1.
+    // span-restricted CDF, yielding unbiased free-flight per SDTracking §4.1.
     //
     // Math: identical to inv_cdf except the erf reference shifts from
     //   erf(wp/√2)  →  erf((wp + t_offset·|w|)/√2)
     // The perpendicular distance in whitened space is invariant under shifts
     // along the ray, so K (and hence the per-step erf advance tau/K) is unchanged.
     // `tau` is a sampled optical-depth threshold (NOT a uniform χ); see inv_cdf above.
-    __device__ float inv_cdf_segment(const geometry::Ray& ray, float t_offset, float tau) const {
+    __device__ float inv_cdf_span(const geometry::Ray& ray, float t_offset, float tau) const {
         namespace math = common::math;
 
         const auto w = transform_dir_local(ray.direction_);
@@ -217,7 +217,7 @@ class THESIS_ALIGNMENT Primitive {
 
 #ifdef THESIS_ENABLE_NUMERICAL_GUARDS
         if (!isfinite(raw_arg)) {
-            printf("ERROR: inv_cdf_segment erfinv_arg is NaN!\n");
+            printf("ERROR: inv_cdf_span erfinv_arg is NaN!\n");
             return -1.0f;
         }
 #endif // THESIS_ENABLE_NUMERICAL_GUARDS

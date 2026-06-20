@@ -119,14 +119,50 @@ extern "C" __global__ void __raygen__rg() {
                 ray, rng, event, miss, hit_buffer, /*first_bounce=*/bounce == 0,
                 bounce == 0 ? &camera_origin_inside : nullptr);
 
-            // First-bounce AOV capture. Normal: -ray.direction (camera-facing pseudo-normal,
-            // standard for media without true geometry). Albedo: scatter-point albedo on
-            // success, zero on escape (denoiser treats those regions as transparent).
-            if (bounce == 0) {
-                sample_aov_normal = -ray.direction_;
+#ifdef THESIS_ENABLE_SER
+#ifndef SER_CELL_INV
+#define SER_CELL_INV 8.0f
+#endif
+            // Shader Execution Reordering (Ada+; no-op on older HW): regroup the warp's threads by
+            // *where* they scattered so the downstream albedo / NEE-shadow / next-bounce traces run
+            // coherently (coalesced Primitive loads, one shading path). Image bit-identical (pure
+            // scheduling) — the §6 divergence lever the Ampere 3090 lacks. Build-time variants:
+            // SER_CELL_INV (hint cell size), THESIS_SER_NOHINT (group by hit only),
+            // THESIS_SER_BOUNCE0 (reorder only at the first, most divergent bounce).
+#ifdef THESIS_SER_BOUNCE0
+            if (bounce == 0)
+#endif
+            {
+#ifdef THESIS_SER_NOHINT
+                optixReorder();
+#else
+                unsigned int ser_hint = 0u;
                 if (result) {
-                    sample_aov_albedo = evaluate_albedo(event.position_, event.active_prims_);
+                    const float inv_cell = SER_CELL_INV;
+                    const int cx = static_cast<int>(event.position_.x * inv_cell);
+                    const int cy = static_cast<int>(event.position_.y * inv_cell);
+                    const int cz = static_cast<int>(event.position_.z * inv_cell);
+                    unsigned int h = static_cast<unsigned int>(cx * 73856093) ^
+                                     static_cast<unsigned int>(cy * 19349663) ^
+                                     static_cast<unsigned int>(cz * 83492791);
+                    ser_hint = (h ^ (h >> 13)) & 0xFFu;
                 }
+                optixReorder(ser_hint, 8);
+#endif
+            }
+#endif
+
+            // First-bounce AOV capture (denoiser guide layers). Gated on albedo_aov_ so the
+            // whole block branches away when --denoise is off (the default, and every perf/
+            // validation run): the AOV buffers are then unallocated and the captures feed only
+            // the already-gated Welford write-back below, so the work is pure waste otherwise.
+            // Normal: -ray.direction (camera-facing pseudo-normal, standard for media without
+            // true geometry). Albedo is captured further down by REUSING the scatter-point
+            // evaluate_albedo (same position + active set), avoiding a second identical scan
+            // over the active set — the exact scattered-Primitive-load pattern the kernel is
+            // latency-bound on (denoiser-on then runs evaluate_albedo once instead of twice).
+            if (bounce == 0 && launch_params.image_.albedo_aov_) {
+                sample_aov_normal = -ray.direction_;
             }
 
             // Rao-Blackwellized direct term: add the unscattered camera->env
@@ -192,6 +228,16 @@ extern "C" __global__ void __raygen__rg() {
 
             // Evaluate albedo at the scatter point
             const auto albedo = evaluate_albedo(event.position_, event.active_prims_);
+
+            // Reuse the scatter-point albedo for the bounce-0 denoiser AOV. This is reached only
+            // on result==true (past the escape break above), exactly matching the former bounce-0
+            // `if (result)` guard, so escapes still leave sample_aov_albedo at 0. evaluate_albedo
+            // is pure (no RNG, same position + active set), so the captured value is byte-identical
+            // to the deleted second call while saving a redundant active-set scan. Dead when AOVs
+            // are unallocated (--denoise off).
+            if (bounce == 0 && launch_params.image_.albedo_aov_) {
+                sample_aov_albedo = albedo;
+            }
 
             if constexpr (consts::ENABLE_NEE) {
                 const auto wi = ray.direction_;

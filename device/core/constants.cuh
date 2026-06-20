@@ -23,7 +23,10 @@ constexpr uint VISIBILITY_ALL = 0xFF;
 // Governs PrimsSet implementation selection:
 //   ≤256: BitVector<N>    — O(1) insert/erase, N/8 bytes, indexed by prim ID
 //   >256: CompactSet<N>   — O(k) insert/erase, 2*MAX_ACTIVE_PRIMS bytes, decoupled from scene size
-constexpr size_t MAX_PRIMITIVES = 1024;  // >256 → uses CompactSet (supports any scene size)
+#ifndef THESIS_MAX_PRIMITIVES
+#define THESIS_MAX_PRIMITIVES 1024
+#endif
+constexpr size_t MAX_PRIMITIVES = THESIS_MAX_PRIMITIVES;  // >256 → CompactSet (override -D per-asset)
 static_assert(MAX_PRIMITIVES <= std::numeric_limits<prim_idx_t>::max(),
               "MAX_PRIMITIVES exceeds prim_idx_t capacity — widen prim_idx_t in "
               "include/thesis/common/utils/types.h");
@@ -39,7 +42,10 @@ static_assert(MAX_PRIMITIVES <= std::numeric_limits<prim_idx_t>::max(),
 // negligible cost. The expensive buffer is HIT_BUFFER_CAPACITY below; keep it
 // modest. Proper fix for pathological overlap is graceful overflow, not a bigger
 // cap — see SG_active_prims_cap_bug.png / SG_stress_trend.png.
-constexpr size_t MAX_ACTIVE_PRIMS = 128;
+#ifndef THESIS_MAX_ACTIVE_PRIMS
+#define THESIS_MAX_ACTIVE_PRIMS 128
+#endif
+constexpr size_t MAX_ACTIVE_PRIMS = THESIS_MAX_ACTIVE_PRIMS;
 
 // Hit buffer capacity: max entry hits stored per ray.
 // On overflow the anyhit shader drops the excess hit but keeps traversing,
@@ -50,7 +56,10 @@ constexpr size_t MAX_ACTIVE_PRIMS = 128;
 // 256-caps cloud renders BIT-IDENTICAL), so kept at the validated 128. A ray
 // crossing >128 prim entries (very dense / collinear-stack scenes) will drop hits
 // → under-absorption; bump per-scene if needed, accepting the perf cost.
-constexpr size_t HIT_BUFFER_CAPACITY = 128;
+#ifndef THESIS_HIT_BUFFER_CAPACITY
+#define THESIS_HIT_BUFFER_CAPACITY 128
+#endif
+constexpr size_t HIT_BUFFER_CAPACITY = THESIS_HIT_BUFFER_CAPACITY;
 
 // Minimum ray segment length for optical depth integration
 // Segments shorter than this are considered degenerate

@@ -167,7 +167,7 @@ __device__ __forceinline__ int upper_bound(const float* cdf, int n, float u) {
             hi = mid;
         }
     }
-    return lo < n ? lo : n - 1;
+    return math::min(lo, n - 1);
 }
 
 __device__ __forceinline__ Sample sample(random::PCG32& rng) {
@@ -397,10 +397,10 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         // Independent per-primitive free-flight threshold (ADT requirement).
         const float tau_j = sample_free_flight_tau(rng);
 
-        // Segment-restricted CDF: solves optical_depth(ray, hit_t, t_scatter) = tau_j.
+        // Span-restricted CDF: solves optical_depth(ray, hit_t, t_scatter) = tau_j.
         // Replaces the prior full-Gaussian inv_cdf + reject (t_scatter >= hit.t_hit),
         // which was biased — rejected samples were dropped rather than re-rolled.
-        float t_scatter = prim.inv_cdf_segment(ray, hit_t, tau_j);
+        float t_scatter = prim.inv_cdf_span(ray, hit_t, tau_j);
 
         // Clamp FP undershoot: the true segment-CDF inverse is >= hit_t by construction
         // (optical depth from hit_t to hit_t is 0), but the erf/erfinv round-trip can
@@ -415,7 +415,7 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         }
 
         // Guard t_scatter >= 0 (mirrors the active-prims loop above). A degenerate primitive
-        // can make inv_cdf_segment saturate erfinv(±1) → ±inf / negative; without this guard a
+        // can make inv_cdf_span saturate erfinv(±1) → ±inf / negative; without this guard a
         // -inf t_scatter passes (-inf < t_scatter_min) and then (-inf <= t_exit), setting
         // t_scatter_min = -inf → scatter position = ray.at(-inf) = ±inf → NaN albedo/radiance
         // (the dense-asset NaN, FINDINGS §8.x). `>= 0` rejects negative, -inf AND NaN cleanly;

@@ -118,11 +118,11 @@ void list_scenes(std::string_view category = "all") {
 
     // Render parameters (promoted from constants.cuh — no rebuild needed to change these).
     app.add_option("--max-depth", config.max_depth, "Maximum path depth")->default_val(128)->check(CLI::PositiveNumber);
-    app.add_option("--hg-g", config.hg_g, "Henyey-Greenstein anisotropy g in (-1,1)")->default_val(0.85f)->check(CLI::Range(-0.999f, 0.999f));
+    app.add_option("--phase-g", config.hg_g, "Henyey-Greenstein phase anisotropy g in (-1,1)")->default_val(0.85f)->check(CLI::Range(-0.999f, 0.999f));
     app.add_option("--rr-depth", config.rr_depth, "Depth at which Russian roulette begins")->default_val(12);
     app.add_option("--rr-max-survival", config.rr_max_survival, "Russian roulette max survival probability")->default_val(0.99f)->check(CLI::Range(0.0f, 1.0f));
     app.add_option("--firefly-clamp", config.firefly_clamp, "Per-sample luminance clamp (0=off; BIASED when >0)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
-    app.add_option("--filter-stddev", config.filter_stddev, "Gaussian pixel filter stddev in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
+    app.add_option("--filter-width", config.filter_stddev, "Gaussian pixel-filter width (stddev) in px (0=box)")->default_val(0.0f)->check(CLI::NonNegativeNumber);
     app.add_flag("--ris", config.use_ris, "Use product-RIS NEE instead of MIS (1 shadow ray; ~1.4x on env-map scenes, ~2.5x worse on flat — §8.37)");
     app.add_option("--ris-candidates", config.ris_candidates, "Product-RIS candidate count K (only used with --ris)")->default_val(6)->check(CLI::PositiveNumber);
     app.add_flag("--measure-caps", config.measure_caps,
