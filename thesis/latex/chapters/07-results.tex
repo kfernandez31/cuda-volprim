@@ -63,10 +63,10 @@ renderer's advantage is concentrated exactly where production volumetric lightin
 
 \paragraph{Beyond the cloud.} The bunny (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
 \num{64}\,spp, \(512^2\), under the meadow environment (the white-constant scattering configuration of
-\Cref{tab:asset-cost} is \SI{53.9}{\second}; same order), with zero cap overflows---an internal scaling
-point (its three native fit variants make a matched cross-renderer comparison ambiguous, so it is not
-run against Mitsuba for the \emph{quality} comparison of \Cref{sec:results-generalisation}; its memory
-is still compared in \Cref{tab:vram}, where the fit choice is immaterial).
+\Cref{tab:asset-cost} is \SI{53.9}{\second}; same order), with zero cap overflows. It is the densest
+asset exercised, and---via its single Gaussian fit (the only one this renderer's Gaussian kernel can
+consume)---it is also parity-checked against Mitsuba in \Cref{sec:results-generalisation} (converged-mean
+ratio \num{0.9984}); its memory is reported in \Cref{tab:vram}.
 
 \section{Energy bias and fireflies under environment lighting}
 \label{sec:results-firefly}
@@ -167,9 +167,8 @@ measurement)---the difference between sitting below the reference on memory and 
     \bottomrule
   \end{tabular}
   \caption{Peak device memory, all values in MiB (\(\text{saved}=\text{safe}-\text{ours}\)). Mitsuba is
-  measured on all four assets under each asset's matched config (the bunny via its Gaussian fit; the
-  fit ambiguity that keeps the bunny out of the cross-renderer \emph{quality} comparison does not affect
-  this memory one, which is fit-insensitive). Our figures are per-process (the \texttt{nvidia-smi} compute-apps query); Mitsuba's were
+  measured on all four assets under each asset's matched config (the bunny via its single Gaussian fit,
+  which \Cref{sec:results-generalisation} also parity-checks against the reference). Our figures are per-process (the \texttt{nvidia-smi} compute-apps query); Mitsuba's were
   polled GPU-wide on an otherwise-idle GPU, so if anything they overstate Mitsuba's footprint (making the
   cloud and explosion margins conservative). The safe build reserves a flat 1200\,MiB as $N$ varies \num{39}$\times$,
   showing geometry does not drive VRAM; the calibrated-vs-safe delta at fixed geometry
@@ -202,29 +201,32 @@ compounds across the many short renders a parameter sweep or a debugging session
 \section{Cross-renderer generalisation}
 \label{sec:results-generalisation}
 
-Beyond the cloud, the renderer was checked against the reference on two further DSYG assets---a tornado
-and an explosion plume---using Condor's native primitive files so that both renderers consume identical
-geometry. Each is rendered in uniform-albedo-\num{0.9} scattering under a constant-white environment from a matched diagonal
+Beyond the cloud, the renderer was checked against the reference on three further DSYG assets---a tornado,
+an explosion plume, and the bunny---using Condor's native primitive files so that both renderers consume identical
+geometry (the bunny via its single Gaussian fit, the only one this renderer's Gaussian kernel can consume).
+Each is rendered in uniform-albedo-\num{0.9} scattering under a constant-white environment from a matched diagonal
 view (the configuration that makes the comparison reference-adjudicable, \Cref{sec:money-shot}), and the
 metric is the converged-mean radiance ratio.
-The ratio is \num{0.99911} on the tornado and \num{1.00006} on the explosion: cloud-class agreement, to
-within \num{0.006}--\num{0.09}\,\%. \Cref{fig:generalisation} shows that the agreement is not merely a
+The ratio is \num{0.99911} on the tornado, \num{1.00006} on the explosion, and \num{0.99840} on the bunny:
+cloud-class agreement, to within \num{0.006}--\num{0.16}\,\% (the bunny's \num{0.16}\,\% is the largest,
+consistent with its dense, heavily-overlapped medium---the regime of the small overlap residual of
+\Cref{ch:validation}). \Cref{fig:generalisation} shows that the agreement is not merely a
 mean coincidence: the two renderers' images are visually indistinguishable, and their amplified
 difference is unstructured---it has no localised feature, which by the differential-validation criterion
 of \Cref{sec:reference-problem} (a \emph{structured} difference localises a discrepancy; an unstructured,
 mean-matching one is consistent with Monte-Carlo noise) is the signature of agreement rather than a
 residual bias---bounding any systematic difference below the precision the test resolves, rather than
 proving it exactly zero. These
-gates confirm that the renderer's correctness is not cloud-specific and qualify both assets for the
-equal-quality timing comparison.
+gates confirm that the renderer's correctness is not cloud-specific but holds across three assets spanning
+sparse (tornado) to dense, heavily-overlapped (bunny) media.
 
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/generalisation.pdf}
-  \caption{Cross-renderer generalisation on two further DSYG assets, uniform-albedo-\num{0.9} scattering under a constant-white
+  \caption{Cross-renderer generalisation on three further DSYG assets, uniform-albedo-\num{0.9} scattering under a constant-white
   environment from a matched diagonal view, \num{256}\,spp. \emph{Left to right:} this renderer,
   Mitsuba-analog, and the absolute difference amplified \(10\times\). The converged-mean ratios are
-  \num{0.9991} (tornado, top) and \num{1.0001} (explosion, bottom); the amplified difference is
+  \num{0.9991} (tornado, top), \num{1.0001} (explosion, middle), and \num{0.9984} (bunny, bottom); the amplified difference is
   unstructured grain with no localised feature---by the criterion of \Cref{sec:reference-problem} the
   signature of Monte-Carlo noise, not a residual bias---so the agreement is not specific to the cloud.}
   \label{fig:generalisation}
