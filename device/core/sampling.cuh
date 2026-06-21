@@ -312,66 +312,45 @@ __device__ __forceinline__ float sample_free_flight_tau(random::PCG32& rng) {
     return -math::log(math::max(1.0f - chi, 1e-10f));
 }
 
-// Sample scattering event using argmin approach (no sorting!)
-// Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
-// The minimum of independent inverse CDFs gives the same distribution as sorting
-// `out_origin_inside` (optional): if non-null, receives the ray-origin-inside primitive
-// set built by the initial scan below, BEFORE it is consumed/rebuilt for the scatter
-// point. The caller (raygen, bounce 0) reuses it for the analytic-direct transmittance
-// instead of re-running the same O(N) point-inside scan over all primitives.
-// `first_bounce`: when true, the origin-inside primitive set is built fresh by an O(N)
-// point-in-bound scan over all primitives (needed for the camera ray). When false, the
-// caller guarantees `event.active_prims_` ALREADY holds the origin-inside set — because
-// the previous bounce left it equal to the scatter point's active set, and the new ray
-// starts AT that scatter point, so its origin-inside set is identical (any prim the new
-// origin is inside was, by construction, active at the previous scatter). Skipping the
-// scan for bounce>0 removes the dominant repeated O(N) cost. See FINDINGS.
-__device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, random::PCG32& rng,
-                                                     optix::ScatteringEvent<PrimsSet>& event,
-                                                     payloads::Miss& miss, HitBuffer& hit_buffer,
-                                                     bool first_bounce,
-                                                     PrimsSet* out_origin_inside = nullptr) {
-    auto& active_prims = event.active_prims_;
-
+// Stage 1 of sample_scattering_event: establish the origin-inside (overlap) set for this ray.
+// On the first bounce there is no prior set to inherit, so scan all primitives for those whose
+// 3-sigma BVH bound contains the ray origin. On later bounces this is a no-op: the caller guarantees
+// active_prims already holds the origin-inside set (the previous bounce left it equal to the scatter
+// point's active set, and the new ray starts AT that point), which is the O(1) active-set inheritance
+// that removes the dominant repeated O(N) scan. Under --measure-caps it records the true origin
+// overlap for cap calibration.
+__device__ __forceinline__ void build_origin_inside_set(const geometry::Ray& ray,
+                                                        PrimsSet& active_prims, bool first_bounce) {
+    if (!first_bounce) {
+        return;
+    }
+    active_prims.clear();
     const size_t num_primitives = launch_params.primitives_.size();
-
-    if (first_bounce) {
-        // Camera ray: no prior active set to inherit — scan all primitives.
-        active_prims.clear();
-        uint32_t origin_overlap = 0;
-        for (size_t i = 0; i < num_primitives; ++i) {
-            const auto& prim = launch_params.primitives_[i];
-            if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
-                ++origin_overlap;
-                if (!active_prims.insert(static_cast<prim_idx_t>(i)))
-                    report_overflow(OVERFLOW_ACTIVE_SET);
-            }
-        }
-        if (launch_params.render_.measure_caps_) {
-            atomicMax(&launch_params.measure_buf_[MEASURE_ACTIVE_MAX], origin_overlap);
+    uint32_t origin_overlap = 0;
+    for (size_t i = 0; i < num_primitives; ++i) {
+        const auto& prim = launch_params.primitives_[i];
+        if (common::geometry::point_inside_bvh_bound(ray.origin_, prim)) {
+            ++origin_overlap;
+            if (!active_prims.insert(static_cast<prim_idx_t>(i)))
+                report_overflow(OVERFLOW_ACTIVE_SET);
         }
     }
-    // else: active_prims already == origin-inside set (inherited from the previous bounce's
-    // scatter-point active set). No scan needed — this is the whole point of the optimization.
-
-    // Hand the origin-inside set to the caller before it is modified below (the argmin
-    // path clears it on escape and rebuilds it at the scatter point). Lets the caller
-    // skip a duplicate full-scene scan for the same origin.
-    if (out_origin_inside != nullptr) {
-        *out_origin_inside = active_prims;
-    }
-
-    collect_hits(ray, hit_buffer, &miss);
     if (launch_params.render_.measure_caps_) {
-        atomicMax(&launch_params.measure_buf_[MEASURE_HIT_MAX], hit_buffer.total_seen_);
+        atomicMax(&launch_params.measure_buf_[MEASURE_ACTIVE_MAX], origin_overlap);
     }
+}
 
-    if (hit_buffer.empty() && active_prims.empty()) {
-        // No primitives along the ray — escape with unit transmittance. Analog
-        // free-flight: the escape contribution is just env, no τ factor needed.
-        return false;
-    }
-
+// Stage 2 of sample_scattering_event: the argmin scatter-distance reduction (no sorting). Each
+// primitive draws an INDEPENDENT free-flight threshold tau and inverts its optical depth; the nearest
+// scatter that resolves within that primitive's exit wins (ADT, SDTracking §4.1). Origin-inside
+// primitives use the full inv_cdf from the origin; entry hits use the span-restricted inv_cdf from the
+// entry t. Returns consts::INF_F when no primitive resolves a scatter inside its exit (the ray
+// escapes). The RNG is drawn once per origin-inside primitive, then once per hit in buffer order --
+// this draw order is load-bearing and matches the previous inline form exactly.
+__device__ __forceinline__ float argmin_scatter_distance(const geometry::Ray& ray,
+                                                         random::PCG32& rng,
+                                                         const PrimsSet& active_prims,
+                                                         const HitBuffer& hit_buffer) {
     float t_scatter_min = consts::INF_F;
 
     for (auto prim_idx : active_prims) {
@@ -432,15 +411,18 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         }
     }
 
-    if (t_scatter_min >= consts::INF_F) {
-        // Escape: no per-primitive free-flight resolved within its exit. ADT-min
-        // already accounts for the escape probability exp(-τ_total) — caller's
-        // contribution is just env. No need to integrate τ explicitly here.
-        active_prims.clear();
-        return false;
-    }
+    return t_scatter_min;
+}
 
-    // Rebuild active_prims at the scatter point
+// Stage 3 of sample_scattering_event: rebuild the active (overlap) set at the chosen scatter point.
+// A primitive is active there iff the scatter distance is at or before its exit: origin-inside
+// primitives use exit_from_inside; entry hits before the scatter use compute_exit_from_entry (hits
+// after the scatter are skipped). The result becomes the set the caller shades at and inherits into
+// the next bounce.
+__device__ __forceinline__ PrimsSet rebuild_active_set_at_scatter(const geometry::Ray& ray,
+                                                                  float t_scatter_min,
+                                                                  const PrimsSet& active_prims,
+                                                                  const HitBuffer& hit_buffer) {
     PrimsSet final_active_prims;
 
     // Recompute exits for primitives containing the ray origin.
@@ -472,7 +454,66 @@ __device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, r
         }
     }
 
-    active_prims = final_active_prims;
+    return final_active_prims;
+}
+
+// Sample scattering event using argmin approach (no sorting!)
+// Based on Analog Decomposition Tracking theorem from SDTracking paper (Section 4.1):
+// The minimum of independent inverse CDFs gives the same distribution as sorting
+// `out_origin_inside` (optional): if non-null, receives the ray-origin-inside primitive
+// set built by the initial scan below, BEFORE it is consumed/rebuilt for the scatter
+// point. The caller (raygen, bounce 0) reuses it for the analytic-direct transmittance
+// instead of re-running the same O(N) point-inside scan over all primitives.
+// `first_bounce`: when true, the origin-inside primitive set is built fresh by an O(N)
+// point-in-bound scan over all primitives (needed for the camera ray). When false, the
+// caller guarantees `event.active_prims_` ALREADY holds the origin-inside set — because
+// the previous bounce left it equal to the scatter point's active set, and the new ray
+// starts AT that scatter point, so its origin-inside set is identical (any prim the new
+// origin is inside was, by construction, active at the previous scatter). Skipping the
+// scan for bounce>0 removes the dominant repeated O(N) cost. See FINDINGS.
+__device__ __noinline__ bool sample_scattering_event(const geometry::Ray& ray, random::PCG32& rng,
+                                                     optix::ScatteringEvent<PrimsSet>& event,
+                                                     payloads::Miss& miss, HitBuffer& hit_buffer,
+                                                     bool first_bounce,
+                                                     PrimsSet* out_origin_inside = nullptr) {
+    auto& active_prims = event.active_prims_;
+    const size_t num_primitives = launch_params.primitives_.size();
+
+    // Stage 1: origin-inside set (fresh scan on bounce 0, inherited otherwise).
+    build_origin_inside_set(ray, active_prims, first_bounce);
+
+    // Hand the origin-inside set to the caller before it is modified below (the argmin
+    // path clears it on escape and rebuilds it at the scatter point). Lets the caller
+    // skip a duplicate full-scene scan for the same origin.
+    if (out_origin_inside != nullptr) {
+        *out_origin_inside = active_prims;
+    }
+
+    collect_hits(ray, hit_buffer, &miss);
+    if (launch_params.render_.measure_caps_) {
+        atomicMax(&launch_params.measure_buf_[MEASURE_HIT_MAX], hit_buffer.total_seen_);
+    }
+
+    if (hit_buffer.empty() && active_prims.empty()) {
+        // No primitives along the ray — escape with unit transmittance. Analog
+        // free-flight: the escape contribution is just env, no τ factor needed.
+        return false;
+    }
+
+    // Stage 2: argmin over independent per-primitive free flights (origin-inside exits + entry hits).
+    const float t_scatter_min = argmin_scatter_distance(ray, rng, active_prims, hit_buffer);
+
+    if (t_scatter_min >= consts::INF_F) {
+        // Escape: no per-primitive free-flight resolved within its exit. ADT-min
+        // already accounts for the escape probability exp(-τ_total) — caller's
+        // contribution is just env. No need to integrate τ explicitly here.
+        active_prims.clear();
+        return false;
+    }
+
+    // Stage 3: rebuild the active set at the scatter point (origin-inside prims still inside, plus
+    // entry hits before the scatter).
+    active_prims = rebuild_active_set_at_scatter(ray, t_scatter_min, active_prims, hit_buffer);
 
     // --measure-caps: true point-overlap at the scatter vertex, counted by the same
     // containment predicate the bounce-0 scan uses — NOT final_active_prims.size(),

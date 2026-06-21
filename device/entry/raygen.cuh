@@ -4,6 +4,8 @@
 #include "core/random.cuh"
 #include "core/sampling.cuh"
 
+#include "entry/path_stages.cuh"
+
 #include "thesis/common/utils/math.h"
 #include "thesis/common/utils/types.h"
 #include "thesis/device/utils/vector.h"
@@ -119,38 +121,9 @@ extern "C" __global__ void __raygen__rg() {
                 ray, rng, event, miss, hit_buffer, /*first_bounce=*/bounce == 0,
                 bounce == 0 ? &camera_origin_inside : nullptr);
 
-#ifdef THESIS_ENABLE_SER
-#ifndef SER_CELL_INV
-#define SER_CELL_INV 8.0f
-#endif
-            // Shader Execution Reordering (Ada+; no-op on older HW): regroup the warp's threads by
-            // *where* they scattered so the downstream albedo / NEE-shadow / next-bounce traces run
-            // coherently (coalesced Primitive loads, one shading path). Image bit-identical (pure
-            // scheduling) — the §6 divergence lever the Ampere 3090 lacks. Build-time variants:
-            // SER_CELL_INV (hint cell size), THESIS_SER_NOHINT (group by hit only),
-            // THESIS_SER_BOUNCE0 (reorder only at the first, most divergent bounce).
-#ifdef THESIS_SER_BOUNCE0
-            if (bounce == 0)
-#endif
-            {
-#ifdef THESIS_SER_NOHINT
-                optixReorder();
-#else
-                unsigned int ser_hint = 0u;
-                if (result) {
-                    const float inv_cell = SER_CELL_INV;
-                    const int cx = static_cast<int>(event.position_.x * inv_cell);
-                    const int cy = static_cast<int>(event.position_.y * inv_cell);
-                    const int cz = static_cast<int>(event.position_.z * inv_cell);
-                    unsigned int h = static_cast<unsigned int>(cx * 73856093) ^
-                                     static_cast<unsigned int>(cy * 19349663) ^
-                                     static_cast<unsigned int>(cz * 83492791);
-                    ser_hint = (h ^ (h >> 13)) & 0xFFu;
-                }
-                optixReorder(ser_hint, 8);
-#endif
-            }
-#endif
+            // Shader Execution Reordering (Ada+; no-op / compiled out otherwise): regroup the warp
+            // by scatter cell so downstream shading runs coherently. See path_stages.cuh.
+            reorder_by_scatter_cell(event.position_, result, bounce);
 
             // First-bounce AOV capture (denoiser guide layers). Gated on albedo_aov_ so the
             // whole block branches away when --denoise is off (the default, and every perf/
@@ -186,43 +159,10 @@ extern "C" __global__ void __raygen__rg() {
                 }
             }
 
-            // no scattering - escaped medium.
-            //
-            // Analog free-flight (ADT per SDTracking §4.1): sample_scattering_event
-            // returns `false` with probability exp(-τ_total) — the transmittance is
-            // baked into the sampling, so the contribution on escape is just the
-            // env radiance (no extra exp(-τ) factor). Multiplying again was a
-            // double-count that produced exp(-2τ)·env in expectation, confirmed
-            // empirically against the single-Gaussian closed form
-            // (rmse_double / rmse_analog = 0.221 before this commit). Matches
-            // volprim_prb.py:174-187 which contributes β · emitter_val on escape.
-            //
-            // With NEE on, the env contribution from each scatter is already
-            // accumulated via shadow rays, so adding the escape for bounce >= 1
-            // would double-count differently (via NEE accounting). The bounce == 0
-            // escape (camera ray straight to env, no scatter) is not covered by
-            // NEE and must be added.
+            // Escape: the ray left the medium. Add the environment contribution carried by the
+            // throughput (accounting depends on NEE / analytic-direct; see path_stages.cuh), end path.
             if (!result) {
-                if constexpr (consts::ENABLE_NEE) {
-                    // Bounce-0 direct env: added analytically above when
-                    // ENABLE_ANALYTIC_DIRECT, else via the analog binary escape here.
-                    // Bounce>0 escapes are already counted by NEE shadow rays.
-                    if constexpr (!consts::ENABLE_ANALYTIC_DIRECT) {
-                        if (bounce == 0) {
-                            radiance += throughput * miss.color();
-                        }
-                    }
-                } else {
-                    // NEE off: escape adds env at every bounce. Under analytic direct,
-                    // bounce-0 is handled above; bounce>0 (indirect) still added here.
-                    if constexpr (consts::ENABLE_ANALYTIC_DIRECT) {
-                        if (bounce > 0) {
-                            radiance += throughput * miss.color();
-                        }
-                    } else {
-                        radiance += throughput * miss.color();
-                    }
-                }
+                accumulate_escape_radiance(radiance, throughput, miss, bounce);
                 break;
             }
 
@@ -239,100 +179,18 @@ extern "C" __global__ void __raygen__rg() {
                 sample_aov_albedo = albedo;
             }
 
-            if constexpr (consts::ENABLE_NEE) {
-                const auto wi = ray.direction_;
-                const auto base = throughput * albedo;
-
-                if (launch_params.render_.use_ris_) {  // runtime --ris (default off = MIS)
-                    // ─── Product-RIS direct lighting: K env-IS candidates → 1 reservoir → 1 ray ───
-                    // Target p̂(ω) = phase(wi,ω)·lum(env(ω)) (the UNSHADOWED phase×env product that
-                    // neither phase-IS nor env-IS alone samples). Candidates drawn from env-IS
-                    // (proposal q = pdf_env), resampling weight w = p̂/q. A 1-survivor weighted
-                    // reservoir picks y ∝ w; ONLY y's transmittance is traced (1 shadow ray, vs 2
-                    // for balance-MIS). Unbiased RIS (Talbot 2005): with scalar target p̂ carrying
-                    // the RGB via f/p̂, ⟨L⟩ = base · env(y)/lum(env(y)) · T(y) · (Σ_k w_k / K).
-                    // K=1 collapses to the plain (unbiased) env-IS NEE estimator.
-                    const auto luma_w = make_float3(0.2126f, 0.7152f, 0.0722f);
-                    const int ris_k = static_cast<int>(launch_params.render_.ris_num_candidates_);
-                    float wsum = 0.0f;
-                    float3 y_dir = make_float3(0.0f, 0.0f, 0.0f);
-                    float3 y_env = make_float3(0.0f, 0.0f, 0.0f);
-                    for (int k = 0; k < ris_k; ++k) {
-                        const auto cand = env_is::sample(rng);
-                        if (cand.pdf <= 0.0f)
-                            continue;
-                        const auto env_c = launch_params.env_map_.sample(cand.wo);
-                        const float lum_c = math::dot(env_c, luma_w);
-                        // w = p̂/q = phase(wi,ω)·lum(env(ω)) / pdf_env(ω)
-                        const float w = phase::eval(wi, cand.wo) * lum_c * math::rcp(cand.pdf);
-                        if (!(w > 0.0f))
-                            continue;
-                        wsum += w;
-                        // Weighted reservoir (1 sample): keep candidate with prob w/wsum.
-                        if (random::sample_uniform(rng) * wsum < w) {
-                            y_dir = cand.wo;
-                            y_env = env_c;
-                        }
-                    }
-                    if (wsum > 0.0f) {
-                        const float lum_y = math::dot(y_env, luma_w);  // > 0 (w>0 ⇒ lum_c>0)
-                        if (lum_y > 0.0f) {
-                            const auto T = compute_transmittance_to_env(event.position_, y_dir,
-                                                                        event.active_prims_);
-                            const float W_ris = wsum * math::rcp(static_cast<float>(ris_k));
-                            // f(y)/p̂(y) = env(y)·T/lum(env(y)); times the RIS normalization W_ris.
-                            radiance += base * (y_env * math::rcp(lum_y)) * T * W_ris;
-                        }
-                    }
-                } else if constexpr (consts::ENABLE_MIS) {
-                    // ─── Strategy A: phase importance sampling ───
-                    const auto a = phase::sample(wi, rng);
-                    const auto pdf_b_at_a = env_is::pdf(a.wo);
-                    const auto w_a = mis_balance(a.pdf, pdf_b_at_a);
-                    const auto env_a = launch_params.env_map_.sample(a.wo);
-                    const auto T_a = compute_transmittance_to_env(event.position_, a.wo,
-                                                                    event.active_prims_);
-                    // f / pdf_phase = phase * env * T / phase = env * T
-                    radiance += base * env_a * T_a * w_a;
-
-                    // ─── Strategy B: environment importance sampling ───
-                    const auto b = env_is::sample(rng);
-                    const auto phase_at_b = phase::eval(wi, b.wo);
-                    const auto w_b = mis_balance(b.pdf, phase_at_b);
-                    const auto env_b = launch_params.env_map_.sample(b.wo);
-                    const auto T_b = compute_transmittance_to_env(event.position_, b.wo,
-                                                                    event.active_prims_);
-                    // f / pdf_env = phase * env * T / pdf_env
-                    radiance += base * env_b * T_b * w_b * phase_at_b * math::rcp(b.pdf);
-                } else {
-                    // Single-strategy NEE: phase IS only.
-                    // For phase IS, phase/pdf_phase == 1 → contribution = base · env · T.
-                    const auto sample = phase::sample(wi, rng);
-                    const auto env = launch_params.env_map_.sample(sample.wo);
-                    const auto T = compute_transmittance_to_env(event.position_, sample.wo,
-                                                                 event.active_prims_);
-                    radiance += base * env * T;
-                }
-            }
-            // else (NEE off): pure analog — NO direct-lighting term at a scatter vertex. Env
-            // radiance is gathered only when the path escapes to the environment (the escape-add
-            // above), carrying the accumulated throughput. The former unoccluded single-scatter
-            // term added env·albedo at every vertex while ignoring occlusion, over-counting direct
-            // lighting ~17x in dense media; removing it makes ENABLE_NEE=false a true analog
-            // estimator (validated: furnace-flat, cloud-meadow mean matches Mitsuba-analog).
+            // Next-event estimation (direct lighting at the scatter vertex): RIS / MIS / phase-IS,
+            // or nothing when NEE is off. See path_stages.cuh.
+            accumulate_nee_direct(radiance, throughput, albedo, event, ray.direction_, rng);
+            // NEE off = pure analog: no direct term above; env is gathered only on escape. (The old
+            // unoccluded single-scatter term added env·albedo at every vertex ignoring occlusion,
+            // over-counting direct lighting ~17x in dense media; removing it makes ENABLE_NEE=false a
+            // true analog estimator — furnace-flat, cloud-meadow mean matches Mitsuba-analog.)
             throughput *= albedo;
 
-            // Russian Roulette
-            if (bounce >= launch_params.render_.rr_depth_) {
-                auto p_survive =
-                    math::min(launch_params.render_.rr_max_survival_, math::max(throughput));
-                // `|| p_survive <= 0` also breaks a zero-throughput path: without it, the
-                // measure-zero case sample_uniform()==0 with p_survive==0 falls through to
-                // 0/0 = NaN below. Short-circuits to a no-op for any p_survive > 0 (bit-identical).
-                if (random::sample_uniform(rng) > p_survive || p_survive <= 0.0f) {
-                    break;
-                }
-                throughput /= p_survive;
+            // Russian roulette (no-op before rr_depth_; unbiased survival rescale).
+            if (russian_roulette(throughput, bounce, rng)) {
+                break;
             }
 
             // Early termination: throughput too low to contribute meaningfully
@@ -349,30 +207,9 @@ extern "C" __global__ void __raygen__rg() {
             ray = geometry::Ray::spawn_unchecked(event.position_, event.direction_);
         }
 
-        // Optional firefly suppression (beauty/robustness, OFF by default). Hue-preserving
-        // per-sample luminance clamp: if this sample's luminance exceeds the threshold,
-        // scale RGB down to the threshold (kills low-probability high-weight spikes while
-        // keeping color). BIASED (removes energy from clamped pixels) → opt-in, never for
-        // validation. NB the MIS showcase is already firefly-free (§8.15); this is for
-        // robustness on other configs / pathological samples. Runtime-gated so it is a true
-        // no-op (bit-identical) when the threshold is 0 (the validation default).
-        if (launch_params.render_.firefly_clamp_luminance_ > 0.0f) {
-            const float lum = math::dot(radiance, make_float3(0.2126f, 0.7152f, 0.0722f));
-            if (lum > launch_params.render_.firefly_clamp_luminance_) {
-                radiance *= launch_params.render_.firefly_clamp_luminance_ * math::rcp(lum);
-            }
-        }
-
-        // Non-finite sample rejection (production safety net). Degenerate Gaussians in dense
-        // real-world assets (e.g. WDAS/embergen, deep overlap) can leak a NaN/Inf through an
-        // NEE / transmittance / phase term that the per-bounce throughput check above does not
-        // catch (it guards throughput, not the accumulated radiance). Such a sample is a
-        // numerical failure, not a real contribution — zero it so it can't poison the pixel.
-        // FINITE samples are unchanged, so validation scenes stay bit-identical (no-op there);
-        // the cost is one isfinite per sample. Standard PBRT/Mitsuba practice.
-        if (!isfinite(math::sum(radiance))) {
-            radiance = make_float3(0.0f);
-        }
+        // Finalise the sample: optional firefly clamp + non-finite rejection (both no-ops on the
+        // validation default — clamp disabled, samples finite — so validation stays bit-identical).
+        finalize_sample(radiance);
 
         // Welford's online algorithm: numerically stable single-pass mean + M2.
         // M2 update is dead when ENABLE_ADAPTIVE_SAMPLING is false (compiler
