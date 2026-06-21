@@ -10,7 +10,7 @@ primitives, each contributing an analytic, invertible optical depth. The represe
 \emph{Don't Splat Your Gaussians}, admits physically based path tracing, but the reference renderer
 that established the representation's correctness---built in Mitsuba---reaches a scattering event by marching
 segment-by-segment between primitive boundaries, maintaining the set of overlapping primitives and
-root-finding the scatter distance within each segment. This thesis asks whether a renderer built around the one
+root-finding the scatter distance within each multi-primitive segment. This thesis asks whether a renderer built around the one
 property the representation affords---the analytic per-primitive optical depth---can be both correct
 and substantially faster.
 
@@ -21,7 +21,7 @@ any-hit program and computing exits in closed form rather than re-tracing. \emph
 scatter sampling}---suggested by Condor, the lead author of the reference (personal communication)---then lets
 each collected primitive draw an independent closed-form free flight, and takes the nearest---the
 argmin---as the scattering event. Together they replace the reference's segment-marching and
-root-finding outright.
+overlap root-finding outright.
 
 Correctness is established by a differential-validation methodology that compares the renderer against
 Mitsuba and, where a closed form exists, against analytic ground truth; the same ladder serves as the

@@ -177,7 +177,12 @@ class THESIS_ALIGNMENT Primitive {
         // Result is in whitened arc-length (t * |w|); divide by |w| to get world-space ray parameter t
         // erfinvf (single precision) — NOT the unqualified `erfinv`, which binds CUDA's
         // double-precision ::erfinv(double) and runs fp64 (1/64 rate on GeForce) on this hot line.
-        return (math::ROOT_TWO_F * erfinvf(erfinv_arg) - wp) * w_inv_len;
+#ifdef THESIS_HIPREC_ERFINV
+        const float erfinv_v = static_cast<float>(::erfinv(static_cast<double>(erfinv_arg)));  // S4 diagnostic: fp64 inverse
+#else
+        const float erfinv_v = erfinvf(erfinv_arg);
+#endif
+        return (math::ROOT_TWO_F * erfinv_v - wp) * w_inv_len;
     }
 
     // Device-only: free-flight inverse CDF restricted to t ≥ t_offset.
@@ -232,7 +237,12 @@ class THESIS_ALIGNMENT Primitive {
 
         // erfinvf (single precision) — NOT the unqualified `erfinv`, which binds CUDA's
         // double-precision ::erfinv(double) and runs fp64 (1/64 rate on GeForce) on this hot line.
-        return (math::ROOT_TWO_F * erfinvf(erfinv_arg) - wp) * w_inv_len;
+#ifdef THESIS_HIPREC_ERFINV
+        const float erfinv_v = static_cast<float>(::erfinv(static_cast<double>(erfinv_arg)));  // S4 diagnostic: fp64 inverse
+#else
+        const float erfinv_v = erfinvf(erfinv_arg);
+#endif
+        return (math::ROOT_TWO_F * erfinv_v - wp) * w_inv_len;
     }
 
     // Device-only: optical depth from t0 to t1

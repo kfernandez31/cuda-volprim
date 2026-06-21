@@ -193,7 +193,10 @@ Condor et al.~\cite{DSYG} additionally explore Epanechnikov kernels, which decay
 a finite radius rather than asymptotically. Compact support reduces the average number of primitives
 overlapping a ray and packs more tightly into the acceleration structure, which the reference reports
 can improve reconstruction efficiency; this thesis retains the Gaussian kernel (\Cref{ch:optimization} notes where the choice
-would matter) but the analytic machinery applies to either.
+would matter). The \emph{forward} optical depth is closed-form for either kernel, but the argmin sampler
+additionally needs a practical closed-form \emph{inverse}, which is Gaussian-specific: for the
+Epanechnikov that inverse is impractical, and even the reference resorts to a numerical solver for a
+single such kernel.
 
 \section{Ray tracing on the GPU}
 \label{sec:gpu-ray-tracing}

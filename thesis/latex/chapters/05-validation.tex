@@ -219,10 +219,13 @@ a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$
 matches to within noise; the cluster and cloud rungs match in the bulk but leave one small,
 convergence-stable residual in the \emph{overlap} region---a $+2\times10^{-4}$ core difference on the
 cluster (about six standard errors), echoed as ${+}1\times10^{-4}$ in the densest part of the cloud.
-It is below $0.2\%$ of the peak and confined to vertices where many primitives overlap; its likely
-causes are the argmin free-flight distribution under heavy overlap (\Cref{sec:adt}) or next-event
-shadow-ray transmittance evaluated from a vertex inside overlapping primitives, and it is recorded
-as an open item (\Cref{ch:conclusion}). The agreement everywhere else is the empirical evidence that
+It is below $0.2\%$ of the peak and confined to vertices where many primitives overlap. It is
+\emph{not} a single-precision inversion artefact: replacing the float $\operatorname{erf}^{-1}$ with a
+double-precision one moves the converged cluster mean by ${\sim}2\times10^{-8}$ at the overlap---four
+orders of magnitude below the residual---so the cause is an overlap-regime effect, either the argmin's
+free-flight \emph{independence} assumption under heavy overlap (\Cref{sec:adt}) or next-event shadow-ray
+transmittance evaluated from a vertex \emph{inside} overlapping primitives. Bounded and
+convergence-stable, it is carried as a characterised residual (\Cref{ch:conclusion}). The agreement everywhere else is the empirical evidence that
 the sampler is unbiased to within ${\sim}10^{-4}$: a grossly wrong free-flight distribution would
 shift the converged mean far more, and it does not (\Cref{fig:scattering-ladder}). That the
 methodology resolves a $10^{-4}$ effect at all is itself a measure of its sensitivity.

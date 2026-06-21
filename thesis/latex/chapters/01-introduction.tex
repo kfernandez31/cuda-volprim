@@ -15,7 +15,8 @@ volumetric path tracing, recovering accurate multiple scattering and relighting 
 higher cost. Its reference implementation is a plugin for the Mitsuba~3 research
 renderer~\cite{Mitsuba3}---correct and flexible, but not engineered for throughput: it reaches each
 scattering event by marching the ray segment-by-segment between primitive boundaries and root-finding
-the scatter distance within each segment.
+the scatter distance within each multi-primitive segment (single-primitive segments it already inverts
+in closed form).
 
 This thesis re-implements that renderer from scratch in CUDA and OptiX as a performance-engineering
 study. The goal, from the outset, was efficiency: to render Gaussian kernel-mixture volumes both
@@ -28,9 +29,10 @@ architecture, free of the reference's marching and root-finding.
 \paragraph{Contributions.} This thesis contributes:
 \begin{itemize}
   \item a single-trace, march- and root-find-free rendering architecture for ray-traced Gaussian
-  kernel-mixture volumes---realising, for this representation, an approach suggested by Condor, the
-  lead author of the reference (personal communication)---in two complementary halves: single-trace any-hit collection with
-  analytic exits, and analog-decomposition (argmin) scatter sampling (\Cref{ch:architecture});
+  kernel-mixture volumes, in two complementary halves: single-trace any-hit collection with analytic
+  exits, and analog-decomposition (argmin) scatter sampling---the latter realising, for this
+  representation, an approach suggested by Condor, the lead author of the reference (personal
+  communication) (\Cref{ch:architecture});
   \item a from-scratch CUDA/OptiX path tracer realising it, with no rendering-framework dependency
   beyond OptiX;
   \item a differential-validation methodology against Mitsuba and, where a closed form exists, against

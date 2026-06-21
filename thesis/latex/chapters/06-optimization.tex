@@ -208,14 +208,15 @@ measured win (\Cref{tab:wins}).
     \midrule
     Traversals          & $H$ (one per entry)      & $1$ (single any-hit) \\
     Boundary selection  & $O(H^2)$ running minimum & eliminated (unordered) \\
-    Scatter distance    & bisection / Newton       & closed-form $\operatorname{erf}^{-1}$ \\
+    Scatter distance    & bisection in overlaps    & closed-form $\operatorname{erf}^{-1}$ \\
     \bottomrule
   \end{tabular}
   \caption{Complexity-argued (C-mode) advantage of the argmin sampler over the reference's
   segment-by-segment marcher, for one ray crossing $H$ primitives (\Cref{fig:pipeline}). Each row is
   justified by the bound, not a regression ablation: the single any-hit traversal replaces the reference's
   $H$ re-traversals, the argmin needs no ordering of boundaries, and the per-primitive scatter distance
-  inverts the optical depth in closed form (\Cref{sec:analytic-od}). The active-set inheritance that
+  inverts the optical depth in closed form \emph{even across overlaps}, where the reference must fall back
+  to bisection (it inverts single-primitive segments in closed form already; \Cref{sec:analytic-od}). The active-set inheritance that
   removes the residual per-bounce $O(N)$ containment scan is a \emph{measured} win (\Cref{tab:wins}); the
   $O(1)$ bit-vector membership and compact $6$-byte hit record are implementation choices
   (\Cref{sec:gpu-impl}).}

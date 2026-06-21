@@ -8,11 +8,11 @@ Gaussians}~\cite{DSYG}---one that, at equal quality, renders faster than the Mit
 \section{Summary of contributions}
 \label{sec:contributions}
 
-The central contribution is a rendering architecture (\Cref{ch:architecture})---suggested by Condor,
-the lead author of the reference (personal communication)---with two
+The central contribution is a rendering architecture (\Cref{ch:architecture}) with two
 complementary halves: \emph{single-trace any-hit collection}, which gathers all of a ray's primitive
 entries in one acceleration-structure traversal (back-face-culled to entries, exits computed
-analytically), and \emph{analog-decomposition scatter sampling}, in which each primitive draws a
+analytically), and \emph{analog-decomposition scatter sampling}---suggested by Condor, the lead author
+of the reference (personal communication)---in which each primitive draws a
 closed-form free flight and the nearest---the argmin---is the scattering event. Together they replace
 the segment-marching and root-finding that the reference uses for the scatter
 distance. This rests on two supporting pillars: a \emph{differential-validation methodology}
@@ -44,10 +44,12 @@ The renderer is deliberately scoped, and several limitations bound its current r
 \begin{itemize}
   \item \textbf{No emission.} It models absorption and scattering but not emissive media, so combustion
   assets render as dark plumes; the assets carry no emission data either.
-  \item \textbf{Gaussian kernel only.} The closed-form optical depth (\Cref{sec:analytic-od}) is
-  Gaussian-specific, so other kernel families---e.g.\ the compactly-supported Epanechnikov kernel---are
-  unsupported; each would need its own closed-form integral, which the architecture could accommodate
-  but does not implement. Relatedly, assets fit with the Gabor-noise extension render only their coarse
+  \item \textbf{Gaussian kernel only.} The \emph{forward} optical depth is closed-form for other kernel
+  families too (e.g.\ the compactly-supported Epanechnikov), but the argmin sampler needs a practical
+  closed-form \emph{inverse} (\Cref{sec:analytic-od}), which is Gaussian-specific---for the Epanechnikov
+  the inverse is impractical (the reference uses a numerical solver even for a single such kernel)---so
+  other kernels are unsupported here; the architecture could accommodate one given its inverse, but does
+  not implement it. Relatedly, assets fit with the Gabor-noise extension render only their coarse
   Gaussian base; high-frequency Gabor detail is unsupported.
   \item \textbf{Static, single-frame.} There is no animation support.
   \item \textbf{Compile-time, asset-dependent caps.} The per-ray buffers (\Cref{sec:gpu-impl}) are sized
@@ -62,8 +64,10 @@ The renderer is deliberately scoped, and several limitations bound its current r
   (\num{1.12}--\num{1.68}$\times$, image-identical).
   \item \textbf{Small systematic residuals.} A handful of sub-$0.2\%$ systematic differences from the
   reference are documented rather than resolved: a ${+}2\times10^{-4}$ difference at heavily-overlapped
-  scatter vertices (candidate causes: the argmin free-flight distribution under overlap, or next-event
-  shadow-ray transmittance from a vertex inside overlapping primitives; \Cref{ch:validation}); a ${+}1.8\times10^{-4}$ brightness systematic in low-density interiors; and a
+  scatter vertices---measured \emph{not} to be a single-precision $\operatorname{erf}^{-1}$ artefact (a
+  double-precision inverse moves it by ${\sim}2\times10^{-8}$), leaving an overlap-regime cause (the
+  argmin independence assumption under overlap, or next-event shadow-ray transmittance from a vertex
+  inside overlapping primitives; \Cref{ch:validation}); a ${+}1.8\times10^{-4}$ brightness systematic in low-density interiors; and a
   small channel-dependent residual in coloured-albedo rendering. Each is bounded well under a part in
   $500$ and confined to a specific regime.
 \end{itemize}

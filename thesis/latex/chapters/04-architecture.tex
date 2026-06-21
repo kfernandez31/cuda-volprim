@@ -5,9 +5,10 @@ This chapter describes the renderer itself: a from-scratch CUDA/OptiX volumetric
 Gaussian kernel-mixture volumes of \Cref{sec:kernel-mixture}. Its design answers one question
 differently from the reference: \emph{given a camera ray, how is the next scattering event found?}
 The reference~\cite{DSYG} marches the ray segment by segment, advancing from one primitive
-boundary to the next by a running minimum, and root-finds the scatter distance; this renderer instead collects all of a ray's
+boundary to the next by a running minimum, and---where primitives overlap---root-finds the scatter
+distance numerically (single-primitive segments it inverts in closed form); this renderer instead collects all of a ray's
 primitives in a \emph{single} acceleration-structure traversal and samples the scatter distance in
-\emph{closed form}, with no sorting, no marching, and no root-finding. The two halves of that
+\emph{closed form even across overlaps}, with no sorting, no marching, and no root-finding. The two halves of that
 design---single-trace collection (\Cref{sec:collection}) and analog-decomposition scatter sampling
 (\Cref{sec:adt})---are the thesis's primary contribution; the supporting machinery (direct lighting,
 data structures, and the OptiX configuration) is described in
