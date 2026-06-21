@@ -42,11 +42,11 @@ meadow environment this comparison is metric-unstable: this renderer's analog va
 firefly-dominated (rare bright-sun escapes), so raw per-pixel variance favours the reference while
 firefly-clamped variance favours this renderer, and no single equal-quality figure survives. A
 \emph{flat} (uniform) environment removes the fireflies on both sides and makes the comparison stable.
-There, at an equal sample count, this renderer is \(\mathbf{\sim\!3\times}\) faster per sample
+There, at an equal sample count, this renderer is \(\mathbf{\gtrsim\!3\times}\) faster per sample
 (\SI{2.90}{\second} versus \(\sim\)\SI{8.5}{\second} at \num{64}\,spp on the cloud)\footnote{The
 flat-env Mitsuba-analog frame time was not separately recorded; \SI{8.5}{\second} is the
 meadow-analog steady state reused, which the flat-env case can only match or beat, so the
-\(\sim\!3\times\) is if anything conservative. The \SI{2.90}{\second} is our locked-clock
+\(\sim\!3\times\) is a lower bound. The \SI{2.90}{\second} is our locked-clock
 median.}---the single-trace argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
 the per-sample variance (both estimators unbiased; the converged means agree to \num{0.02}\,\%; the gap
 is the collision- versus track-length-estimator trade-off dissected in \Cref{sec:autopsies}), so the
@@ -121,10 +121,10 @@ directional densities, with a continuation term that instead carries the medium'
 common measure over the medium, their MIS weights do not partition the direct-lighting contribution
 exactly, and a positive surplus survives at each interior scatter vertex; estimating the next-event
 transmittance with ratio tracking, as a standard volumetric path tracer does, would remove it. This also
-explains the magnitude. The same over-count is visible, and reference-free, in the furnace of
-\Cref{par:furnace}, and it grows steeply with optical thickness even for a \emph{single} Gaussian: at the
-Gaussian's centre the over-count rises from ${\approx}\num{1}\,\%$ at density scale \num{2}, through
-${\approx}\num{10}\,\%$ at \num{6}, to ${\approx}\num{30}\,\%$ at \num{12}, because in the optically thin
+explains the magnitude. In the furnace of \Cref{par:furnace} that over-count grows steeply with optical
+thickness even for a \emph{single} Gaussian: at the Gaussian's centre it rises from ${\approx}\num{1}\,\%$
+at density scale \num{2}, through ${\approx}\num{10}\,\%$ at \num{6}, to ${\approx}\num{31}\,\%$ at \num{12},
+because in the optically thin
 limit the analog continuation almost always escapes and the surplus is small, whereas as the medium
 thickens the continuation's escape probability collapses and the analytic next-event surplus survives at
 each interior vertex. On the showcase cloud (density scale \num{7.5}) this is compounded by heavy

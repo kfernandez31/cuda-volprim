@@ -472,7 +472,7 @@ configuration that reaches a given noise level $\approx\!59\times$ faster than t
 \num{3090} (\Cref{sec:results-perf}) does so $77\times$ faster on the \num{4090}---the hand-written
 megakernel scales onto Ada more fully than the reference's Dr.Jit pipeline---and SER lifts this to
 $110\times$. With the renderer's best \emph{unbiased} configuration (product-RIS direct lighting,
-\Cref{sec:ris}, and the fast-\texttt{erf} hot path, both inside the validation gates of
+\Cref{sec:ris}, and the fast \texttt{erf} hot path, both inside the validation gates of
 \Cref{ch:validation}) the equal-quality advantage reaches $151\times$; additionally enabling the
 throughput-optimal icosphere shell (\Cref{sec:icosphere}, which trades a ${\sim}\num{0.1}\%$ systematic
 for ray-triangle intersection) reaches $179\times$ (\Cref{tab:ser-eq}). All four are equal-quality
@@ -490,7 +490,7 @@ do not replace it.
     RTX 3090 & MIS                          & ---  & $\approx\!59\times$ \\
     RTX 4090 & MIS, no SER                  & 3.29 & $77\times$ \\
     RTX 4090 & MIS $+$ SER                  & 2.31 & $\mathbf{110\times}$ \\
-    RTX 4090 & RIS $+$ fast-erf $+$ SER     & 1.92 & $\mathbf{151\times}$ \\
+    RTX 4090 & RIS $+$ fast \texttt{erf} $+$ SER & 1.92 & $\mathbf{151\times}$ \\
     RTX 4090 & \quad$+$ icosphere $\ell{=}2$ & 1.63 & $179\times$ \\
     \bottomrule
   \end{tabular}
@@ -498,7 +498,7 @@ do not replace it.
   analog) on the cloud--meadow showcase: \num{64}\,spp, \num{16} seeds, clipped noise constant $k$
   (radiance clipped at the \num{99.9}th percentile, as \Cref{sec:results-perf}); times are median
   steady-state render. \emph{MIS} is the pinned-headline estimator (the 3090 row, ${\approx}59\times$, is
-  repeated for reference); \emph{RIS$+$fast-erf$+$SER} is the maximal \emph{unbiased} configuration, and
+  repeated for reference); \emph{RIS$+$fast \texttt{erf}$+$SER} is the maximal \emph{unbiased} configuration, and
   \emph{$+$icosphere $\ell{=}2$} the maximal-throughput one. The Ada rows use the same reference build
   recompiled on the Ada host. The two unbiased Ada rows ($110\times$, $151\times$) stay within the
   validation gates of \Cref{ch:validation}; the icosphere row ($179\times$) trades a ${\sim}\num{0.1}\%$

@@ -294,7 +294,7 @@ the argmin replaces the reference's marching and root-finding entirely. The appr
 Condor, the lead author of the reference~\cite{DSYG} (personal communication), and is realised and
 validated here, to the author's knowledge for the first time for this representation.
 
-\paragraph{Complexity.} Per scattering bounce the work is $O(N + A)$: an $O(N)$ scan to maintain the
+\paragraph{Complexity.} Per scattering bounce the work is $O(N + A + H)$: an $O(N)$ scan to maintain the
 active set against the scene's $N$ primitives, plus an $O(A + H)$ pass over the $A$ active and $H$
 newly entered primitives to take the argmin. This replaces the reference's per-bounce boundary
 marching---an $O(H^2)$ running-minimum selection across segments---and its per-segment root-find with
@@ -418,7 +418,8 @@ logging, and command-line parsing), the renderer has no external dependencies---
 rendering framework---which keeps the codebase compact and straightforward to extend. Optional
 features are toggleable without touching the core renderer: the OptiX denoiser (\texttt{--denoise}) and
 volumetric product-RIS (\texttt{--ris}, with candidate count \texttt{--ris-candidates}) are
-\emph{runtime} flags, while adaptive sampling and a fast \texttt{erf} are compile-time
+\emph{runtime} flags, while adaptive sampling and a fast \texttt{erf} (a polynomial approximation to $\operatorname{erf}$,
+numerically validated within the gates of \Cref{ch:validation}) are compile-time
 switches. The rendering parameters themselves are likewise exposed on the command line, so an experiment is
 specified entirely by its invocation:
 \begin{itemize}\sloppy

@@ -97,10 +97,9 @@ by the decomposition-tracking argmin of \Cref{sec:adt} rather than by stochastic
 Mitsuba~3~\cite{Mitsuba3}, built on the Dr.Jit just-in-time compiler~\cite{DrJit}, is a research
 renderer offering differentiable, retargetable (LLVM/CUDA) rendering from a Python front end; the
 DSYG reference is implemented as a Mitsuba plugin. Its design priorities, however, leave performance
-on the table for a bespoke production renderer: JIT kernel construction adds a per-process startup cost
-(measured here at ${\approx}0.8$\,s warm and ${\approx}2.2$\,s cold, versus ${\approx}0.4$\,s for this
-renderer's precompiled OptiX-IR pipeline---modest per run, but it compounds across the many short
-launches of a parameter sweep); the
+on the table for a bespoke production renderer: JIT kernel construction adds a per-process startup
+cost---modest per run, but it compounds across the many short launches of a parameter sweep, where this
+renderer's precompiled OptiX-IR pipeline starts markedly faster (\Cref{sec:results-startup} quantifies it); the
 system is built for generality---differentiable, retargetable, inverse-rendering workflows---rather
 than for a single, highly tuned forward renderer; and the generated CUDA offers limited room for the
 fine-grained, primitive-specific optimisation this thesis applies. These gaps motivate a bespoke CUDA/OptiX implementation. Mitsuba nonetheless remains

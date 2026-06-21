@@ -21,7 +21,7 @@ overlap root-finding outright.
 Correctness is established by a differential-validation methodology that compares the renderer against
 Mitsuba and, where a closed form exists, against analytic ground truth; the same ladder serves as the
 unbiasedness evidence for the new sampler. On the environment-lit showcase the renderer is both correct and fast: its
-multiple-importance-sampled direct lighting matches the unbiased ground truth in the mean (to $0.4\%$,
+multiple-importance-sampled direct lighting matches the unbiased ground truth in the mean on the showcase view (to $0.4\%$,
 with a small bounded systematic only at heavily-overlapped vertices), whereas the reference's faster estimator is energy-biased on this medium---so measured against the
 reference's only unbiased (analog) configuration, it reaches a given noise level roughly $59\times$
 faster at equal quality, free of that configuration's fireflies, and on less device memory ($578$
