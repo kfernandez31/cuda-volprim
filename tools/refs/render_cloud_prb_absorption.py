@@ -103,7 +103,11 @@ for i, cam_name in enumerate(cams):
         params['primitives_pyr0.albedo'] = params['primitives_pyr0.albedo'] * 0.0 + ALBEDO
     params.update()
     cam_idx = int(cam_name.split('_')[1])
-    img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
+    import time as _t, drjit as _dr
+    _w = mi.render(scene, sensor=scene.sensors()[0], spp=4, seed=SEED); _dr.eval(_w); _dr.sync_thread()
+    _t0 = _t.time()
+    img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED); _dr.eval(img); _dr.sync_thread()
+    print(f"RENDER_TIME_S {_t.time()-_t0:.4f}")
     out = join(out_dir, f'{cam_idx:04d}.exr')
     mi.util.write_bitmap(out, img)
     arr = np.array(img).astype(np.float32)

@@ -15,8 +15,9 @@ performance ceiling of this class of renderer and are themselves a contribution.
 NSight Compute locates the bottleneck firmly in
 \emph{memory latency}: the kernel is latency-bound on scattered global loads of the per-primitive
 \texttt{Primitive} struct, at $21$--$31\%$ occupancy (asset-dependent), itself capped by the code-intrinsic register
-pressure of the erf and phase-function chains. The primitive data is already $82$--$98\%$
-cache-resident, so reducing its \emph{footprint} cannot help much---the cost is in the latency of
+pressure of the erf and phase-function chains. The primitive data is already
+$\mathrm{L1}\approx\SI{82}{\percent}$, $\mathrm{L2}\approx\SI{99}{\percent}$
+resident, so reducing its \emph{footprint} cannot help much---the cost is in the latency of
 gathering scattered primitives, not in bandwidth. The structural reading of this is the same one that
 shaped the architecture (\Cref{sec:gpu-impl}): the per-bounce arithmetic is cheap but the per-ray state
 is large and persistent, so the algorithm is \emph{megakernel-shaped}. This single fact predicts
@@ -121,8 +122,9 @@ place, the renderer reaches Mitsuba's noise level in less time on the environmen
   \centering
   \includegraphics[width=0.8\linewidth]{figures/rr_depth.pdf}
   \caption{Russian-roulette efficiency on the scattering cloud: $k\cdot t$ (inter-seed noise constant
-  $\times$ relative frame time, lower is better) against the RR start depth; $16$ seeds per depth at
-  \num{64} spp under the meadow-lit showcase, sampled at depths $\{5, 6, 8, 10, 12, 16\}$ (a coarsening
+  $\times$ relative frame time, lower is better) against the RR start depth; the noise constant $k$ is from
+  $16$ seeds per depth at \num{64} spp and the relative frame time is the median of $5$ interleaved rounds,
+  under the meadow-lit showcase, sampled at depths $\{5, 6, 8, 10, 12, 16\}$ (a coarsening
   sweep---the gaps, e.g.\ at $14$, are unsampled, not missing). Variance falls and cost rises monotonically with
   depth; their product forms a shallow basin over depths $8$--$12$ (spread ${\le}1.2\,\%$) whose minimum
   lands on the shipped default $12$, with both extremes measurably worse ($5$: $+5.0\,\%$, $16$:
@@ -206,14 +208,17 @@ measured win (\Cref{tab:wins}).
     Per-bounce step & Reference (marching) & This renderer (argmin) \\
     \midrule
     Traversals          & $H$ (one per entry)      & $1$ (single any-hit) \\
-    Boundary selection  & $O(H^2)$ running minimum & eliminated (unordered) \\
+    Boundary selection  & $O(H^2)$ boundary re-scan & eliminated (unordered) \\
     Scatter distance    & bisection in overlaps    & closed-form $\operatorname{erf}^{-1}$ \\
     \bottomrule
   \end{tabular}
   \caption{Complexity-argued (C-mode) advantage of the argmin sampler over the reference's
   segment-by-segment marcher, for one ray crossing $H$ primitives (\Cref{fig:pipeline}). Each row is
   justified by the bound, not a regression ablation: the single any-hit traversal replaces the reference's
-  $H$ re-traversals, the argmin needs no ordering of boundaries, and the per-primitive scatter distance
+  $H$ re-traversals; the reference advances boundary by boundary and re-evaluates the active overlap set at
+  each of the $H$ segment boundaries ($O(H)$ per boundary, hence $O(H^2)$ over the ray), which the argmin
+  eliminates with a single unordered $O(H)$ reduction over the collected free flights; and the per-primitive
+  scatter distance
   inverts the optical depth in closed form \emph{even across overlaps}, where the reference must fall back
   to bisection (it inverts single-primitive segments in closed form already; \Cref{sec:analytic-od}). The active-set inheritance that
   removes the residual per-bounce $O(N)$ containment scan is a \emph{measured} win (\Cref{tab:wins}); the

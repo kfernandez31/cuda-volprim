@@ -27,14 +27,19 @@ low-variance---reaches a given noise level roughly \(\mathbf{59\times}\) (\num{9
 time.\footnote{Equal-quality basis throughout this chapter (\Cref{ch:validation}): the noise constant
 $k=\bar v\cdot\mathrm{spp}$, with $\bar v$ the mean per-pixel variance across independent seeds; the
 equal-quality speedup is the ratio of $k\cdot t$ (render time $t$). The \num{59} is
-\emph{variance-dominated}---it is essentially the clipped $k$-ratio, the per-sample render times on the
-\num{3090} being comparable (the analog reference's steady-state time was not separately pinned there;
-the clean, JIT-excluded timing anchor is the Ada row of \Cref{tab:ser-eq}). \emph{Clipped} $k$ means the
+\emph{variance-dominated}---it is essentially the clipped $k$-ratio. The per-sample render times on the
+\num{3090} were not separately pinned, but where they \emph{were} cleanly pinned---the Ada row of
+\Cref{tab:ser-eq}---the reference is in fact $\approx\!\num{1.3}\times$ slower per sample, so the
+variance-only \num{59} is a conservative \emph{floor}; the clean, JIT-excluded timing anchor is that Ada
+row. \emph{Clipped} $k$ means the
 per-pixel radiance is clipped at a single global \num{99.9}th-percentile threshold \emph{before} $\bar v$
 is taken---the most conservative of the firefly-discounting conventions: clipping the per-pixel variance
 instead gives $\approx\!\num{1500}\times$, and the raw, firefly-dominated ratio $\approx\!\num{2000}\times$.
-The CI is from \num{2000} bootstrap resamples, each arm's \num{16} seeds resampled independently, with the
-\num{99.9}th-percentile clip computed once on the full set.}
+The CI is from \num{2000} bootstrap resamples in which each arm's \num{16} seeds are resampled under its
+\emph{own} independent index set---the correct convention for two independent experiments (the renderers
+share only an integer seed, not a per-seed pairing); a single \emph{shared} index set would spuriously
+correlate numerator and denominator and report a narrower interval. The \num{99.9}th-percentile clip is
+computed once on the full set.}
 This
 is the production-mode figure: the configuration one would actually use.
 
@@ -44,15 +49,14 @@ meadow environment this comparison is metric-unstable: this renderer's analog va
 firefly-dominated (rare bright-sun escapes), so raw per-pixel variance favours the reference while
 firefly-clamped variance favours this renderer, and no single equal-quality figure survives. A
 \emph{flat} (uniform) environment removes the fireflies on both sides and makes the comparison stable.
-There, at an equal sample count, this renderer is \(\mathbf{\gtrsim\!3\times}\) faster per sample
-(\SI{2.90}{\second} versus \(\sim\)\SI{8.5}{\second} at \num{64}\,spp on the cloud)\footnote{The
-flat-env Mitsuba-analog frame time was not separately recorded; \SI{8.5}{\second} is the
-meadow-analog steady state reused, which the flat-env case can only match or beat, so the
-\(\sim\!3\times\) is a lower bound. The \SI{2.90}{\second} is our locked-clock
-median.}---the single-trace argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
-the per-sample variance (both estimators unbiased; the converged means agree to \num{0.02}\,\%; the gap
+There, at an equal sample count, this renderer is \(\mathbf{\approx\!4\times}\) faster per sample
+(\SI{2.58}{\second} versus \SI{10.65}{\second} at \num{64}\,spp on the cloud)\footnote{Both frame times
+are fresh medians measured in the same session at the same locked clocks---ours over five reps, the
+analog reference over five JIT-excluded steady-state renders---so the \(4.1\times\) ratio is insensitive
+to the absolute clock level.}---the single-trace argmin needs no per-segment root-find, segment march, or shadow connection---but carries \(\sim\!5\times\)
+the per-sample variance ($k$-ratio \num{4.98}; both estimators unbiased; the converged means agree to \num{0.02}\,\%; the gap
 is the collision- versus track-length-estimator trade-off dissected in \Cref{sec:autopsies}), so the
-\emph{net} equal-quality figure is \(\sim\!0.6\times\). The architectural contribution
+\emph{net} equal-quality figure is \(\sim\!0.83\times\). The architectural contribution
 (\Cref{ch:architecture}) is therefore a \emph{structural, throughput} simplification---march-free,
 sort-free, root-find-free, faster per sample---\emph{not} a per-sample variance reduction. What actually wins at
 equal quality is the MIS direct-lighting estimator---low-variance under the peaky environments that
@@ -169,7 +173,9 @@ converged image is not required. \Cref{fig:denoise} denoises a \num{16}-spp clou
 \num{1024}-spp reference: the image-space RMSE falls from \num{0.353} to \num{0.049}, a \(7.2\times\)
 reduction, removing the fireflies and most of the stochastic grain while preserving the silhouette and
 the large-scale shading. A controlled spp sweep on the same scene puts the practical gain at
-${\sim}28\times$---the denoiser at \num{64}\,spp reaches a lower RMSE than a \num{1024}-spp uniform render. As a learned
+${\sim}28\times$---the denoiser at \num{64}\,spp reaches a lower RMSE than a \num{1024}-spp uniform render,
+and its $\sqrt{\mathrm{spp}}$-extrapolated effective sample count is ${\approx}\num{1790}$
+($\num{64}\times(\num{0.178}/\num{0.034})^2$), so the \num{1024}-spp crossing is a floor, not the figure. As a learned
 post-process it trades a controlled, content-dependent bias for this noise reduction, so it is reported
 as a practical accelerator for beauty renders, not as part of the validated estimator.
 

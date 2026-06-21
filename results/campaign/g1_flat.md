@@ -32,19 +32,32 @@ hurts on flat.
 On meadow the analog-vs-analog comparison was firefly-metric-unstable (no stable figure). On a FLAT env
 there are no fireflies (k_raw == k_clip on both sides), so the same comparison is finally STABLE:
 
-- ours-ANALOG flat   : mean=0.6212  k_clip=0.058 (raw 0.058)  t_med=**2.85s**  (n=8)
-- Mitsuba-analog flat : mean=0.6213  k_clip=0.012 (raw 0.012)  t_render~**8.5s** (n=8)
+- ours-ANALOG flat   : mean=0.6212  k_clip=0.0584  t_med=**2.575s**  (n=8 EXR for k; t = median of 5 reps)
+- Mitsuba-analog flat : mean=0.6213  k_clip=0.0117  t_render=**10.649s** (median of 5 JIT-excluded steady-state reps)
 - mean ratio = 1.0000 (correctness ✓, unbiased)
 
+### TIME PIN (2026-06-21, Talbot/Condor/Didyk denominator concern + S-T3) — both arms SAME locked clocks
+`scripts/campaign/run_flat_timing_pin.sh`, exe_analog + patched render_cloud_prb_absorption.py (RENDER_TIME_S).
+ours-analog 2.575s (reps 2.53-2.66), mits-analog 10.649s (reps 10.64-10.67, spread <0.4%). Clocks boost
+to 1800 during each render (idle drops to 795 between renders; the RATIO is clock-level-independent since
+both arms boost identically during their own renders). This PINS the denominator (was the 8.5s meadow
+value reused -> "lower bound"); the flat-env Mitsuba-analog steady-state is MEASURED at 10.65s.
+- per-sample: ours **4.14x faster** (was ">=3x lower bound" -> now measured ~4x).
+- variance: ours **4.98x noisier** (k 0.0584 vs 0.0117) -> matches thesis "~5x".
+- NET equal-quality: (km*tm)/(ko*to) = (0.0117*10.649)/(0.0584*2.575) = **0.83x** (Mitsuba ~1.2x ahead).
+- Reconciles S-T3: the 2.85s(old, ~1620MHz)/2.90s(thesis) -> 2.575s at 1800MHz (1.11x clock ratio checks).
+Thesis (07-results.tex sec:results-perf) updated: ~4x per sample / 2.58s vs 10.65s / net ~0.83x; footnote
+caveat ("not separately recorded / lower bound") removed.
+
 Two clean, stable facts:
-1. **Per-sample throughput: ours is ~3x faster** (2.85s vs ~8.5s at the SAME 64 spp) — the single-trace
-   argmin needs no per-segment root-find, no segment march, no shadow connection. This is a concrete
-   number behind Ch7's qualitative "faster per sample" claim.
-2. **Per-sample variance: ours is ~5x HIGHER** (k 0.058 vs 0.012; both unbiased) — so the net
-   equal-quality on flat is **~0.6x (Mitsuba ~1.7x ahead)**: our speed does not fully offset the higher
+1. **Per-sample throughput: ours is ~4x faster** (2.575s vs 10.649s at the SAME 64 spp, same locked
+   clocks — see TIME PIN above) — the single-trace argmin needs no per-segment root-find, no segment
+   march, no shadow connection. This is a concrete number behind Ch7's qualitative "faster per sample" claim.
+2. **Per-sample variance: ours is ~5x HIGHER** (k 0.0584 vs 0.0117; both unbiased) — so the net
+   equal-quality on flat is **~0.83x (Mitsuba ~1.2x ahead)**: our speed does not fully offset the higher
    analog variance.
 
-Interpretation: the architectural contribution is a **structural/throughput simplification (~3x faster
+Interpretation: the architectural contribution is a **structural/throughput simplification (~4x faster
 per sample), not a per-sample variance reduction** — exactly the framing already in Ch7
 (sec:results-perf). The production win is the correct, low-variance MIS estimator under peaky env
 lighting (59x); the bare sampler is faster-but-noisier. (Aside: ours-analog being ~5x noisier per sample
