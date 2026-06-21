@@ -22,13 +22,18 @@ The headline result is an equal-quality comparison on the environment-lit showca
 reference's fast direct-lighting estimator (NEE) is energy-biased on this medium
 (\Cref{sec:results-firefly}), its \emph{only} unbiased configuration is the high-variance analog one.
 Against that honest baseline, this renderer---whose MIS direct lighting is both correct and
-low-variance---reaches a given noise level roughly \(\mathbf{59\times}\) faster at equal render
-time.\footnote{Equal-quality basis throughout this chapter (as introduced in \Cref{ch:validation}):
-the noise constant $k=\bar v\cdot\mathrm{spp}$, with $\bar v$ the mean per-pixel variance across
-independent seeds; the equal-quality speedup is the ratio of $k\cdot t$ (render time $t$). The
-\num{59} uses \emph{clipped} $k$---radiance clipped at the \num{99.9}th percentile of the whole image
-set (a single global threshold) before $\bar v$, which discounts the sparse fireflies; the raw,
-firefly-dominated ratio is far larger ($\approx\!2000\times$).} This
+low-variance---reaches a given noise level roughly \(\mathbf{59\times}\) (\num{95}\,\% bootstrap CI
+\([54,63]\) over the \num{16} seeds) faster at equal render
+time.\footnote{Equal-quality basis throughout this chapter (\Cref{ch:validation}): the noise constant
+$k=\bar v\cdot\mathrm{spp}$, with $\bar v$ the mean per-pixel variance across independent seeds; the
+equal-quality speedup is the ratio of $k\cdot t$ (render time $t$). The \num{59} is
+\emph{variance-dominated}---it is essentially the clipped $k$-ratio, the per-sample render times on the
+\num{3090} being comparable (the analog reference's steady-state time was not separately pinned there;
+the clean, JIT-excluded timing anchor is the Ada row of \Cref{tab:ser-eq}). \emph{Clipped} $k$ means the
+per-pixel radiance is clipped at a single global \num{99.9}th-percentile threshold \emph{before} $\bar v$
+is taken---the most conservative of the firefly-discounting conventions: clipping the per-pixel variance
+instead gives $\approx\!\num{1500}\times$, and the raw, firefly-dominated ratio $\approx\!\num{2000}\times$.}
+This
 is the production-mode figure: the configuration one would actually use.
 
 \paragraph{Isolating the sampler.} To separate the \emph{sampler} from the direct-lighting estimator,
@@ -101,7 +106,33 @@ Anchored to the analog ground truth (mean radiance \num{0.3201}), this renderer'
 \num{0.3214}---a \num{+0.4}\,\% difference, inside the Monte-Carlo noise floor---while the reference's
 NEE result is \num{0.8199}, \emph{\num{+156}\,\% too bright}. The reference's explicit direct-lighting
 estimator does not converge to the correct image on this medium; its only unbiased mode is therefore
-the analog one. That matters for any equal-quality comparison, because the analog mode is also by far
+the analog one.
+
+\paragraph{Why the next-event estimator over-counts.} The over-count is a property of the reference's
+estimator, not of how it was invoked here: the reference runs at its documented defaults---Gaussian
+kernel, bisection solver, and a path depth of \num{128} deep enough that truncation can only
+\emph{darken} the result---and the same over-count appears, reference-free, in the furnace test of
+\Cref{par:furnace}, where energy conservation alone (no asset, density scale, or comparison render)
+forces a correct estimator to return the background. The mechanism is a sampling-measure mismatch in
+next-event estimation through a medium: the reference evaluates the shadow ray's transmittance
+\emph{analytically and deterministically} and combines it, under multiple importance sampling on the bare
+directional densities, with a continuation term that instead carries the medium's attenuation
+\emph{stochastically}, through analog free-flight survival. Because the two strategies do not share a
+common measure over the medium, their MIS weights do not partition the direct-lighting contribution
+exactly, and a positive surplus survives at each interior scatter vertex; estimating the next-event
+transmittance with ratio tracking, as a standard volumetric path tracer does, would remove it. This also
+explains the magnitude. The same over-count is visible, and reference-free, in the furnace of
+\Cref{par:furnace}, and it grows steeply with optical thickness even for a \emph{single} Gaussian: at the
+Gaussian's centre the over-count rises from ${\approx}\num{1}\,\%$ at density scale \num{2}, through
+${\approx}\num{10}\,\%$ at \num{6}, to ${\approx}\num{30}\,\%$ at \num{12}, because in the optically thin
+limit the analog continuation almost always escapes and the surplus is small, whereas as the medium
+thickens the continuation's escape probability collapses and the analytic next-event surplus survives at
+each interior vertex. On the showcase cloud (density scale \num{7.5}) this is compounded by heavy
+\emph{overlap}---tens of primitives contribute at every interior vertex---so the surplus persists
+undiluted at many vertices and the in-scatter recursion compounds it over scattering order, reaching
+\num{+156}\,\%: the same defect as the furnace's, in the thick, multiply-overlapping limit.
+
+That matters for any equal-quality comparison, because the analog mode is also by far
 the noisiest: at equal render time the reference-analog image carries roughly \(59\times\) the
 clipped per-pixel variance of this renderer's MIS image (the clipped statistic, at the
 \num{99.9}th percentile, discounts the rare extreme fireflies that dominate the raw variance by a

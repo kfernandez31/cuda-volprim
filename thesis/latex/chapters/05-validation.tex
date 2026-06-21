@@ -202,12 +202,17 @@ Enabling scattering (albedo $>0$) activates the full path tracer: the analog-dec
 phase function, and next-event estimation over many bounces. There is no closed-form image here, so two
 checks are used: a reference-free energy invariant, and the differential comparison against Mitsuba.
 
-\paragraph{Furnace test.} In a uniform environment with albedo $1$ and no absorption, energy
-conservation demands that every pixel return exactly the background---any deviation is estimator bias.
-The renderer passes this furnace test flat to within noise, confirming the scattering loop conserves
-energy. Notably, Mitsuba's \emph{next-event} integrator fails the same test by $\approx\!6.5\%$
-(an over-estimate from its direct-lighting term), so its \emph{analog} (NEE-disabled) mode---which is
-unbiased---is used as the scattering ground truth throughout.
+\paragraph{Furnace test.}\label{par:furnace} In a uniform environment with albedo $1$ and no absorption,
+energy conservation demands that every pixel return exactly the background---any deviation is estimator
+bias, with no reference render, asset, or density scale entering. The renderer passes this furnace test
+flat to within noise, confirming the scattering loop conserves energy, and Mitsuba's \emph{analog} mode
+passes it likewise. Mitsuba's \emph{next-event} integrator, by contrast, over-counts in-scattered light
+at the Gaussian's centre, depth-invariantly (identical at path depths \num{32} and \num{256}, so not a
+truncation artefact); because the furnace removes every setup variable, this establishes the over-count
+as intrinsic to that estimator rather than an artefact of the asset, the density scale, or this renderer
+(the mechanism, and how it grows with optical thickness and overlap to \num{+156}\,\% on the dense cloud,
+are diagnosed in \Cref{sec:results-firefly}). Its \emph{analog} (NEE-disabled) mode---which is
+unbiased---is therefore used as the scattering ground truth throughout.
 
 \paragraph{The scattering ladder.} Against Mitsuba-analog the renderer is validated up the same ladder:
 a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$. The single rung

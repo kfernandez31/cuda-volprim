@@ -21,7 +21,8 @@ high-variance analog — not a hobble we imposed.
 
 ### Speed headline — ~59× clipped equal-quality (B-justified)
 ours-MIS (k 1.99) vs Mitsuba-analog (k 3899) → **~59× clipped / ~2000× raw** less noise at ~equal render
-time → equal-quality speedup ~59× (clipped). Honest framing (no "hobbled Mitsuba"): *Mitsuba's NEE is
+time → equal-quality speedup ~59× (clipped; **95% bootstrap CI [54, 63]**, median 59, B=2000 over the 16
+seeds, banked 2026-06-21; raw 1964× CI [1802, 2119]). Honest framing (no "hobbled Mitsuba"): *Mitsuba's NEE is
 +156 % biased (B), so unbiased Mitsuba = analog (firefly-noisy); ours has correct MIS → ~59× faster.*
 NOTE: t_mits is wall (incl startup); a clean steady-state Mitsuba render time would tighten the number
 (k dominates, so ~59× holds).
