@@ -98,7 +98,7 @@ NEE estimator, and the reference's analog mode as an unbiased ground truth.
   \includegraphics[width=\linewidth]{figures/g1_bias.pdf}
   \caption{Direct-lighting estimators on the showcase cloud (meadow environment, mean of \num{16}
   \num{64}-spp seeds). \emph{Left:} this renderer's MIS estimator, \num{0.4}\,\% above the unbiased
-  ground truth---correct to within Monte-Carlo noise. \emph{Centre:} the reference's NEE estimator,
+  ground truth---correct to within Monte Carlo noise. \emph{Centre:} the reference's NEE estimator,
   \num{156}\,\% too bright---a gross energy bias that washes the cloud out. \emph{Right:} the
   reference's analog mode, the unbiased ground truth (and visibly the noisiest of the three). All three
   use the \emph{identical} scene and sample budget (\num{16}\,$\times$\,\num{64}\,spp), so the
@@ -109,7 +109,7 @@ NEE estimator, and the reference's analog mode as an unbiased ground truth.
 \end{figure}
 
 Anchored to the analog ground truth (mean radiance \num{0.3201}), this renderer's MIS result is
-\num{0.3214}---a \num{+0.4}\,\% difference, inside the Monte-Carlo noise floor---while the reference's
+\num{0.3214}---a \num{+0.4}\,\% difference, inside the Monte Carlo noise floor---while the reference's
 NEE result is \num{0.8199}, \emph{\num{+156}\,\% too bright}. The reference's explicit direct-lighting
 estimator does not converge to the correct image on this medium; its only unbiased mode is therefore
 the analog one.
@@ -270,7 +270,7 @@ consistent with its dense, heavily-overlapped medium---the regime of the small o
 mean coincidence: the two renderers' images are visually indistinguishable, and their amplified
 difference is unstructured---it has no localised feature, which by the differential-validation criterion
 of \Cref{sec:reference-problem} (a \emph{structured} difference localises a discrepancy; an unstructured,
-mean-matching one is consistent with Monte-Carlo noise) is the signature of agreement rather than a
+mean-matching one is consistent with Monte Carlo noise) is the signature of agreement rather than a
 residual bias---bounding any systematic difference below the precision the test resolves, rather than
 proving it exactly zero. These
 gates confirm that the renderer's correctness is not cloud-specific but holds across three assets spanning
@@ -284,7 +284,7 @@ sparse (tornado) to dense, heavily-overlapped (bunny) media.
   Mitsuba-analog, and the absolute difference amplified \(10\times\). The converged-mean ratios are
   \num{0.9991} (tornado, top), \num{1.0001} (explosion, middle), and \num{0.9984} (bunny, bottom); the amplified difference is
   unstructured grain with no localised feature---by the criterion of \Cref{sec:reference-problem} the
-  signature of Monte-Carlo noise, not a residual bias---so the agreement is not specific to the cloud.}
+  signature of Monte Carlo noise, not a residual bias---so the agreement is not specific to the cloud.}
   \label{fig:generalisation}
 \end{figure}
 
