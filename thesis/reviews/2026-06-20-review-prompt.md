@@ -1,4 +1,4 @@
-# Review prompt — MSc thesis full scholarly review (2026-06-20 v2; fresh Claude, persona subagents)
+# Review prompt — MSc thesis full scholarly review (2026-06-21 round 2; fresh Claude, persona subagents)
 
 You orchestrate a **scholarly** review of a complete MSc thesis draft — not a fact-check. Numbers must be
 right, but you are equally judging **academic rigor, argumentation, relevance, writing style, and
@@ -10,18 +10,37 @@ overstatement AND over-hedging — calibrate, don't push hype. British spelling 
 `-isation`); formal academic register; flag any colloquialism (e.g. "meat and potatoes," "cherry on top,"
 "jaw-dropping").
 
-> **What changed since the last full review (2026-06-15/16) — scrutinise hardest, these are new:**
-> 1. **New §6.9 `sec:ser` + Table 6.5 (`tab:ser`)** — per-asset SER on RTX 4090 (Ada), 1.12–1.68×,
->    image-identical — and **Table 6.6 (`tab:ser-eq`)** — the end-to-end equal-quality ladder vs the
->    unbiased reference on the 4090: **77× (MIS) → 110× (MIS+SER) → 151× (RIS+fast-erf+SER) → 179×
->    (+icosphere ℓ=2)**, vs the pinned **59× on the 3090**.
-> 2. **Bunny added to the parity gate** (`sec:results-generalisation`, now three further assets + figure):
->    converged-mean ratio **0.9984**. Old "ambiguous fits" exclusion wording removed (§7.1, `tab:vram`).
-> 3. **New Ch1 contributions bullet** on cross-architecture hardware characterisation; matching scoped
->    clauses in abstract/intro/conclusion.
-> 4. **Figure audit**: `fig:bvh-dragon`, `fig:flicker` cut; `fig:mc-integ` redrawn; `fig:pipeline` ×N→×H;
->    `tab:complexity` reference-only; scattering ladder → running-mean; roofline → 4 assets.
-> *(If a prior iteration's fixes have since landed, refresh this banner before re-running.)*
+> **ROUND 2 — re-review after iteration-1 fixes (2026-06-21).** Twofold job: \emph{verify} the round-1
+> fixes are correct and complete, and bring \emph{fresh eyes} for anything new. The round-1 reviews +
+> synthesis are banked (`thesis/reviews/2026-06-20-{condor,didyk,talbot}-review.md`, `…-synthesis.md`).
+> **Fixed since round 1 — verify, do not re-discover:**
+> 1. **B1 — the +156% NEE bias** now has a stated mechanism (a sampling-measure mismatch in next-event
+>    estimation through a medium), a configuration record, and a *measured* furnace magnitude-bridge
+>    (centre over-count grows ${\sim}1\%\to{\sim}31\%$ with optical thickness; banked `results/campaign/furnace.md`).
+> 2. **Headline 59×** now carries a 95% bootstrap CI **[54,63]**; the footnote states it is
+>    variance-dominated and names the clip convention precisely (the most conservative one).
+> 3. **Condor reference-accuracy:** DSYG characterised correctly (closed-form for single-Gaussian segments,
+>    bisection only in overlaps; the argmin extends closed-form sampling *across* overlaps); the Condor
+>    credit is scoped to the sampler half only; kernel generality distinguishes the forward optical depth
+>    (both kernels) from the practical inverse (Gaussian-only); the heavy-overlap residual is **decided** — a
+>    double-precision erf⁻¹ build shifts it by ${\sim}2\times10^{-8}$, ruling out single-precision inversion
+>    (`results/campaign/s4_erfinv.md`).
+> 4. **B2 — `tab:overlap`↔`tab:vram`** reconciled (the estimator's predictions seed the caps; the in-render
+>    counters are the authority where they differ — bunny 245→71→shipped 80, 387→464→528).
+> 5. **Professionalism sweep:** the internal-doc leak (FINDINGS column + `(§8.x)` pointers) removed; British
+>    "Optimisation"; WDAS/bunny datasets cited; GPU-term fixes (no "shared memory"/"coalesced"/"8-cell");
+>    fast-erf terminology unified; SER range 1.12–1.68× with the over-repetition trimmed; significance
+>    foreshadowed in the intro; figure-label polish (rr-depth `$k\cdot t$`, ris-ksweep legend, icosphere `ℓ=3`).
+>
+> **Deliberately deferred — do NOT raise as Blockers (known, by-choice open):** the optional structural
+> relocation of `tab:ser-eq` (the 4090 ladder) into Ch7 + the memory-section consolidation; the fig:rr-depth
+> *depth-14* re-measure (pending a locked-clock GPU run — only its axis label was fixed); and minor polish
+> (Monte-Carlo hyphenation, a few orphan bib entries, the rr-depth caption seed-count wording, flat-rung
+> 2.90/2.85 s). Flag them only if you disagree with the deferral.
+>
+> **The RTX 4090 box is destroyed.** Its results are archived (`results/campaign/g1_4090.md`; the variance
+> constants are GPU-independent); the furnace and erf⁻¹ tests ran locally and are banked. Do not try to reach it.
+> Write round-2 reviews to `thesis/reviews/2026-06-21-{persona}-review.md`.
 
 ## What the thesis is
 A CUDA/OptiX physically based **volumetric path tracer for Gaussian kernel-mixture volumes** — a

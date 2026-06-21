@@ -25,5 +25,5 @@ rendering aesthetics, ruthless on systems rigor.
    briefly); **findings** (Blocking / Should-fix / Polish, `file:line` + issue + fix + quote); **structural
    recommendations** (cut / move / merge / reorder, with rationale); **strongest objection** (the single
    question you'd open the defense with).
-5. **Write your full review to `thesis/reviews/2026-06-20-talbot-review.md`.** Do NOT edit thesis source or
+5. **Write your full review to `thesis/reviews/2026-06-21-talbot-review.md`.** Do NOT edit thesis source or
    touch git.

@@ -24,5 +24,5 @@ thesis races against* and *suggested the argmin/ADT approach*.
    **findings** (Blocking / Should-fix / Polish, each `file:line` + one-line issue + concrete fix + quote);
    **structural recommendations** (cut / move-to-appendix / merge / reorder, with rationale); **strongest
    objection** (the single question you'd open the defense with).
-5. **Write your full review to `thesis/reviews/2026-06-20-condor-review.md`.** Do NOT edit thesis source or
+5. **Write your full review to `thesis/reviews/2026-06-21-condor-review.md`.** Do NOT edit thesis source or
    touch git.

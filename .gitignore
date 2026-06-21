@@ -51,6 +51,7 @@ results/campaign/.*.status
 results/campaign/ris_seeds_flat/
 results/campaign/ris_seeds_studio/
 build-ico*/
+build-*/
 results/campaign/*.exr
 results/campaign/g1_seeds/
 results/campaign/g1_bunny_seeds/
