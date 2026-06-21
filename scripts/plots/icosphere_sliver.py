@@ -51,7 +51,7 @@ def main():
     fig, axes = plt.subplots(1, 3, figsize=(10.5, 2.6))
     panels = [
         (tonemap(a), "analytic sphere (exact)", True),
-        (tonemap(i), f"icosphere $N=3$ (1280 tris)\nRMSE {rmse:.1e}, {npx} px $|\\Delta|>0.05$", True),
+        (tonemap(i), f"icosphere $\\ell=3$ (1280 tris)\nRMSE {rmse:.1e}, {npx} px $|\\Delta|>0.05$", True),
         (d, f"$|\\Delta|\\times{AMP}$ (geometric, no MC noise)", False),
     ]
     for ax, (img, title, box) in zip(axes, panels):

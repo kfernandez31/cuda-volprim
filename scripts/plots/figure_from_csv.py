@@ -29,6 +29,8 @@ def main() -> None:
     ap.add_argument("--csv", required=True)
     ap.add_argument("--x", required=True, help="x-axis column (header name)")
     ap.add_argument("--y", required=True, nargs="+", help="one or more y columns")
+    ap.add_argument("--labels", nargs="+", default=None,
+                    help="legend labels (one per --y); defaults to the column names")
     ap.add_argument("--kind", default="line", choices=["line", "scatter", "bar"])
     ap.add_argument("--xlabel", default=None)
     ap.add_argument("--ylabel", default=None)
@@ -57,13 +59,14 @@ def main() -> None:
     bar_w = 0.8 / n_series
     for i, yc in enumerate(args.y):
         y = np.atleast_1d(data[yc])
+        lab = args.labels[i] if args.labels else yc
         if args.kind == "line":
-            ax.plot(x, y, marker="o", label=yc)
+            ax.plot(x, y, marker="o", label=lab)
         elif args.kind == "scatter":
-            ax.scatter(x, y, label=yc)
+            ax.scatter(x, y, label=lab)
         else:  # grouped bars (side-by-side per series); x values as tick labels
             pos = np.arange(len(x))
-            ax.bar(pos + (i - (n_series - 1) / 2) * bar_w, y, width=bar_w, label=yc)
+            ax.bar(pos + (i - (n_series - 1) / 2) * bar_w, y, width=bar_w, label=lab)
             ax.set_xticks(pos)
             ax.set_xticklabels([str(v) for v in x])
 
