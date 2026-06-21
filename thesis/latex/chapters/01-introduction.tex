@@ -23,7 +23,10 @@ study. The goal, from the outset, was efficiency: to render Gaussian kernel-mixt
 correctly and substantially faster than the reference, and to chart where the performance of such a
 renderer can and cannot be improved. The central observation is that the one property the representation
 affords---an analytic, invertible per-primitive optical depth---admits a different sampling
-architecture, free of the reference's marching and root-finding.
+architecture, free of the reference's marching and root-finding. That architecture's gain is
+\emph{structural}---march-, sort-, and root-find-free, faster per sample, and megakernel-shaped; the
+headline equal-quality advantage under environment lighting is delivered by the correct, low-variance
+direct-lighting estimator the architecture makes practical, not by the sampler alone (\Cref{ch:results}).
 
 \newpage
 \paragraph{Contributions.} This thesis contributes:

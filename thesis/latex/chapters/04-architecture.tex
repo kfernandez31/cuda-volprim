@@ -88,7 +88,7 @@ per-ray buffer. (Back-face culling, \texttt{OPTIX\_\allowbreak RAY\_\allowbreak 
 the same role only for the tessellated-icosphere variant of \Cref{ch:optimization}.) The matching exit of
 any primitive is not traced at all: since the primitive's geometry is known, the exit distance follows
 in closed form from the ray--sphere intersection. One traversal therefore replaces the reference's
-$N$, and the buffer holds exactly the data the scatter sampler needs.
+$H$ (one per crossed boundary), and the buffer holds exactly the data the scatter sampler needs.
 
 The entry buffer is a structure-of-arrays, \texttt{HitBufferSoA}, storing the hit distances and
 primitive indices in separate arrays (\SI{4}{\byte} and \SI{2}{\byte} per entry respectively) so that

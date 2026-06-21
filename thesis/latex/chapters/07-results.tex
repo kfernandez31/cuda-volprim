@@ -151,7 +151,8 @@ engineering cost, sitting entirely outside the unbiased estimator---but a large 
 converged image is not required. \Cref{fig:denoise} denoises a \num{16}-spp cloud render against a
 \num{1024}-spp reference: the image-space RMSE falls from \num{0.353} to \num{0.049}, a \(7.2\times\)
 reduction, removing the fireflies and most of the stochastic grain while preserving the silhouette and
-the large-scale shading---an effective ${\sim}30\times$ sample-equivalent on the showcase. As a learned
+the large-scale shading. A controlled spp sweep on the same scene puts the practical gain at
+${\sim}28\times$---the denoiser at \num{64}\,spp reaches a lower RMSE than a \num{1024}-spp uniform render. As a learned
 post-process it trades a controlled, content-dependent bias for this noise reduction, so it is reported
 as a practical accelerator for beauty renders, not as part of the validated estimator.
 
@@ -201,7 +202,8 @@ measurement)---the difference between sitting below the reference on memory and 
   measured on all four assets under each asset's matched config (the bunny via its single Gaussian fit,
   which \Cref{sec:results-generalisation} also parity-checks against the reference). Our figures are per-process (the \texttt{nvidia-smi} compute-apps query); Mitsuba's were
   polled GPU-wide on an otherwise-idle GPU, so if anything they overstate Mitsuba's footprint (making the
-  cloud and explosion margins conservative). The safe build reserves a flat 1200\,MiB as $N$ varies \num{39}$\times$,
+  cloud and explosion margins conservative); the two are different queries, so the head-to-head margins
+  are indicative, not exact. The safe build reserves a flat 1200\,MiB as $N$ varies \num{39}$\times$,
   showing geometry does not drive VRAM; the calibrated-vs-safe delta at fixed geometry
   (cloud $1200\to578\,$MiB, caps only) isolates the per-ray reservation as the dominant term. Per-asset
   calibration saves $0.30$--$0.62\,$GiB ($25$--$52\,\%$); the saving tracks the hit-buffer cap (the
@@ -280,7 +282,7 @@ three seeds at the pinned clocks of \Cref{sec:setup} (\num{512}\textsuperscript{
   \includegraphics[width=\linewidth]{figures/scaling.pdf}
   \caption{Render time (\emph{left}) and device memory (\emph{right}) versus primitive count \(N\),
   log--log. \emph{Left:} a controlled synthetic sweep of \(k\times k\) grids of \emph{identical}
-  Gaussians (one fixed binary, constant caps). The fit \(t\propto N^{0.40}\) (\(R^2=0.96\)) is over the
+  Gaussians (one fixed binary, constant caps). The fit \(t\propto N^{0.40}\) (\(R^2=0.96\), \(n=4\) points; sub-linear) is over the
   four \emph{square} grids \(N\in\{16,256,1024,4096\}\) (filled), which hold a constant \(1\!:\!1\)
   aspect so only the count changes---a \(256\times\) increase in primitives costs only
   \(\sim\!10\times\) the time, the sub-linear behaviour the BVH affords. The three \(1\!:\!2\)
@@ -300,7 +302,7 @@ three seeds at the pinned clocks of \Cref{sec:setup} (\num{512}\textsuperscript{
 Gaussians, identical caps, constant \(1\!:\!1\) aspect, only the count changing
 (\(N\in\{16,256,1024,4096\}\))---isolates \(N\) cleanly, because the three \(1\!:\!2\) rectangular grids
 change aspect and screen coverage and so confound the count (the full series is non-monotonic). Over the
-four square grids render time fits a \emph{power law} \(t\propto N^{0.40}\)---a straight line in the
+four square grids render time fits a \emph{sub-linear power law} \(t\propto N^{0.40}\) (\(n=4\))---a straight line in the
 log--log plot, \(\log t = b\log N + \mathrm{const}\) fitted by least squares, with exponent \(b=0.40\)
 (\(n=4\), \(R^2=0.96\)): the fitted exponent implies a per-doubling factor of \(\sim\!1.3\times\) rather
 than \(2\times\), and a \(256\times\)

@@ -58,7 +58,7 @@ plus reflected incident radiance integrated over the hemisphere $\Omega$:
   \int_{\Omega} f_r(\bm{x},\bm{\omega}_i,\bm{\omega}_o)\,
   L_i(\bm{x},\bm{\omega}_i)\,\lvert \bm{n}\cdot\bm{\omega}_i\rvert \,\mathrm{d}\bm{\omega}_i ,
 \]
-where $f_r$ is the bidirectional reflectance distribution function and $\bm{n}$ the surface normal.
+where $f_r$ is the bidirectional reflectance distribution function (BRDF) and $\bm{n}$ the surface normal.
 The integral is estimated by MC---sample incident directions, evaluate, recurse---and
 \emph{path tracing} applies this recursion along light paths from the camera, accumulating
 contributions until paths are terminated by Russian roulette~\cite{ArvoKirk1990}---which randomly ends
