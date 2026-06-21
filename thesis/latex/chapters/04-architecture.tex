@@ -92,7 +92,8 @@ $N$, and the buffer holds exactly the data the scatter sampler needs.
 
 The entry buffer is a structure-of-arrays, \texttt{HitBufferSoA}, storing the hit distances and
 primitive indices in separate arrays (\SI{4}{\byte} and \SI{2}{\byte} per entry respectively) so that
-the sampler's sequential scan over hits is coalesced. It is a per-ray buffer held in fast local memory
+the sampler's sequential scan over distances touches only the \SI{4}{\byte} distance array, halving its
+cache footprint. It is a per-ray buffer held in fast local memory
 with a fixed capacity (\Cref{sec:gpu-impl}); overflow is \emph{detected} rather than corrected---a
 dropped hit biases the pixel toward under-absorption, but a device counter flags the event instead of
 letting it pass silently. Two categories of primitive contribute to a scattering event: those the ray is
@@ -407,8 +408,8 @@ per-ray state is carried between them through global memory, with stream compact
 keep GPU warps coherent. Keeping the whole loop in one kernel is a deliberate fit to the workload. The per-bounce arithmetic is light (a few
 error functions and a phase evaluation), but the per-ray \emph{state} that must persist across
 bounces---mainly the active set---is comparatively large. A wavefront would have to stream that state
-to and from global memory every bounce; the megakernel keeps it in registers and shared/local memory,
-paying zero round-trips. \Cref{ch:optimization} reports the experiment that confirms this: a wavefront
+to and from global memory every bounce; the megakernel keeps it in registers and per-thread local memory
+(L1/L2-resident), paying no global round-trips. \Cref{ch:optimization} reports the experiment that confirms this: a wavefront
 refactor, though correct, was dramatically slower, because moving the persistent per-ray state to
 global memory is fatal for an algorithm whose per-bounce compute is otherwise so cheap.
 
@@ -417,7 +418,7 @@ logging, and command-line parsing), the renderer has no external dependencies---
 rendering framework---which keeps the codebase compact and straightforward to extend. Optional
 features are toggleable without touching the core renderer: the OptiX denoiser (\texttt{--denoise}) and
 volumetric product-RIS (\texttt{--ris}, with candidate count \texttt{--ris-candidates}) are
-\emph{runtime} flags, while adaptive sampling and a fast-math $\operatorname{erf}$ are compile-time
+\emph{runtime} flags, while adaptive sampling and a fast \texttt{erf} are compile-time
 switches. The rendering parameters themselves are likewise exposed on the command line, so an experiment is
 specified entirely by its invocation:
 \begin{itemize}\sloppy

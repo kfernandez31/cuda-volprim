@@ -66,7 +66,7 @@ win. This mirrors the resampled direct-lighting result of \Cref{sec:ris}, where 
 environment-sampling machinery helps under peaky illumination and is counterproductive on flat: the
 renderer's advantage is concentrated exactly where production volumetric lighting lives.
 
-\paragraph{Beyond the cloud.} The bunny (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
+\paragraph{Beyond the cloud.} The bunny~\cite{TurkLevoy1994} (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
 \num{64}\,spp, \(512^2\), under the meadow environment (the white-constant scattering configuration of
 \Cref{tab:asset-cost} is \SI{53.9}{\second}; same order), with zero cap overflows. It is the densest
 asset exercised, and---via its single Gaussian fit (the only one this renderer's Gaussian kernel can

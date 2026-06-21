@@ -172,7 +172,7 @@ itself under-absorbs as identical primitives are stacked---a reminder that ``dif
 ways and that the analytic check is the final arbiter.
 
 \paragraph{The cloud.} The top rung is the full \num{652}-primitive Disney cloud (the headline asset
-throughout this thesis: Gaussians fit to the Disney/WDAS cloud volume). It matches the reference across
+throughout this thesis: Gaussians fit to the Disney/WDAS cloud volume~\cite{WDASCloud2017}). It matches the reference across
 all $24$ camera views---against Mitsuba, with a float64 brute-force analytic transmittance adjudicating
 the edge band on a representative view---establishing absorption correctness at scene scale before
 scattering, and hence multiple sampled bounces, was introduced. The absorption ladder is therefore
@@ -285,8 +285,8 @@ builds: every optimisation there is required to preserve this image, and is reve
   \caption{The combined showcase: the full cloud under a measured HDR environment with forward
   Henyey--Greenstein scattering ($g = 0.85$). \emph{Left:} our MIS renderer; \emph{right:} Mitsuba's
   only unbiased mode (analog)---each a single \num{64}-spp frame (our frame $\approx\SI{9}{\second}$;
-  the Mitsuba-analog frame $\approx\SI{13.6}{\second}$ wall, including JIT start-up). The two agree on the converged image (means \num{0.321} versus
-  \num{0.321}; the systematic brightness check is \Cref{fig:g1-bias}), yet at this budget ours is
+  the Mitsuba-analog frame $\approx\SI{9}{\second}$ steady-state, $\approx\SI{13.6}{\second}$ wall including JIT start-up). The two agree on the converged image (means \num{0.3214} versus
+  \num{0.3201}; the systematic brightness check is \Cref{fig:g1-bias}), yet at this budget ours is
   firefly-free while the reference's analog mode is dominated by fireflies---the difference is variance,
   not bias, and its equal-quality cost is quantified in \Cref{ch:results}.}
   \label{fig:showcase}

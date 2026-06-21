@@ -1,4 +1,4 @@
-\chapter{Performance Engineering and Optimization}
+\chapter{Performance Engineering and Optimisation}
 \label{ch:optimization}
 
 The renderer validated in \Cref{ch:validation} is fast by design: at equal quality on the scattering
@@ -67,7 +67,7 @@ placed in one of three modes:
     \midrule
     \textbf{(M) Measured} & genuine choice, non-obvious outcome & RIS, RR depth, shell geometry, autopsies \\
     \textbf{(C) Complexity-argued} & asymptotically better; argue the bound & argmin sampler, $O(1)$ active set \\
-    \textbf{(S) Standard practice} & textbook; cite, don't measure & multi-stream, FMA, coalescing, fast-math \\
+    \textbf{(S) Standard practice} & textbook; cite, do not measure & multi-stream, FMA, coalescing, fast-math \\
     \bottomrule
   \end{tabular}%
   }
@@ -90,7 +90,7 @@ their product is a \emph{shallow basin} spanning depths $8$--$12$ (within $1.2\,
 measured minimum---re-anchored at the calibrated caps on a quiet GPU---lands on the shipped default
 $12$, with real penalties outside it ($5$: $+5.0\,\%$; $16$: $+4.9\,\%$ relative to the minimum). The
 informal development-time measurement had put the depth-$5\!\to\!12$ gain at ${\sim}11\,\%$; the
-controlled \num{16}-seed sweep revises that to $+4.7\,\%$ (depth $5$'s frame-time penalty over the
+controlled \num{16}-seed sweep revises that to $+5.0\,\%$ (depth $5$'s efficiency penalty over the
 depth-$12$ minimum). With these wins, and the MIS direct-lighting estimator of \Cref{sec:ris}, in
 place, the renderer reaches Mitsuba's noise level in less time on the environment-lit showcase
 (\Cref{ch:results}).
@@ -98,23 +98,22 @@ place, the renderer reaches Mitsuba's noise level in less time on the environmen
 \begin{table}[htp]
   \centering
   \resizebox{\linewidth}{!}{%
-  \begin{tabular}{@{}llc@{}}
+  \begin{tabular}{@{}ll@{}}
     \toprule
-    Optimisation & Effect & FINDINGS \\
+    Optimisation & Effect \\
     \midrule
-    Shadow-ray transmittance         & $\sim$\,12--15$\times$ (shadow kernel) & §8.16 \\
-    Skip per-bounce containment scan & $\sim$\,16\% frame                     & §8.23 \\
-    Russian-roulette depth $5\to12$  & $+4.7$\,\% (basin $8$--$12$, min at $12$; \Cref{fig:rr-depth}) & sweep \\
-    Dedup bounce-0 scan              & $\sim$\,8\%                            & §8.19 \\
-    Any-hit transmittance fusion     & $\sim$\,3\%                            & §8.18 \\
-    Fast \texttt{erf} in the hot path & $\sim$\,1\% (numerically free; opt-in) & §8.21; sweep \\
+    Shadow-ray transmittance         & $\sim$\,12--15$\times$ (shadow kernel) \\
+    Skip per-bounce containment scan & $\sim$\,16\% frame \\
+    Russian-roulette depth $5\to12$  & $+5.0$\,\% (basin $8$--$12$, min at $12$; \Cref{fig:rr-depth}) \\
+    Dedup bounce-0 scan              & $\sim$\,8\% \\
+    Any-hit transmittance fusion     & $\sim$\,3\% \\
+    Fast \texttt{erf} in the hot path & $\sim$\,1\% (numerically free; opt-in) \\
     \bottomrule
   \end{tabular}%
   }
   \caption{Measured (M-mode) optimisations kept in the renderer. Each is a controlled on/off ablation
-  on the scattering cloud; §-referenced rows are development-time measurements, and the RR-depth row is
-  the controlled $16$-seed sweep of \Cref{fig:rr-depth}, which revised the development-time
-  ${\sim}11\,\%$ estimate downward.}
+  on the scattering cloud; the RR-depth row is the controlled $16$-seed efficiency sweep of
+  \Cref{fig:rr-depth}, which revised an earlier development-time ${\sim}11\,\%$ estimate.}
   \label{tab:wins}
 \end{table}
 
@@ -310,7 +309,7 @@ versus per-primitive duplication in the reference).
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/icosphere_sliver.pdf}
-  \caption{The $\ell{=}3$ sliver artifact (cloud, pure absorption, so transmittance is deterministic and
+  \caption{The $\ell{=}3$ sliver artefact (cloud, pure absorption, so transmittance is deterministic and
   every difference is geometric, not Monte-Carlo noise). Left: the analytic sphere, exact. Centre: the
   \num{1280}-triangle icosphere; the inset crop shows faceted slivers where the analytic shell is
   smooth. Right: $|\Delta|$ (amplified $4\times$)---the error is a thin, silhouette-localised population
@@ -327,17 +326,17 @@ hypothesis, cheap kill-test, measurement, and lesson---collectively a map of whe
 renderer does \emph{not} go.
 
 \begin{itemize}
-  \item \textbf{Wavefront refactor (§8.34) --- the big one.} Splitting the megakernel into per-stage
+  \item \textbf{Wavefront refactor --- the largest regression.} Splitting the megakernel into per-stage
   kernels was, in a development-time measurement, $100$--$1400\times$ \emph{slower} (a wide range across
   configurations; the branch no longer builds on the current toolchain, so this stands as a one-time
   figure): the ${\sim}352$\,B/ray state must stream through DRAM
   every bounce and goes super-linear once the working set exceeds L2. \emph{Lesson:} moving persistent
   per-ray state to global memory is fatal for this workload---it is megakernel-shaped, and this rules
   out a whole family of designs (wavefront, ray-sorting, neural caches).
-  \item \textbf{Megakernel footprint reduction (§8.29).} SoA layouts, field reordering, and
+  \item \textbf{Megakernel footprint reduction.} SoA layouts, field reordering, and
   \texttt{\_\_ldg} hints were null: the data is already cache-resident, so the cost is load
   \emph{latency}, not footprint.
-  \item \textbf{Cap-free streaming scatter sampling --- the most rigorously killed.} The hit buffer
+  \item \textbf{Cap-free streaming scatter sampling --- the most thoroughly disproven.} The hit buffer
   exists only to be \emph{re-read} after the argmin; a minimum is an order-independent reduction, so
   in principle the buffer can be deleted: stream the argmin inside the any-hit shader, with the
   free-flight draws made traversal-order-invariant by a stateless counter-based hash of (path, bounce,
@@ -355,12 +354,12 @@ renderer does \emph{not} go.
   inverse-CDF undershoot that let the winning primitive be excluded from its own active set ---
   since fixed) and established empirically that OptiX does not report hits at exactly
   $t = t_{\max}$; both findings outlived the experiment.
-  \item \textbf{Adaptive sampling (§8.30).} Per-pixel convergence stopping was a net loss: at the
+  \item \textbf{Adaptive sampling.} Per-pixel convergence stopping was a net loss: at the
   working threshold nothing early-stops on the high-variance cloud, so it matches uniform sampling at
   identical quality but runs \num{0.9}\,\% slower (\num{0.7}\,\% on the calibrated-caps re-confirmation)
 and reserves an extra per-pixel variance buffer; a
   more aggressive threshold only trades that overhead for firefly bias. Kept, default-off.
-  \item \textbf{Per-step Rao--Blackwellisation, ``A1'' (§8.27) --- the most instructive.} The renderer
+  \item \textbf{Per-step Rao--Blackwellisation, ``A1'' --- the most instructive.} The renderer
   is ${\sim}5\times$ noisier per sample than Mitsuba on the flat-lit scattering cloud
   (\Cref{sec:results-perf}); the hypothesis blamed Mitsuba folding the analytic segment transmittance
   into throughput at \emph{every} bounce versus only at the primary vertex here. A single-Gaussian depth
@@ -379,13 +378,13 @@ and reserves an extra per-pixel variance buffer; a
   trade-off, not a missed optimisation --- it helps only the flat regime, while the environment-lit
   showcase (the target) is already won by MIS (\Cref{ch:results}); a hybrid that keeps the argmin yet
   folds the analytic transmittance at all bounces is the open direction should the flat gap ever matter.
-  \item \textbf{Density-contribution culling (§8.31)} --- redundant with the BVH's $3\sigma$ bound.
-  \textbf{Track-length combine (§8.32)} --- unnecessary, the environment transmittance is already
-  analytic. \textbf{Exit-caching (§8.35)} --- bit-identical, no win (the extra local state hit the
-  occupancy wall). \textbf{Env-IS alias table (§8.36)} --- correct but sub-$1\%$; environment sampling
-  is not the bottleneck. \textbf{Owen--Sobol sampling (§8.20)} --- no win on this high-variance
+  \item \textbf{Density-contribution culling} --- redundant with the BVH's $3\sigma$ bound.
+  \textbf{Track-length combine} --- unnecessary, the environment transmittance is already
+  analytic. \textbf{Exit-caching} --- bit-identical, no win (the extra local state hit the
+  occupancy wall). \textbf{Env-IS alias table} --- correct but sub-$1\%$; environment sampling
+  is not the bottleneck. \textbf{Owen--Sobol sampling} --- no win on this high-variance
   integrand.
-  \item \textbf{Path guiding (§8.38) --- deferred, not failed.} No \emph{cheap} kill-test could
+  \item \textbf{Path guiding --- deferred, not failed.} No \emph{cheap} kill-test could
   validly predict its gain (proxies measure the NEE-handled layer, not the multi-bounce tail), the
   upside is bounded low by the near-diffuse deep field, and the cost is downside-skewed; building it
   would have been a multi-day bet against weak evidence.
@@ -437,7 +436,8 @@ ratio is therefore also the equal-quality ratio).
   median of eleven interleaved wall-clock repetitions. Every SER-on image is bit-identical to SER-off, so
   each speedup is also an equal-quality speedup. SER is unavailable on the Ampere RTX~3090 used elsewhere
   in this thesis and is inaccessible to the reference's Dr.Jit pipeline (which emits no reorder points).
-  Cloud hint ablation: the \num{8}-cell spatial key gives $1.42\times$ versus $1.25\times$ for the
+  Cloud hint ablation: the spatial-cell key (a \num{256}-bucket, \num{8}-bit hint hashed from the scatter
+  position on a $\tfrac{1}{8}$-unit grid) gives $1.42\times$ versus $1.25\times$ for the
   no-hint \texttt{optixReorder()} and $1.10\times$ for reordering only at the first bounce; under
   product-RIS the cloud win is $1.35\times$.}
   \label{tab:ser}
@@ -472,7 +472,7 @@ configuration that reaches a given noise level $\approx\!59\times$ faster than t
 \num{3090} (\Cref{sec:results-perf}) does so $77\times$ faster on the \num{4090}---the hand-written
 megakernel scales onto Ada more fully than the reference's Dr.Jit pipeline---and SER lifts this to
 $110\times$. With the renderer's best \emph{unbiased} configuration (product-RIS direct lighting,
-\Cref{sec:ris}, and the approximate-erf hot path, both inside the validation gates of
+\Cref{sec:ris}, and the fast-\texttt{erf} hot path, both inside the validation gates of
 \Cref{ch:validation}) the equal-quality advantage reaches $151\times$; additionally enabling the
 throughput-optimal icosphere shell (\Cref{sec:icosphere}, which trades a ${\sim}\num{0.1}\%$ systematic
 for ray-triangle intersection) reaches $179\times$ (\Cref{tab:ser-eq}). All four are equal-quality
@@ -544,12 +544,16 @@ and require a larger compile-time cap (which the estimator sizes ahead of the bu
     Stanford bunny         & \num{25600} & \num{245} & \num{387} \\
     \bottomrule
   \end{tabular}
-  \caption{Worst-case $3\sigma$ overlap per asset, predicted offline by the cap estimator (point
-  overlap sizes \texttt{MAX\_ACTIVE\_PRIMS}; ray entries size \texttt{HIT\_BUFFER\_CAPACITY}). Overlap
-  spans more than $25\times$ and is independent of primitive count, so the caps are necessarily
-  asset-dependent. The four cloud rows are distinct density fits of the same Disney cloud volume: the \emph{fine}
-  fit packs $6\times$ more primitives than the \emph{dense} fit yet overlaps an order of magnitude
-  \emph{less}, because the extra primitives are smaller and less densely stacked---overlap is set by
-  local packing, not primitive count.}
+  \caption{Worst-case $3\sigma$ overlap per asset, \emph{estimated} offline by the cap estimator. These
+  geometric predictions seed the compile-time caps (\texttt{MAX\_ACTIVE\_PRIMS} from point overlap,
+  \texttt{HIT\_BUFFER\_CAPACITY} from ray entries), but they are an estimate, not a bound: where the
+  in-render counters disagree, the counters are the sizing authority (\Cref{sec:gpu-impl}). The bunny is
+  the clear case---the estimator over-predicts its point overlap (\num{245} here vs.\ \num{71} measured,
+  shipped at \num{80}) and under-predicts its ray entries (\num{387} vs.\ \num{464} measured, shipped at
+  \num{528}); the shipped caps are in \Cref{tab:vram}. Overlap spans more than $25\times$ and is
+  independent of primitive count, so the caps are necessarily asset-dependent. The four cloud rows are
+  distinct density fits of the same Disney cloud volume: the \emph{fine} fit packs $6\times$ more
+  primitives than the \emph{dense} fit yet overlaps an order of magnitude \emph{less}, because the extra
+  primitives are smaller and less densely stacked---overlap is set by local packing, not primitive count.}
   \label{tab:overlap}
 \end{table}
