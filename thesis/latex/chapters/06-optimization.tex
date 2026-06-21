@@ -237,8 +237,8 @@ build switch yields a clean A/B in which only the per-primitive geometry differs
 \label{sec:icosphere}
 
 The reference~\cite{DSYG} renders each primitive as a \emph{tessellated icosphere} (duplicated per
-primitive), reporting a $4.96\times$ speedup over its own custom ray-ellipsoid intersector and a
-\num{320}-triangle shell as best. This renderer instead uses OptiX's built-in \emph{analytic} sphere
+primitive), reporting a $4.96\times$ speedup over its own custom ray-ellipsoid intersector and, in its
+supplemental, a \num{320}-triangle shell as the best trade-off. This renderer instead uses OptiX's built-in \emph{analytic} sphere
 over a single instanced unit GAS---and also supports the tessellated icosphere behind a compile switch,
 so the two geometries can be measured head-to-head with the per-primitive geometry the \emph{only}
 difference. The A/B ports the icosphere mesh (subdivision level $\ell$: \num{20}, \num{80}, \num{320},

@@ -46,7 +46,8 @@ thesis re-implements and accelerates.
 The reference renders correctly but is not built for speed: it samples the scatter distance by
 marching the ray boundary by boundary---maintaining the set of overlapping primitives and selecting
 the next boundary by a running minimum---accumulating optical depth and solving for the scatter point
-with a root-find (Newton or bisection) within each multi-primitive segment. That segment-by-segment
+with a root-find (Newton or bisection) within each multi-primitive segment, inverting single-primitive
+segments in closed form (their~\S5.1). That segment-by-segment
 march and the per-segment root-find are precisely what \Cref{ch:architecture} removes, replacing them
 with a single-trace collection pass and closed-form per-primitive free-flight sampling.
 

@@ -242,8 +242,8 @@ the transmittance of the \emph{combined} medium $\sigma_t=\sum_k\sigma_{t,k}$ (o
 over overlapping primitives). So $t_{\text{scatter}}=\min_k t_k$ has exactly the combined free-flight
 distribution with c.d.f.\ $1-T(t)$: the argmin is an exact sample from the mixture, not an
 approximation (exact for the $3\sigma$-bounded kernel both renderers use; \Cref{ch:validation} reports a
-small convergence-stable residual at heavy overlap, where this independence assumption or its
-finite-precision realisation is stressed). Unlike the delta/null-tracking that decomposition tracking normally requires, no majorant
+small convergence-stable residual at heavy overlap, where the independence assumption is stressed---a
+double-precision $\operatorname{erf}^{-1}$ test rules out finite precision as the cause). Unlike the delta/null-tracking that decomposition tracking normally requires, no majorant
 and no null-scattering events appear here, because every per-primitive free flight is itself drawn in
 closed form (\Cref{sec:analytic-od})---the analytic invertibility is what removes the stochastic
 tracking entirely.

@@ -32,7 +32,9 @@ equal-quality speedup is the ratio of $k\cdot t$ (render time $t$). The \num{59}
 the clean, JIT-excluded timing anchor is the Ada row of \Cref{tab:ser-eq}). \emph{Clipped} $k$ means the
 per-pixel radiance is clipped at a single global \num{99.9}th-percentile threshold \emph{before} $\bar v$
 is taken---the most conservative of the firefly-discounting conventions: clipping the per-pixel variance
-instead gives $\approx\!\num{1500}\times$, and the raw, firefly-dominated ratio $\approx\!\num{2000}\times$.}
+instead gives $\approx\!\num{1500}\times$, and the raw, firefly-dominated ratio $\approx\!\num{2000}\times$.
+The CI is from \num{2000} bootstrap resamples, each arm's \num{16} seeds resampled independently, with the
+\num{99.9}th-percentile clip computed once on the full set.}
 This
 is the production-mode figure: the configuration one would actually use.
 
@@ -120,17 +122,32 @@ directional densities, with a continuation term that instead carries the medium'
 \emph{stochastically}, through analog free-flight survival. Because the two strategies do not share a
 common measure over the medium, their MIS weights do not partition the direct-lighting contribution
 exactly, and a positive surplus survives at each interior scatter vertex; estimating the next-event
-transmittance with ratio tracking, as a standard volumetric path tracer does, would remove it. This also
-explains the magnitude. In the furnace of \Cref{par:furnace} that over-count grows steeply with optical
+transmittance with ratio tracking, as a standard volumetric path tracer does, would remove it.
+
+That cure is stock \texttt{prbvolpath}'s; this renderer avoids the bias differently, and by construction.
+It never MIS-combines next-event estimation against the analog continuation: it partitions the
+\emph{direct} contribution at each vertex between two \emph{light-sampling} strategies---environment by
+luminance and phase sampling---that carry the \emph{same} analytic-transmittance measure, so the
+balance-heuristic partition is exact, and it suppresses the continuation ray's direct environment term so
+it is never double-counted against next-event estimation (\Cref{ch:architecture}). The reference's surplus
+is thus a consequence of MIS-combining two estimators of the medium term across \emph{mismatched}
+measures---which this design never does; the furnace pass and the \num{0.4}\,\% converged agreement are the
+evidence that this renderer's partition is exact.
+
+This also explains the magnitude. In the furnace of \Cref{par:furnace} that over-count grows steeply with optical
 thickness even for a \emph{single} Gaussian: at the Gaussian's centre it rises from ${\approx}\num{1}\,\%$
 at density scale \num{2}, through ${\approx}\num{10}\,\%$ at \num{6}, to ${\approx}\num{31}\,\%$ at \num{12},
 because in the optically thin
 limit the analog continuation almost always escapes and the surplus is small, whereas as the medium
 thickens the continuation's escape probability collapses and the analytic next-event surplus survives at
-each interior vertex. On the showcase cloud (density scale \num{7.5}) this is compounded by heavy
-\emph{overlap}---tens of primitives contribute at every interior vertex---so the surplus persists
-undiluted at many vertices and the in-scatter recursion compounds it over scattering order, reaching
-\num{+156}\,\%: the same defect as the furnace's, in the thick, multiply-overlapping limit.
+each interior vertex. \emph{Overlap} compounds this further, and measurably so: holding the density scale
+at \num{6}, the furnace over-count at the medium's centre rises from ${\approx}\num{10}\,\%$ for the single
+Gaussian (overlap \num{1}) to ${\approx}\num{121}\,\%$ on the cloud (overlap ${\sim}\num{45}$)---a roughly
+twelve-fold amplification from overlap alone, as tens of primitives each contribute the analytic
+next-event surplus at every interior vertex. On the cloud at its own density scale \num{7.5} the furnace
+over-count is already ${\approx}\num{142}\,\%$ at the centre---measured, in the conservative albedo-\num{1}
+limit---so the \num{+156}\,\% of the albedo-\num{0.9} scattering image is this same defect, the small
+remainder being the in-scatter recursion.
 
 That matters for any equal-quality comparison, because the analog mode is also by far
 the noisiest: at equal render time the reference-analog image carries roughly \(59\times\) the
