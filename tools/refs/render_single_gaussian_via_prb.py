@@ -197,18 +197,16 @@ scene_dict = {
 }
 
 scene = mi.load_dict(scene_dict)
-print(f"Rendering single Gaussian via volprim_tomography  "
-      f"sigma_t_mitsuba={SIGMA_T_MITSUBA:.6f}  (equivalent CUDA sigma_multiplier={SIGMA_MULTIPLIER_CUDA})  spp={SPP}")
-SEED = int(os.environ.get("SG_SEED", "0"))
-img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
-dr.sync_thread()
+print(f"Rendering single Gaussian via volprim_prb  "
+      f"sigma_t_mitsuba={SIGMA_T_MITSUBA:.6f}  (equivalent CUDA sigma_multiplier={SIGMA_MULTIPLIER_CUDA})  "
+      f"use_nee={scene_dict['integrator']['use_nee']}  max_depth={scene_dict['integrator']['max_depth']}")
 
+# Static filename tags (independent of spp/seed), computed once.
 _tag = "_transformed" if os.environ.get("SG_TRANSFORMED") == "1" else ""
 if all(v == RGB[0] for v in RGB):  # scalar grey → keep the original filename format
     _albtag = f"_alb{RGB[0]:.2f}" if RGB[0] != 0.0 else ""
 else:                              # tinted RGB → distinct tag
     _albtag = "_alb" + "-".join(f"{v:.2f}" for v in RGB)
-_seedtag = f"_seed{SEED}" if SEED != 0 else ""
 _envtag = "_meadow" if SG_ENV == "meadow" else ""
 _perstag = "_persp" if SG_PERSP else ""
 _viewtag = f"_{SG_VIEW}" if SG_VIEW != "posz" else ""
@@ -216,7 +214,41 @@ _rottag = f"_roty{SG_ENV_ROTY:.0f}" if (SG_ENV == "meadow" and SG_ENV_ROTY != 0.
 _fliptag = "_flipx" if (SG_ENV == "meadow" and SG_ENV_FLIPX) else ""
 _hg_env = os.environ.get("SG_HG_G")
 _hgtag = f"_hg{float(_hg_env):.2f}" if (_hg_env and float(_hg_env) != 0.0) else ""
-out = os.path.join(OUT_DIR, f"mitsuba_volprim_prb{_tag}{_envtag}{_perstag}{_viewtag}{_rottag}{_fliptag}{_hgtag}{_albtag}_M={SIGMA_T_MITSUBA:.3f}_spp{SPP}{_seedtag}.exr")
-mi.Bitmap(img).write(out)
-arr = np.array(img).astype(np.float32)
-print(f"wrote {out}  mean={arr.mean():.4f}  max={arr.max():.4f}")
+
+def _centre_box(arr):
+    """Mean over the central 1/4 box (matches run_sf2_overlap_sweep.sh furnace metric)."""
+    g = arr.mean(-1); h, w = g.shape
+    return float(g[h // 2 - h // 8:h // 2 + h // 8, w // 2 - w // 8:w // 2 + w // 8].mean())
+
+# Optional in-process sweep: SG_SPPS / SG_SEEDS (space-separated) render a whole (spp × seed) grid
+# reusing the SAME loaded scene, amortising the JIT compile across every cell. Defaults to the single
+# (SG_SPP, SG_SEED) render so existing callers are unaffected. SG_CSV appends arm,sigma,spp,seed,mean,
+# centre rows (for the furnace bias-vs-spp sweep); SG_ARM labels the arm.
+_spps = [int(x) for x in os.environ.get("SG_SPPS", str(SPP)).split()]
+_seeds = [int(x) for x in os.environ.get("SG_SEEDS", os.environ.get("SG_SEED", "0")).split()]
+_csv_path = os.environ.get("SG_CSV")
+_arm = os.environ.get("SG_ARM", "mits")
+_csv_rows = []
+for _spp in _spps:
+    for _seed in _seeds:
+        img = mi.render(scene, sensor=scene.sensors()[0], spp=_spp, seed=_seed)
+        dr.sync_thread()
+        arr = np.array(img).astype(np.float32)
+        m, c = float(arr.mean()), _centre_box(arr)
+        _seedtag = f"_seed{_seed}" if _seed != 0 else ""
+        out = os.path.join(OUT_DIR, f"mitsuba_volprim_prb{_tag}{_envtag}{_perstag}{_viewtag}{_rottag}"
+                                    f"{_fliptag}{_hgtag}{_albtag}_M={SIGMA_T_MITSUBA:.3f}_spp{_spp}{_seedtag}.exr")
+        mi.Bitmap(img).write(out)
+        print(f"RESULT arm={_arm} sigma={SIGMA_T_MITSUBA:.3f} spp={_spp} seed={_seed} "
+              f"mean={m:.6f} centre={c:.6f}")
+        _csv_rows.append((_arm, f"{SIGMA_T_MITSUBA:.3f}", _spp, _seed, f"{m:.6f}", f"{c:.6f}"))
+
+if _csv_path:
+    import csv as _csv
+    _new = not os.path.exists(_csv_path)
+    with open(_csv_path, "a", newline="") as _f:
+        _w = _csv.writer(_f)
+        if _new:
+            _w.writerow(["arm", "sigma", "spp", "seed", "mean", "centre"])
+        _w.writerows(_csv_rows)
+    print(f"appended {len(_csv_rows)} rows to {_csv_path}")

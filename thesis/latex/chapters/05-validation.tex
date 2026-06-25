@@ -185,7 +185,9 @@ adding one source of complexity over the last;
   \centering
   \includegraphics[width=\linewidth]{figures/absorption_ladder.pdf}
   \caption{Absorption-only validation up the complexity ladder: a single Gaussian, an overlapping pair,
-  and the full \num{652}-primitive cloud. The single Gaussian is held to its closed-form transmittance;
+  and the full \num{652}-primitive cloud. The single Gaussian is held to its closed-form transmittance
+  (line-integrated over the renderer's $3\sigma$ kernel support, so the comparison isolates numerical
+  agreement rather than the finite-extent truncation both share);
   the pair and cloud are compared against Mitsuba (additivity checked analytically via the collinear
   test, and the cloud additionally against a float64 analytic edge-band spot-check across its \num{24}
   views). Each rung is annotated with the converged-mean ratio and the per-pixel RMSE; the RMSE carries

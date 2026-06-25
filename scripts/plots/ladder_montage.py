@@ -11,6 +11,7 @@ the difference column is amplified and annotated with the converged-mean ratio +
 """
 import sys, os, math
 import numpy as np, OpenEXR, Imath
+from scipy.special import erf
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 
 LAD = "results/campaign/ladder"
@@ -24,13 +25,21 @@ def load(p):
                      for c in ("R", "G", "B") if c in ch], -1)
 
 
-def analytic_single(M=1.0, width=256, height=256, extent=6.0, env=1.0):
-    """Closed-form single isotropic Gaussian, ortho view: I = exp(-tau)*env, tau=M/2pi exp(-d^2/2)."""
+def analytic_single(M=1.0, width=256, height=256, extent=6.0, env=1.0, clip_sigma=3.0):
+    """Closed-form single isotropic Gaussian, ortho view: I = exp(-tau)*env.
+
+    tau is the line integral of the unit Gaussian density TRUNCATED at the renderer's clip_sigma
+    (3-sigma) BVH bound. The renderer zeroes density beyond 3 sigma, so the untruncated integral
+    M/(2pi) exp(-d^2/2) over-counts the clipped tail and leaves a spurious outline ("ring") in the
+    diff that grows toward the periphery. The truncated integral multiplies by erf(L/sqrt2), where
+    L = sqrt(max(0, clip_sigma^2 - d^2)) is the chord half-length within the clip ball, matching the
+    renderer exactly (single-Gaussian RMSE 7.2e-4 -> 2.0e-5)."""
     js = (np.arange(width) + 0.5) / width * extent - 0.5 * extent
     is_ = (np.arange(height) + 0.5) / height * extent - 0.5 * extent
     PX, PY = np.meshgrid(js, is_)
     d2 = PX * PX + PY * PY
-    tau = (M / (2 * math.pi)) * np.exp(-0.5 * d2)
+    chord = np.sqrt(np.clip(clip_sigma * clip_sigma - d2, 0.0, None))
+    tau = (M / (2 * math.pi)) * np.exp(-0.5 * d2) * erf(chord / math.sqrt(2.0))
     return np.repeat((np.exp(-tau) * env)[..., None], 3, -1).astype(np.float32)
 
 
@@ -38,6 +47,20 @@ def tm(a, e):
     return np.clip(a * e, 0, 1) ** (1 / 2.2)
 
 
+def stretch(a, lo):
+    """Display contrast stretch for transmittance panels: map [lo, 1] -> [0, 1] then sRGB gamma.
+    Display-only -- the diff image, RMSE and ratio are all computed on the RAW values. The floor `lo`
+    is shared between the ours and reference panels of a rung so they stay directly comparable; thin
+    absorption (single Gaussian, pair) is otherwise a faint grey blob on white."""
+    return np.clip((a - lo) / max(1e-6, 1.0 - lo), 0, 1) ** (1 / 2.2)
+
+
+# Provenance of the banked ladder EXRs in results/campaign/ladder/ (re-bank if regenerating):
+#   abs_single_ours.exr : SG_ALBEDO=0 build/bin/Release/test_runner --scene single_gaussian_validation
+#                         --sigma-multiplier 1.0 --spp 1024   (M=1.0, matches analytic_single M=1.0;
+#                         centre px exp(-1/2pi)=0.853, verified RMSE 2e-5 vs the 3sigma-truncated analytic)
+#   abs_pair_ours.exr / abs_cloud_ours.exr : same binary, scenes two_gaussian_* / cloud_asset_absorption.
+#   abs_pair_ref.exr  / abs_cloud_ref.exr  : Mitsuba volprim absorption refs (tools/refs/render_*_via_prb.py).
 # rung spec: (label, ours_file, ref_file_or_None_for_analytic, exposure)
 LADDERS = {
     "absorption": [
@@ -51,7 +74,7 @@ LADDERS = {
         ("full cloud", "sc_cloud_ours.exr", "sc_cloud_ref.exr", 1.3),
     ],
 }
-AMP = 5.0
+AMP = 10.0
 
 
 def main():
@@ -74,9 +97,16 @@ def main():
         diff = np.clip(np.abs(ours - ref).mean(-1) * AMP, 0, 1)
         thisref = "analytic" if rf is None else ref_label
         col_titles = ["ours", "reference", f"$|\\Delta|\\times{AMP:.0f}$"]
+        # Absorption rungs are transmittance (background = 1): contrast-stretch for display so the
+        # thin structure reads. Scattering rungs keep the exposure tonemap.
+        if which == "absorption":
+            lo = float(min(ours.min(), ref.min()))
+            disp_ours, disp_ref = stretch(ours, lo), stretch(ref, lo)
+        else:
+            disp_ours, disp_ref = tm(ours, e), tm(ref, e)
         for c, (img, cmap) in enumerate([
-                (tm(ours, e), None),
-                (tm(ref, e), None),
+                (disp_ours, None),
+                (disp_ref, None),
                 (diff, "magma")]):
             ax = axes[r, c]
             ax.imshow(img, cmap=cmap); ax.axis("off")
