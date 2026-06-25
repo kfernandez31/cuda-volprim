@@ -209,12 +209,33 @@ energy conservation demands that every pixel return exactly the background---any
 bias, with no reference render, asset, or density scale entering. The renderer passes this furnace test
 flat to within noise, confirming the scattering loop conserves energy, and Mitsuba's \emph{analog} mode
 passes it likewise. Mitsuba's \emph{next-event} integrator, by contrast, over-counts in-scattered light
-at the Gaussian's centre, depth-invariantly (identical at path depths \num{32} and \num{256}, so not a
-truncation artefact); because the furnace removes every setup variable, this establishes the over-count
-as intrinsic to that estimator rather than an artefact of the asset, the density scale, or this renderer
-(the mechanism, and how it grows with optical thickness and overlap to \num{+156}\,\% on the dense cloud,
-are diagnosed in \Cref{sec:results-firefly}). Its \emph{analog} (NEE-disabled) mode---which is
-unbiased---is therefore used as the scattering ground truth throughout.
+at the Gaussian's centre, and does so \emph{sample-invariantly}: the over-count holds flat at
+$+\num{9.7}\,\%$ ($\sigma{=}6$) and $+\num{31}\,\%$ ($\sigma{=}12$) from \num{64} to \num{16384}\,spp
+(\Cref{fig:furnace-bias-spp}), a \num{256}-fold increase that moves it by under $\num{0.005}$ points,
+while both controls (Mitsuba-analog and this renderer) sit on the analytic value at every $\mathrm{spp}$.
+Because an unbiased estimator's \emph{mean} equals the ground truth at any sample count---only its
+variance shrinks---a non-zero plateau is a systematic bias, not undersampling; this directly refutes the
+hypothesis that a finer sample budget would remove it. The over-count is likewise depth-invariant
+(identical at path depths \num{32} and \num{256}, not a truncation artefact). Because the furnace removes
+every setup variable, this establishes the over-count as intrinsic to that estimator rather than an
+artefact of the asset, the density scale, or this renderer (the mechanism, and how it grows with optical
+thickness and overlap to \num{+156}\,\% on the dense cloud, are diagnosed in
+\Cref{sec:results-firefly}). Its \emph{analog} (NEE-disabled) mode---which is unbiased---is therefore
+used as the scattering ground truth throughout.
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/furnace_bias_vs_spp.pdf}
+  \caption{Furnace energy-conservation test as a function of sample count (albedo $1$, uniform
+  environment of value $1$, single Gaussian): every pixel must equal $1$ by energy conservation, so the
+  centre over-count (mean over the central quarter, minus one) is exactly the estimator bias. Mitsuba's
+  next-event estimator (red) plateaus at $+\num{9.7}\,\%$ ($\sigma{=}6$) and $+\num{31}\,\%$
+  ($\sigma{=}12$) and stays there from \num{64} to \num{16384}\,spp; an unbiased estimator would decay to
+  $0$. Both controls---Mitsuba's own analog mode and this renderer's MIS estimator---sit on $0$ at every
+  sample count, so the test is sound and the defect is isolated to the next-event estimator. Error bars
+  are \num{95}\,\% $t$-intervals over \num{8} seeds (\num{4} at \num{16384}).}
+  \label{fig:furnace-bias-spp}
+\end{figure}
 
 \paragraph{The scattering ladder.} Against Mitsuba-analog the renderer is validated up the same ladder:
 a single scattering Gaussian, clusters, and the full cloud, each at albedo $0.9$. The single rung
