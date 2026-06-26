@@ -168,8 +168,11 @@ scene_dict = {
     "integrator": {
         "type": "volprim_prb",
         "max_depth": int(os.environ.get("SG_MAX_DEPTH", "32")),
-        "kernel_type": "gaussian",
-        "solver_type": "bisection",
+        # SG_KERNEL/SG_SOLVER/SG_HIDE_EMITTERS expose the integrator settings so the furnace can be
+        # A/B'd across them (rule out a config artifact behind the NEE over-count).
+        "kernel_type": os.environ.get("SG_KERNEL", "gaussian"),
+        "solver_type": os.environ.get("SG_SOLVER", "bisection"),
+        "hide_emitters": os.environ.get("SG_HIDE_EMITTERS", "0") == "1",
         # NEE on by default for the scattering reference (faster convergence;
         # still unbiased). SG_NEE=0 forces it off.
         "use_nee": os.environ.get("SG_NEE", "1") == "1",

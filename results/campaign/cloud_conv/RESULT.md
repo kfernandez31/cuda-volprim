@@ -27,3 +27,22 @@ NOTE (NEE cost): NEE is ~3x SLOWER than analog (544s vs 183s at 1024spp) -- per-
 So even ignoring bias, ours-MIS dominates NEE on time AND (clipped) variance.
 
 Plots: thesis/latex/figures/cloud_mean_convergence.pdf, cloud_equalvar.pdf
+
+## D — equal-variance with DIFFERENT spp per side (committee methodology directive #6)
+Equal-variance comparison does not require equal spp; each renderer runs to whatever spp reaches the
+TARGET variance, and we compare wall-time. Variance ~ 1/spp on both arms (log-log slope -1.0 confirmed:
+ours 64->1024 spp drops var 0.031->0.0019 = 16.3x for 16x spp; analog 202->12.4 = 16.3x). So:
+- To reach ours-MIS's 1024-spp noise (raw var 1.94e-3, 125 s), Mitsuba-analog would need ~6.5M spp
+  (~13 days at 183 s/1024spp) -> ~9000x equal-variance speedup (RAW).
+- This raw figure is dominated by analog's rare bright-sun fireflies. The firefly-robust (99.9-pct-clip)
+  figure is the conservative ~59x headline (single-spp variance ratio; clipped variance does not follow
+  1/spp because fireflies dilute with spp, so it is reported as a same-spp ratio, not a curve
+  extrapolation).
+Honest range: ours-MIS is ~59x (firefly-robust) to ~9000x (raw) faster than Mitsuba-analog at equal
+variance on the meadow. ALL experiment reports/thesis must state explicitly that equal-variance permits
+different spp per side (this is the honest setup; equal-spp is only used where noted).
+
+## E — plots (committee asks #10/#11/#12) DONE
+- cloud_mean_convergence.pdf : mean vs spp (disagreement; NEE 0.82 vs analog/ours 0.32, never converge).
+- cloud_equalvar.pdf         : raw variance vs samples (left) and vs wall-time (right); ours ~4 decades
+  below analog, both ~1/spp; equal-variance = horizontal gap on the time panel.
