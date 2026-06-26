@@ -41,3 +41,24 @@ the analysis predicts no net win (memory neutral for high-N, extra traversals co
 abandoned cap-free streaming), it is a *candidate negative result*; worth implementing only if we want the
 measured confirmation as a thesis negative-ledger entry (like the cap-free streaming archive). Flagged as a
 scoped follow-up.
+
+## F16 — FRESH TEST (2026-06-26): the approach-class measured, current hardware
+The cap-free-streaming worktree (feature/cap-free-streaming) IS the F16 approach realized: fixed hit
+buffer + in-anyhit argmin + a second re-traversal for the rebuild, NO per-asset HIT_BUFFER_CAPACITY (one
+universal binary). Re-measured vs the per-asset-tuned cloud binary (exe_cloud), cloud meadow 64spp seed42:
+- Correctness: cap-free mean 0.3216 == tuned 0.3215 (matches to 1e-4 -> same image; the archived gate
+  capfree_b_gate.md certified it bit-exact vs its contemporary baseline; vs today's main it differs only
+  by unrelated code drift, RIS/fast-erf/refactor).
+- Timing (interleaved ABAB x4): tuned 6.88/7.11/7.21/7.34 s vs cap-free 7.93/8.10/8.18/8.23 s ->
+  **+15.4 / +14.0 / +13.5 / +12.1 % (avg +13.7%)** -- cap-free is consistently slower, reproducing the
+  documented +12.2% cloud (and +21.8% tornado / +15.9% explosion) regression. Mechanism: the extra
+  re-traversal descent is compute-bound (+5.9% instructions, -8% L2 bytes; ncu).
+- Jorge's BITMASK variant shares this re-traversal cost and adds an N/8-byte/ray bitmask + per-hit
+  set/test ops on top, so it is BOUNDED BELOW by these numbers -- it cannot beat per-asset caps on time.
+
+### F16 VERDICT (tested): negative on speed, positive on generality.
+The fixed-buffer + re-traversal approach (cap-free streaming, and a fortiori the bitmask variant)
+eliminates per-asset cap calibration (one universal binary, zero overflows on all assets) but costs
+~12-22% render time from the extra BVH descent. It is a genuine NEGATIVE RESULT for speed; its value is
+generality. Recommendation: keep per-asset caps as the shipped default; document cap-free/bitmask in the
+negative-results ledger (the cap-free branch is already archived for exactly this).
