@@ -29,3 +29,16 @@ filter benefits both samplers equally; the mismatch is what produced 0.83x.)
 sampler" paragraph: ours-analog is faster per sample AND net more efficient at matched filter; the earlier
 0.83x is withdrawn as a box-vs-gaussian artifact. (Validate with a matched-gaussian A/B if desired.)
 Plot: thesis/latex/figures/analog_convergence.pdf
+
+## POWER DEPENDENCE (2026-06-27, Prybicki enforced 150W) — time ratios are NOT power-invariant
+Interleaved ABAB, 256spp, power+clock logged, round-1 (cold ramp) dropped:
+| power | mits/ours time ratio | net equal-variance (var ratio 1.59) |
+|---|---|---|
+| 350W | 4.57x (4.70/4.57/4.55) | 2.87x |
+| 150W | 5.61x (5.69/5.61/5.58) | 3.53x |
+Mitsuba (Dr.Jit) throttles HARDER than our megakernel under the power cap, so 150W WIDENS our lead.
+=> Time-based ratios MUST be reported at the operating power. Variance/bias results are power-independent
+(unchanged). At Prybicki's enforced 150W, ours-analog net efficiency is ~3.5x (better than 350W's ~2.9x).
+Absolute renders are ~2.8x slower at 150W (ours 256spp 9.8s->27.5s; mits 45.3s->155s).
+IMPLICATION: re-anchor all ours-vs-Mitsuba TIME numbers to 150W (they improve for us); the 59x equal-
+quality headline is variance-dominated so it holds as a floor (the time factor shifts in our favour too).
