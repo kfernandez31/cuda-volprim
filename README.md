@@ -1,92 +1,107 @@
-# Readme
+# cuda-volprim
 
-## Questions to Piotr
-- [ ] which (.ply) asset to get?
-- [ ] quantify with psnr, ... ?
-- [ ] correctness (compare w/ optimized) -> efficiency
-- [X] how to understand the asset structure?
-- [X] S_inv in integration matrix?
-- [?] **isotropic**, centered, unit Gaussian for integration
-- [X] **frequency_w_{0,1,2}** attribute - what is it?
-- [] remove [[nodiscard]], inline, noexcept
+A from-scratch **CUDA/OptiX volumetric path tracer for Gaussian kernel-mixture volumes** —
+a GPU implementation of the rendering method of *Don't Splat Your Gaussians* (Condor et
+al., ACM TOG 2025), built and validated against its Mitsuba 3 reference implementation
+([`volumetric_primitives`](https://github.com/jorgecondor/volumetric_primitives)).
 
-poziomy? orientacje? assety roznia sie rotacja
-zignorowac frequency_w_0, nx?
-jakie to są viewpoints?
-meshlab
-<!-- 🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr0/data/root.primitives_pyr0.ply""
-✅ All frequency_w_* values are zero.
+Instead of the reference's segment-by-segment march with per-segment root-finding, this
+renderer collects all of a ray's primitives in a **single acceleration-structure
+traversal** and samples the scattering distance in **closed form across overlaps** via
+per-primitive analytic free flights and an argmin rule (analog decomposition tracking).
+At equal image quality it renders **2.7× faster** than the reference's corrected fast
+estimator on the environment-lit showcase, is firefly-free at production sample budgets,
+and passes a validation suite ranging from closed-form single-Gaussian transmittance to
+pixel-level cross-renderer agreement. Method, validation, and all measurements:
+see the thesis (link below).
 
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr1/data/root.primitives_pyr0.ply""
-✅ All frequency_w_* values are zero.
+## Requirements
 
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr1/data/root.primitives_pyr1.ply""
-❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
+| Component | Version used |
+|---|---|
+| GPU | NVIDIA, compute ≥ 8.6 (RTX 3090 used throughout; SER results need Ada) |
+| CUDA | 12.6 |
+| OptiX | 9.0 |
+| Driver | 580.95 |
+| Compiler | C++20 (GCC/Clang), CMake ≥ 3.24, Ninja |
 
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr0.ply""
-✅ All frequency_w_* values are zero.
+## Build
 
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr1.ply""
-❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
-
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr2/data/root.primitives_pyr2.ply""
-❗ Non-zero frequency at vertex 0: (19.9803, 19.979, 19.9795)
-
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr0.ply""
-✅ All frequency_w_* values are zero.
-
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr1.ply""
-❗ Non-zero frequency at vertex 0: (9.98902, 9.98926, 9.98946)
-
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr2.ply""
-❗ Non-zero frequency at vertex 0: (19.9803, 19.979, 19.9795)
-
-🔍 Checking file: ""optimized_asset_pyr0/optimized_asset_pyr3/data/root.primitives_pyr3.ply""
-❗ Non-zero frequency at vertex 0: (39.9575, 39.9575, 39.9575) -->
-
-
-## TODO
-- [ ] replace stbimage with tinyexr
-- [ ] get rid of underscores, they add visual clutter
-
-Additions
-- [ ] importance sampling / non-isotrophic phase function
-- [ ] anyhit over closesthit
-
-## Compilation
-
-### Windows
-
-0. Open up "x64 Native Tools Command Prompt for VS 2022"
-
-<!-- 0. Set up environment
 ```sh
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-``` -->
-
-1. Generate build files
-```sh
-  cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target test_runner
 ```
 
-2. Build
+Opt-in build variants (all default OFF; the production binary contains none of them):
+`-DTHESIS_ENABLE_SER=ON` (Shader Execution Reordering, Ada),
+`-DTHESIS_ICOSPHERE=ON -DTHESIS_ICOSPHERE_N=<level>` (tessellated-shell A/B),
+`-DTHESIS_ENABLE_FAST_ERF=ON`. Per-ray buffer capacities:
+`-DTHESIS_MAX_ACTIVE_PRIMS=<n> -DTHESIS_HIT_BUFFER_CAPACITY=<n>`
+(see `experiments/13-caps`). The `THESIS_` prefix is historical — the project began as a
+thesis codebase.
+
+## Run
+
 ```sh
-ninja -C build
+# fetch the HDR environment maps once
+bash scripts/tools/fetch_envmaps.sh
+
+# showcase: the Disney cloud under a measured HDR environment
+build/bin/Release/test_runner --scene cloud_asset_scattering --spp 256 --seed 0 \
+    --sigma-multiplier 7.5
+
+# any Gaussian PLY asset through the generic loader
+SG_PLY=assets/models/cloud/root.primitives_pyr0.ply SG_RES=512 SG_ENV=white_constant \
+SG_ALBEDO=0.9 build/bin/Release/test_runner --scene asset_validation --spp 64 \
+    --sigma-multiplier 10 --seed 0
 ```
 
-<!-- ### Static analysis -->
-<!-- 
-include-what-you-use ^
-  -std=c++20 ^
-  -DUNICODE -D_CRT_SECURE_NO_WARNINGS ^
-  -DGLM_ENABLE_EXPERIMENTAL ^
-  -fms-compatibility -fms-extensions ^
-  -Iinclude ^
-  -Ithird_party ^
-  -I"C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0/include" ^
-  -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/include" ^
-  src/thesis/host/main.cpp 
-  -->
+Selected flags: `--scene`, `--spp`, `--seed`, `--sigma-multiplier` (global density
+scale), `--ris --ris-candidates K` (product-RIS direct lighting; default is MIS),
+`--rr-depth`, `--measure-caps` (report per-ray buffer demand). Scene environment
+variables for the generic loader: `SG_PLY`, `SG_RES`, `SG_ENV`
+(`white_constant`/`meadow`/`studio`), `SG_ALBEDO`, `SG_VIEW`
+(`negz`/`posx`/…/`diag`), `SG_DIST`, `SG_FOV`, `SG_CAM`. Renders are written as EXR to
+`test_results/`.
 
+## Reproducing the thesis results
 
-<!-- cppcheck --enable=all --inconclusive --inline-suppr --std=c++20 --quiet -->
+Every figure and table maps to a directory under [`experiments/`](experiments/README.md),
+each stating the claim, the exact commands, expected values with tolerances, and hardware
+requirements. Timing experiments need a locked GPU operating point
+(`scripts/campaign/lock_clocks.sh`); reference-side experiments need the Mitsuba stack
+described in [`experiments/mitsuba-reference/`](experiments/mitsuba-reference/README.md).
+
+During validation, this project diagnosed and corrected five issues in the reference's
+fast (next-event) estimator; the fixes and their deterministic certification probes are
+in `experiments/16-corrections`, and were submitted upstream.
+
+## Repository layout
+
+```
+src/ include/        host application (renderer, OptiX pipeline, IO)
+device/              GPU code: megakernel, sampling, kernels
+test/                test_runner and scene definitions
+scripts/             campaign runners, plotting, tooling
+experiments/         thesis-claim reproduction map (start here)
+assets/              small assets + fetch scripts for the rest
+thesis/              LaTeX sources of the thesis
+```
+
+## Citation
+
+Thesis: *Efficient Volume Rendering of Primitive-Based Kernel-Mixture Volumes*
+(University of Luxembourg / USI, 2026). PDF and citation entry: see `CITATION.cff`.
+
+The rendering method is from: Condor et al., *Don't Splat Your Gaussians: Volumetric
+Ray-Traced Primitives for Modeling and Rendering Scattering and Emissive Media*,
+ACM TOG 44(1), 2025.
+
+## Acknowledgements and asset licenses
+
+- Jorge Condor (IDSIA/USI) — the DSYG method and reference implementation, and the
+  suggestion to apply decomposition tracking to this representation.
+- The Disney cloud asset derives from the [Walt Disney Animation Studios cloud
+  dataset](https://disneyanimation.com/resources/clouds/) (CC-BY-SA 3.0).
+- The bunny asset derives from the Stanford Bunny (Stanford 3D Scanning Repository).
+- Environment maps from Poly Haven (CC0).

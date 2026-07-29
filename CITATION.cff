@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this renderer, please cite the thesis below."
+title: "cuda-volprim: a CUDA/OptiX volumetric path tracer for Gaussian kernel-mixture volumes"
+authors:
+  - family-names: "Kramarz-Fernandez"
+    given-names: "Kacper"
+type: software
+repository-code: "https://github.com/kfernandez31/cuda-volprim"
+preferred-citation:
+  type: thesis
+  title: "Efficient Volume Rendering of Primitive-Based Kernel-Mixture Volumes"
+  authors:
+    - family-names: "Kramarz-Fernandez"
+      given-names: "Kacper"
+  year: 2026
+  institution:
+    name: "University of Luxembourg"
