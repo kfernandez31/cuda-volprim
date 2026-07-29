@@ -32,14 +32,19 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target test_runner
 ```
 
-Opt-in build variants (all default OFF; the production binary contains none of them):
-`-DTHESIS_ENABLE_SER=ON` (Shader Execution Reordering, Ada),
-`-DTHESIS_ICOSPHERE=ON -DTHESIS_ICOSPHERE_N=<level>` (tessellated-shell A/B),
-`-DTHESIS_ENABLE_FAST_ERF=ON`. Per-ray buffer capacities are compile-time defaults in
-`device/core/constants.cuh` (`#define THESIS_MAX_ACTIVE_PRIMS` / `THESIS_HIT_BUFFER_CAPACITY`);
-size them per asset with `scripts/tools/calibrate_caps.sh <asset>`, which measures demand
-in-render, edits the defaults, and rebuilds (see `experiments/13-caps`). The `THESIS_`
-prefix is historical — the project began as a thesis codebase.
+Opt-in build variants — all default OFF; the production binary contains none of them:
+
+| CMake option | Effect |
+|---|---|
+| `-DTHESIS_ENABLE_SER=ON` | Shader Execution Reordering: one reorder per bounce (Ada GPUs only) |
+| `-DTHESIS_ICOSPHERE=ON -DTHESIS_ICOSPHERE_N=<l>` | tessellated icosphere shell instead of the analytic sphere (accuracy/perf A/B) |
+| `-DTHESIS_ENABLE_FAST_ERF=ON` | fast-erf approximation variant |
+
+Per-ray buffer capacities are compile-time defaults in `device/core/constants.cuh`
+(`#define THESIS_MAX_ACTIVE_PRIMS` / `THESIS_HIT_BUFFER_CAPACITY`); size them per asset
+with `scripts/tools/calibrate_caps.sh <asset>`, which measures demand in-render, edits
+the defaults, and rebuilds (see `experiments/13-caps`). The `THESIS_` prefix is
+historical — the project began as a thesis codebase.
 
 ## Run
 
