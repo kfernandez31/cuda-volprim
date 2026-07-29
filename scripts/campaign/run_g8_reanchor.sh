@@ -12,8 +12,8 @@ echo "=== G8 perf re-anchor start $(date) ==="
 rm -f results/campaign/.g8.status
 
 # --- BUILD PHASE (CPU, power-independent): icosphere N=0..3 at 64/96 ---
-sed -i 's/MAX_ACTIVE_PRIMS = [0-9]*;/MAX_ACTIVE_PRIMS = 64;/;s/HIT_BUFFER_CAPACITY = [0-9]*;/HIT_BUFFER_CAPACITY = 96;/' device/core/constants.cuh
-echo "constants: $(grep -oE 'MAX_ACTIVE_PRIMS = [0-9]+|HIT_BUFFER_CAPACITY = [0-9]+' device/core/constants.cuh | tr '\n' ' ')"
+sed -i 's/#define THESIS_MAX_ACTIVE_PRIMS [0-9]*/#define THESIS_MAX_ACTIVE_PRIMS 64/;s/#define THESIS_HIT_BUFFER_CAPACITY [0-9]*/#define THESIS_HIT_BUFFER_CAPACITY 96/' device/core/constants.cuh
+echo "constants: $(grep -oE '#define THESIS_MAX_ACTIVE_PRIMS [0-9]+|#define THESIS_HIT_BUFFER_CAPACITY [0-9]+' device/core/constants.cuh | tr '\n' ' ')"
 for N in 0 1 2 3; do
   echo "--- build ico N=$N (64/96) $(date +%H:%M:%S) ---"
   cmake -S . -B build-icoN$N -DCMAKE_BUILD_TYPE=Release -DTHESIS_ICOSPHERE=ON -DTHESIS_ICOSPHERE_N=$N >/dev/null 2>&1

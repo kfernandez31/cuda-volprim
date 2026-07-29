@@ -10,8 +10,8 @@ echo "=== analog build start $(date) ==="
 rm -f results/campaign/.build_analog.status
 if git status --short device/core/constants.cuh | grep -q .; then
   echo "ABORT: constants dirty"; echo FAIL > results/campaign/.build_analog.status; exit 1; fi
-sed -i -E 's/(ENABLE_NEE = )true/\1false/; s/(ENABLE_ANALYTIC_DIRECT = )true/\1false/; s/(MAX_ACTIVE_PRIMS = )[0-9]+/\164/; s/(HIT_BUFFER_CAPACITY = )[0-9]+/\196/' device/core/constants.cuh
-echo "constants now:"; grep -E "ENABLE_NEE = |ENABLE_ANALYTIC_DIRECT = |MAX_ACTIVE_PRIMS = |HIT_BUFFER_CAPACITY = " device/core/constants.cuh
+sed -i -E 's/(ENABLE_NEE = )true/\1false/; s/(ENABLE_ANALYTIC_DIRECT = )true/\1false/; s/(#define THESIS_MAX_ACTIVE_PRIMS )[0-9]+/\164/; s/(#define THESIS_HIT_BUFFER_CAPACITY )[0-9]+/\196/' device/core/constants.cuh
+echo "constants now:"; grep -E "ENABLE_NEE = |ENABLE_ANALYTIC_DIRECT = |#define THESIS_(MAX_ACTIVE_PRIMS|HIT_BUFFER_CAPACITY) " device/core/constants.cuh
 cmake --build build --target test_runner -j"$(nproc)" >/dev/null 2>&1 || {
   echo "BUILD FAIL"; git checkout -- device/core/constants.cuh; echo FAIL > results/campaign/.build_analog.status; exit 1; }
 cp build/bin/Release/test_runner ~/winbins/exe_analog; cp build/device_program.optixir ~/winbins/ir_analog

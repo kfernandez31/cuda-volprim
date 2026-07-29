@@ -7,8 +7,8 @@ echo "=== G1 A/B start $(date) ==="
 PW=$(nvidia-smi --query-gpu=power.limit --format=csv,noheader,nounits|cut -d. -f1)
 [ "${PW:-0}" -lt 300 ] && { echo "ABORT power<300"; echo FAIL>results/campaign/.g1ab.status; exit 1; }
 # --- build ours-analog (caps 64/96 + NEE off) ---
-sed -i 's/MAX_ACTIVE_PRIMS = [0-9]*;/MAX_ACTIVE_PRIMS = 64;/;s/HIT_BUFFER_CAPACITY = [0-9]*;/HIT_BUFFER_CAPACITY = 96;/;s/ENABLE_NEE = true;/ENABLE_NEE = false;/' device/core/constants.cuh
-echo "build cfg: $(grep -oE 'ENABLE_NEE = (true|false)|MAX_ACTIVE_PRIMS = [0-9]+|HIT_BUFFER_CAPACITY = [0-9]+' device/core/constants.cuh|tr '\n' ' ')"
+sed -i 's/#define THESIS_MAX_ACTIVE_PRIMS [0-9]*/#define THESIS_MAX_ACTIVE_PRIMS 64/;s/#define THESIS_HIT_BUFFER_CAPACITY [0-9]*/#define THESIS_HIT_BUFFER_CAPACITY 96/;s/ENABLE_NEE = true;/ENABLE_NEE = false;/' device/core/constants.cuh
+echo "build cfg: $(grep -oE 'ENABLE_NEE = (true|false)|#define THESIS_MAX_ACTIVE_PRIMS [0-9]+|#define THESIS_HIT_BUFFER_CAPACITY [0-9]+' device/core/constants.cuh|tr '\n' ' ')"
 cmake --build build --target test_runner -j"$(nproc)" >/dev/null 2>&1 && echo "ours-analog built"
 git checkout -- device/core/constants.cuh
 OUT=results/campaign/g1_seeds; mkdir -p "$OUT"; declare -i OVF=0

@@ -14,8 +14,8 @@ if git status --short device/core/constants.cuh | grep -q .; then
   echo "ABORT: constants.cuh dirty before edit"; echo FAIL > results/campaign/.build_safe512.status; exit 1
 fi
 
-sed -i -E 's/(MAX_ACTIVE_PRIMS = )[0-9]+/\1512/; s/(HIT_BUFFER_CAPACITY = )[0-9]+/\1512/' device/core/constants.cuh
-echo "caps now:"; grep -E "MAX_ACTIVE_PRIMS = |HIT_BUFFER_CAPACITY = " device/core/constants.cuh
+sed -i -E 's/(#define THESIS_MAX_ACTIVE_PRIMS )[0-9]+/\1512/; s/(#define THESIS_HIT_BUFFER_CAPACITY )[0-9]+/\1512/' device/core/constants.cuh
+echo "caps now:"; grep -E "#define THESIS_(MAX_ACTIVE_PRIMS|HIT_BUFFER_CAPACITY) " device/core/constants.cuh
 
 cmake --build build --target test_runner -j"$(nproc)" >/dev/null 2>&1 || {
   echo "FAIL: 512 build"; git checkout -- device/core/constants.cuh; echo FAIL > results/campaign/.build_safe512.status; exit 1; }

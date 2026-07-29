@@ -35,10 +35,11 @@ cmake --build build --target test_runner
 Opt-in build variants (all default OFF; the production binary contains none of them):
 `-DTHESIS_ENABLE_SER=ON` (Shader Execution Reordering, Ada),
 `-DTHESIS_ICOSPHERE=ON -DTHESIS_ICOSPHERE_N=<level>` (tessellated-shell A/B),
-`-DTHESIS_ENABLE_FAST_ERF=ON`. Per-ray buffer capacities:
-`-DTHESIS_MAX_ACTIVE_PRIMS=<n> -DTHESIS_HIT_BUFFER_CAPACITY=<n>`
-(see `experiments/13-caps`). The `THESIS_` prefix is historical — the project began as a
-thesis codebase.
+`-DTHESIS_ENABLE_FAST_ERF=ON`. Per-ray buffer capacities are compile-time defaults in
+`device/core/constants.cuh` (`#define THESIS_MAX_ACTIVE_PRIMS` / `THESIS_HIT_BUFFER_CAPACITY`);
+size them per asset with `scripts/tools/calibrate_caps.sh <asset>`, which measures demand
+in-render, edits the defaults, and rebuilds (see `experiments/13-caps`). The `THESIS_`
+prefix is historical — the project began as a thesis codebase.
 
 ## Run
 

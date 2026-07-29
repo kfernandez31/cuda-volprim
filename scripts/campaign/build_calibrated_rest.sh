@@ -14,8 +14,8 @@ for a in tornado explosion bunny; do
   if ! scripts/tools/calibrate_caps.sh "$a"; then
     echo "FAIL: $a calibrate"; echo FAIL > results/campaign/.build_rest.status; exit 1
   fi
-  A=$(grep -oP 'MAX_ACTIVE_PRIMS = \K[0-9]+' device/core/constants.cuh)
-  H=$(grep -oP 'HIT_BUFFER_CAPACITY = \K[0-9]+' device/core/constants.cuh)
+  A=$(grep -oP '#define THESIS_MAX_ACTIVE_PRIMS \K[0-9]+' device/core/constants.cuh)
+  H=$(grep -oP '#define THESIS_HIT_BUFFER_CAPACITY \K[0-9]+' device/core/constants.cuh)
   echo "$a measured ACTIVE/HIT = $A/$H  (expected ${EXP[$a]})"
   [ "$A/$H" = "${EXP[$a]}" ] || echo "  WARN: $a caps differ from cap_calibration.md — review before trusting timings"
   cp build/bin/Release/test_runner ~/winbins/exe_$a

@@ -44,7 +44,7 @@ echo "Measured maxima: hits/ray=$H_MAX overlap=$A_MAX -> caps HIT=$H_CAP ACTIVE=
 
 restore() { git checkout -- "$CONSTS"; }
 trap restore ERR
-sed -i "s/MAX_ACTIVE_PRIMS = [0-9]*;/MAX_ACTIVE_PRIMS = $A_CAP;/;s/HIT_BUFFER_CAPACITY = [0-9]*;/HIT_BUFFER_CAPACITY = $H_CAP;/" "$CONSTS"
+sed -i "s/#define THESIS_MAX_ACTIVE_PRIMS [0-9]*/#define THESIS_MAX_ACTIVE_PRIMS $A_CAP/;s/#define THESIS_HIT_BUFFER_CAPACITY [0-9]*/#define THESIS_HIT_BUFFER_CAPACITY $H_CAP/" "$CONSTS"
 cmake --build build -j"$(nproc)" >/dev/null
 
 VERIFY_SEED=7   # deliberately UNMEASURED: validates the 1.125 margin

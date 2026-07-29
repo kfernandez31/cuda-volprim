@@ -42,6 +42,14 @@ tolerances, the runtime, and what hardware/software it needs.
 | Fig 7.4 / Tab 7.4 (scaling) | `20-scaling` | `[gpu]` `[clocks]` |
 | §7.6/§8.3 bounce-0 scan fix | `21-bounce0-precompute` | `[gpu]` `[clocks]` (branch `feature/bounce0-camera-set`) |
 
+## Prerequisites for the timing runners
+
+Several timing runners consume prebuilt binary pairs stashed in `~/winbins`
+(per-asset calibrated, analog, safe-512 variants). Build them first with the recipes in
+`scripts/campaign/build_*.sh` — each edits the cap defaults, builds, stashes, and
+restores the tree. Plot scripts default to `results/campaign/...` CSV paths; the
+experiment runs regenerate those files (pass `--csv` to point elsewhere).
+
 ## Ground rules
 
 - **Determinism:** absorption renders are deterministic; scattering renders are pinned by

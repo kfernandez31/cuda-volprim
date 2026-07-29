@@ -14,7 +14,7 @@ echo "--- [1] cloud calibrate ---"
 if ! scripts/tools/calibrate_caps.sh cloud; then
   echo "FAIL: cloud calibrate"; echo FAIL > results/campaign/.build_prewindow.status; exit 1
 fi
-echo "constants now:"; grep -E "MAX_ACTIVE_PRIMS = |HIT_BUFFER_CAPACITY = " device/core/constants.cuh
+echo "constants now:"; grep -E "#define THESIS_(MAX_ACTIVE_PRIMS|HIT_BUFFER_CAPACITY) " device/core/constants.cuh
 cp build/bin/Release/test_runner ~/winbins/exe_cloud
 cp build/device_program.optixir  ~/winbins/ir_cloud
 echo "stashed exe_cloud/ir_cloud"
