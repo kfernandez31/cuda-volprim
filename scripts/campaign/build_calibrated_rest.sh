@@ -33,7 +33,7 @@ echo -n "constants.cuh clean? "; git status --short device/core/constants.cuh | 
 for a in tornado explosion bunny; do
   cp ~/winbins/exe_$a build/bin/Release/test_runner; cp ~/winbins/ir_$a build/device_program.optixir
   SG_ALBEDO=1.0 build/bin/Release/test_runner --scene single_gaussian_validation --spp 1024 >/dev/null 2>&1
-  echo -n "$a furnace: "; tools/refs/.venv/bin/python tools/refs/furnace_check.py \
+  echo -n "$a furnace: "; experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/furnace_check.py \
     test_results/single_gaussian_validation/0000.exr | grep -oE "=>.*"
 done
 cp ~/winbins/exe_stock build/bin/Release/test_runner; cp ~/winbins/ir_stock build/device_program.optixir

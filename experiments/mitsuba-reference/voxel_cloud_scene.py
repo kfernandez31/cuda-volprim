@@ -4,7 +4,7 @@ medium: the Gaussian 'ellipsoids' object is replaced by a heterogeneous/gridvolu
 field (our convention). Scattering (albedo 0.9, HG g=0.85, sigmat 7.5) so the cloud is lit, not a black
 silhouette. This guarantees the same camera as our g1 / refs renders.
 
-Run: tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python -u tools/refs/voxel_cloud_scene.py [VOX] [SPP]
+Run: experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python -u experiments/mitsuba-reference/voxel_cloud_scene.py [VOX] [SPP]
 """
 import os, sys
 import numpy as np

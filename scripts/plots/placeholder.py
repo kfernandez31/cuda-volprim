@@ -6,7 +6,7 @@ large diagonal "PROVISIONAL" watermark plus a note describing what the final fig
 will show. When the campaign data lands, build_figures.sh overwrites the file with the
 real plot (CSV-driven), and the figure float in the thesis needs no change.
 
-  tools/refs/.venv/bin/python scripts/plots/placeholder.py \
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/placeholder.py \
       --title "RIS vs MIS, equal quality" --note "K-sweep; env-map vs flat" \
       --out thesis/latex/figures/ris_ksweep.pdf
 """

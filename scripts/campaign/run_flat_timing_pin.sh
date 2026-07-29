@@ -29,7 +29,7 @@ done
 MITS_T=()
 for R in 0 1 2 3 4; do
   m=$(SG_ENV=white_constant SG_CAM=0 SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_SPP=64 SG_SEED="$R" SG_HG_G=0.85 SG_NEE=0 \
-        tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_cloud_prb_absorption.py 2>&1)
+        experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_cloud_prb_absorption.py 2>&1)
   mr=$(grep -oE "RENDER_TIME_S [0-9.]+" <<<"$m" | grep -oE "[0-9.]+" | head -1)
   echo "mits-analog rep $R: render=${mr}s"
   [ -n "${mr:-}" ] && MITS_T+=("$mr")

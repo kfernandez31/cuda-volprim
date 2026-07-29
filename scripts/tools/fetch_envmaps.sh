@@ -21,3 +21,6 @@ fetch() { # <polyhaven-id> [resolution]
 fetch ferndale_studio_01 4k
 
 echo "done. (meadow_2_4k.hdr is committed; white_constant.hdr is committed.)"
+# Provenance note (2026-07-16): white_constant.hdr is a committed 16x16 constant-1.0 lat-long
+# RGBE HDR (verified: every pixel exactly 1.0). Any constant-1 map is radiometrically equivalent;
+# no generator script exists or is needed.

@@ -6,7 +6,7 @@ hdrfilm may differ). Reports per-candidate RGB RMSE so we can pick the to_world 
 makes the two backgrounds match pixel-for-pixel.
 
 Usage:
-    tools/refs/.venv/bin/python tools/refs/env_orientation_calib.py CUDA.exr MITS1.exr [MITS2.exr ...]
+    experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/env_orientation_calib.py CUDA.exr MITS1.exr [MITS2.exr ...]
 """
 import sys
 import numpy as np

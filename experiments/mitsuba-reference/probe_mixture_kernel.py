@@ -9,8 +9,8 @@ CHECK 2: ratio flatness vs brute-force quadrature of the kernel's own eval(): fo
          constant for every t0 (whatever the normalisation). A mirrored integral makes the
          ratio swing with t0.
 
-Run: VOLPRIM_DIR=/path/to/tree tools/refs/with_pip_gabor.sh tools/refs/.venv/bin/python \
-     tools/refs/probe_mixture_kernel.py
+Run: VOLPRIM_DIR=/path/to/tree experiments/mitsuba-reference/with_pip_gabor.sh experiments/mitsuba-reference/.venv/bin/python \
+     experiments/mitsuba-reference/probe_mixture_kernel.py
 """
 import os, sys
 import numpy as np

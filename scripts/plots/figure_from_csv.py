@@ -2,7 +2,7 @@
 """Generate a publication figure (PDF) from an experiment CSV.
 
 Run with the repo venv that has numpy + matplotlib:
-  tools/refs/.venv/bin/python scripts/plots/figure_from_csv.py \
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/figure_from_csv.py \
       --csv results/optim/rr_depth.csv --x rr_depth --y rmse time \
       --xlabel "RR depth" --title "RR-depth sweep" \
       --out thesis/latex/figures/rr_depth.pdf
@@ -35,6 +35,8 @@ def main() -> None:
     ap.add_argument("--xlabel", default=None)
     ap.add_argument("--ylabel", default=None)
     ap.add_argument("--title", default=None)
+    ap.add_argument("--hline", type=float, default=None,
+                    help="draw a horizontal reference line at this y value")
     ap.add_argument("--logx", action="store_true")
     ap.add_argument("--logy", action="store_true")
     ap.add_argument("--out", required=True, help="output path (.pdf)")
@@ -74,6 +76,8 @@ def main() -> None:
         ax.set_xscale("log")
     if args.logy:
         ax.set_yscale("log")
+    if args.hline is not None:
+        ax.axhline(args.hline, color="0.55", lw=0.8, ls="--", zorder=0)
     ax.set_xlabel(args.xlabel or args.x)
     ax.set_ylabel(args.ylabel or (args.y[0] if len(args.y) == 1 else "value"))
     if args.title:

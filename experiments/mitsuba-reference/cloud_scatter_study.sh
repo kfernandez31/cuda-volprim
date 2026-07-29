@@ -21,7 +21,7 @@ for s in $SPPS; do
   if [ -f "$OUT/mitsuba_spp${s}.exr" ]; then echo "Mitsuba spp=$s  [skip, exists]"; continue; fi
   t0=$SECONDS
   SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_MAX_DEPTH=128 SG_RFILTER=box SG_CAM=0 SG_SPP=$s \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_cloud_prb_absorption.py >/dev/null 2>&1
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_cloud_prb_absorption.py >/dev/null 2>&1
   dt=$((SECONDS-t0))
   cp assets/models/cloud/refs_prb_scattering/0000.exr $OUT/mitsuba_spp${s}.exr
   echo "Mitsuba spp=$s  ${dt}s"; echo "mitsuba $s $dt" >> $OUT/timing.txt

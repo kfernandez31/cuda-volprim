@@ -11,7 +11,7 @@ RIGHT -- memory(N), log-x / log-y. The point is DECOUPLING:
   * the BVH (GAS) is the only N-dependent term; it grows ~linearly but stays ~3 orders
     of magnitude below the reservation (cloud 0.10 MB @652 -> bunny 3.97 MB @25600).
 
-  tools/refs/.venv/bin/python scripts/plots/scaling.py \
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/scaling.py \
       --csv results/campaign/scaling.csv --gas results/campaign/gas_memory.csv \
       --out thesis/latex/figures/scaling.pdf
 """
@@ -64,7 +64,7 @@ def main() -> None:
 
     if os.path.exists(STYLE):
         plt.style.use(STYLE)
-    fig, (axT, axM) = plt.subplots(1, 2, figsize=(7.4, 3.3))
+    fig, axT = plt.subplots(1, 1, figsize=(4.6, 3.3))
 
     # ---------------- LEFT: time vs N ----------------
     # synthetic power-law fit (log-log slope) over the stress grids
@@ -92,48 +92,10 @@ def main() -> None:
     axT.set_title("Time vs primitive count")
     axT.legend(loc="upper left", fontsize=7.5)
 
-    # ---------------- RIGHT: memory vs N ----------------
-    # flat reservation line (synthetic SAFE-512 peak readings at the sweep endpoints;
-    # uses every synthetic row that carries a VRAM reading, not just the square grids)
-    syn_all = kind == "synthetic"
-    pk = peak[syn_all]
-    pkN = N[syn_all]
-    good = ~np.isnan(pk)
-    resv = float(np.nanmedian(pk[good])) if good.any() else 1200.0
-    axM.axhline(resv, color="C1", lw=1.6, label=f"peak device mem, fixed caps (~{resv:.0f} MiB)")
-    if good.any():
-        axM.scatter(pkN[good], pk[good], s=40, color="C1", zorder=5)
-
-    # GAS(N): the only N-dependent term -- compacted BVH for cloud + bunny
-    gN, gMB = [], []
-    for asset, (_, mb) in gas_assets.items():
-        if asset in real_N:
-            gN.append(real_N[asset]); gMB.append(mb)
-    gN, gMB = np.array(gN, float), np.array(gMB, float)
-    o = np.argsort(gN); gN, gMB = gN[o], gMB[o]
-    # linear GAS model through the two measured points -> coefficient in KB/prim
-    slope = (gMB[-1] - gMB[0]) / (gN[-1] - gN[0])
-    xg = np.array([gN.min(), gN.max()])
-    axM.plot(xg, gMB[0] + slope * (xg - gN[0]), ls="--", color="C2", lw=1.2,
-             label=f"BVH (GAS) $\\approx${slope*1024:.2f} KB/prim")
-    axM.scatter(gN, gMB, s=40, color="C2", zorder=5)
-    for x, y, nm in zip(gN, gMB, [a for a in gas_assets if a in real_N]):
-        axM.annotate(f"{nm}\n{y:.2f} MB", xy=(x, y), xytext=(x * 0.5, y * 1.5),
-                     fontsize=7.5, color="C2")
-
-    axM.set_xscale("log")
-    axM.set_yscale("log")
-    axM.set_ylim(0.05, resv * 3)
-    axM.set_xlabel("primitive count $N$")
-    axM.set_ylabel("device memory (MiB)")
-    axM.set_title("Memory is decoupled from $N$")
-    axM.legend(loc="center left", fontsize=7.5)
-
     fig.tight_layout()
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     fig.savefig(args.out)
-    print(f"wrote {args.out}  (synthetic exponent b={b:.3f}, reservation~{resv:.0f} MiB, "
-          f"GAS slope {slope*1024:.3f} KB/prim)")
+    print(f"wrote {args.out}  (synthetic exponent b={b:.3f})")
 
 
 if __name__ == "__main__":

@@ -23,13 +23,13 @@ echo "--- Mitsuba-analog timing (4 renders, locked, RENDER_TIME_S) ---"
 MT=""
 for S in 0 1 2 3; do
   t=$(SG_ENV=meadow SG_CAM=0 SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_SPP=64 SG_SEED="$S" SG_HG_G=0.85 SG_NEE=0 \
-        tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_cloud_prb_absorption.py 2>&1 \
+        experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_cloud_prb_absorption.py 2>&1 \
         | grep -oE "RENDER_TIME_S [0-9.]+" | grep -oE "[0-9.]+" | head -1)
   MT="$MT $t"; echo "mits-analog seed $S: ${t}s"
 done
 echo "clk: $(sort -n "$CLK" | awk 'NR==1{m=$1}{a[NR]=$1}END{print "min="m" p50="a[int(NR/2)]" max="a[NR]}')"
 
-tools/refs/.venv/bin/python - "$OT" "$MT" <<'PY2'
+experiments/mitsuba-reference/.venv/bin/python - "$OT" "$MT" <<'PY2'
 import sys, glob, numpy as np, OpenEXR, Imath, statistics as st
 def load(p):
     f=OpenEXR.InputFile(p); dw=f.header()['dataWindow']

@@ -22,7 +22,7 @@ the render matches more closely tells us whether Finding 1 is real.
 
 Run from the project root:
 
-    tools/refs/.venv/bin/python tools/refs/single_gaussian_analytic.py \\
+    experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/single_gaussian_analytic.py \\
         single_gaussian_validation/0000.exr --sigma 1.0
 """
 

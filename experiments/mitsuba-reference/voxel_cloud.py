@@ -8,7 +8,7 @@ Density convention (matches device/core/primitive.h):
   sigma_t(x) = sum_i (SIGMA_MULT * sigma_t_i) * (2*pi)^(-3/2) * prod(1/s_ij)
                * exp(-0.5 * || S_i^{-1} R_i^T (x - mu_i) ||^2)
 
-Run: tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/voxel_cloud.py
+Run: experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/voxel_cloud.py
 """
 import numpy as np
 from plyfile import PlyData

@@ -6,7 +6,7 @@ per-pixel inter-seed variance is the clean, unambiguous noise metric (k_raw == k
   variance vs samples (log-log)  and  variance vs wall-time (log-log)
 showing ours-analog is ~Nx noisier per sample but ~Mx faster per sample (net ~0.8x equal-variance).
 
-  tools/refs/.venv/bin/python scripts/plots/analog_convergence.py
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/analog_convergence.py
 """
 import glob, os, re, csv, statistics as st
 from collections import defaultdict

@@ -6,7 +6,7 @@ the asset, from each camera defined in the asset's scene module. Outputs EXRs
 that the thesis DSYG renderer can be compared against.
 
 Run from project root:
-    tools/refs/.venv/bin/python tools/refs/render_voxel_reference.py --asset cloud
+    experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_voxel_reference.py --asset cloud
 """
 
 from __future__ import annotations

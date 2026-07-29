@@ -6,7 +6,7 @@ the memory roof and the compute roof, so it is neither bandwidth- nor compute-bo
 it is latency/divergence-bound (see ncu_summary.md). The GFLOP/s value undercounts the
 erf/transcendental (XU-pipe) work, which only strengthens the argument.
 
-  tools/refs/.venv/bin/python scripts/plots/roofline.py \
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/roofline.py \
       --csv results/campaign/roofline.csv --out thesis/latex/figures/roofline.pdf
 """
 import argparse
@@ -63,7 +63,7 @@ def main() -> None:
     ax.set_ylim(10, PEAK_GFLOPS * 3)
     ax.set_xlabel("arithmetic intensity (FLOP/byte)")
     ax.set_ylabel("achieved GFLOP/s")
-    ax.set_title("Roofline (RTX 3090): far under both roofs")
+    ax.set_title("Roofline (RTX 3090)")
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     fig.savefig(args.out)

@@ -69,7 +69,7 @@ cp ~/winbins/exe_stock build/bin/Release/test_runner; cp ~/winbins/ir_stock buil
 echo "--- Mitsuba cloud VRAM ---"
 mlog=$(mktemp)
 SG_ENV=meadow SG_CAM=0 SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_SPP=16 SG_SEED=0 SG_HG_G=0.85 SG_NEE=0 \
-  tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_cloud_prb_absorption.py >"$mlog" 2>&1 &
+  experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_cloud_prb_absorption.py >"$mlog" 2>&1 &
 mpid=$!
 # Mitsuba runs under a wrapper; poll the whole-GPU compute-app set (GPU otherwise idle) for the peak
 mpeak=0

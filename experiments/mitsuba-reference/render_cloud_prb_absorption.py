@@ -8,8 +8,8 @@ This is the apples-to-apples reference the old refs_prb_pyr0/ was NOT (those
 used albedo=0.9 scattering + sigmat 60). Renders to assets/models/cloud/refs_prb_absorption/.
 
 Run:
-  source tools/refs/.venv/bin/activate
-  tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_cloud_prb_absorption.py
+  source experiments/mitsuba-reference/.venv/bin/activate
+  experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_cloud_prb_absorption.py
 Env: SG_SPP (default 64), SG_CAM (optional single cam index for a quick check).
 """
 import os

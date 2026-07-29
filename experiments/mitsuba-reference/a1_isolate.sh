@@ -6,8 +6,8 @@
 set -uo pipefail
 cd /home/kacper/thesis
 BIN=./build/bin/Release/test_runner
-PY=tools/refs/.venv/bin/python
-MITS="bash tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python"
+PY=experiments/mitsuba-reference/.venv/bin/python
+MITS="bash experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python"
 SIG="${SIG:-2}"; ALB="${ALB:-0.9}"; SPP="${SPP:-512}"; SEEDS="${SEEDS:-0 1 2 3 4 5}"
 OUT=renders/a1; mkdir -p "$OUT"
 ts(){ date '+%H:%M:%S'; }
@@ -23,7 +23,7 @@ done
 for s in $SEEDS; do
   o=$OUT/mits_sg_seed$s.exr; [ -s "$o" ] && continue
   SG_ALBEDO=$ALB SG_SIGMA=$SIG SG_SPP=$SPP SG_SEED=$s SG_HG_G=0.85 \
-    $MITS tools/refs/render_single_gaussian_via_prb.py >/dev/null 2>&1
+    $MITS experiments/mitsuba-reference/render_single_gaussian_via_prb.py >/dev/null 2>&1
   src=$(ls -t test_results/single_gauss/*alb${ALB}*.exr 2>/dev/null | head -1)
   if [ -n "$src" ]; then cp "$src" "$o"; echo "[$(ts)] $o"; else echo "[$(ts)] MITS MISSING"; fi
 done

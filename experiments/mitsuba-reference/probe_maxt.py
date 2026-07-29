@@ -1,4 +1,4 @@
-# tools/refs/probe_maxt.py — E1: print ds.dist/maxt for a constant-emitter NEE shadow ray (chain
+# experiments/mitsuba-reference/probe_maxt.py — E1: print ds.dist/maxt for a constant-emitter NEE shadow ray (chain
 # scene); E2: from a point inside one ellipsoid, what does ray_intersect report along +z — the
 # current primitive's EXIT or the next primitive's ENTRY? (fixes oracle enumeration variant V1 vs V2)
 import os, sys

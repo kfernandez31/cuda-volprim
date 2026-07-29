@@ -6,8 +6,8 @@
 set -uo pipefail
 cd /home/kacper/thesis
 BIN=./build/bin/Release/test_runner
-PY=tools/refs/.venv/bin/python
-MITS="bash tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python"
+PY=experiments/mitsuba-reference/.venv/bin/python
+MITS="bash experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python"
 ALB="0.9,0.5,0.2"; SIG=4; SPP=2048
 OUT=renders/rgb_albedo; RES=renders/rgb_albedo_results.txt
 mkdir -p "$OUT"
@@ -27,7 +27,7 @@ done
 for s in 0 1 2; do
   o=$OUT/mits_seed$s.exr; [ -s "$o" ] && continue
   SG_ALBEDO=$ALB SG_SIGMA=$SIG SG_SPP=$SPP SG_SEED=$s \
-    $MITS tools/refs/render_single_gaussian_via_prb.py >/dev/null 2>&1
+    $MITS experiments/mitsuba-reference/render_single_gaussian_via_prb.py >/dev/null 2>&1
   src=$(ls -t test_results/single_gauss/*alb0.90-0.50-0.20*.exr 2>/dev/null | head -1)
   if [ -n "$src" ] && [ -s "$src" ]; then cp "$src" "$o"; echo "[$(ts)] wrote $o";
   else echo "[$(ts)] MITS MISSING (alb tag)"; fi
@@ -35,7 +35,7 @@ done
 
 {
   echo "######## RGB ALBEDO (tinted single-G $ALB) — CUDA vs Mitsuba-analog ########"
-  $PY tools/refs/sg_systematic.py "$OUT/cuda_seed*.exr" "$OUT/mits_seed*.exr" 2>/dev/null \
+  $PY experiments/mitsuba-reference/sg_systematic.py "$OUT/cuda_seed*.exr" "$OUT/mits_seed*.exr" 2>/dev/null \
     | grep -E "global:|^  R:|^  G:|^  B:|median"
   echo "--- per-channel MEANS (tint sanity: expect R > G > B on BOTH) ---"
   $PY - "$OUT" <<'PYEOF'

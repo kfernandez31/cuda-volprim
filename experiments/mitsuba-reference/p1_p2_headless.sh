@@ -11,15 +11,15 @@
 # device/core/constants.cuh to the committed baseline and rebuilds, so the tree
 # is never left on a sweep value.
 #
-# Usage:  setsid nohup bash tools/refs/p1_p2_headless.sh </dev/null \
+# Usage:  setsid nohup bash experiments/mitsuba-reference/p1_p2_headless.sh </dev/null \
 #             >renders/p1p2_run.log 2>&1 &
 # ============================================================================
 set -uo pipefail
 cd /home/kacper/thesis
 
 BIN=./build/bin/Release/test_runner
-PY=tools/refs/.venv/bin/python
-MITS="bash tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python"
+PY=experiments/mitsuba-reference/.venv/bin/python
+MITS="bash experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python"
 RESULTS=renders/p1p2_results.txt
 mkdir -p renders/p1 renders/p2
 : > "$RESULTS"
@@ -109,13 +109,13 @@ say "P1 analysis -> $RESULTS"
   echo "## single-Gaussian (albedo 0.99, 4 seeds x 4096 spp):"
   for tag in RR9999 RR1 RR10 MB32 MB64 MB256 MT1em3 MT1em5 MT0; do
     printf "  %-8s " "$tag"
-    $PY tools/refs/sg_systematic.py "renders/p1/sg_${tag}_seed*.exr" "renders/p1/sg_base_seed*.exr" \
+    $PY experiments/mitsuba-reference/sg_systematic.py "renders/p1/sg_${tag}_seed*.exr" "renders/p1/sg_base_seed*.exr" \
       2>/dev/null | grep -E "global:" || echo "(compare failed)"
   done
   echo "## cloud cam0 (albedo 0.9, 256 spp; cfg seed0 vs baseline seeds0-2):"
   for tag in RR9999 RR1 RR10 MB32 MB64 MB256; do
     printf "  %-8s " "$tag"
-    $PY tools/refs/sg_systematic.py "renders/p1/cloud_${tag}_seed0.exr" "renders/p1/cloud_base_seed*.exr" \
+    $PY experiments/mitsuba-reference/sg_systematic.py "renders/p1/cloud_${tag}_seed0.exr" "renders/p1/cloud_base_seed*.exr" \
       2>/dev/null | grep -E "global:" || echo "(compare failed)"
   done
 } >> "$RESULTS"
@@ -142,7 +142,7 @@ mits_cloud_p2() { # cam seed env sigma tag srcdir
   local out=renders/p2/mits_$5_cam$1_seed$2.exr
   [ -s "$out" ] && { say "   skip $out"; return; }
   SG_CAM=$1 SG_SEED=$2 SG_ENV=$3 SG_SIGMA=$4 SG_ALBEDO=0.9 SG_HG_G=0.85 \
-    SG_RFILTER=box SG_SPP=$P2_SPP $MITS tools/refs/render_cloud_prb_absorption.py >/dev/null 2>&1
+    SG_RFILTER=box SG_SPP=$P2_SPP $MITS experiments/mitsuba-reference/render_cloud_prb_absorption.py >/dev/null 2>&1
   local src
   printf -v src '%s/%04d.exr' "$6" "$1"
   if [ -s "$src" ]; then cp "$src" "$out"; say "   wrote $out"; else say "   MITS MISSING $src"; fi
@@ -171,12 +171,12 @@ say "P2 analysis -> $RESULTS"
   echo "######## P2 SYSTEMATIC (CUDA-MIS vs Mitsuba-analog; |global| <= ~1e-4 target) ########"
   for cam in $P2_CAMS; do
     printf "  meadow cam%-3s " "$cam"
-    $PY tools/refs/sg_systematic.py "renders/p2/cuda_meadow_cam${cam}_seed*.exr" \
+    $PY experiments/mitsuba-reference/sg_systematic.py "renders/p2/cuda_meadow_cam${cam}_seed*.exr" \
         "renders/p2/mits_meadow_cam${cam}_seed*.exr" 2>/dev/null \
         | grep -E "global:|median" | tr '\n' ' '; echo
   done
   printf "  lowsig cam0  "
-  $PY tools/refs/sg_systematic.py "renders/p2/cuda_lowsig_cam0_seed*.exr" \
+  $PY experiments/mitsuba-reference/sg_systematic.py "renders/p2/cuda_lowsig_cam0_seed*.exr" \
       "renders/p2/mits_lowsig_cam0_seed*.exr" 2>/dev/null \
       | grep -E "global:|median" | tr '\n' ' '; echo
 } >> "$RESULTS"

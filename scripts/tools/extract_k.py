@@ -7,7 +7,7 @@ With --times (CSV: arm,seed,time_s) also computes per-block-normalized median
 relative time, eff = k * t_rel, and bootstrap CIs on eff_base/eff_arm.
 
 Usage:
-  tools/refs/.venv/bin/python scripts/tools/extract_k.py --dir results/campaign/rr_seeds \
+  experiments/mitsuba-reference/.venv/bin/python scripts/tools/extract_k.py --dir results/campaign/rr_seeds \
       --arms d5 d6 d8 d10 d12 d16 --seeds 1 16 --spp 64 [--times .../times.csv --base d12]
 """
 import argparse, csv, statistics as st

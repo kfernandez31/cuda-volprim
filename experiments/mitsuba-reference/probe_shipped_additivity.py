@@ -4,7 +4,7 @@ Question: did the released kernel's finite-bounds segment integral satisfy
 tau(a,b) + tau(b,c) == tau(a,c)?  (The GaborVolumes rewrite violated it 5.85x
 via the mirrored-B sign convention; this decides whether that class of issue
 was present in the release.)
-Run: tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/probe_shipped_additivity.py
+Run: experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/probe_shipped_additivity.py
 """
 import numpy as np
 import mitsuba as mi

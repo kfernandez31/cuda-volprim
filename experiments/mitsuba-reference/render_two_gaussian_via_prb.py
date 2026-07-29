@@ -16,8 +16,8 @@ Config MUST match test/scenes/single_gaussian.cpp :: two_gaussian_validation:
   ortho camera at (0,0,-5) -> origin, up +Y, viewport [-3,3]^2, 256x256, white env=1.0
 
 Run via:
-    tools/refs/with_jorge_mitsuba.sh \
-        tools/refs/.venv/bin/python tools/refs/render_two_gaussian_via_prb.py
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh \
+        experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_two_gaussian_via_prb.py
 Env: SG_SHAPE=ellipsoids (exact analytic shape, like CUDA), SG_SPP, SG_SEED.
 """
 import os

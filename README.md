@@ -3,7 +3,7 @@
 A from-scratch **CUDA/OptiX volumetric path tracer for Gaussian kernel-mixture volumes** —
 a GPU implementation of the rendering method of *Don't Splat Your Gaussians* (Condor et
 al., ACM TOG 2025), built and validated against its Mitsuba 3 reference implementation
-([`volumetric_primitives`](https://github.com/jorgecondor/volumetric_primitives)).
+(`volumetric_primitives`; see the [DSYG paper](https://doi.org/10.1145/3687934)).
 
 Instead of the reference's segment-by-segment march with per-segment root-finding, this
 renderer collects all of a ray's primitives in a **single acceleration-structure
@@ -56,13 +56,31 @@ SG_ALBEDO=0.9 build/bin/Release/test_runner --scene asset_validation --spp 64 \
     --sigma-multiplier 10 --seed 0
 ```
 
-Selected flags: `--scene`, `--spp`, `--seed`, `--sigma-multiplier` (global density
-scale), `--ris --ris-candidates K` (product-RIS direct lighting; default is MIS),
-`--rr-depth`, `--measure-caps` (report per-ray buffer demand). Scene environment
-variables for the generic loader: `SG_PLY`, `SG_RES`, `SG_ENV`
-(`white_constant`/`meadow`/`studio`), `SG_ALBEDO`, `SG_VIEW`
-(`negz`/`posx`/…/`diag`), `SG_DIST`, `SG_FOV`, `SG_CAM`. Renders are written as EXR to
-`test_results/`.
+Selected flags:
+
+| Flag | Meaning |
+|---|---|
+| `--scene <name>` | scene to render (`cloud_asset_scattering`, `asset_validation`, ...) |
+| `--spp <n>` | samples per pixel |
+| `--seed <n>` | RNG seed (scattering renders are deterministic per seed) |
+| `--sigma-multiplier <x>` | global density scale applied to every primitive's extinction |
+| `--ris` / `--ris-candidates <K>` | product-RIS direct lighting (default: MIS, two shadow rays) |
+| `--rr-depth <n>` | Russian-roulette start depth (default 12) |
+| `--measure-caps` | report per-ray buffer demand (max hits/ray, max point-overlap) |
+
+Environment variables for the generic asset loader (`--scene asset_validation`):
+
+| Variable | Meaning |
+|---|---|
+| `SG_PLY` | path to a Gaussian PLY asset |
+| `SG_RES` | square image resolution (default 512) |
+| `SG_ENV` | environment: `white_constant`, `meadow`, `studio` |
+| `SG_ALBEDO` | scattering albedo override (0 = absorption-only) |
+| `SG_VIEW` | camera axis: `negz` (default), `posz`, `posx`, `negx`, `posy`, `negy`, `diag` |
+| `SG_DIST` / `SG_FOV` | camera distance (3.5) and vertical FOV (40°) |
+| `SG_CAM` | restrict a multi-camera scene to one camera index |
+
+Renders are written as EXR to `test_results/`.
 
 ## Reproducing the thesis results
 

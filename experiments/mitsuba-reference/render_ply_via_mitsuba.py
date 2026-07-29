@@ -9,8 +9,8 @@ the same PLY), same physics (absorption only at albedo=0), same camera.
 Any disagreement is a bug in our CUDA renderer's kernel.
 
 Run via:
-    tools/refs/with_jorge_mitsuba.sh \
-        tools/refs/.venv/bin/python tools/refs/render_ply_via_mitsuba.py
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh \
+        experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_ply_via_mitsuba.py
 
 Requires Jorge's custom Mitsuba build (has RayFlags.BackfaceCulling that
 volprim's integrators use; removed in upstream Mitsuba >=3.5.2).

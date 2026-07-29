@@ -22,7 +22,7 @@ assert out!=src and len(out)==len(src)-2, 'header rename failed'
 open('$NAT_PLY','wb').write(out); print('generated _sigmat PLY (opacities_0 -> sigma_t_0)')"
 fi
 
-emean(){ tools/refs/.venv/bin/python -c "import OpenEXR,Imath,numpy as np,sys
+emean(){ experiments/mitsuba-reference/.venv/bin/python -c "import OpenEXR,Imath,numpy as np,sys
 f=OpenEXR.InputFile(sys.argv[1])
 pt=Imath.PixelType(Imath.PixelType.FLOAT)
 a=np.stack([np.frombuffer(f.channel(c,pt),np.float32) for c in ('R','G','B')])
@@ -39,7 +39,7 @@ om=$(emean results/campaign/g10_bunny_ours.exr); echo "ours mean=$om"
 echo "--- MITSUBA analog (volprim_prb, NEE off) ---"
 SG_PLY=$NAT_PLY SG_ALBEDO=$ALB SG_ENV=white_constant SG_RES=$RES SG_VIEW=diag SG_SIGMA=$SIGMA SG_SPP=$SPP SG_NEE=0 \
   OUT=results/campaign/g10_bunny_mits.exr \
-  tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python tools/refs/render_asset_via_prb.py 2>&1 | tail -4
+  experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python experiments/mitsuba-reference/render_asset_via_prb.py 2>&1 | tail -4
 mm=$(emean results/campaign/g10_bunny_mits.exr); echo "mits mean=$mm"
 
 ratio=$(python3 -c "print(f'{$om/$mm:.5f}')")

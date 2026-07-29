@@ -25,7 +25,7 @@ cp ~/winbins/exe_stock build/bin/Release/test_runner; cp ~/winbins/ir_stock buil
 echo "clk: $(sort -n "$CLK" | awk 'NR==1{m=$1}{a[NR]=$1}END{print "min="m" p50="a[int(NR/2)]" max="a[NR]}')"
 
 echo "--- clipped-k + speedup (ours-analog vs Mitsuba-analog) ---"
-tools/refs/.venv/bin/python - <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - <<'PY'
 import OpenEXR, Imath, numpy as np, glob, csv, statistics as st
 def load(p):
     f=OpenEXR.InputFile(p); dw=f.header()['dataWindow']

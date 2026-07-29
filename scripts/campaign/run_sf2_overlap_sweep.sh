@@ -5,11 +5,11 @@
 set -uo pipefail
 cd /home/kacper/thesis
 OUT=results/campaign/furnace; mkdir -p "$OUT"
-PY=tools/refs/.venv/bin/python; M=tools/refs/with_jorge_mitsuba.sh
+PY=experiments/mitsuba-reference/.venv/bin/python; M=experiments/mitsuba-reference/with_jorge_mitsuba.sh
 for S in 6 7.5; do
   echo "=== cloud furnace NEE (albedo=1, white-constant, sigma=$S, overlap ~45) ==="
   SG_ALBEDO=1.0 SG_ENV=white_constant SG_NEE=1 SG_SIGMA=$S SG_SPP=512 SG_CAM=0 \
-    $M $PY tools/refs/render_cloud_prb_absorption.py 2>&1 | grep -E "cam_0000|mean" | head -2
+    $M $PY experiments/mitsuba-reference/render_cloud_prb_absorption.py 2>&1 | grep -E "cam_0000|mean" | head -2
   cp "$(ls -t assets/models/cloud/refs_prb_scattering*nee*/0000.exr | head -1)" "$OUT/mits_nee_cloudfurnace_s${S}.exr"
 done
 $PY - <<'PYEOF'

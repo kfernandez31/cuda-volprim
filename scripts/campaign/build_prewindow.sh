@@ -42,7 +42,7 @@ echo -n "constants.cuh clean? "; git status --short device/core/constants.cuh | 
 echo "--- [4] furnace gate cloud calibrated ---"
 cp ~/winbins/exe_cloud build/bin/Release/test_runner; cp ~/winbins/ir_cloud build/device_program.optixir
 SG_ALBEDO=1.0 build/bin/Release/test_runner --scene single_gaussian_validation --spp 1024 >/dev/null 2>&1
-echo -n "cloud furnace: "; tools/refs/.venv/bin/python tools/refs/furnace_check.py \
+echo -n "cloud furnace: "; experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/furnace_check.py \
   test_results/single_gaussian_validation/0000.exr | grep -oE "=>.*"
 # leave build/ holding the canonical stock pair
 cp ~/winbins/exe_stock build/bin/Release/test_runner; cp ~/winbins/ir_stock build/device_program.optixir

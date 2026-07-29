@@ -53,4 +53,4 @@ tolerances, the runtime, and what hardware/software it needs.
   `scripts/tools/fetch_envmaps.sh` and converted by the scripts in `mitsuba-reference/`.
 - **Reference side:** `[mitsuba]` experiments need the DSYG reference; pin and setup are in
   `mitsuba-reference/README.md`. The corrected-reference arms use the fix PR
-  (https://github.com/kfernandez31/volumetric_primitives fork; see thesis §7.2).
+  (the corrected fork; fixes submitted to the authors — thesis §7.2).

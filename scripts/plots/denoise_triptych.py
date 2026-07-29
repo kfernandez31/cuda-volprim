@@ -6,7 +6,7 @@ cloud-meadow, MIS, calibrated caps. The reference is the mean of the 16 banked g
 RMSE sharply but is a post-process (it blurs fine structure and is not unbiased), so it is reported as
 a practical option, not part of the unbiased pipeline.
 
-  tools/refs/.venv/bin/python scripts/plots/denoise_triptych.py --out thesis/latex/figures/denoise.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/denoise_triptych.py --out thesis/latex/figures/denoise.pdf
 """
 import argparse, glob, os
 import numpy as np, OpenEXR, Imath

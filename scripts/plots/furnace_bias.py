@@ -7,7 +7,7 @@ per arm, one panel per sigma. A FLAT non-zero line (CI excluding 0) across spp =
 0 = convergence. Controls (ours-MIS, Mitsuba-analog) must sit on 0.
 
 Usage:
-  tools/refs/.venv/bin/python scripts/plots/furnace_bias.py \
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/furnace_bias.py \
       --csv results/campaign/furnace_spp/furnace_bias_vs_spp.csv \
       --out thesis/latex/figures/furnace_bias_vs_spp.pdf
 """
@@ -43,7 +43,7 @@ for r in csv.DictReader(open(a.csv)):
     if sigma not in sigmas: sigmas.append(sigma)
 sigmas = sorted(sigmas)
 
-LABEL = {"mits_nee": "Mitsuba NEE (under test)", "mits_analog": "Mitsuba analog (control)",
+LABEL = {"mits_nee": "Mitsuba NEE, shipped rev.\ (under test)", "mits_analog": "Mitsuba analog, shipped rev.\ (control)",
          "ours": "ours MIS (control)"}
 COLOR = {"mits_nee": "#d1495b", "mits_analog": "#30638e", "ours": "#2e8b57"}
 order = [x for x in ("mits_nee", "mits_analog", "ours") if x in arms]

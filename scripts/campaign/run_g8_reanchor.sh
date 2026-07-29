@@ -51,7 +51,7 @@ for r in 1 2 3 4 5; do for a in $ARMS; do
   echo "round=$r arm=$a t=$(t_of "$o")" | tee -a $LOG
 done; done
 
-tools/refs/.venv/bin/python - "$LOG" <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - "$LOG" <<'PY'
 import sys, statistics as st, re, collections
 v=collections.defaultdict(list)
 for line in open(sys.argv[1]):

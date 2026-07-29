@@ -119,3 +119,4 @@ unilu-docs/
 tools/refs/.venv/
 CLAUDE.md
 .claude/
+experiments/mitsuba-reference/.venv/

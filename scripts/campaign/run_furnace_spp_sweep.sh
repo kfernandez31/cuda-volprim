@@ -35,7 +35,7 @@ for sigma in $SIGMAS; do
 done
 
 # ours EXRs -> CSV (mean + central-1/4-box centre; header created here)
-tools/refs/.venv/bin/python - "$CSV" "$OUT/ours_exr" <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - "$CSV" "$OUT/ours_exr" <<'PY'
 import OpenEXR, Imath, numpy as np, glob, os, sys, csv, re
 csv_path, d = sys.argv[1], sys.argv[2]
 def load(p):
@@ -62,11 +62,11 @@ for sigma in $SIGMAS; do
   echo "--- mits-NEE furnace sigma=$sigma (UNDER TEST) ---"
   SG_ARM=mits_nee SG_NEE=1 SG_ALBEDO=1.0 SG_ENV=white_constant SG_SIGMA="$sigma" \
     SG_MAX_DEPTH="$DEPTH" SG_SHAPE=ellipsoids SG_SPPS="$SPPS" SG_SEEDS="$SEEDS" SG_CSV="$CSV" \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_single_gaussian_via_prb.py
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_single_gaussian_via_prb.py
   echo "--- mits-analog furnace sigma=$sigma (control, must be ~1.0) ---"
   SG_ARM=mits_analog SG_NEE=0 SG_ALBEDO=1.0 SG_ENV=white_constant SG_SIGMA="$sigma" \
     SG_MAX_DEPTH="$DEPTH" SG_SHAPE=ellipsoids SG_SPPS="$SPPS" SG_SEEDS="$SEEDS" SG_CSV="$CSV" \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_single_gaussian_via_prb.py
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_single_gaussian_via_prb.py
 done
 
 echo "=== furnace spp sweep done $(date) ==="

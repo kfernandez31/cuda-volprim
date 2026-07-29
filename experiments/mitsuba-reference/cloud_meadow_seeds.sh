@@ -5,7 +5,7 @@
 #
 # Env: OUT (output dir), SG_HG_G (Mitsuba HG g; CUDA gets HG from the build).
 # Usage: OUT=renders/cloud_meadow_hg SG_HG_G=0.85 \
-#          setsid nohup bash tools/refs/cloud_meadow_seeds.sh <NSEEDS> <SPP> > log 2>&1 < /dev/null &
+#          setsid nohup bash experiments/mitsuba-reference/cloud_meadow_seeds.sh <NSEEDS> <SPP> > log 2>&1 < /dev/null &
 set -euo pipefail
 cd /home/kacper/thesis
 NSEEDS="${1:-8}"
@@ -35,8 +35,8 @@ for S in $(seq 0 $((NSEEDS-1))); do
   f="$OUT/mits_seed$(printf %02d "$S").exr"
   if [ -f "$f" ]; then echo "skip $f"; continue; fi
   SG_ENV=meadow SG_CAM=0 SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_SPP="$SPP" SG_SEED="$S" SG_HG_G="$HG" \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python \
-    tools/refs/render_cloud_prb_absorption.py >/dev/null 2>&1
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python \
+    experiments/mitsuba-reference/render_cloud_prb_absorption.py >/dev/null 2>&1
   cp "$MITS_DIR/0000.exr" "$f"
   echo "wrote $f"
 done

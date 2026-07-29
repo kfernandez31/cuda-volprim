@@ -8,7 +8,7 @@
 # stay placeholders until those renders exist (see results/campaign/README.md).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PY="$ROOT/tools/refs/.venv/bin/python"
+PY="$ROOT/experiments/mitsuba-reference/.venv/bin/python"
 FIG="$ROOT/thesis/latex/figures"
 RES="$ROOT/results/campaign"
 mkdir -p "$FIG"
@@ -21,7 +21,7 @@ has_data() { [ -f "$1" ] && [ "$(grep -vcE '^[[:space:]]*#|^[[:space:]]*$' "$1")
 if has_data "$RES/rr_depth.csv"; then
   # Plot efficiency (k*t, lower = better) vs depth -- shows the knee. frame_ms alone is monotone.
   plot --csv "$RES/rr_depth.csv" --x rr_depth --y eff --xlabel "RR start depth" \
-       --ylabel "efficiency  k*t  (lower better)" --title "RR-depth efficiency" --out "$FIG/rr_depth.pdf"
+       --ylabel "efficiency k·t (lower is better)" --title "RR-depth efficiency" --out "$FIG/rr_depth.pdf"
 else
   ph --title "RR-depth efficiency" --note "efficiency k*t vs RR start depth (knee near 12; 5 = old default)" \
      --out "$FIG/rr_depth.pdf"
@@ -31,7 +31,7 @@ fi
 if has_data "$RES/ris_ksweep.csv"; then
   plot --csv "$RES/ris_ksweep.csv" --x K --y speedup_flat speedup_studio speedup_meadow \
        --xlabel "RIS candidates K" --ylabel "equal-quality speedup" --title "RIS vs MIS" \
-       --out "$FIG/ris_ksweep.pdf"
+       --hline 1.0 --out "$FIG/ris_ksweep.pdf"
 else
   ph --title "RIS vs MIS, equal quality" --note "K-sweep across peakiness: flat / studio / meadow" \
      --out "$FIG/ris_ksweep.pdf"
@@ -57,6 +57,7 @@ fi
 
 # --- 4b. Monte-Carlo convergence (Ch 2 background): self-contained, no CSV ---
 "$PY" "$ROOT/scripts/plots/mc_integ.py" --out "$FIG/mc_integ.pdf"
+"$PY" "$ROOT/scripts/plots/scaling_v2.py" --csv "$ROOT/results/campaign/scaling_v2.csv" --out "$FIG/scaling_v2.pdf"
 
 # --- 5-7. Validation montages (Ch 5): assembled from renders, placeholder until then ---
 ph --title "Absorption validation ladder" \

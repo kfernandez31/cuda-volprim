@@ -10,7 +10,7 @@ and the *corrected* arms on stock Mitsuba 3.8.0 + Dr.Jit 1.3.1 with the fix PR a
 
 ---
 
-# tools/refs — self-generated reference renders
+# experiments/mitsuba-reference — self-generated reference renders
 
 Renders ground-truth voxel-grid references for asset validation, and diffs the
 thesis renderer's output against them. Standalone Python tool; not part of the
@@ -27,8 +27,8 @@ Mitsuba's stock `prbvolpath` + `gridvolume` plugins so we control the provenance
 ## Setup (one-time)
 
 ```bash
-python3 -m venv tools/refs/.venv
-tools/refs/.venv/bin/pip install -r tools/refs/requirements.txt
+python3 -m venv experiments/mitsuba-reference/.venv
+experiments/mitsuba-reference/.venv/bin/pip install -r experiments/mitsuba-reference/requirements.txt
 ```
 
 Requires CUDA + an NVIDIA GPU (Mitsuba uses the `cuda_ad_rgb` variant).
@@ -37,13 +37,13 @@ Requires CUDA + an NVIDIA GPU (Mitsuba uses the `cuda_ad_rgb` variant).
 
 ```bash
 # 1. Generate voxel references (re-run only when the voxel grid changes)
-tools/refs/.venv/bin/python tools/refs/render_voxel_reference.py --asset cloud --spp 256
+experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_voxel_reference.py --asset cloud --spp 256
 
 # 2. Render the thesis DSYG output
 ./build/bin/Release/test_runner --scene cloud_asset_validation --sigma-multiplier 7.5
 
 # 3. Compare
-tools/refs/.venv/bin/python tools/refs/compare_renders.py \
+experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/compare_renders.py \
     assets/models/cloud/refs_voxel_self/ \
     test_results/cloud_asset_validation/
 ```

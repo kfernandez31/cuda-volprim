@@ -7,7 +7,7 @@
 set -uo pipefail
 cd /home/kacper/thesis
 OUT=results/campaign/s4_erfinv; mkdir -p "$OUT"
-PY=tools/refs/.venv/bin/python
+PY=experiments/mitsuba-reference/.venv/bin/python
 SCENE=cluster_validation; SPP=16384; SIG=2; ALB=0.9
 for S in 1 2; do
   SG_ALBEDO=$ALB build/bin/Release/test_runner --scene $SCENE --sigma-multiplier $SIG --spp $SPP --seed $S >/dev/null 2>&1

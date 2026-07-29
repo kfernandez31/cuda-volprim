@@ -6,8 +6,8 @@ closed-form analytic for the single, Mitsuba-volprim for pair+cloud) or the scat
 (single | cluster | cloud; reference = Mitsuba-analog). Each rung is tonemapped independently;
 the difference column is amplified and annotated with the converged-mean ratio + RMSE.
 
-  tools/refs/.venv/bin/python scripts/plots/ladder_montage.py absorption  thesis/latex/figures/absorption_ladder.pdf
-  tools/refs/.venv/bin/python scripts/plots/ladder_montage.py scattering  thesis/latex/figures/scattering_ladder.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ladder_montage.py absorption  thesis/latex/figures/absorption_ladder.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ladder_montage.py scattering  thesis/latex/figures/scattering_ladder.pdf
 """
 import sys, os, math
 import numpy as np, OpenEXR, Imath
@@ -60,7 +60,10 @@ def stretch(a, lo):
 #                         --sigma-multiplier 1.0 --spp 1024   (M=1.0, matches analytic_single M=1.0;
 #                         centre px exp(-1/2pi)=0.853, verified RMSE 2e-5 vs the 3sigma-truncated analytic)
 #   abs_pair_ours.exr / abs_cloud_ours.exr : same binary, scenes two_gaussian_* / cloud_asset_absorption.
-#   abs_pair_ref.exr  / abs_cloud_ref.exr  : Mitsuba volprim absorption refs (tools/refs/render_*_via_prb.py).
+#   abs_pair_ref.exr  : Mitsuba volprim absorption ref, 16384 spp (render_two_gaussian_via_prb.py,
+#                        with_jorge_mitsuba.sh / shipped stack, 2026-07-09).
+#   abs_cloud_ref.exr : Mitsuba volprim absorption ref cam0, mean of 24 x 2048 spp seeds (49k effective;
+#                        render_cloud_prb_absorption.py, shipped stack, 2026-07-10). abs_cloud_ours: 4096 spp.
 # rung spec: (label, ours_file, ref_file_or_None_for_analytic, exposure)
 LADDERS = {
     "absorption": [
@@ -74,7 +77,8 @@ LADDERS = {
         ("full cloud", "sc_cloud_ours.exr", "sc_cloud_ref.exr", 1.3),
     ],
 }
-AMP = 10.0
+AMP = 10.0  # legacy (unused by the signed convention)
+DIFF_SCALE = 0.05  # +-5% full scale, thesis-wide comparison-plot convention
 
 
 def main():
@@ -94,9 +98,14 @@ def main():
             ref = ref[:ours.shape[0], :ours.shape[1]]
         rmse = float(np.sqrt(((ours - ref) ** 2).mean()))
         ratio = float(ours.mean() / ref.mean())
-        diff = np.clip(np.abs(ours - ref).mean(-1) * AMP, 0, 1)
+        # thesis-wide diff convention: signed relative difference, red = ours brighter,
+        # blue = ours darker, white = agreement; symmetric clip at +-DIFF_SCALE
+        rel = (ours.mean(-1) - ref.mean(-1)) / np.maximum(ref.mean(-1), 1e-3)
+        t = np.clip(rel / DIFF_SCALE, -1, 1)
+        pos, neg = np.clip(t, 0, 1), np.clip(-t, 0, 1)
+        diff = np.stack([1 - 0.85 * neg, 1 - 0.85 * pos - 0.55 * neg, 1 - 0.85 * pos], -1)
         thisref = "analytic" if rf is None else ref_label
-        col_titles = ["ours", "reference", f"$|\\Delta|\\times{AMP:.0f}$"]
+        col_titles = ["ours", "reference", f"signed rel. diff (\u00b1{DIFF_SCALE*100:.0f}%)"]
         # Absorption rungs are transmittance (background = 1): contrast-stretch for display so the
         # thin structure reads. Scattering rungs keep the exposure tonemap.
         if which == "absorption":
@@ -107,7 +116,7 @@ def main():
         for c, (img, cmap) in enumerate([
                 (disp_ours, None),
                 (disp_ref, None),
-                (diff, "magma")]):
+                (diff, None)]):
             ax = axes[r, c]
             ax.imshow(img, cmap=cmap); ax.axis("off")
             if r == 0:
@@ -116,8 +125,13 @@ def main():
         axes[r, 0].axis("on"); axes[r, 0].set_xticks([]); axes[r, 0].set_yticks([])
         for sp in axes[r, 0].spines.values():
             sp.set_visible(False)
-        axes[r, 2].text(0.5, -0.04, f"ratio {ratio:.4f},  RMSE {rmse:.4f}",
-                        transform=axes[r, 2].transAxes, ha="center", va="top", fontsize=7.5)
+        if rmse >= 1e-3:
+            rtxt = f"{rmse:.4f}"
+        else:
+            e = int(np.floor(np.log10(rmse)))
+            rtxt = f"${rmse / 10**e:.1f}\\times10^{{{e}}}$"
+        axes[r, 2].text(0.5, -0.04, f"ratio {ratio:.4f},  RMSE {rtxt}",
+                        transform=axes[r, 2].transAxes, ha="center", va="top", fontsize=10)
         print(f"{which} {label.splitlines()[0]:18s} ratio={ratio:.4f} RMSE={rmse:.4f}")
     plt.subplots_adjust(wspace=0.04, hspace=0.18, left=0.05, right=0.99, top=0.95, bottom=0.03)
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

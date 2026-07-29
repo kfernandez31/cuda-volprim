@@ -24,11 +24,11 @@ echo "=== timing Mitsuba-analog cloud cam0 @ ${SPP}spp × ${REPS} ==="
 mits_t=0
 for r in $(seq 1 "$REPS"); do
   out=$(SG_ENV=meadow SG_CAM=0 SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_SPP="$SPP" SG_SEED=$((100+r)) SG_HG_G=0.85 \
-        tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python -c "
+        experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python -c "
 import time,os,sys
 sys.argv=['x']
 t0=time.time()
-exec(open('tools/refs/render_cloud_prb_absorption.py').read())
+exec(open('experiments/mitsuba-reference/render_cloud_prb_absorption.py').read())
 print('WALL %.3f'%(time.time()-t0))
 " 2>&1 | grep -oE "WALL [0-9.]+" | grep -oE "[0-9.]+")
   echo "  rep$r: ${out}s"; mits_t=$(LC_ALL=C awk "BEGIN{print $mits_t+$out}")
@@ -38,7 +38,7 @@ echo "Mitsuba: $(LC_ALL=C awk "BEGIN{print $mits_t/$REPS}")s/render  -> ${mits_s
 
 echo ""
 echo "=== noise constants + equal-quality (from seed sets @ 256spp) ==="
-tools/refs/.venv/bin/python - "$cuda_spp_t" "$mits_spp_t" <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - "$cuda_spp_t" "$mits_spp_t" <<'PY'
 import sys, glob, numpy as np, OpenEXR, Imath
 tC=float(sys.argv[1]); tM=float(sys.argv[2])
 def load(p):

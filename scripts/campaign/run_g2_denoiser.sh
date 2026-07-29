@@ -29,7 +29,7 @@ done
 cp ~/winbins/exe_stock build/bin/Release/test_runner; cp ~/winbins/ir_stock build/device_program.optixir
 
 echo "--- RMSE analysis ---"
-tools/refs/.venv/bin/python - <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - <<'PY'
 import numpy as np, OpenEXR, Imath, glob, os
 def load(p):
     f=OpenEXR.InputFile(p); dw=f.header()['dataWindow']

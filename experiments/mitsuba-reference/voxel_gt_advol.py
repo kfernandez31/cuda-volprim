@@ -6,7 +6,7 @@ dynamic range). Renders K seeds from the exact cloud scene (cam_0000) under the 
 albedo 0.9, HG g=0.85, and reports inter-seed variance (k) + firefly stats vs the prior
 stock-Mitsuba attempt (which was firefly-limited, RMSE ~1.13).
 
-Usage: tools/refs/.venv/bin/python -u tools/refs/voxel_gt_advol.py <grid.npz> [spp] [nseeds] [maxdepth]
+Usage: experiments/mitsuba-reference/.venv/bin/python -u experiments/mitsuba-reference/voxel_gt_advol.py <grid.npz> [spp] [nseeds] [maxdepth]
 """
 import sys, os
 import numpy as np

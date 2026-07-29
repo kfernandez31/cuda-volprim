@@ -29,7 +29,7 @@ for S in $(seq 0 7); do
   cp test_results/cloud_asset_scattering/0000.exr "$OUT/ours_seed$(printf %02d "$S").exr"
   # MITSUBA-analog (NEE off, flat env)
   m=$(SG_ENV=white_constant SG_CAM=0 SG_ALBEDO=0.9 SG_SIGMA=7.5 SG_SPP=64 SG_SEED="$S" SG_HG_G=0.85 SG_NEE=0 \
-        tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_cloud_prb_absorption.py 2>&1)
+        experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_cloud_prb_absorption.py 2>&1)
   mr=$(grep -oE "RENDER_TIME_S [0-9.]+" <<<"$m" | grep -oE "[0-9.]+" | head -1)
   cp "$MITS_DIR/0000.exr" "$OUT/mits_seed$(printf %02d "$S").exr" 2>/dev/null || echo "WARN no mits EXR seed $S"
   echo "$S,$ot,${mr:-NA}" | tee -a "$OUT/times.csv"
@@ -37,7 +37,7 @@ done
 cp ~/winbins/exe_stock build/bin/Release/test_runner; cp ~/winbins/ir_stock build/device_program.optixir
 echo "clock: $(sort -n "$CLK"|awk 'NR==1{m=$1}{a[NR]=$1}END{print "min="m" p50="a[int(NR/2)]" max="a[NR]}')"
 
-tools/refs/.venv/bin/python - <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - <<'PY'
 import OpenEXR, Imath, numpy as np, glob, csv, statistics as st
 def load(p):
     f=OpenEXR.InputFile(p); dw=f.header()['dataWindow']

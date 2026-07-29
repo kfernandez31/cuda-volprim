@@ -20,10 +20,10 @@ echo "stashed exe_analog/ir_analog"
 # --- validate (still on the analog binary in build/) ---
 echo "--- furnace (analog must be flat ~1.0) ---"
 SG_ALBEDO=1.0 build/bin/Release/test_runner --scene single_gaussian_validation --spp 1024 >/dev/null 2>&1
-tools/refs/.venv/bin/python tools/refs/furnace_check.py test_results/single_gaussian_validation/0000.exr | grep -oE "=>.*" || echo "(furnace check parse)"
+experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/furnace_check.py test_results/single_gaussian_validation/0000.exr | grep -oE "=>.*" || echo "(furnace check parse)"
 echo "--- cloud-meadow analog mean (expect ~0.32 = Mitsuba-analog 0.3201, NOT 5.5) ---"
 SG_ENV=meadow SG_CAM=0 build/bin/Release/test_runner --scene cloud_asset_scattering --sigma-multiplier 7.5 --spp 64 --seed 0 2>&1 | grep -iE "overflow|total time"
-tools/refs/.venv/bin/python - <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - <<'PY'
 import OpenEXR, Imath, numpy as np
 f=OpenEXR.InputFile('test_results/cloud_asset_scattering/0000.exr'); dw=f.header()['dataWindow']
 w=dw.max.x-dw.min.x+1; h=dw.max.y-dw.min.y+1; pt=Imath.PixelType(Imath.PixelType.FLOAT)

@@ -7,7 +7,7 @@ honest convergence than point-sampling.
 Convention (matches device/core/primitive.h):
   sigma_t(x) = sum_i (SIGMA_MULT * sigma_t_i) * (2*pi)^(-3/2) * prod(1/s_ij) * exp(-1/2 ||S^-1 R^T (x-mu)||^2)
 
-Usage: tools/refs/.venv/bin/python tools/refs/voxel_build.py VOX [SS]
+Usage: experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/voxel_build.py VOX [SS]
 Output: results/campaign/voxgrids/cloud_<VOX>_ss<SS>.npz  (grid, lo, hi, peak)
 """
 import sys, os, time

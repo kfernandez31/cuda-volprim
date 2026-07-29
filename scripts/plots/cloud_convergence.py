@@ -7,7 +7,7 @@ Reads results/campaign/cloud_conv/{ours,mits_analog,mits_nee}_spp{S}_seed{N}.exr
   (C) variance vs time   : variance vs wall-time; equal-variance speedup = time-ratio at fixed variance.
 Variance is reported both raw and radiance-clipped (global 99.9th pct, the conservative thesis convention).
 
-  tools/refs/.venv/bin/python scripts/plots/cloud_convergence.py
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/cloud_convergence.py
 """
 import glob, os, re, csv, statistics as st
 from collections import defaultdict

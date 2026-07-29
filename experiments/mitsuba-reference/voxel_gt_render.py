@@ -3,7 +3,7 @@
 tracer, from the EXACT cloud scene (cam_0000), UNCLAMPED, with a majorant supergrid for tractability.
 Reports RMSE vs our renderer's reference. This is the valid-GT render (no density clamp).
 
-Usage: tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python -u tools/refs/voxel_gt_render.py \
+Usage: experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python -u experiments/mitsuba-reference/voxel_gt_render.py \
           <grid.npz> <absorption|scattering> [spp] [majorant_factor]
 """
 import sys, os

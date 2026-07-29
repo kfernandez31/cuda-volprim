@@ -4,7 +4,7 @@ heterogeneous/gridvolume/prbvolpath path tracer (the recipe in Jorge's render_vo
 This is the *render* half of a voxel-grid ground-truth pipeline; it shares no code with our
 analytic-erf renderer or with volprim's analytic-Gaussian renderer.
 
-Run:  tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/voxel_smoke.py
+Run:  experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/voxel_smoke.py
 """
 import numpy as np
 import mitsuba as mi

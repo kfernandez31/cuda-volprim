@@ -13,7 +13,7 @@ for a in tornado explosion; do
   log=$(mktemp)
   SG_PLY="$NAT" SG_ALBEDO=0.9 SG_ENV=meadow SG_RES=512 SG_VIEW=diag SG_SIGMA=10 SG_SPP=16 SG_NEE=0 \
     OUT=results/campaign/vram_mits_${a}.exr \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python tools/refs/render_asset_via_prb.py >"$log" 2>&1 &
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python experiments/mitsuba-reference/render_asset_via_prb.py >"$log" 2>&1 &
   mpid=$!
   peak=0
   while kill -0 "$mpid" 2>/dev/null; do

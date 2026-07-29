@@ -5,7 +5,7 @@ Pairs frames by basename (0000.exr in dir A vs 0000.exr in dir B). Skips frames
 not present in both sides.
 
 Run from project root:
-    tools/refs/.venv/bin/python tools/refs/compare_renders.py \\
+    experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/compare_renders.py \\
         assets/models/cloud/refs_voxel_self/ \\
         test_results/cloud_asset_validation/
 """

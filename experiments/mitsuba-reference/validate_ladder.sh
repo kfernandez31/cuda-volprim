@@ -10,12 +10,12 @@
 # Optional rung = single-Gaussian meadow systematic vs stored Mitsuba-analog seeds, IF
 # present (build config must match the stored refs' g). Skipped with a warning otherwise.
 #
-# Usage: bash tools/refs/validate_ladder.sh            # gate the current build
-#        REBUILD=1 bash tools/refs/validate_ladder.sh  # cmake --build first
+# Usage: bash experiments/mitsuba-reference/validate_ladder.sh            # gate the current build
+#        REBUILD=1 bash experiments/mitsuba-reference/validate_ladder.sh  # cmake --build first
 set -uo pipefail
 cd /home/kacper/thesis
 BIN=./build/bin/Release/test_runner
-PY=tools/refs/.venv/bin/python
+PY=experiments/mitsuba-reference/.venv/bin/python
 SPP="${SPP:-1024}"
 fails=0
 
@@ -28,7 +28,7 @@ run_furnace () {  # $1 = label, $2 = sigma
   SG_ALBEDO=1.0 $BIN --scene single_gaussian_validation --sigma-multiplier "$sigma" --spp "$SPP" \
     >/dev/null 2>&1
   echo "── furnace [$label] (albedo=1, white const, σ=$sigma) ──"
-  if $PY tools/refs/furnace_check.py test_results/single_gaussian_validation/0000.exr 1.0; then
+  if $PY experiments/mitsuba-reference/furnace_check.py test_results/single_gaussian_validation/0000.exr 1.0; then
     :; else fails=$((fails+1)); fi
 }
 
@@ -49,7 +49,7 @@ for refdir in renders/sg_meadow_hg085 renders/sg_meadow; do  # prefer HG ref (de
         --sigma-multiplier 4 --spp 2048 --seed "$S" >/dev/null 2>&1
       cp test_results/single_gaussian_validation/0000.exr "$tmp/cuda_seed0$S.exr"
     done
-    $PY tools/refs/sg_systematic.py "$tmp/cuda_seed*.exr" "$refdir/mits_seed*.exr" | \
+    $PY experiments/mitsuba-reference/sg_systematic.py "$tmp/cuda_seed*.exr" "$refdir/mits_seed*.exr" | \
       grep -E "global:|median" || true
     rm -rf "$tmp"
     echo "  (interpret: median|diff| should be ~1e-3; global within a few σ — fireflies inflate global)"

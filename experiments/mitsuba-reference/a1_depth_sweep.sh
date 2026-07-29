@@ -5,8 +5,8 @@
 set -uo pipefail
 cd /home/kacper/thesis
 BIN=./build/bin/Release/test_runner
-PY=tools/refs/.venv/bin/python
-MITS="bash tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python"
+PY=experiments/mitsuba-reference/.venv/bin/python
+MITS="bash experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python"
 SIG=2; ALB=0.9; SPP=512; SEEDS="0 1 2 3 4 5"
 OUT=renders/a1/depth; mkdir -p "$OUT"
 ts(){ date '+%H:%M:%S'; }
@@ -25,7 +25,7 @@ for D in 1 2 4 8; do
   done
   for s in $SEEDS; do
     SG_ALBEDO=$ALB SG_SIGMA=$SIG SG_SPP=$SPP SG_SEED=$s SG_HG_G=0.85 SG_MAX_DEPTH=$D \
-      $MITS tools/refs/render_single_gaussian_via_prb.py >/dev/null 2>&1
+      $MITS experiments/mitsuba-reference/render_single_gaussian_via_prb.py >/dev/null 2>&1
     src=$(ls -t test_results/single_gauss/*alb${ALB}*.exr 2>/dev/null | head -1)
     [ -n "$src" ] && cp "$src" "$OUT/mits_d${D}_seed$s.exr"
   done

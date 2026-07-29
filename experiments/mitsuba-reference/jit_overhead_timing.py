@@ -5,8 +5,8 @@ Same cloud PLY/camera/integrator as render_ply_via_mitsuba.py, low spp (16) so t
 steady-state frame is small and the first-render delta is dominated by JIT work.
 
 Run (3 repeats = 3 processes, warm disk cache = the typical-session number):
-    for i in 1 2 3; do tools/refs/with_jorge_mitsuba.sh \
-        tools/refs/.venv/bin/python tools/refs/jit_overhead_timing.py; done
+    for i in 1 2 3; do experiments/mitsuba-reference/with_jorge_mitsuba.sh \
+        experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/jit_overhead_timing.py; done
 """
 import os
 import sys

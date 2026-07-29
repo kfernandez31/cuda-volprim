@@ -11,7 +11,7 @@ exec > >(tee results/campaign/g10_parity_${TS}.log) 2>&1
 echo "=== G10 parity start $(date) ==="
 rm -f results/campaign/.g10.status
 SIGMA=10; RES=512; SPP=256; ALB=0.9
-emean(){ tools/refs/.venv/bin/python -c "import OpenEXR,Imath,numpy as np,sys
+emean(){ experiments/mitsuba-reference/.venv/bin/python -c "import OpenEXR,Imath,numpy as np,sys
 f=OpenEXR.InputFile(sys.argv[1]);dw=f.header()['dataWindow']
 pt=Imath.PixelType(Imath.PixelType.FLOAT)
 a=np.stack([np.frombuffer(f.channel(c,pt),np.float32) for c in ('R','G','B')])
@@ -32,7 +32,7 @@ for a in tornado explosion; do
   # MITSUBA analog (NEE off)
   SG_PLY=$NAT_PLY SG_ALBEDO=$ALB SG_ENV=white_constant SG_RES=$RES SG_VIEW=diag SG_SIGMA=$SIGMA SG_SPP=$SPP SG_NEE=0 \
     OUT=results/campaign/g10_${a}_mits.exr \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv-volprim/bin/python tools/refs/render_asset_via_prb.py >/dev/null 2>&1
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv-volprim/bin/python experiments/mitsuba-reference/render_asset_via_prb.py >/dev/null 2>&1
   mm=$(emean results/campaign/g10_${a}_mits.exr)
   ratio=$(python3 -c "print(f'{$om/$mm:.5f}')")
   verdict=$(python3 -c "print('PASS' if abs($om/$mm-1)<0.02 else 'CHECK')")

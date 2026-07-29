@@ -13,7 +13,7 @@ echo "=== A: furnace settings A/B start $(date) ==="
 COMMON=(SG_ALBEDO=1.0 SG_ENV=white_constant SG_SIGMA=6 SG_MAX_DEPTH=256 SG_SPPS=256 SG_SEEDS="0 1 2 3" SG_CSV="$CSV")
 runv() { local arm="$1"; shift
   env "${COMMON[@]}" SG_ARM="$arm" "$@" \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_single_gaussian_via_prb.py \
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_single_gaussian_via_prb.py \
     2>&1 | grep -iE "appended|RESULT" | tail -2
 }
 runv nee_ellipsoids SG_NEE=1 SG_SHAPE=ellipsoids
@@ -26,7 +26,7 @@ runv analog_ellipsoids SG_NEE=0 SG_SHAPE=ellipsoids
 echo "=== B5: fig 5.2 single-Gaussian reference via Mitsuba (absorption, extent=3, exact ellipsoids, M=1) ==="
 SG_ALBEDO=0 SG_ENV=white_constant SG_SIGMA=1.0 SG_MAX_DEPTH=256 SG_SHAPE=ellipsoids SG_RFILTER=box \
   SG_SPP=256 SG_SEED=0 \
-  tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python tools/refs/render_single_gaussian_via_prb.py \
+  experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_single_gaussian_via_prb.py \
   2>&1 | grep -iE "wrote|mean" | tail -2
 cp test_results/single_gauss/mitsuba_volprim_prb_M=1.000_spp256.exr results/campaign/ladder/abs_single_ref.exr \
   && echo "B5 ref -> results/campaign/ladder/abs_single_ref.exr"

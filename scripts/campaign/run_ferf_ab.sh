@@ -35,10 +35,10 @@ SG_ENV=meadow SG_CAM=0 $EXACT --scene cloud_asset_scattering --spp 1024 --seed 9
 cp test_results/cloud_asset_scattering/0000.exr results/campaign/ferf_exact_1024.exr
 SG_ENV=meadow SG_CAM=0 $FERF  --scene cloud_asset_scattering --spp 1024 --seed 99 2>&1 | grep -E "Cap overflow" || true
 cp test_results/cloud_asset_scattering/0000.exr results/campaign/ferf_fast_1024.exr
-tools/refs/.venv/bin/python tools/refs/exr_diff.py results/campaign/ferf_exact_1024.exr results/campaign/ferf_fast_1024.exr \
+experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/exr_diff.py results/campaign/ferf_exact_1024.exr results/campaign/ferf_fast_1024.exr \
   | tee results/campaign/ferf_bias_${TS}.txt
 
-tools/refs/.venv/bin/python - "$LOG" <<'PY'
+experiments/mitsuba-reference/.venv/bin/python - "$LOG" <<'PY'
 import sys, statistics as st, re
 e=[];f=[]
 for line in open(sys.argv[1]):

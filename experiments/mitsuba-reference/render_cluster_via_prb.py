@@ -9,8 +9,8 @@ layouts, same per-mode masses, same camera). Mode via env SG_CLUSTER_MODE.
 
 Run:
   SG_CLUSTER_MODE=n5 SG_SHAPE=ellipsoids SG_SPP=16384 \
-    tools/refs/with_jorge_mitsuba.sh tools/refs/.venv/bin/python \
-    tools/refs/render_cluster_via_prb.py
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh experiments/mitsuba-reference/.venv/bin/python \
+    experiments/mitsuba-reference/render_cluster_via_prb.py
 """
 import os
 import math

@@ -5,11 +5,11 @@ crop inset and per-arm RMSE-vs-reference annotations.
 Each single-frame panel is one representative 64-spp seed (the one whose RMSE is the median across the
 16 banked seeds, so it is neither best- nor worst-case). The reference is the mean of all 32 banked
 frames (16 MIS + 16 RIS, ~2048 spp); MIS and RIS are both unbiased under environment lighting so they
-converge to the same image. RIS K=6 reaches a lower RMSE *and* renders faster per sample (≈7.7 s vs
-≈9.8 s here), so the equal-quality speedup (1.49x at this env, see fig:ris-ksweep) is the product of
+converge to the same image. RIS K=6 reaches a lower RMSE *and* renders faster per sample (7.8 s vs
+9.8 s, from the banked K-sweep CSV), so the equal-quality speedup (1.48x at this env, see fig:ris-ksweep) is the product of
 both effects.
 
-  tools/refs/.venv/bin/python scripts/plots/ris_noise.py --out thesis/latex/figures/ris_noise.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ris_noise.py --out thesis/latex/figures/ris_noise.pdf
 """
 import argparse, glob, os
 import numpy as np, OpenEXR, Imath
@@ -58,8 +58,8 @@ def main():
     ris_rmse = np.array([rmse(f, ref) for f in ris])
     mis_pick = mis[np.argsort(mis_rmse)[len(mis) // 2]]
     ris_pick = ris[np.argsort(ris_rmse)[len(ris) // 2]]
-    print(f"meadow RMSE-vs-ref (median seed): MIS={np.median(mis_rmse):.4f}  "
-          f"RIS-K6={np.median(ris_rmse):.4f}  ratio={np.median(mis_rmse)/np.median(ris_rmse):.2f}x lower")
+    print(f"meadow RMSE-vs-ref: MIS={mis_rmse.mean():.4f}±{mis_rmse.std(ddof=1):.4f}  "
+          f"RIS-K6={ris_rmse.mean():.4f}±{ris_rmse.std(ddof=1):.4f}  (n=16 each)")
 
     # firefly crop: brightest 96x96 window of the reference
     h, w, _ = ref.shape
@@ -70,16 +70,23 @@ def main():
         (len(np.arange(0, h, cs)), len(np.arange(0, w, cs))))
     y0, x0 = min(ii[0] * cs, h - cs), min(ii[1] * cs, w - cs)
 
+    # panel times from the banked K-sweep record (t_med column), not hardcoded
+    import csv
+    with open("results/campaign/ris_ksweep_meadow.csv") as f:
+        rows = list(csv.DictReader(f))
+    t_mis = float(next(r["t_med_s"] for r in rows if r["arm"] == "mis"))
+    t_ris = float(next(r["t_med_s"] for r in rows if r["arm"] == "ris" and r["K"] == "6"))
+
     if os.path.exists(STYLE):
         plt.style.use(STYLE)
     fig, axes = plt.subplots(1, 3, figsize=(10.5, 2.6))
     panels = [
-        (mis_pick, f"MIS (64 spp)\nRMSE {np.median(mis_rmse):.3f}, {9.8:.1f} s"),
-        (ris_pick, f"RIS K=6 (64 spp)\nRMSE {np.median(ris_rmse):.3f}, {7.7:.1f} s"),
+        (mis_pick, f"MIS (64 spp)\nRMSE {mis_rmse.mean():.3f} ± {mis_rmse.std(ddof=1):.4f} (16 seeds), {t_mis:.1f} s"),
+        (ris_pick, f"RIS K=6 (64 spp)\nRMSE {ris_rmse.mean():.3f} ± {ris_rmse.std(ddof=1):.4f} (16 seeds), {t_ris:.1f} s"),
         (ref,      "reference (~2048 spp)"),
     ]
     for ax, (img, title) in zip(axes, panels):
-        ax.imshow(tonemap(img)); ax.set_title(title, fontsize=8.5); ax.axis("off")
+        ax.imshow(tonemap(img)); ax.set_title(title, fontsize=10); ax.axis("off")
         ax.add_patch(Rectangle((x0, y0), cs, cs, ec="C1", fc="none", lw=1.0))
         # firefly-crop inset (upper-right)
         axin = ax.inset_axes([0.62, 0.62, 0.36, 0.36])

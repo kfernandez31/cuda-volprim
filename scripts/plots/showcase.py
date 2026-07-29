@@ -9,7 +9,7 @@ Single seeds (not the 16-seed mean) on purpose -- the point is the per-frame fir
 character, which averaging would erase. The two agree on the converged image (means
 0.321 vs 0.320, Ch. Results), so the contrast is variance, not bias.
 
-  tools/refs/.venv/bin/python scripts/plots/showcase.py --out thesis/latex/figures/showcase.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/showcase.py --out thesis/latex/figures/showcase.pdf
 """
 import argparse, os
 import numpy as np, OpenEXR, Imath
@@ -39,8 +39,8 @@ def main():
     ap.add_argument("--seed", default="00")
     args = ap.parse_args()
 
-    ours = load(f"{SEEDS}/cuda_seed{args.seed}.exr")    # ours-MIS, one 64-spp frame
-    mits = load(f"{SEEDS}/mits_seed{args.seed}.exr")     # Mitsuba-analog, one 64-spp frame
+    ours = load(f"{SEEDS}/cuda_seed{args.seed}.exr")    # this renderer (MIS), one 64-spp frame
+    mits = load("results/campaign/nee_fair/ours_analog_meadow_spp64_seed0.exr")  # this renderer (analog)
 
     # firefly count (pixels far above the converged mean) -- for the caption/log
     mu = mits.mean()
@@ -52,8 +52,8 @@ def main():
         plt.style.use(STYLE)
     fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.1))
     panels = [
-        (ours, "ours (MIS), 64 spp $\\approx$ 9 s"),
-        (mits, "Mitsuba (analog), 64 spp $\\approx$ 9 s"),
+        (ours, "this renderer (MIS), 64 spp"),
+        (mits, "this renderer (analog), same 64 spp"),
     ]
     for ax, (img, title) in zip(axes, panels):
         ax.imshow(tonemap(img, args.exposure)); ax.set_title(title, fontsize=9); ax.axis("off")

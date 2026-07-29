@@ -6,7 +6,7 @@ of ours (MIS) and of the Mitsuba-analog reference converge to the same value (bo
 ours snaps to it from the first seed while the firefly-prone analog wiggles in. The faint dots are the
 per-seed estimates being averaged -- ours forms a tight band, the analog scatters ~68x wider.
 
-  tools/refs/.venv/bin/python scripts/plots/scattering_convergence.py thesis/latex/figures/scattering_ladder.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/scattering_convergence.py thesis/latex/figures/scattering_ladder.pdf
 """
 import sys, os, glob
 import numpy as np, OpenEXR, Imath

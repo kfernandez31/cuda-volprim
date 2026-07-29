@@ -9,8 +9,8 @@ the closed-form is correct and our CUDA renderer has a double-count bug.
 If Mitsuba ALSO matches H_double, the analytic formula is wrong.
 
 Run via:
-    tools/refs/with_jorge_mitsuba.sh \
-        tools/refs/.venv/bin/python tools/refs/render_single_gaussian_via_mitsuba.py
+    experiments/mitsuba-reference/with_jorge_mitsuba.sh \
+        experiments/mitsuba-reference/.venv/bin/python experiments/mitsuba-reference/render_single_gaussian_via_mitsuba.py
 """
 import os
 import numpy as np

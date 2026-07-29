@@ -7,9 +7,9 @@ sheet flat ±2 % over 16x; the residual linear term is the bounce-0 containment 
 
 **Run.**
 ```
-python3 tools/gen_scaling_v2.py         # 52 synthetic PLYs (in-repo generator)
+python3 scripts/tools/gen_scaling_v2.py         # 52 synthetic PLYs (in-repo generator)
 bash scripts/campaign/run_scaling_v2.sh # locked clocks; resumable      [clocks]
-tools/refs/.venv NOT required; plot: scripts/plots/scaling_v2.py
+experiments/mitsuba-reference/.venv NOT required; plot: scripts/plots/scaling_v2.py
 ```
 
 **Expected.** scaling_v2.csv: 52 rows; hit counters 4 / 4n / N at every size
