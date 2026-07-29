@@ -90,7 +90,7 @@ thesis/              LaTeX sources of the thesis
 
 ## Citation
 
-Thesis: *Efficient Volume Rendering of Primitive-Based Kernel-Mixture Volumes*
+Thesis: *Efficient Volume Rendering Through Primitive-Based Kernel Mixture Volumes*
 (University of Luxembourg / USI, 2026). PDF and citation entry: see `CITATION.cff`.
 
 The rendering method is from: Condor et al., *Don't Splat Your Gaussians: Volumetric

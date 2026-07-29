@@ -8,7 +8,7 @@ type: software
 repository-code: "https://github.com/kfernandez31/cuda-volprim"
 preferred-citation:
   type: thesis
-  title: "Efficient Volume Rendering of Primitive-Based Kernel-Mixture Volumes"
+  title: "Efficient Volume Rendering Through Primitive-Based Kernel Mixture Volumes"
   authors:
     - family-names: "Kramarz-Fernandez"
       given-names: "Kacper"
