@@ -325,6 +325,25 @@ __device__ __forceinline__ void build_origin_inside_set(const geometry::Ray& ray
         return;
     }
     active_prims.clear();
+    // Fast path: perspective cameras share one origin across every ray, so the host
+    // precomputed this launch's origin-inside set once (device/kernels/camera_active_set.cu;
+    // same predicate, same ascending order, hence the same set and downstream RNG draw
+    // order). Restricted to CompactSet builds so insert-refusal semantics match the scan's.
+    // Null pointer => scan below (orthographic cameras; --measure-caps also keeps the scan,
+    // which records the true origin overlap).
+    if constexpr (consts::MAX_PRIMITIVES > 256) {
+        const uint32_t* pre = launch_params.camera_active_set_;
+        if (pre != nullptr && !launch_params.render_.measure_caps_) {
+            const uint32_t count = pre[0];
+            for (uint32_t k = 0; k < count; ++k) {
+                active_prims.insert(static_cast<prim_idx_t>(pre[2 + k]));
+            }
+            if (pre[1] != 0) {
+                report_overflow(OVERFLOW_ACTIVE_SET);
+            }
+            return;
+        }
+    }
     const size_t num_primitives = launch_params.primitives_.size();
     uint32_t origin_overlap = 0;
     for (size_t i = 0; i < num_primitives; ++i) {

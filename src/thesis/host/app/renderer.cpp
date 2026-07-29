@@ -3,6 +3,7 @@
 #include "thesis/pch.h"
 
 #include "core/constants.cuh"
+#include "kernels/camera_active_set.h"
 
 #include "thesis/common/utils/math.h"
 #include "thesis/device/utils/vector.h"
@@ -203,6 +204,24 @@ void Renderer::initStaticParams() {
             2, cuda_ctx_.get(), streams_[cuda::StreamKind::Main], cuda::AllocType::OnBoth);
         measure_buf_.memset_device(0);
         par.measure_buf_ = measure_buf_.device();
+    }
+
+    // Bounce-0 camera active set. A perspective camera gives every camera ray the same
+    // origin, so the origin-inside scan of build_origin_inside_set is a per-launch
+    // constant; a single-thread kernel computes it once here with the same device
+    // predicate (identical set, identical ascending order), and the megakernel copies it
+    // at bounce 0 instead of scanning all N primitives per sample — the a·N scaling term
+    // of the §7.6 study. Orthographic cameras vary the origin per pixel and keep the
+    // scan, as does --measure-caps (which records the true origin overlap).
+    if (!par.camera_.is_orthographic_ && !config_.measure_caps_) {
+        camera_active_set_ =
+            cuda::AsyncBuffer<uint32_t>(device::kernels::camera_active_set_buffer_len(),
+                                        cuda_ctx_.get(), streams_[cuda::StreamKind::Main],
+                                        cuda::AllocType::OnDeviceOnly);
+        device::kernels::launch_camera_active_set_kernel(
+            primitives_.device(), primitives_.size(), par.camera_.eye_,
+            camera_active_set_.device(), streams_[cuda::StreamKind::Main]->get());
+        par.camera_active_set_ = camera_active_set_.device();
     }
 
     // Runtime render params (promoted from constants.cuh). Defaults mirror the constants;

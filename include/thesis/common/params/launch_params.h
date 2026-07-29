@@ -82,6 +82,15 @@ struct THESIS_ALIGNMENT LaunchParams {
     // written via atomicMax under the render_.measure_caps_ gate. Observation-only:
     // allocating/reading it never perturbs the render (bit-identical images).
     uint32_t* measure_buf_ = nullptr;
+
+    // Precomputed bounce-0 origin-inside set for shared-origin (perspective) cameras:
+    // [0] = count, [1] = inserts refused at MAX_ACTIVE_PRIMS, [2..] = primitive indices
+    // ascending. Computed once per render by device/kernels/camera_active_set.cu with
+    // the same device predicate the per-sample scan uses, replacing that scan's O(N)
+    // per-sample cost (the a*N term of the scaling study). Null => the device scans
+    // (orthographic cameras vary the origin per pixel; --measure-caps records the true
+    // origin overlap).
+    uint32_t* camera_active_set_ = nullptr;
 };
 
 }  // namespace params

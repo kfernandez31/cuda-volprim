@@ -64,6 +64,11 @@ class Renderer {
     // Allocated only when config_.measure_caps_ is true; device side gated on render_.measure_caps_.
     cuda::AsyncBuffer<uint32_t> measure_buf_;
 
+    // Precomputed bounce-0 origin-inside set for shared-origin (perspective) cameras;
+    // filled once per render by device/kernels/camera_active_set.cu. Unallocated (and the
+    // launch-param pointer null) for orthographic cameras and under --measure-caps.
+    cuda::AsyncBuffer<uint32_t> camera_active_set_;
+
     optix::Module module_;
     optix::Module builtin_is_module_;
     optix::ProgramGroup raygen_pg_;
