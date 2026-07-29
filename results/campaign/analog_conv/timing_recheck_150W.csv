@@ -1,9 +1,0 @@
-round,arm,spp,time_s,power_W,sm_MHz
-1,ours_analog,256,23.995,17.85,210
-1,mits_analog,256,145.9811,146.19,630
-2,ours_analog,256,27.440,147.26,540
-2,mits_analog,256,156.2017,146.39,1695
-3,ours_analog,256,27.724,147.04,885
-3,mits_analog,256,155.4074,148.05,810
-4,ours_analog,256,27.761,146.15,480
-4,mits_analog,256,154.9587,147.68,540

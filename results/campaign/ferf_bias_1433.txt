@@ -1,2 +1,0 @@
-shape (600, 900, 3)  max|Δ| 1.192e-06  mean|Δ| 3.105e-08  ndiff 798216/1620000  meanA 0.321533  meanB 0.321533  signed-mean Δ -2.997e-08
-NOT bit-identical

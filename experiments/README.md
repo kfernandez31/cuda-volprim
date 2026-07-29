@@ -48,7 +48,9 @@ Several timing runners consume prebuilt binary pairs stashed in `~/winbins`
 (per-asset calibrated, analog, safe-512 variants). Build them first with the recipes in
 `scripts/campaign/build_*.sh` — each edits the cap defaults, builds, stashes, and
 restores the tree. Plot scripts default to `results/campaign/...` CSV paths; the
-experiment runs regenerate those files (pass `--csv` to point elsewhere).
+experiment runs regenerate those files (pass `--csv` to point elsewhere). The thesis's
+own measured data (records, CSVs, banked EXRs) is archived as a data deposit rather than
+kept in this repository — DOI referenced in the thesis and the release notes.
 
 ## Ground rules
 
