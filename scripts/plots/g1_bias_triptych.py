@@ -8,7 +8,7 @@ effective) so the systematic brightness difference is not noise. All panels shar
 gamma so the over-brightness is directly visible.
 
   experiments/mitsuba-reference/.venv/bin/python scripts/plots/g1_bias_triptych.py \
-      --out thesis/latex/figures/g1_bias.pdf
+      --out latex/figures/g1_bias.pdf
 """
 import argparse, glob, os
 import numpy as np, OpenEXR, Imath

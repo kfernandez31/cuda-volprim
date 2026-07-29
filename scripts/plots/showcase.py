@@ -9,7 +9,7 @@ Single seeds (not the 16-seed mean) on purpose -- the point is the per-frame fir
 character, which averaging would erase. The two agree on the converged image (means
 0.321 vs 0.320, Ch. Results), so the contrast is variance, not bias.
 
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/showcase.py --out thesis/latex/figures/showcase.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/showcase.py --out latex/figures/showcase.pdf
 """
 import argparse, os
 import numpy as np, OpenEXR, Imath

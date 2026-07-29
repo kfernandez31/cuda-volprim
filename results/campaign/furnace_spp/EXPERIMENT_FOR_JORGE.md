@@ -54,6 +54,10 @@ isolated to the next-event path. The over-count grows with optical thickness (�
 - **Undersampling / "in the limit":** flat to 16384 spp (above).
 - **Path-depth truncation:** identical at `max_depth` 32 vs 256 (albedo=1 has no absorption termination,
   so we ran 256; analog at 256 = exactly 1.0, so depth is sufficient).
+- **Integrator settings (σ_t=6, 256 spp):** the over-count is invariant to shape (exact `ellipsoids`
+  +9.74 % vs tessellated `ellipsoidsmesh` +9.73 %), to solver (bisection +9.74 % vs Newton +9.95 %); the
+  analog control stays 0.000 % throughout. (`hide_emitters=1` removes the bounce-0 background entirely —
+  a different effect, not the bias.)
 - **Stochastic transmittance:** NEE's shadow transmittance is **analytic** in volprim
   (`eval_transmittance`: `tr = exp(−density_integral·sigma_t)`, product over primitives) — as in ours —
   so this is not a transmittance-variance effect. The surplus therefore appears to enter in how the NEE

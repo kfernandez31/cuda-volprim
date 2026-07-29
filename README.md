@@ -104,7 +104,7 @@ test/                test_runner and scene definitions
 scripts/             campaign runners, plotting, tooling
 experiments/         thesis-claim reproduction map (start here)
 assets/              small assets + fetch scripts for the rest
-thesis/              LaTeX sources of the thesis
+latex/               LaTeX sources of the thesis
 ```
 
 ## Citation

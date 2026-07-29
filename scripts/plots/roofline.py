@@ -7,7 +7,7 @@ it is latency/divergence-bound (see ncu_summary.md). The GFLOP/s value undercoun
 erf/transcendental (XU-pipe) work, which only strengthens the argument.
 
   experiments/mitsuba-reference/.venv/bin/python scripts/plots/roofline.py \
-      --csv results/campaign/roofline.csv --out thesis/latex/figures/roofline.pdf
+      --csv results/campaign/roofline.csv --out latex/figures/roofline.pdf
 """
 import argparse
 import os

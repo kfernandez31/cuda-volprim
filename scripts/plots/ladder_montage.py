@@ -6,8 +6,8 @@ closed-form analytic for the single, Mitsuba-volprim for pair+cloud) or the scat
 (single | cluster | cloud; reference = Mitsuba-analog). Each rung is tonemapped independently;
 the difference column is amplified and annotated with the converged-mean ratio + RMSE.
 
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ladder_montage.py absorption  thesis/latex/figures/absorption_ladder.pdf
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ladder_montage.py scattering  thesis/latex/figures/scattering_ladder.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ladder_montage.py absorption  latex/figures/absorption_ladder.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ladder_montage.py scattering  latex/figures/scattering_ladder.pdf
 """
 import sys, os, math
 import numpy as np, OpenEXR, Imath

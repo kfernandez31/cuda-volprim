@@ -5,7 +5,7 @@ on [-L, L]. LEFT: one running estimate homing in on the true value, inside the +
 band. RIGHT: the RMS error over many runs vs n on log-log, hugging a slope -1/2 reference -- the
 "halve the error costs 4x the samples" fact made literal.
 
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/mc_integ.py --out thesis/latex/figures/mc_integ.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/mc_integ.py --out latex/figures/mc_integ.pdf
 """
 import argparse
 import os

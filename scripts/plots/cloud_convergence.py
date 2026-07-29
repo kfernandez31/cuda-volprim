@@ -15,7 +15,7 @@ import numpy as np, OpenEXR, Imath
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 
 CONV = "results/campaign/cloud_conv"
-OUTDIR = "thesis/latex/figures"
+OUTDIR = "latex/figures"
 ARMS = ["ours", "mits_analog", "mits_nee"]
 LABEL = {"ours": "ours (MIS)", "mits_analog": "Mitsuba analog", "mits_nee": "Mitsuba NEE"}
 COLOR = {"ours": "#2e8b57", "mits_analog": "#30638e", "mits_nee": "#d1495b"}

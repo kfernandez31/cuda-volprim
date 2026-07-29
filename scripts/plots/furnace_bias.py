@@ -9,7 +9,7 @@ per arm, one panel per sigma. A FLAT non-zero line (CI excluding 0) across spp =
 Usage:
   experiments/mitsuba-reference/.venv/bin/python scripts/plots/furnace_bias.py \
       --csv results/campaign/furnace_spp/furnace_bias_vs_spp.csv \
-      --out thesis/latex/figures/furnace_bias_vs_spp.pdf
+      --out latex/figures/furnace_bias_vs_spp.pdf
 """
 import argparse, csv, os
 from collections import defaultdict

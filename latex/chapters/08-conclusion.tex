@@ -1,0 +1,136 @@
+\chapter{Conclusion and Future Work}
+\label{ch:conclusion}
+
+This thesis built, validated, and optimised a from-scratch CUDA/OptiX volumetric path tracer for
+Gaussian kernel-mixture volumes---a high-performance re-implementation of \emph{Don't Splat Your
+Gaussians}~\cite{DSYG}---one that, at equal quality, renders faster than the Mitsuba reference.
+
+\section{Summary of contributions}
+\label{sec:contributions}
+
+The central contribution is a rendering architecture (\Cref{ch:architecture}) in two
+parts. The first is \emph{single-trace any-hit collection}: it gathers all of a
+ray's primitive entries in one acceleration-structure traversal, back-face-culled to entries, with
+exits computed analytically. The second is \emph{analog-decomposition scatter sampling}, suggested by Condor, the lead author of the reference (personal communication, 2026). Each primitive draws a
+closed-form free flight, and the nearest---the argmin---is the scattering event. Together they replace
+the segment-marching and root-finding that the reference uses for the scatter
+distance (validated end-to-end and by complexity argument rather than by internal ablation;
+\Cref{ch:optimization} states this scope explicitly). Two supporting pillars carry this. The
+first is a \emph{differential-validation methodology}
+(\Cref{ch:validation}) that establishes correctness against Mitsuba and, where a closed form exists,
+against analytic ground truth. It doubles as the unbiasedness evidence for the new sampler. The second is the \emph{performance-engineering study} of \Cref{ch:optimization}. That study
+contributed a second, scene-dependent win (volumetric product-RIS direct lighting,
+$1.48\times$ at equal quality under environment lighting, default off) and a characterised
+set of negative results.
+
+At equal
+quality the renderer is \num{2.7}$\times$ faster than the reference's corrected fast estimator on the
+showcase, and it renders firefly-free at production sample budgets. That like-for-like matchup is
+enabled by this work's reference corrections, submitted upstream. The advantage is not confined to
+frame time. At equal conditions the shipped reference's faster direct-lighting estimator does not
+converge to the correct image on dense media. This renderer's is both correct and low-variance
+(\Cref{sec:results-firefly}). Per-asset cap calibration puts the renderer's peak
+device memory below the reference's on the showcase (\Cref{sec:results-memory}). And its
+ahead-of-time-compiled pipeline starts in roughly half the reference's warm start
+(\Cref{sec:results-startup}). Finally, a cross-architecture probe (\Cref{sec:ser}) shows the
+hand-written megakernel exploits Shader Execution Reordering on Ada hardware for a further
+\num{1.12}--\num{1.68}$\times$ at equal quality, image-identical---a reordering the reference's compiled pipeline cannot request. Measured end-to-end on that hardware, the renderer's
+configurations take the \num{64}-spp showcase
+from \SI{3.29}{\second} (MIS) to \SI{2.31}{\second} with reordering and \SI{1.63}{\second} in the
+maximal-throughput configuration (\Cref{sec:ser}).
+
+The upstream patch set is itself part of the contribution: five changes, each backed by
+deterministic evidence, submitted as a pull request~\cite{KramarzVolprimFixes2026}
+(\Cref{tab:revision-timeline} gives the timeline). After the corrections, the two renderers agree
+at the Monte-Carlo noise level (\Cref{fig:agreement-panels}). The headline like-for-like figure (\Cref{tab:likeforlike}) depends on that certification.
+The renderer itself is also a contribution: an object-oriented codebase, RAII
+throughout, whose experimental features sit behind guards that leave the production
+binary byte-identical. Every experiment is reproducible from a documented invocation, and the
+campaign scripts are kept alongside the sources (\Cref{sec:gpu-impl}). The codebase is released as
+open source together with its test scenes.
+
+\section{Limitations}
+\label{sec:limitations}
+
+Several limitations bound the renderer's current scope:
+
+\begin{itemize}
+  \item \textbf{No emission.} It models absorption and scattering but not emissive media, so combustion
+  assets render as dark plumes; the assets carry no emission data either.
+  \item \textbf{Gaussian kernel only.} The \emph{forward} optical depth is closed-form for other kernel
+  families too (e.g.\ the compactly-supported Epanechnikov), but the argmin sampler needs a practical
+  closed-form \emph{inverse} (\Cref{sec:analytic-od}), which is Gaussian-specific---for the Epanechnikov
+  the inverse is impractical (the reference uses a numerical solver even for a single such kernel)---so
+  other kernels are unsupported here; the architecture could accommodate one given its inverse, but does
+  not implement it. Relatedly, assets fit with the Gabor-noise extension (Gabor kernels: Gaussians modulated by a cosine
+carrier, adding high-frequency detail) render only their coarse
+  Gaussian base; high-frequency Gabor detail is unsupported.
+  \item \textbf{Static, single-frame.} There is no animation support.
+  \item \textbf{Compile-time, asset-dependent caps.} The per-ray buffers (\Cref{sec:gpu-impl}) are sized
+  at compile time; a substantially denser scene requires re-sizing and a rebuild. An offline estimator
+  now predicts the required caps from an asset's geometry---the \num{25600}-Gaussian bunny, for one,
+  needs markedly larger caps than the \num{652}-primitive cloud---so the sizing is determined by
+  measurement rather than assumption, but the caps remain static, and the runtime overflow counter only
+  \emph{detects} an undersized cap rather than fixing it.
+  \item \textbf{Ampere hardware.} The one lever that directly targets the renderer's ray divergence,
+  OptiX Shader Execution Reordering~\cite{NvidiaSER2022}, is Ada-only and unavailable on the RTX~3090
+  used throughout---though its effect is measured directly on an Ada GPU in \Cref{sec:ser}
+  (\num{1.12}--\num{1.68}$\times$, image-identical).
+  \item \textbf{Small systematic residuals.} A handful of sub-$0.2\%$ systematic differences from the
+  reference are documented rather than resolved, because each remains unattributed. The largest
+  is a ${+}2\times10^{-4}$ difference at heavily-overlapped scatter vertices, measured
+  \emph{not} to be a single-precision $\operatorname{erf}^{-1}$ artefact (a double-precision
+  inverse moves it by ${\sim}2\times10^{-8}$). Its side is unknown: corrections were later made
+  on both sides of the comparison in exactly this regime (\Cref{sec:results-firefly}), and
+  \Cref{ch:validation} names the candidate causes. Also documented: a ${+}1.8\times10^{-4}$
+  brightness systematic in low-density interiors, and a small channel-dependent residual in
+  coloured-albedo rendering (cause not isolated). Each is bounded well under a part in
+  $500$ and confined to a specific regime. Resolution has a known path---extending the exact
+  float64 predictor of \Cref{app:corrections} from absorption to scattering on an overlap
+  extract, and per-channel bisection of the coloured-albedo path---but neither was undertaken
+  here.
+\end{itemize}
+
+\section{Future work}
+\label{sec:future-work}
+
+The most direct continuations are natural extensions of the kernel-mixture representation, several
+suggested by Condor (personal communication): a \emph{unified emissive/absorptive kernel} model that exploits closed-form
+integrals for accurate product sampling of light sources and BSDFs; \emph{SGGX and microflake} models
+to represent surface-like materials within the same primitive framework; \emph{parametric kernels} for
+more compact and accurate radiance fields; and a bridge from \emph{Lagrangian fluid simulation} directly
+to kernel mixtures, bypassing voxelisation and kernel regression.
+
+Three engineering directions follow from this thesis specifically. First, \emph{differentiable and
+inverse rendering}: re-expressing the renderer with analytic backward passes or in
+SLANG.D~\cite{SLANG.D}, to recover scene parameters from images---the inverse-rendering capability the
+original proposal targeted. Second, \emph{productionising Shader Execution Reordering on Ada}:
+\Cref{sec:ser} already measures a \num{1.12}--\num{1.68}$\times$ image-identical speedup from a minimal
+per-bounce reorder on a rented Ada GPU; integrating it as a hardware-detected default path with a
+per-scene-tuned coherence hint is the natural follow-through for Ada-class deployment. Third, \emph{recompile-free capacity}: the per-ray buffers are compile-time constants whose size the
+offline estimator already predicts per asset (\Cref{tab:overlap}). Removing the fixed buffer
+\emph{entirely} was tried and abandoned---the cap-free streaming variant (\Cref{sec:autopsies}) was bit-exact but slower. An untried middle path keeps a \emph{small, fixed} buffer but, when it fills,
+re-issues the traversal from the last processed distance to gather the next chunk and repeats: this pays
+an extra re-traversal only on the rare overflowing ray, keeps the single-trace fast path for the common
+case, and removes the per-asset recompile without re-introducing the cap-free design's
+whole-render cost. A cheaper, already-quantified target is the bounce-\num{0} containment scan of
+\Cref{sec:results-scaling}: by the fitted cost model it takes ${\sim}5\,\%$ of frame
+time on the small assets and ${\sim}12\,\%$ on the bunny, and its share grows with asset
+size. Two untried fixes exist: precomputing the camera's containing set once per frame
+(the bounce-\num{0} query point is shared by every sample), or a point query against the
+acceleration structure for arbitrary origins. Either removes the renderer's one remaining
+$O(N)$ per-sample term. Path guiding, deferred here for want of a cheap
+predictive test (\Cref{sec:autopsies}), would also merit a revisit with a full offline oracle.
+
+\section{Closing}
+\label{sec:closing}
+
+The renderer demonstrates that ray-traced Gaussian kernel-mixture volumes can be rendered
+both \emph{correctly} and \emph{efficiently} by exploiting the analytic, invertible
+per-primitive optical depth: the resulting path tracer needs no sorting, no marching, and
+no numerical root-finding. The negative results of \Cref{ch:optimization} are as useful in
+practice: this workload is latency-bound, belongs in a single persistent kernel, and
+resists the restructurings that help more conventional path tracers---knowledge that should
+save the next implementer real time. The renderer, its test scenes, and the scripts behind
+every figure in this document are available as open source (\Cref{sec:gpu-impl}), so the
+results can be re-run, extended, or challenged.

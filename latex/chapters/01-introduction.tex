@@ -1,0 +1,80 @@
+\chapter{Introduction}
+
+Reconstructing and rendering high-fidelity 3D scenes from photographs is a long-standing goal in
+computer graphics, with applications from online retail and the digital preservation of cultural
+heritage to interactive simulation. The methods that have proven most successful represent a scene as a \emph{radiance field}:
+a function that returns, for every point and viewing direction, the light one would
+observe there. The most efficient of these are \emph{explicit}: they model the scene as a
+large collection of simple primitives rather than an implicit neural network. The dominant such
+primitive is the anisotropic 3D Gaussian of 3D Gaussian Splatting~\cite{3DGS}, which renders in real
+time by rasterisation: projecting each primitive directly onto the screen and blending,
+rather than simulating rays of light through the scene.
+
+Rasterised splatting is fast because it does not simulate light transport: each Gaussian's
+appearance is baked into view-dependent colours fitted under the capture illumination, so
+the scene cannot be relit. \emph{Don't Splat Your
+Gaussians} (DSYG)~\cite{DSYG}, presented at ACM~SIGGRAPH~2025 by Condor et al., retains the explicit Gaussian representation but treats it as a participating medium: a
+translucent volume, like cloud or smoke, that light penetrates and scatters within rather
+than a set of surfaces. It renders that medium with
+physically based volumetric path tracing, recovering accurate multiple scattering and relighting at a
+substantially higher cost. Its reference implementation is a plugin for the Mitsuba~3 research
+renderer~\cite{Mitsuba3}: correct and flexible, but not engineered for throughput. It reaches each
+scattering event by marching the ray segment-by-segment between primitive boundaries and root-finding
+the scatter distance within each multi-primitive segment (single-primitive segments it already inverts
+in closed form).
+
+This thesis re-implements that renderer from scratch in CUDA and OptiX as a performance-engineering
+study. The goal, from the outset, was efficiency: to render Gaussian kernel-mixture volumes both
+correctly and substantially faster than the reference, and to chart where the performance of such a
+renderer can and cannot be improved. The sampling algorithm at its core is not new. It is
+analog decomposition tracking~\cite{Kutz2017},\footnote{``Analog'' is the transport
+literature's term, inherited from neutron transport, for simulation that mirrors the
+physics one-to-one: every sampled interaction occurs with its physical probability, and no
+sample carries a compensating weight. It contrasts with \emph{weighted} schemes, not with
+``digital''. \Cref{sec:reference-problem} defines the corresponding renderer
+configuration.} whose application to this representation was
+suggested by Condor, the reference's lead author: because every Gaussian primitive admits a
+closed-form, invertible optical depth, each primitive a ray touches can draw its own
+free-flight distance (the randomly sampled distance to its next interaction), and the
+minimum of those distances is the scatter event. No marching
+between boundaries and no root-finding within segments remain. What this thesis builds is
+the realisation: a GPU architecture shaped around that sampler (a single collection pass feeding one persistent kernel---one GPU program launched across
+many parallel threads---\Cref{sec:gpu-impl}), its validation, and a measured map of
+where its speed comes from. The result is faster per sample by
+enough to win at equal quality (the time-to-equal-noise metric of \Cref{sec:compare-correctly})
+even with no direct-lighting estimator in the loop. The correct,
+low-variance direct-lighting estimator it makes practical then carries the advantage to the peaky environment lighting of production scenes: illumination
+from a surrounding sky image whose energy concentrates in one small, very bright source,
+the sun (\Cref{ch:results}).
+
+\paragraph{Contributions.} This thesis contributes:
+\begin{itemize}
+  \item a rendering architecture for ray-traced Gaussian kernel-mixture volumes that
+  replaces the reference's segment march and per-segment root-finding, in two complementary
+  halves: a single any-hit collection pass per ray, and analog-decomposition (argmin)
+  scatter sampling---the latter realising, for this representation, an approach suggested by
+  Condor, the lead author of the reference (personal communication, 2026)
+  (\Cref{ch:architecture});
+  \item a from-scratch, open-source CUDA/OptiX path tracer realising it, with no
+  rendering-framework dependency beyond OptiX; no comparable open-source GPU implementation
+  was available to us;
+  \item a differential-validation methodology against Mitsuba and, where a closed form exists, against
+  analytic ground truth---which doubles as the unbiasedness evidence for the new sampler
+  (\Cref{ch:validation});
+  \item a GPU performance-engineering study, contributing a second, scene-dependent win
+(volumetric product resampled importance sampling, RIS) and a profiled record of negative
+results, measured across time and image quality (\Cref{ch:optimization,ch:results}); and
+  \item a cross-architecture characterisation of how this workload maps onto GPU
+  hardware---where it sits against the compute and bandwidth roofs, the two hardware
+ceilings that bound any kernel's throughput (latency-bound, not compute- or
+bandwidth-bound), the ray-tracing-core versus software-intersection trade-off,
+  and Shader Execution Reordering---exercised and measured directly on both the Ampere and
+  Ada generations (\Cref{ch:optimization}).
+\end{itemize}
+
+\paragraph{Structure.} \Cref{ch:background} reviews the volumetric light-transport and GPU ray-tracing
+background, and \Cref{ch:related-work} positions the work against Gaussian splatting and prior
+volumetric renderers. \Cref{ch:architecture} presents the rendering architecture; \Cref{ch:validation}
+establishes its correctness; \Cref{ch:optimization} and \Cref{ch:results} report the performance study
+and its results; and \Cref{ch:conclusion} concludes.
+

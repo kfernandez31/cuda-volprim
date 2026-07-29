@@ -1,0 +1,143 @@
+\chapter{Reference corrections: patch and verification record}
+\label{app:corrections}
+
+This appendix documents the corrections to the reference's volumetric-primitive
+integrators that \Cref{sec:results-firefly} diagnoses and that every corrected-reference
+measurement in this thesis uses. They were submitted upstream as a pull
+request~\cite{KramarzVolprimFixes2026}; because the upstream repository is private, the
+record here---the finding, each change, and the verification---is kept self-contained.
+The patch comprises two commits touching two files ($+32/-8$ diff lines: $+30/-6$ in the
+five-fix commit, $+2/-2$ in the mixture-kernel companion).
+
+\section{The mirrored integral, restated}
+\label{app:corrections-claim}
+
+In the finite-bounds branch of \texttt{density\_integral}, the quantity $B$ is computed from
+$p = \texttt{ray.o} - \texttt{center}$. The implemented erf combination
+\[
+e^{-\frac{1}{2}(C-B^2)}\,\sqrt{\tfrac{\pi}{2}}\;
+\Big[\operatorname{erf}\!\Big(\tfrac{B}{\sqrt{2}}\Big) -
+     \operatorname{erf}\!\Big(\tfrac{B-T}{\sqrt{2}}\Big)\Big]
+\]
+is, however, the antiderivative for the opposite sign convention ($B$ built from
+$\texttt{center} - \texttt{ray.o}$). The correct segment integral (whitened coordinates,
+$\lVert w\rVert = 1$, segment $[0,T]$, $B = w\cdot p$, $C = p\cdot p$) is
+\[
+\tau(0,T) \;=\; e^{-\frac{1}{2}(C-B^2)}\,\sqrt{\tfrac{\pi}{2}}\;
+\Big[\operatorname{erf}\!\Big(\tfrac{T+B}{\sqrt{2}}\Big) -
+     \operatorname{erf}\!\Big(\tfrac{B}{\sqrt{2}}\Big)\Big].
+\]
+The implemented expression equals it under $t \to -t$: it is the integral over $[-T,0]$---the
+segment mirrored about its start. The two coincide only when the reflection maps the
+one-dimensional Gaussian onto itself, i.e.\ when the segment \emph{starts} exactly at the
+ray's closest approach to the centre ($B = 0$), and in the two-sided full-line limit. (A
+segment \emph{centred} on the peak, $B=-T/2$, is instead maximally mis-integrated.) The
+full-range branch is therefore unaffected, which is why whole-primitive queries and tests
+built on them pass. Because scatter vertices concentrate near density peaks, marched
+segments tend to start near $B\approx 0$, exactly where the error vanishes. The error thus
+stays small in typical renders while remaining large for asymmetric segments (the probe's
+\num{5.85}$\times$ additivity discrepancy). The corrected window
+restores the asymmetric-bounds two-erf form given in the reference's arXiv~v2 preprint (its
+Eq.~14; the ACM version's Eq.~14 is the symmetric-bounds single-erf special case)~\cite{DSYG}. The four
+accompanying corrections (shadow-march segment, support truncation, depth-0 MIS weight, phantom
+re-entry) are described in \Cref{sec:results-firefly}.
+
+\section{The patch}
+\label{app:corrections-patch}
+
+The two commits (\texttt{7171e1f8}, \texttt{1681538b}) touch \texttt{common.py} and
+\texttt{volprim\_prb.py}, both under \texttt{volprim/integrators/}. The
+byte-exact diff is in the pull request~\cite{KramarzVolprimFixes2026} and in the digital
+supplement accompanying this thesis. The five changes:
+
+\begin{enumerate}
+  \item \textbf{Segment-integral window} (\texttt{common.py}, \texttt{GaussianKernel} segment
+  branch; the same two lines again in \texttt{GaussianGaborMixtureKernel}, second commit).
+  The erf endpoints are re-paired to the convention the code's $B$ actually uses:
+  \begin{quote}\small\ttfamily
+  before:~~arg\_plus~~= sqrt\_half * B\\
+  ~~~~~~~~~arg\_minus~= sqrt\_half * (t\_limit - B)\\[3pt]
+  after:~~~arg\_plus~~= sqrt\_half * (t\_limit + B)\\
+  ~~~~~~~~~arg\_minus~= -sqrt\_half * B
+  \end{quote}
+  \item \textbf{Shadow-march segment} (\texttt{volprim\_prb.py}, march loop): the marched
+  primitive's integral bounds change from the unbounded full-range branch
+  (\texttt{tmin=None, tmax=None}) to the forward segment from the entry,
+  \texttt{tmin=si.t}, resolving the integrator's own \texttt{TODO}.
+  \item \textbf{Support truncation} (both \texttt{eval\_transmittance} sites): the
+  integration end becomes $\min(\texttt{ray.maxt}, t_{\text{support exit}})$, the exit
+  distance obtained from the existing \texttt{ray\_ellipsoid\_intersection} helper---so
+  shadow rays see the same extent-truncated medium the flight sampler simulates.
+  \item \textbf{Depth-0 escape weight} (\texttt{volprim\_prb.py}): the environment sampling density (pdf) is forced to zero at depth $0$ with an explicit per-lane \texttt{dr.select}, restoring MIS
+  weight $1$ for camera rays that reach the background directly. (The original passed the
+  depth condition through \texttt{pdf\_direction}'s \texttt{active} argument, which is a
+  lane hint, not a value gate.)
+  \item \textbf{Phantom re-entry guard} (\texttt{common.py}, \texttt{primitive\_tracing};
+  one-step variant in the march): before pushing a newly entered primitive onto the overlap
+  stack, the stack is scanned for that primitive's identity, and a duplicate push is
+  rejected. This cannot discard a real event: a straight ray crosses a convex boundary at most
+  twice---one entry, one exit---so a second entry of the same primitive is necessarily spurious.
+  The scan mirrors the loop idiom the tracer already uses for exit-removal.
+\end{enumerate}
+
+\section{Deterministic self-checks}
+\label{app:corrections-probes}
+
+Two checks use only the reference's own kernel functions---no scene, no cross-renderer
+comparison. Check (i) is \emph{additivity}, $\tau(a,b) + \tau(b,c) = \tau(a,c)$: three calls
+to one function, insensitive to any normalisation convention. Check (ii) is the \emph{ratio}
+of the kernel's segment integral to a brute-force numerical quadrature of its own
+\texttt{eval}, which must be one constant wherever the segment lies. On the unpatched
+upstream \texttt{main} (production mixture kernel, single unit Gaussian), the two halves of
+a split segment sum to \num{5.85} times the whole. The ratio to quadrature drifts by a
+factor of \num{2.7} across three adjacent segments. On the patched branch, additivity is
+exact and the ratio is constant. Run against the \emph{released} revision's kernel
+(\texttt{622fabd}), the same additivity check passes (factor \num{1.0000} on the
+asymmetric splits): the mirrored window was introduced by the rewrite, not inherited from
+the release. The probe scripts that produce these numbers accompany
+the pull request and the digital supplement.
+
+The reference's oscillatory kernel branch (\texttt{is\_gabor}: Gaussians modulated by a
+cosine, for high-frequency detail) does not yet pass the additivity check after the window
+correction, indicating at least one further discrepancy in its series-erf evaluation. It is
+flagged upstream and out of scope here: no measurement in this thesis uses the oscillatory
+path.
+
+\section{Verification summary}
+\label{app:corrections-verification}
+
+\begin{itemize}
+  \item \textbf{Reconciliation of the reference's own revisions} (WDAS cloud, meadow
+  environment, analog mode, same scene). The reference's published DSYG-release code renders
+  \num{0.328}, and its current revision as shipped renders \num{0.289}. With only the
+  two-line sign correction, the current revision renders \num{0.332}---back in line with the
+  release. Each reference arm is a single \num{256}-spp render, so these are reconciliation
+  levels, not converged statements; the corrected arm is firefly-noisy at this budget.
+  This renderer (\num{0.321}, the converged pool of \Cref{sec:scattering-ladder}) is not
+  required anywhere in that comparison.
+  \item \textbf{Spaced-chain furnace} (albedo 1, uniform unit environment, ground truth
+  exactly 1): worst configuration improves from $+4.2\,\%$ to $\le 0.02$ percentage points
+  across $N{=}1$--$16$ primitives, spacings 1--4, $\sigma$ 1--60.55, and anisotropic rotations.
+  The Newton solver and the LLVM backend are spot-checked on top of the bisection/CUDA
+  defaults; analog rows are bit-exact $1.0$ throughout.
+  \item \textbf{Exact-arithmetic check}: an 85-primitive extract of the cloud's dense core,
+  absorption-only (deterministic), matches an exact float64 predictor (per-chord closed-form optical depth, summed in double
+precision independently of the renderer) to 5 decimal places
+  with the corrections; without them, thin chords are $+36$--$43\,\%$ too thick (the phantom
+  re-entry).
+  \item \textbf{Depth-0 background} (deterministic): an empty scene renders \num{0.99371}
+  instead of \num{1.0} before the correction, exactly $1/(1+(4\pi)^{-2})$.
+  \item \textbf{Cross-renderer certification}: after the corrections, this renderer and the
+  reference's next-event estimator agree at the Monte-Carlo noise level
+  (\Cref{fig:agreement-panels}), and both follow the exact $-\tfrac12$ convergence slope
+  (\Cref{fig:nee-convergence}).
+\end{itemize}
+
+\noindent
+\emph{Scope.} All verification is of primal rendering---the ordinary forward pass from scene
+to image. The differentiable path (parameter gradients) is
+structurally preserved (the edits sit inside the existing \texttt{resume\_grad} blocks) but
+was not re-validated. The reference's documented shadow-march early-out
+(\texttt{total\_tr} threshold) is a deliberate speed/accuracy trade-off of its author and is
+left untouched. Its measured effect on the cloud is $-0.35\,\%$ full-image mean and up to
+$-18\,\%$ in near-black regions.

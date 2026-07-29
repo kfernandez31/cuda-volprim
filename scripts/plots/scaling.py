@@ -13,7 +13,7 @@ RIGHT -- memory(N), log-x / log-y. The point is DECOUPLING:
 
   experiments/mitsuba-reference/.venv/bin/python scripts/plots/scaling.py \
       --csv results/campaign/scaling.csv --gas results/campaign/gas_memory.csv \
-      --out thesis/latex/figures/scaling.pdf
+      --out latex/figures/scaling.pdf
 """
 import argparse
 import os

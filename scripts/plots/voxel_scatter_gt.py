@@ -6,7 +6,7 @@ our analytic-Gaussian render vs a dense voxel grid of the same cloud rendered by
 DSYG grid baseline) with local supervoxel majorants + residual ratio tracking -- which, unlike a
 stock global-majorant tracker, is firefly-free at the cloud's full dynamic range (unclamped).
 
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/voxel_scatter_gt.py --out thesis/latex/figures/voxel_scatter_gt.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/voxel_scatter_gt.py --out latex/figures/voxel_scatter_gt.pdf
 """
 import argparse, glob, os
 import numpy as np, OpenEXR, Imath

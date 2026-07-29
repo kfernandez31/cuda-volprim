@@ -9,7 +9,7 @@ converge to the same image. RIS K=6 reaches a lower RMSE *and* renders faster pe
 9.8 s, from the banked K-sweep CSV), so the equal-quality speedup (1.48x at this env, see fig:ris-ksweep) is the product of
 both effects.
 
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ris_noise.py --out thesis/latex/figures/ris_noise.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/ris_noise.py --out latex/figures/ris_noise.pdf
 """
 import argparse, glob, os
 import numpy as np, OpenEXR, Imath

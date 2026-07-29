@@ -1,0 +1,135 @@
+\chapter{Related work}
+\label{ch:related-work}
+
+Three bodies of prior work bear on this thesis: the radiance-field representations that
+produced the Gaussian primitive (\Cref{sec:radiance-fields}), the volumetric Monte~Carlo
+methods that make it physically renderable (\Cref{sec:volumetric-mc}), and the reference
+systems against which the renderer is built and measured
+(\Cref{sec:reference-renderers}). The method it
+re-implements and accelerates---\emph{Don't Splat Your Gaussians} (DSYG)---is reviewed in
+\Cref{sec:dsyg}; the two ideas the contribution borrows from neighbouring work, decomposition
+tracking and sort-free Gaussian rendering, are positioned alongside it.
+
+\section{Radiance fields: from NeRF to Gaussian splatting}
+\label{sec:radiance-fields}
+
+Reconstructing a 3D scene from posed 2D photographs is the problem that produced the Gaussian
+primitive. Neural Radiance Fields (NeRF)~\cite{NeRF} represent the scene \emph{implicitly}, as a
+multilayer perceptron mapping a position and view direction to colour and density, rendered by
+volumetric ray marching. NeRF synthesises photorealistic novel views from sparse input, and
+follow-ups improve its anti-aliasing~\cite{MipNeRF} and few-shot behaviour~\cite{PixelNeRF}. The
+representation is nonetheless a black box: it offers no explicit geometry to edit or relight, and both
+training and rendering are slow.
+
+3D Gaussian Splatting (3DGS)~\cite{3DGS} replaced the network with an \emph{explicit} set of
+anisotropic 3D Gaussians, each carrying a position, covariance, opacity, and view-dependent colour.
+Rendering rasterises the Gaussians in the tradition of EWA volume
+splatting~\cite{Zwicker2001} (EWA: elliptical weighted average): it projects them to
+screen space, sorts by depth, and alpha-blends---composites the projected Gaussians
+back-to-front, each layer partially covering what lies behind it, which is only correct in
+depth order---reaching real-time frame rates and high fidelity. The explicit representation
+is directly editable, but it carries two costs relevant here. First, appearance is \emph{baked}: each
+Gaussian stores a view-dependent colour fitted under the capture illumination, so the scene cannot be
+relit. Second, correct alpha-blending requires a \emph{global depth sort} of the primitives, recomputed
+per view; as the viewpoint moves the sort order changes discontinuously, producing the flickering and
+popping characteristic of splatting. The screen-space projection itself is a further
+constraint: EWA splatting linearises the projection per Gaussian, which restricts the
+pipeline to pinhole-like cameras and rules out secondary rays (rays spawned after the
+first camera hit: reflections, refractions, shadow queries). All three limitations point
+toward rendering the same primitives by ray tracing instead of rasterisation.
+
+\section{Ray-traced Gaussian primitives: Don't Splat Your Gaussians}
+\label{sec:dsyg}
+
+Condor et al.~\cite{DSYG} take the explicit Gaussians of 3DGS and render them as a
+\emph{participating medium} by volumetric path tracing rather than rasterisation. Each Gaussian is
+treated as a kernel of extinction whose contribution to the optical depth along a ray is evaluated
+in closed form (\Cref{sec:kernel-mixture}). The primitives are organised in a bounding volume
+hierarchy. Because the renderer is physically based, the scene becomes \emph{relightable} and
+supports multiple scattering and emission, recovering exactly what the baked, rasterised pipeline
+gives up. The closed-form optical depth meanwhile keeps each primitive cheap. DSYG is the method this
+thesis re-implements and accelerates.
+
+The reference renders correctly but is not built for speed. It samples the scatter distance by
+marching the ray boundary by boundary, maintaining the set of overlapping primitives and selecting
+the next boundary by a running minimum. Along the march it accumulates optical depth and solves for
+the scatter point with a root-find (Newton or bisection) within each multi-primitive segment,
+inverting single-primitive segments in closed form. (The march and its Newton/bisection fallback are
+their~\S4.2; the single-kernel closed-form inversion their~\S5.1.) In the transport
+literature's terms this is \emph{regular tracking}~\cite{Sutton1999,Novak2018}, adapted to
+overlapping Gaussian kernels: the medium is piecewise-analytic between primitive
+boundaries, and the tracker advances boundary by boundary, integrating each piece exactly. That segment-by-segment
+march and the per-segment root-find are precisely what \Cref{ch:architecture} removes, replacing them
+with a single-trace collection pass and closed-form per-primitive free-flight sampling.
+
+\paragraph{Concurrent ray-traced Gaussian methods.} Two works concurrent with DSYG, both from
+2024, also ray-trace Gaussian primitives, but toward radiance-field \emph{appearance} rather than
+physically-based transport. 3D Gaussian Ray Tracing~\cite{3DGRT} replaces 3DGS rasterisation with a hardware-accelerated
+BVH traversal over Gaussian particles, enabling secondary rays---reflections, refraction, distorted
+cameras---while keeping 3DGS's alpha-composited, view-dependent colour model. EVER~\cite{EVER} renders
+ellipsoids with \emph{exact} volumetric integration, removing the popping that approximate per-Gaussian
+sorting introduces, but as an emissive--absorptive density field~\cite{Max1995} rather than a scattering medium with a
+full light-transport path. This thesis instead accelerates DSYG's physically-based
+\emph{multiple-scattering} path tracing of relightable participating media; its two contributions
+(single-trace collection, argmin scatter sampling) target that transport problem, which neither
+concurrent method addresses.
+
+\section{Volumetric Monte Carlo and tracking}
+\label{sec:volumetric-mc}
+
+The estimators that make participating media renderable are surveyed by
+Nov\'ak et al.~\cite{Novak2018}. For a heterogeneous medium the optical depth has no closed form, so
+free paths are sampled without inverting it. \emph{Delta (Woodcock) tracking}~\cite{Woodcock1965}
+adds a fictitious medium to homogenise the extinction up to a bounding density (the
+\emph{majorant}) and accepts or rejects candidate collisions (rejected candidates are
+\emph{null collisions}),
+yielding unbiased free flights at the cost of many extinction evaluations. \emph{Decomposition}
+tracking~\cite{Kutz2017} reduces that cost by splitting the medium into a control component and a
+residual handled by tracking. The control component is chosen so that free paths through it can be
+constructed in \emph{closed form}; the residual is handled by tracking---in the variant
+this thesis builds on, by analog (unweighted) tracking; Kutz et al.'s extension instead
+lets samples carry weights.
+
+Decomposition tracking is the theoretical root of this thesis's scatter sampler. Its key property is
+that a free flight through a sum of components is distributed as the \emph{minimum} of independent
+free flights through each component taken separately. Because every Gaussian primitive here admits a
+closed-form, invertible optical depth, each can draw its own free-flight distance directly. The
+minimum over the primitives a ray touches is then the scatter event---no marching and no
+root-finding (\Cref{ch:architecture}).
+
+\section{Sort-free Gaussian rendering}
+\label{sec:sort-free}
+
+Removing the global sort from Gaussian rendering has also been pursued on the rasterisation side.
+StochasticSplats~\cite{StochasticSplats2025} renders 3DGS scenes with stochastic rasterisation
+(stochastic transparency), trading the depth sort for additional samples per pixel and thereby
+avoiding the popping that sort-order changes introduce. Two distinct orderings should not be
+conflated here. StochasticSplats removes the \emph{global, per-view depth sort} that
+alpha-compositing requires. The reference path tracer never needed that global sort; what its
+marcher maintains is a \emph{per-ray ordering of primitive boundaries} along each ray. The
+goal---dispensing with an explicit ordering of primitives---is shared, but in the
+complementary setting of a physically based volumetric \emph{path tracer}: here the per-ray
+ordering is sidestepped by the decomposition-tracking argmin of \Cref{sec:adt} rather than by
+stochastic blending.
+
+\section{Reference renderers and volume representations}
+\label{sec:reference-renderers}
+
+Mitsuba~3~\cite{Mitsuba3}, built on the Dr.Jit just-in-time compiler~\cite{DrJit}, is a research
+renderer offering differentiable, retargetable (LLVM/CUDA) rendering from a Python front end; the
+DSYG reference is implemented as a Mitsuba plugin. Its design priorities, however, leave performance
+on the table for a bespoke production renderer. JIT kernel construction adds a per-process startup
+cost. The cost is modest per run but compounds across the many short launches of a parameter sweep,
+where this renderer's precompiled OptiX-IR pipeline starts markedly faster (\Cref{sec:results-startup}
+quantifies it). The system is built for generality---differentiable, retargetable, inverse-rendering
+workflows---rather than for a single, highly tuned forward renderer. Finally, the generated CUDA
+offers limited room for the fine-grained, primitive-specific optimisation this thesis applies. These
+gaps motivate a bespoke CUDA/OptiX implementation. Mitsuba nonetheless remains
+indispensable as the \emph{validation reference}: \Cref{ch:validation} establishes correctness by
+quantitative comparison against it.
+
+Finally, the conventional representation for heterogeneous volumes is the sparse voxel grid
+(voxels: the 3D analogue of pixels---density values on a regular spatial grid), for
+which OpenVDB~\cite{OpenVDB} and its GPU-friendly variant NanoVDB~\cite{NanoVDB} are the industry
+standard. The Gaussian kernel mixture is a far more compact alternative: thousands of primitives
+rather than millions of voxels, a difference \Cref{ch:results} quantifies in memory footprint.

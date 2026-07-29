@@ -1,0 +1,43 @@
+\chapter*{Statement on the use of AI tools}
+\addcontentsline{toc}{chapter}{Statement on the use of AI tools}
+
+A large-language-model tool (Claude, Anthropic; successive 2025--2026 model releases) was used
+during this work, through an agentic command-line interface that can read and edit files, run
+programs, and inspect their output. In the interest of transparency, this statement records what the tool was used for,
+what it was not used for, and how its output was controlled.
+
+\paragraph{What the tool was used for.}
+\begin{itemize}
+  \item \textbf{Implementation assistance.} Drafting and revising code under my direction,
+  in particular on the reference side of the toolchain---the Dr.Jit array-programming idiom
+  and the reference's actively developed research codebases, which span two
+  repositories---and for repetitive engineering work (build plumbing, refactors).
+  \item \textbf{Experiment orchestration.} Executing experiments of my design: writing
+  batch scripts around the renderers, launching and monitoring long render campaigns,
+  collecting outputs, and tabulating results.
+  \item \textbf{Analysis and figures.} Producing plotting and statistics scripts
+  (matplotlib/numpy) for the measurements reported here, under conventions I specified.
+  \item \textbf{Verification tooling.} Implementing the deterministic probe scripts used in
+  the validation and correction work (e.g.\ the segment-additivity and quadrature checks of
+  \Cref{sec:results-firefly} and \Cref{app:corrections}), whose outputs are reproducible by
+  running the scripts against the relevant code.
+  \item \textbf{Prose.} Drafting and editing passes over text I outlined, and improving the
+  readability of text I wrote.
+\end{itemize}
+
+\paragraph{What was not delegated.} The research direction; the renderer's architecture and
+every design decision in it; the choice, design, and interpretation of every experiment; the
+decisions about what to claim and how to qualify it; and the final wording. I have reviewed
+the material in this document and take full responsibility for every claim in it.
+
+\paragraph{How the output was controlled.} AI-produced code and analysis were treated as
+untrusted input, subject to the same standard of evidence as any third-party code. The same
+standard shapes \Cref{ch:validation}: the central claims of this thesis are supported by
+checks that can be re-run ---
+closed-form and energy-conservation tests with exactly known answers, deterministic
+replays, cross-renderer agreement against an independent implementation, and archived render
+artifacts from which every reported number reproduces via scripts kept alongside the
+sources. Where AI assistance materially contributed to a specific technical finding, the
+verification is deterministic and independent of the tool that helped find it. The clearest
+instance is the set of reference corrections of \Cref{sec:results-firefly}: each of the
+five findings is certified by a parameter-free probe that any reader can re-run.

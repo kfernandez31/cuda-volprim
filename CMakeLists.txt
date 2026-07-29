@@ -3,7 +3,7 @@
 # =========================
 
 cmake_minimum_required(VERSION 3.20)
-project(thesis LANGUAGES C CXX CUDA)
+project(cuda-volprim LANGUAGES C CXX CUDA)
 
 # Add clang-tidy and cppcheck support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

@@ -14,7 +14,7 @@ import numpy as np, OpenEXR, Imath
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 
 CONV = "results/campaign/analog_conv"
-OUT = "thesis/latex/figures/analog_convergence.pdf"
+OUT = "latex/figures/analog_convergence.pdf"
 ARMS = ["ours_analog", "mits_analog"]
 LABEL = {"ours_analog": "ours (analog)", "mits_analog": "Mitsuba (analog)"}
 COLOR = {"ours_analog": "#2e8b57", "mits_analog": "#30638e"}

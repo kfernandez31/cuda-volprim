@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate every campaign figure into thesis/latex/figures/.
+# Regenerate every campaign figure into latex/figures/.
 #
 # Turnkey: drop real CSVs into results/campaign/ (schemas documented there) and rerun.
 # A figure whose CSV has data becomes a real plot; otherwise it stays a watermarked
@@ -9,7 +9,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PY="$ROOT/experiments/mitsuba-reference/.venv/bin/python"
-FIG="$ROOT/thesis/latex/figures"
+FIG="$ROOT/latex/figures"
 RES="$ROOT/results/campaign"
 mkdir -p "$FIG"
 

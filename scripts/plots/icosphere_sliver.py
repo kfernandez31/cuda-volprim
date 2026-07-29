@@ -9,7 +9,7 @@ and the analytic exit then mis-integrates a localised population of rays (cloud 
 |Δ|>0.05, max |Δ|≈0.25). The analytic built-in sphere is exact regardless — the quality argument for
 the analytic primitive (see icosphere_port.md / G8).
 
-  experiments/mitsuba-reference/.venv/bin/python scripts/plots/icosphere_sliver.py --out thesis/latex/figures/icosphere_sliver.pdf
+  experiments/mitsuba-reference/.venv/bin/python scripts/plots/icosphere_sliver.py --out latex/figures/icosphere_sliver.pdf
 """
 import argparse, os
 import numpy as np, OpenEXR, Imath

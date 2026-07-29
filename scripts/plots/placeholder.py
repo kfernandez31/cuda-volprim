@@ -8,7 +8,7 @@ real plot (CSV-driven), and the figure float in the thesis needs no change.
 
   experiments/mitsuba-reference/.venv/bin/python scripts/plots/placeholder.py \
       --title "RIS vs MIS, equal quality" --note "K-sweep; env-map vs flat" \
-      --out thesis/latex/figures/ris_ksweep.pdf
+      --out latex/figures/ris_ksweep.pdf
 """
 import argparse
 import os

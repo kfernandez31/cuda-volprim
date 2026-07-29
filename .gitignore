@@ -23,7 +23,7 @@ test_results/
 # PBRT book mirror (symlink to ~/jorge/pbr-book; copyrighted, do not commit)
 /references/pbr-book
 
-# LaTeX build artifacts (thesis/latex/); *.out and *.log already ignored above
+# LaTeX build artifacts (latex/); *.out and *.log already ignored above
 *.aux
 *.bbl
 *.blg
@@ -37,8 +37,8 @@ test_results/
 *.idx
 *.ind
 *.ilg
-thesis/latex/thesis.pdf
-thesis/latex/thesis.ps
+latex/thesis.pdf
+latex/thesis.ps
 
 # Icosphere A/B build dir (feature/icosphere-gas)
 build-ico/
@@ -84,8 +84,8 @@ rec-*.aac
 rec-*.txt
 thesis_with_comments_Jorge.pdf
 thesis-with-piotrs-feedback.pdf
-thesis/latex/signed-declaration.pdf
-thesis/reviews/
+latex/signed-declaration.pdf
+thesis/
 docs/SESSION_STATE_*
 docs/MEETING_PREP_*
 docs/CHANGELOG_FOR_PIOTR*
@@ -95,8 +95,8 @@ docs/personas/
 private/
 
 # ---- red-diff workflow (never in git per house rule) ----
-thesis/latex/red/
-thesis/latex/thesis-red.*
+latex/red/
+latex/thesis-red.*
 
 # ---- regenerable outputs ----
 test_results/
@@ -110,9 +110,9 @@ __pycache__/
 *.fdb_latexmk
 *.fls
 *.thm
-thesis/latex/thesis.log
-thesis/latex/thesis.out
-thesis/latex/thesis.toc
+latex/thesis.log
+latex/thesis.out
+latex/thesis.toc
 build*/
 references/
 unilu-docs/

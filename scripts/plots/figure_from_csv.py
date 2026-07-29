@@ -5,7 +5,7 @@ Run with the repo venv that has numpy + matplotlib:
   experiments/mitsuba-reference/.venv/bin/python scripts/plots/figure_from_csv.py \
       --csv results/optim/rr_depth.csv --x rr_depth --y rmse time \
       --xlabel "RR depth" --title "RR-depth sweep" \
-      --out thesis/latex/figures/rr_depth.pdf
+      --out latex/figures/rr_depth.pdf
 
 The CSV must have a header row; --x and --y name columns by header.
 Format-agnostic on purpose: the experiment harness (plan Task 0.3) defines the

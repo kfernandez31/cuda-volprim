@@ -1,0 +1,38 @@
+%% Lift the heading so the abstract fits one page (wording untouched).
+\vspace*{-3\baselineskip}
+\begin{abstract}
+\setlength{\parskip}{2.5pt plus 1pt}%
+
+Gaussian kernel-mixture volumes represent a participating medium (a volume, such as cloud or
+smoke, that light scatters within rather than at surfaces) as a sum of anisotropic Gaussian
+primitives, each contributing an analytic, invertible optical depth (accumulated attenuation). The representation, introduced by
+\emph{Don't Splat Your Gaussians}, admits physically based path tracing. The reference renderer that established the
+representation's correctness, built in Mitsuba, reaches a scattering event by marching
+segment-by-segment between primitive boundaries. Along the way it maintains the set of overlapping
+primitives and root-finds the scatter distance within each multi-primitive segment. This thesis asks whether a renderer built around the analytic, invertible per-primitive
+optical depth---the quantity the reference itself derives---can be both correct and
+substantially faster.
+
+It presents a from-scratch CUDA/OptiX volumetric path tracer organised around a rendering architecture in two parts. \emph{Single-trace collection} gathers every primitive a ray enters in one
+acceleration-structure traversal, recording every entry crossing rather than stopping at
+the first hit, and computing exits in closed form rather than re-tracing. \emph{Analog-decomposition
+scatter sampling} then lets each collected primitive draw an independent closed-form free flight,
+and takes the nearest---the argmin---as the scattering event. The approach was suggested by Condor, the reference's lead author (personal communication, 2026). Together, the two parts replace the
+reference's segment-marching and overlap root-finding outright.
+
+Correctness is established differentially: the renderer is compared against Mitsuba and,
+where a closed form exists, against analytic ground truth. The same sequence of test
+scenes, from a single Gaussian to the full cloud, serves as the unbiasedness evidence for the new
+sampler. On the environment-lit showcase the renderer is both correct and fast.
+Its multiple-importance-sampled direct lighting matches the unbiased ground truth in the mean on the showcase view (to $0.5\%$,
+with a small bounded systematic only at heavily-overlapped scatter points). The reference's fast estimator, as shipped, does not converge to the correct image on this
+medium. It fails in the benchmarked release through a gross energy bias this work established
+reference-free, and in the current upstream revision through five issues this work diagnosed and corrected (the fixes are submitted upstream). With the corrections in place, the two renderers agree at the Monte-Carlo noise level,
+enabling the like-for-like comparison. Comparing the two fast paths, this renderer is $2.7\times$ faster at equal quality. The renderer is also free of fireflies (isolated, extremely bright noise pixels) at production sample budgets, and runs on less device memory
+on the showcase scene ($578$ vs $838$\,MiB; suite-wide results vary, reported in full). A performance-engineering study contributes a second, scene-dependent win: volumetric product-resampled direct
+lighting, $1.48\times$ at equal quality under environment lighting. It also contributes a profiled record of
+negative results locating where effort on this class of renderer is wasted. On
+Ada-generation hardware, Shader Execution Reordering---unavailable to the reference's
+compiled pipeline---yields a further $1.12$--$1.68\times$ at equal quality, image-identical.
+
+\end{abstract}
