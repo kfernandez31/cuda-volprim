@@ -1,3 +1,15 @@
+# Mitsuba reference side — setup and verification scripts
+
+These scripts drive the DSYG reference (`volumetric_primitives`) and the corrected fork,
+and contain the parameter-free probes of thesis Appendix A.
+
+**Pinning.** The thesis benchmarks the reference *as released with DSYG* on Mitsuba 3.6.4,
+and the *corrected* arms on stock Mitsuba 3.8.0 + Dr.Jit 1.3.1 with the fix PR applied
+(thesis §5.2 and §7.2 define the naming). Wrappers `with_jorge_mitsuba.sh` /
+`with_gabor_mitsuba.sh` select the right stack; `requirements.txt` rebuilds the venv.
+
+---
+
 # tools/refs — self-generated reference renders
 
 Renders ground-truth voxel-grid references for asset validation, and diffs the
