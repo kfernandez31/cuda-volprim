@@ -69,3 +69,53 @@ results/campaign/voxgt_*.png
 results/campaign/furnace_spp/
 results/campaign/cloud_conv/
 results/campaign/analog_conv/
+results/campaign/ladder_icos/
+results/campaign/furnace_gabor/
+results/campaign/furnace_supervisor/
+results/campaign/nee_fix/
+results/campaign/nee_fair/
+.binbak/
+results/campaign/asset_neefix/
+results/campaign/ico_v2/
+
+# ---- private: reviewer correspondence, recordings, signed documents, session notes ----
+for-jorge/
+rec-*.aac
+rec-*.txt
+thesis_with_comments_Jorge.pdf
+thesis-with-piotrs-feedback.pdf
+thesis/latex/signed-declaration.pdf
+thesis/reviews/
+docs/SESSION_STATE_*
+docs/MEETING_PREP_*
+docs/CHANGELOG_FOR_PIOTR*
+docs/REPLY_TO_JORGE_DRAFT.md
+docs/PERSONA_REVIEW_PROMPTS.md
+docs/personas/
+private/
+
+# ---- red-diff workflow (never in git per house rule) ----
+thesis/latex/red/
+thesis/latex/thesis-red.*
+
+# ---- regenerable outputs ----
+test_results/
+signed-declaration.pdf
+thesis-with-piotrs-comments*.pdf
+__pycache__/
+# latex build artifacts (any dir)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.thm
+thesis/latex/thesis.log
+thesis/latex/thesis.out
+thesis/latex/thesis.toc
+build*/
+references/
+unilu-docs/
+tools/refs/.venv/
+CLAUDE.md
+.claude/

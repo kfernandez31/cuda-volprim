@@ -11,7 +11,7 @@ center. SS=4 -> 4x4=16 uniform sub-pixel samples averaged = BOX-filter antialias
 import os, sys
 import numpy as np
 from os.path import join
-sys.path.insert(0, '/home/kacper/volumetric_primitives')
+sys.path.insert(0, '/home/kacper/jorge/volumetric_primitives')
 import mitsuba as mi
 mi.set_variant('cuda_ad_rgb')
 import volprim.integrators.volprim_prb  # noqa
@@ -80,7 +80,7 @@ def load(pth):
     sz=(dw.max.y-dw.min.y+1,dw.max.x-dw.min.x+1)
     ch=f.channels(["R","G","B"],Imath.PixelType(Imath.PixelType.FLOAT))
     return np.stack([np.frombuffer(cx,np.float32).reshape(sz) for cx in ch],-1).mean(-1)
-cuda=load("/home/kacper/thesis/renders/cloud_lifted/cloud_asset_validation/0000.exr")
-if np.mean((T-cuda)**2) > np.mean((np.flipud(T)-cuda)**2): T=np.flipud(T); print("flipped V")
+cuda=None  # legacy comparison target removed; T is compared downstream against the banked ladder EXR
+# orientation resolved downstream against the banked ladder EXR (try both flips there)
 out=f"/tmp/cloud_spp/bruteforce_T{'' if SS==1 else f'_ss{SS}'}.npy"
 np.save(out,T); print(f"saved {out} mean={T.mean():.4f}")
