@@ -18,6 +18,8 @@ GRID = sys.argv[1]
 MODE = sys.argv[2] if len(sys.argv) > 2 else "absorption"
 SPP = int(sys.argv[3]) if len(sys.argv) > 3 else 64
 CLAMP = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0   # 0 = unclamped; else cap sigma_t (lowers majorant)
+SCALE = float(sys.argv[5]) if len(sys.argv) > 5 else 1.0   # density scale (e.g. 0.04 = sigma-mult 0.3 vs production 7.5)
+SEED = int(sys.argv[6]) if len(sys.argv) > 6 else 0
 ENV = "/home/kacper/thesis/assets/environment_maps/meadow_2_4k.hdr"
 
 d = np.load(GRID)
@@ -42,7 +44,7 @@ medium = {
     "type": "heterogeneous",
     "sigma_t": {"type": "gridvolume", "data": mi.TensorXf(grid_m),
                 "to_world": T().translate(lo.tolist()).scale(size.tolist())},
-    "scale": 1.0,
+    "scale": SCALE,
 }
 if MODE == "scattering":
     medium["albedo"] = {"type": "uniform", "value": 0.9}
@@ -60,11 +62,13 @@ scene_dict["cloud_grid"] = {
 
 scene = mi.load_dict(scene_dict)
 print("rendering ...", flush=True)
-img = mi.render(scene, spp=SPP)
+img = mi.render(scene, spp=SPP, seed=SEED)
 arr = np.array(img)
 
 tag = os.path.splitext(os.path.basename(GRID))[0]
 outbase = f"results/campaign/voxgt_{MODE}_{tag}_c{int(CLAMP)}"
+if SCALE != 1.0:
+    outbase += f"_s{SCALE}_seed{SEED}"
 mi.util.write_bitmap(outbase + ".exr", img)
 mi.util.write_bitmap(outbase + ".png", img)
 

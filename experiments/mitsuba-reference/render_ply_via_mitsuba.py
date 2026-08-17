@@ -38,15 +38,17 @@ sys.path.insert(0, CLOUD_INIT_DIR)
 import __init__ as cloud_scene
 
 PLY_PATH = os.path.join(THESIS_ROOT, "assets/models/cloud/root.primitives_pyr0.ply")
-OUT_DIR = os.path.join(THESIS_ROOT, "test_results/ply_via_mitsuba")
+OUT_DIR = os.environ.get("SG_OUT", "/tmp/ply_via_mitsuba")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Parameters — keep aligned with our CUDA renderer's defaults so the comparison is fair.
 # sigma_multiplier in our CUDA renderer corresponds to the linear multiplier
 # applied to per-primitive sigma_t after PLY load.
-SIGMA_MULTIPLIER = 7.5   # Jorge's "cloud 7.5" / args.json sigmat_scale
-SPP = 1024
-CAM_NAME = "cam_0000"
+# Overridable via env for reduced-density comparisons (e.g. SG_SIGMA_MULT=0.3).
+SIGMA_MULTIPLIER = float(os.environ.get("SG_SIGMA_MULT", "7.5"))  # Jorge's "cloud 7.5"
+SPP = int(os.environ.get("SG_SPP", "1024"))
+SEED = int(os.environ.get("SG_SEED", "0"))
+CAM_NAME = os.environ.get("SG_CAM_NAME", "cam_0000")
 
 # Build scene: integrator + the cloud's ellipsoidsmesh primitives + constant env.
 cam_cfg = cloud_scene.SENSORS[CAM_NAME].copy()
@@ -88,10 +90,10 @@ params["primitives_pyr0.albedo"] = np.zeros(n * 3, dtype=np.float32)
 params.update()
 
 print(f"Rendering {CAM_NAME} at spp={SPP}, sigma_multiplier={SIGMA_MULTIPLIER}, albedo=0 ...")
-img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=0)
+img = mi.render(scene, sensor=scene.sensors()[0], spp=SPP, seed=SEED)
 dr.sync_thread()
 
-out_path = os.path.join(OUT_DIR, f"{CAM_NAME}_volprim_tomography_spp{SPP}.exr")
+out_path = os.path.join(OUT_DIR, f"{CAM_NAME}_volprim_tomography_spp{SPP}_seed{SEED}.exr")
 mi.Bitmap(img).write(out_path)
 arr = np.array(img).astype(np.float32)
 print(f"wrote {out_path}  size={os.path.getsize(out_path)}  "

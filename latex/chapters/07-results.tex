@@ -28,8 +28,7 @@ estimator~\cite{KramarzVolprimFixes2026}. (Arm labels and ``shipped'' as defined
 
 \textbf{Setup:} \Cref{ch:validation} certified that
 both systems converge to the same image. The comparison therefore pits the two production
-fast paths against each other on equal terms, as the
-two production fast paths. Both arms render the showcase ($900\times600$) under the
+fast paths against each other on equal terms. Both arms render the showcase ($900\times600$) under the
 conventions of \Cref{sec:setup}.
 
 \textbf{Result:} per sample, the corrected reference is the
@@ -74,11 +73,10 @@ reaches any target variance sooner. Neither arm claims both.}
 
 \paragraph{Context: the reference as shipped.} The reference as shipped
 (\Cref{sec:reference-problem})---the code as its users obtain it---has no correct fast path on this
-medium. Its next-event estimator does not converge to the correct image. In the benchmarked revision
-it fails through a gross energy bias; in the current upstream revision it fails through the issues
-diagnosed in \Cref{sec:results-firefly}. Its only correctly-converging configuration is
-the analog mode, which is firefly-dominated under this illumination (\Cref{sec:results-firefly}); a
-comparison against it would measure the shipped code's limitations rather than estimator quality.
+medium: its next-event estimator does not converge to the correct image, and its analog mode is
+firefly-dominated under this illumination (diagnosis and revision timeline in
+\Cref{sec:results-firefly}). A comparison against either shipped configuration would measure the
+shipped code's limitations rather than estimator quality.
 
 \paragraph{Isolating the sampler.} To separate the \emph{sampler} from the direct-lighting estimator,
 the two renderers can be compared in the \emph{same} (analog) mode---no NEE on either side. Under the
@@ -87,7 +85,7 @@ firefly-dominated (rare bright-sun escapes). Raw per-pixel variance favours the 
 firefly-clipped variance (\Cref{sec:setup}) favours this renderer: the two conventions disagree
 on the winner, so no single equal-quality number is meaningful there. A
 \emph{flat} (uniform) environment removes the fireflies on both sides and makes the comparison stable.
-One convention decides this comparison: the \emph{reconstruction filter}. It is
+This comparison hinges on one convention, the \emph{reconstruction filter}. It is
 matched---box on both arms, as everywhere in this
 thesis (\Cref{sec:setup}).\footnote{The filter matters because a wide filter averages neighbouring samples, lowering
 per-pixel variance by roughly $3\times$. An earlier mismatched-filter reading (the
@@ -103,8 +101,7 @@ estimators are unbiased, with converged means agreeing to
 power caps.} The per-sample gap has a known cause: the smooth-weight-versus-coin-flip
 estimator trade-off dissected
 in the negative results of \Cref{sec:autopsies}. The architectural contribution
-(\Cref{ch:architecture}) is therefore a \emph{structural, throughput} simplification: it
-removes the march, the sort, and the root-find. Its
+(\Cref{ch:architecture}) is therefore a \emph{structural, throughput} simplification. Its
 per-sample speed more than carries its per-sample variance cost, even with no direct-lighting
 estimator in the loop. Under the peaky illumination of production scenes, the MIS estimator then
 adds the variance half (\Cref{sec:ris}).
@@ -141,8 +138,7 @@ carries the flat analog--analog matchup on its own. The MIS estimator's variance
 is specific to peaky illumination---the payoff of importance-sampling a bright, concentrated
 HDR environment. This mirrors the resampled direct-lighting result of \Cref{sec:ris}, where the same
 environment-sampling estimator helps under peaky illumination and is counterproductive on
-flat. The estimator half of the renderer's advantage is therefore largest for the peaky
-HDR environments typical of production lighting.
+flat.
 
 \paragraph{Beyond the cloud.} The bunny~\cite{TurkLevoy1994} (\num{25600} Gaussians) renders in \SI{50.4}{\second} at
 \num{64}\,spp, \(512\times512\), under the meadow environment (the white-constant scattering configuration of
@@ -214,7 +210,7 @@ re-evaluated here.
 \Cref{sec:nee-mis} defines them formally. \emph{Next-event estimation} pays for direct light
 immediately, with a shadow ray toward the light at each scatter vertex. The \emph{analog
 continuation} instead lets the path fly on and collects light only if it escapes. A
-multiple-importance weight is what keeps two such strategies from counting the same light
+multiple-importance weight keeps two such strategies from counting the same light
 twice. The over-count is not an artefact of how the reference was invoked here. It runs at its
 documented defaults (Gaussian kernel, bisection solver, path depth \num{128}---deep enough
 that truncation can only \emph{darken} the result), and the same over-count appears,
@@ -225,8 +221,10 @@ comparison render---forces a correct estimator to return the background.
 Its line-level cause was unknown throughout this work's measurements; the bias was
 localised, but not to a line. After those measurements, the estimator's author identified
 the repaired issue (personal communication, 2026), and his account is verified against
-the released source below. The current upstream revision carries a rewritten estimator
-that no longer exhibits the over-count (\emph{Upstream follow-up} below).
+the released source below. The current upstream revision no longer exhibits the over-count
+(\emph{Upstream follow-up} below); its history contains the repair itself, a December 2025
+revision that replaced the vertex-overlap density lookup with a direct fetch of the
+primitive record, removing the zeroed read.
 
 This thesis therefore claims
 only what the measurements localise: the surplus enters at
@@ -451,8 +449,8 @@ estimator~\cite{KramarzVolprimFixes2026} (per asset: ours \num{16}$\times$\num{2
 or direct-lighting error would be glaring. The mean ratios are \num{0.9952} (tornado), \num{0.9988} (explosion), and \num{0.9958}
 (bunny): the same ${\sim}0.5\,\%$-scale offset the cloud-level certification resolves
 (\Cref{ch:validation}). The difference image is uncorrelated pixel noise plus that
-known core-level offset, with no spatially coherent pattern beyond it. A real discrepancy
-would leave a coherent pattern (\Cref{sec:reference-problem}); none is present. This bounds
+known core-level offset; a real discrepancy would leave a coherent pattern
+(\Cref{sec:reference-problem}), and none is present beyond that offset. This bounds
 any systematic difference below the precision the test resolves, rather than proving it
 exactly zero. These
 gates confirm that the renderer's correctness is not cloud-specific but holds across three assets spanning
@@ -558,10 +556,19 @@ The dominant cost follows what rays cross, matching the design goal of
 overhead: the fitted coefficient puts it at ${\sim}5\,\%$ of the frame on the
 \num{652}-primitive cloud and ${\sim}12\,\%$ on the \num{25600}-primitive bunny, a share
 independent of the sample budget since scan and frame scale together. That makes it the
-clearest remaining optimisation target. Neither fix was attempted here, but both are
-simple: at bounce \num{0} the query point is the camera position, shared by every
-sample, so the containing set could be precomputed once per frame; a point query against
-the acceleration structure would handle arbitrary origins (\Cref{sec:future-work}).
+clearest remaining optimisation target. Every measurement in this thesis was taken
+before the following fix existed; it was implemented afterwards, on a separate branch,
+so no reported number contains it. At bounce \num{0} the query point is the camera
+position, shared by every sample, so a one-shot kernel precomputes the containing set
+once per render with the same device predicate in the same order. Every output is
+byte-identical to the unmodified renderer, and an A/B under the protocol of
+\Cref{sec:setup}, at the \Cref{tab:asset-cost} configuration, shows whole frames
+rendering $1.38\times$ faster on the cloud, $1.08\times$ on the tornado, $1.21\times$ on
+the explosion, and $2.95\times$ on the bunny. The model's prediction was therefore a
+\emph{lower} bound: it modelled the scan's arithmetic alone, and the measured excess is
+consistent with the removed loop also relieving the register pressure that caps
+occupancy (\Cref{sec:bottleneck}). The showcase headline is unaffected regardless: its
+orthographic camera lies outside the fix's scope (\Cref{sec:future-work}).
 \Cref{tab:asset-cost} lists the four production assets' operating costs under a matched
 configuration; they are not a scaling series, since across real assets $N$ is confounded
 with packing density and extent (\Cref{tab:overlap}). Device memory is unaffected

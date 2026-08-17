@@ -38,8 +38,18 @@ CLOUD_DIR = REPO_ROOT / "assets/models/cloud"
 
 
 def render_one(sigmat_scale: float, spp: int, output_dir: Path,
-               albedo: float = 0.0, cam_name: str = "cam_0000") -> Path:
-    """Render the cloud PLY at given sigmat_scale through volprim_prb."""
+               albedo: float = 0.0, cam_name: str = "cam_0000",
+               analog: bool = False, seed: int = 0) -> Path:
+    """Render the cloud PLY at given sigmat_scale through volprim_prb.
+
+    analog=True runs use_nee=False (the analog estimator, unbiased in every
+    revision). The default NEE estimator deterministically scales all direct
+    environment radiance by 1/(1+(4pi)^-2) ~ 0.99371: at depth 0 the escape
+    contribution is MIS power-heuristic weighted against the emitter pdf,
+    which the (depth != 0) mask fails to zero (masked pdf_direction still
+    returns 1/4pi for a constant emitter). Verified 2026-07-30 on an
+    empty-view probe: NEE arm 0.9937074 = 1/(1+(4pi)^-2), analog arm 1.0.
+    """
     sys.path.insert(0, str(CLOUD_DIR))
     # Re-import every call so we get a fresh module if cwd shifts
     if "asset_scene" in sys.modules:
@@ -55,6 +65,8 @@ def render_one(sigmat_scale: float, spp: int, output_dir: Path,
     scene_dict.pop("resources", None)
     scene_dict["primitives_pyr0"].pop("extent_adaptive_clamping", None)
     scene_dict["primitives_pyr0"]["filename"] = str(CLOUD_DIR / "data/root.primitives_pyr0.ply")
+    if analog:
+        scene_dict["integrator"] = dict(scene_dict["integrator"], use_nee=False)
 
     cam_cfg = dict(cloud_scene.SENSORS[cam_name])
     cam_cfg.pop("resources", None)
@@ -71,9 +83,9 @@ def render_one(sigmat_scale: float, spp: int, output_dir: Path,
     params.update()
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_path = output_dir / "0000.exr"
+    out_path = output_dir / (f"seed{seed}.exr" if seed else "0000.exr")
 
-    img = mi.render(scene, sensor=scene.sensors()[0], spp=spp)
+    img = mi.render(scene, sensor=scene.sensors()[0], spp=spp, seed=seed)
     mi.util.write_bitmap(str(out_path), img)
     return out_path
 
@@ -85,14 +97,20 @@ def main():
     p.add_argument("--spp", type=int, default=64)
     p.add_argument("--albedo", type=float, default=0.0,
                    help="Override albedo (0 = absorber, matches refs_pyr0)")
+    p.add_argument("--analog", action="store_true",
+                   help="use_nee=False (analog estimator; see render_one docstring)")
+    p.add_argument("--seed", type=int, action="append", default=None,
+                   help="Sampler seed(s); repeat for multi-seed averaging. Default [0].")
     p.add_argument("--output-root", type=Path, default=Path("/tmp"),
                    help="Each sigma writes to <root>/volprim_sigma{N}/0000.exr")
     args = p.parse_args()
 
     for s in args.sigma:
         out_dir = args.output_root / f"volprim_sigma{s}"
-        path = render_one(s, args.spp, out_dir, albedo=args.albedo)
-        print(f"sigma={s} -> {path}")
+        for seed in (args.seed or [0]):
+            path = render_one(s, args.spp, out_dir, albedo=args.albedo,
+                              analog=args.analog, seed=seed)
+            print(f"sigma={s} seed={seed} -> {path}")
 
 
 if __name__ == "__main__":

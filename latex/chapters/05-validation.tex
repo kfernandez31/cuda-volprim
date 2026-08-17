@@ -144,8 +144,8 @@ at the calibrated scale. Tomography uses the fit's raw convention: each Gaussian
 weight is its peak density, integrated over the full line. The normalisation depends
 on each Gaussian's size, so no single density multiplier converts one convention into the
 other. The \texttt{reference} images do not show the
-fitted Gaussians at all. They show the fit's target: the source volume. The radiometric gap
-is large. The bundled images average \num{0.55} over their \num{36} views (range
+fitted Gaussians at all; they show the fit's target, the source volume, and the radiometric
+gap is large. The bundled images average \num{0.55} over their \num{36} views (range
 \numrange{0.40}{0.77}), re-measurable directly from the shipped file
 (\texttt{optimized\_pyr0.exr}). Path-traced renders of the same
 primitives converge near \num{0.32} (\Cref{sec:scattering-ladder}). The two
@@ -192,9 +192,9 @@ NEE)}.
 
 The Mitsuba comparison shares one assumption with this renderer: both treat the medium as a
 sum of analytic Gaussians. An error in that shared closed form could, in principle, survive
-in both renderers at once. A stronger check removes the assumption. We render the same medium
-by a route that never touches the Gaussian closed form, and ask whether the answer still
-agrees. The Gaussian field is baked into a dense voxel grid in the renderer's own,
+in both renderers at once. A stronger check removes the assumption: the same medium is
+rendered by a route that never touches the Gaussian closed form, and the two results are
+compared. The Gaussian field is baked into a dense voxel grid in the renderer's own,
 mass-conserving density convention,
 \[
   \sigma_t(\mathbf{x})=\sum_i M_i\,(2\pi)^{-3/2}\!\prod_j s_{ij}^{-1}\;
@@ -205,23 +205,30 @@ via delta tracking. That code path shares no code and no Gaussian mathematics wi
 analytic renderer.
 
 In absorption the cross-check succeeds (\Cref{fig:voxel-gt}). Absorption is the right regime
-for it: the image depends only on transmittance, so no scattering variance enters. The grid
-arms are delta-tracked at \num{32}\,spp, one seed each; the readouts below show the residual
-is resolution-limited, not noise-limited. Through the opaque interior and the empty
-background, the grid render matches the analytic render to numerical silence (median pixel
-difference ${\sim}2\times10^{-5}$). One residual remains: a thin band at the silhouette.
+for it: the image depends only on transmittance, so no scattering variance enters. At
+production density, through the opaque interior and the empty
+background, the grid render matches the analytic render to a median pixel difference of
+${\sim}2\times10^{-5}$. Deep in the core that agreement is easy, since both arms are
+near-black there; the bottom row of \Cref{fig:voxel-gt} therefore repeats the cross-check at
+\num{4}\,\% density (the reduced-density protocol of \Cref{sec:absorption-ladder}), where
+nothing saturates. At production density one residual is visible: a thin band at the silhouette.
 
-The band is the grid's own error. A grid stores one density value per voxel. The Gaussians'
-edge falloff is sharper than a voxel, so the grid blurs it; the analytic form evaluates it
-exactly. Rays that graze the silhouette therefore accumulate slightly different optical
-depth. The band follows the grid's discretisation. First, refining the grid shrinks the band
-and moves the grid's image mean toward the analytic one.\footnote{From $128^3$ to $600^3$:
+The band is the grid's own discretisation error. A grid stores one density value per voxel,
+so it blurs the Gaussians' edge falloff, and rays that graze the silhouette accumulate
+slightly different optical depth than against the exact form. Two observations attribute the
+band to the grid: refining the grid shrinks it and moves the grid's image mean toward the
+analytic one,\footnote{From $128^3$ to $600^3$:
 band RMSE $0.072\!\to\!0.057$; image means $0.394\!\to\!0.401$, analytic \num{0.416}.}
-Second, adding samples barely moves it.\footnote{Quadrupling \num{32}\,spp to \num{128}\,spp
-changes an intermediate $200^3$ grid's band RMSE from \num{0.0627} to \num{0.0613}.} The residual is
-discretisation error. As the voxels shrink, the grid render converges to the
-analytic one. The cross-check thus supports the renderer's correctness, and it also quantifies the
-edge fidelity gained by the analytic primitive over a voxelised proxy.
+while adding samples barely moves it.\footnote{Quadrupling \num{32}\,spp to \num{128}\,spp
+changes an intermediate $200^3$ grid's band RMSE from \num{0.0627} to \num{0.0613}.}
+As the voxels shrink, the grid render converges to the analytic one; the cross-check thus
+supports the renderer's correctness, and it also quantifies the
+edge fidelity gained by the analytic primitive over a voxelised proxy. At \num{4}\,\%
+density the same error is visible in full rather than only at the edge: the signed
+difference in the bottom row of \Cref{fig:voxel-gt} is the high-pass residual of the grid's
+smoothing---the analytic render is darker in the fine wisps the grid blurs away, brighter in
+the gaps between them---with mean ratio \num{1.0079} and RMSE \num{0.017}, more than five
+times the grid arm's measured noise floor of \num{0.003} (two seeds at \num{4096}\,spp).
 
 Scattering is deliberately not cross-checked this way. Delta tracking needs a
 \emph{majorant}: a known upper bound on the density inside a region. This medium's density
@@ -234,12 +241,19 @@ comparison. Scattering correctness therefore rests on the furnace invariant
 \begin{figure}[htp]
   \centering
   \includegraphics[width=\linewidth]{figures/voxel_gt.pdf}
-  \caption{Independent voxel-grid cross-check (cloud, absorption, same camera). \emph{Left:} the
-  analytic Gaussian renderer. \emph{Centre:} the same density field baked to a $600^3$ grid and rendered
-  by Mitsuba's dense-grid delta-tracking path tracer. \emph{Right:} absolute difference at $5\times$ gain, gamma-mapped (white ${=}$
-$|\Delta|\ge0.2$). The grid arm is delta-tracked at \num{32}\,spp, one seed. Interior and
-background match to a median pixel difference of ${\sim}2\times10^{-5}$; the only residual is the silhouette
-  band where the grid blurs the sharp Gaussian boundary, and it shrinks with grid resolution.}
+  \caption{Independent voxel-grid cross-check (cloud, absorption, same camera).
+\emph{Top row, production density}: the analytic Gaussian renderer; the same density field
+baked to a $600^3$ grid and rendered by Mitsuba's dense-grid delta-tracking path tracer
+(\num{32}\,spp); absolute difference at $5\times$ gain, gamma-mapped (white ${=}$
+$|\Delta|\ge0.2$). Interior and background match to a median pixel difference of
+${\sim}2\times10^{-5}$; the only visible residual is the silhouette band where the grid
+blurs the sharp Gaussian boundary. \emph{Bottom row, \num{4}\,\% density} (the
+reduced-density protocol of \Cref{sec:absorption-ladder}; grid arm unclamped,
+\num{4096}\,spp): with the whole interior visible, the same blur appears everywhere as the
+structure of the signed difference ($\pm\num{5}\,\%$ full scale; conventions,
+\Cref{sec:setup}). The analytic arms agree at the noise level under this protocol
+(\Cref{fig:reduced-density}), so this structure is the grid's discretisation, not
+renderer disagreement (mean ratio \num{1.0079}; discussion in the text).}
   \label{fig:voxel-gt}
 \end{figure}
 
@@ -264,20 +278,11 @@ here to
 ``match to within Monte~Carlo noise.'' The renderer is therefore checked for bias by comparing \emph{converged} means. Each arm is
 averaged over enough seeds and samples that its own residual noise sits far below the
 difference under test. Where an analytic value exists, the mean is compared to it directly.
-Efficiency is a separate question, and it is compared only at \emph{equal quality}.
-Monte~Carlo error falls as $O(1/\sqrt{N})$ (\Cref{sec:monte-carlo}), so the meaningful
-quantity is the noise constant $k = \mathrm{RMSE}^2 \cdot N$. (Equivalently: inter-seed
-variance $\times$ spp. The two coincide for unbiased estimators, as here; the headline
-figures of \Cref{ch:results} use the variance form.) One renderer is faster than another only
-if it reaches the same $k$ in less time. Raw frame times at a fixed sample count are reported
-only alongside this equal-quality figure (\Cref{ch:results}).
-
-Two controls guard this metric. \emph{Fireflies}---rare, very bright samples---inflate RMSE out of
-proportion to perceived error, so robust statistics (high percentiles, clipped means) accompany the raw
-numbers. The difference in firefly behaviour between the renderers is itself a result
-(\Cref{ch:results}). And all timing is reported at a single, fixed GPU operating point, because clock
-throttling otherwise injects spurious variation; the equal-quality metric, being a ratio, is robust to
-it regardless.
+Efficiency is a separate question, and it is compared only at \emph{equal quality}: one
+renderer is faster than another only if it reaches the same noise constant $k$ in less time,
+under the conventions of \Cref{sec:setup} (the definition of $k$, the firefly-robust
+statistics, and the fixed GPU operating point). Raw frame times at a fixed sample count are
+reported only alongside this equal-quality figure (\Cref{ch:results}).
 
 \section{Absorption: from a single Gaussian to the full cloud}
 \label{sec:absorption-ladder}
@@ -307,16 +312,16 @@ any (the same active set the scattering sampler of \Cref{sec:adt} later draws fr
 configuration; plus a deliberately degenerate \emph{collinear} stress test---$m$ identical Gaussians
 stacked in place.
 
-\textbf{Result:} up to the active-set capacity, the renderer matches the reference for the
-combined medium to $\sim\!10^{-4}$ in the mean. The closed-form additivity check is carried
-by the collinear test, not by the plotted pair: $m$ identical Gaussians
-stacked in place are exactly one $m$-fold-denser Gaussian, so additivity itself is the ground
-truth. The test goes unplotted because its correct image is indistinguishable from the
-single-Gaussian stage's. The plotted pair's recorded comparison is against Mitsuba.
+\textbf{Result:} the plotted pair is compared against Mitsuba: up to the active-set
+capacity, the renderer matches the reference for the combined medium to $\sim\!10^{-4}$ in
+the mean. Additivity itself is checked analytically, by the collinear test: $m$ identical
+Gaussians stacked in place are exactly one $m$-fold-denser Gaussian, so the ground truth is
+the closed form. That test goes unplotted because its correct image is indistinguishable
+from the single-Gaussian stage's.
 
 Pushed past capacity, the collinear test exposed a silent failure. The active set has a fixed
 capacity; past it, old revisions dropped primitives without any warning, and the image stayed
-plausible. The measurement still identified the mechanism. With $m$ stacked Gaussians sharing
+plausible. The mechanism was still identifiable from the image alone. With $m$ stacked Gaussians sharing
 a total optical depth $\tau_0$, keeping only $\text{cap}$ of them integrates the fraction
 $\min(\text{cap},m)/m$ of that depth. The measured transmittance matched
 $\exp(-\min(\text{cap},m)/m\cdot\tau_0)$ to $10^{-4}$: the image alone revealed that
@@ -333,7 +338,7 @@ there is two orders of magnitude above the Mitsuba arm's residual noise (this re
 values are deterministic). It is also practically narrow: perfectly collinear stacking is a
 degenerate configuration that real assets never reach, so it does not affect the
 scene-level comparisons. It does show that a differential comparison can inherit the
-reference's own errors, which is why the analytic check decides this stage.
+reference's own errors, which is why the analytic check is the arbiter for this stage.
 
 \paragraph{The cloud.} \textbf{Goal:} absorption correctness at scene scale. Scattering stays
 disabled, so this stage still has an exact transmittance check.
@@ -350,17 +355,13 @@ the aggregate mean transmittance difference is $+1.6\times10^{-5}$ (worst view
 $7.8\times10^{-5}$), with a per-pixel RMSE of \num{0.0094} dominated by the reference arm's
 residual Monte-Carlo noise. On that view, \num{93}\,\% of the visible silhouette band is the
 reference arm's Monte-Carlo noise; the remainder is zero-mean at the ${\sim}2\times10^{-3}$
-level. The same brute-force arm also settles agreement in the \emph{optical-depth} domain,
+level. The same brute-force arm also confirms agreement in the \emph{optical-depth} domain,
 where deep-$\tau$ errors would be magnified rather than compressed: on the represented view,
 this renderer matches the float64 computation to a transmittance RMSE of $9.5\times10^{-5}$
 and a mean optical-depth ratio of \num{0.9999}, with a median per-pixel relative
 optical-depth error of \num{0.05}\,\% (pixels with $T$ between $10^{-3}$ and \num{0.999};
-both arms deterministic, so the comparison carries no Monte-Carlo noise at all). The absorption validation therefore has three stages, each adding one source of complexity over
-the last. The single Gaussian is held to the analytic answer. The overlapping-primitives stage is
-against the reference, with additivity checked analytically via the collinear test. The full cloud
-is against the reference, plus the float64 brute-force check above settling the
-silhouette band.
-\Cref{fig:absorption-ladder} collects them.
+both arms deterministic, so the comparison carries no Monte-Carlo noise at all).
+\Cref{fig:absorption-ladder} collects the three stages.
 
 \begin{figure}[htp]
   \centering
@@ -370,14 +371,50 @@ pair, and the full \num{652}-primitive cloud, each annotated with its converged-
 renderer over the stage's ground-truth arm) and per-pixel RMSE. The single Gaussian is held to its closed-form transmittance (agreement
 $\sim\!2\times10^{-5}$; the closed form integrates the same $3\sigma$ support, isolating
 numerical agreement from truncation). The pair and cloud are compared against Mitsuba, with
-additivity checked analytically via the collinear test and the cloud's edge band settled by
+additivity checked analytically via the collinear test and the cloud's edge band resolved by
 the float64 check of \Cref{sec:absorption-ladder}. Reference arms: \num{16384}\,spp
 effective (pair) and \num{49152} (cloud), so the residual RMSE (\num{0.0007}, \num{0.0004})
 is systematic rather than noise; this renderer's panels are noise-free (analytic
 transmittance). Render panels are tonemapped for display only; every quoted number is
-computed on raw radiance. Difference panels: $\pm\num{5}\,\%$ full scale (conventions,
+computed on raw radiance. At this density the cloud's core is opaque, so its panel is
+black---\Cref{fig:reduced-density} repeats the comparison with the whole interior
+visible. Difference panels: $\pm\num{5}\,\%$ full scale (conventions,
 \Cref{sec:setup}).}
   \label{fig:absorption-ladder}
+\end{figure}
+
+\paragraph{The cloud at reduced density.} \textbf{Goal:} remove the display's blind spot. At
+production density the cloud's core is optically deep, so the transmittance image is black
+there---and a black pixel can hide any interior error, since below $T\approx10^{-3}$ even a
+large relative error in optical depth no longer changes the pixel visibly. The float64
+optical-depth check above addresses this in the metric domain; this stage addresses it in the
+image itself, by repeating the comparison at a density where the whole interior is visible.
+
+\textbf{Setup:} the same asset, camera, and arms as the cloud stage, with the density
+multiplier reduced from the production \num{7.5} to \num{0.3} (\num{4}\,\% of production). The
+deepest pixel then still transmits $T=\num{0.17}$, so every part of the volume stays in the
+display's responsive range. The reference arm runs its analog estimator (unbiased in every
+revision, \Cref{sec:results-firefly}), averaged over \num{12} seeds of \num{4096}\,spp---%
+\num{49152} effective, the same budget as the cloud stage's reference arm; this renderer's
+arm is deterministic.
+
+\textbf{Result:} mean ratio \num{0.9999}; per-pixel RMSE \num{0.0010}, of which the reference
+arm's own Monte-Carlo noise, measured across its seeds, accounts for \num{0.0009}; the mean
+optical-depth ratio is \num{1.0003}. The difference panel of \Cref{fig:reduced-density} shows
+no spatial structure: with nothing hidden by black, the interior agrees everywhere at the
+noise level.
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/reduced_density.pdf}
+  \caption{The cloud at \num{4}\,\% of production density (multiplier \num{0.3} against the
+production \num{7.5}): this renderer, the reference's analog arm (\num{12} seeds
+$\times$ \num{4096}\,spp), and the signed relative difference. The darkest pixel transmits
+$T=\num{0.17}$, so no interior error can hide in black; the render panels are a plain gamma
+tonemap with no contrast stretch. Mean ratio \num{0.9999}, per-pixel RMSE \num{0.0010}
+against a reference noise floor of \num{0.0009}. Difference panel: $\pm\num{5}\,\%$ full
+scale (conventions, \Cref{sec:setup}).}
+  \label{fig:reduced-density}
 \end{figure}
 
 \section{Scattering: from the furnace test to the full cloud}
@@ -470,10 +507,9 @@ means are estimator-independent, so this three-way comparison is an apples-to-ap
 
 The
 ${\sim}10^{-4}$ figure belongs to the \emph{localised} overlap residual above, not to the image
-means. The comparison resolves effects at the $10^{-4}$ level. The
-reference arm in these comparisons is the analog mode because it is the shipped code's unbiased configuration. The
-reference's \emph{fast} (next-event) estimator is compared too, in its corrected
-revision: immediately below at pixel level, and at equal quality in \Cref{sec:results-perf}
+means. The reference arm in these comparisons is the analog mode, the shipped code's unbiased
+configuration; the \emph{fast} (next-event) estimator is compared too, in its corrected
+revision---immediately below at pixel level, and at equal quality in \Cref{sec:results-perf}
 (\Cref{tab:likeforlike}).
 
 \paragraph{Convergence to a common ground truth.} \textbf{Goal:} show that each renderer's RMSE against a converged render falls at the
@@ -519,9 +555,8 @@ average: the same \num{8192}-spp effective budget on both sides, split into more
 seeds on the cheaper arm (the noise prediction below needs several independent seeds). Under a uniform environment, an
 \num{8}$\times$\num{64}-spp average is compared against a single \num{256}-spp reference
 render.\footnote{Budgets follow the policy of \Cref{sec:setup}: the question is bias, not
-efficiency, and each arm only needs its own noise below the effect under test.} The method asks one question: how
-different are the two mean images, and how different would their own residual noise alone make
-them? The noise prediction comes from each arm's seed spread. Any measured difference above
+efficiency, and each arm only needs its own noise below the effect under test.} The test compares two quantities: the measured difference between the two mean images, and
+the difference their residual noise alone would produce. The noise prediction comes from each arm's seed spread. Any measured difference above
 that prediction is structure that noise cannot explain. The comparison is made image-wide and
 in $60\times60$-pixel tiles; the tiles localise any excess the image-wide number would average
 away.
@@ -576,9 +611,9 @@ gate was not re-run. The exception is
 coloured albedo: it leaves a small channel-dependent
 residual (smaller than $0.2\,\%$ of the image mean, cause not isolated). It touches only tinted
 media; the validation and headline scenes use grey (channel-uniform) albedo. It is the only
-\emph{feature-validation} exception; together with the overlap-region scattering residual
-of \Cref{sec:scattering-ladder} and a third, it is one of three small residuals
-documented as known limitations (\Cref{ch:conclusion}). The third is a ${+}1.8\times10^{-4}$
+\emph{feature-validation} exception, and the second of three small residuals
+documented as known limitations (\Cref{ch:conclusion}), alongside the overlap-region
+scattering residual of \Cref{sec:scattering-ladder}. The third is a ${+}1.8\times10^{-4}$
 brightness offset in low-density interiors. It was measured against Mitsuba-analog at density
 scale \num{2} under a constant environment (\num{3} seeds at \num{512}\,spp); it is small but
 statistically resolved.

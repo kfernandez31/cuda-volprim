@@ -8,6 +8,7 @@
 # stay placeholders until those renders exist (see results/campaign/README.md).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"   # montage scripts (ladder, showcase, reduced_density) use repo-relative paths
 PY="$ROOT/experiments/mitsuba-reference/.venv/bin/python"
 FIG="$ROOT/latex/figures"
 RES="$ROOT/results/campaign"
@@ -59,15 +60,37 @@ fi
 "$PY" "$ROOT/scripts/plots/mc_integ.py" --out "$FIG/mc_integ.pdf"
 "$PY" "$ROOT/scripts/plots/scaling_v2.py" --csv "$ROOT/results/campaign/scaling_v2.csv" --out "$FIG/scaling_v2.pdf"
 
-# --- 5-7. Validation montages (Ch 5): assembled from renders, placeholder until then ---
-ph --title "Absorption validation ladder" \
-   --note "single / overlap / cloud: renderer vs analytic, with RMSE" \
-   --out "$FIG/absorption_ladder.pdf"
-ph --title "Scattering validation ladder" \
-   --note "renderer vs Mitsuba-analog; converged-mean difference" \
-   --out "$FIG/scattering_ladder.pdf"
-ph --title "Showcase at equal quality" \
-   --note "renderer vs Mitsuba-analog; firefly comparison" \
-   --out "$FIG/showcase.pdf"
+# --- 5-7. Validation montages (Ch 5): assembled from banked renders when present,
+# placeholder otherwise (a fresh clone has no results/, so it gets placeholders) ---
+if [ -f "$RES/ladder/abs_single_ours.exr" ]; then
+  "$PY" "$ROOT/scripts/plots/ladder_montage.py" absorption "$FIG/absorption_ladder.pdf"
+else
+  ph --title "Absorption validation ladder" \
+     --note "single / overlap / cloud: renderer vs analytic, with RMSE" \
+     --out "$FIG/absorption_ladder.pdf"
+fi
+if [ -f "$RES/ladder/sc_single_ours.exr" ]; then
+  "$PY" "$ROOT/scripts/plots/ladder_montage.py" scattering "$FIG/scattering_ladder.pdf"
+else
+  ph --title "Scattering validation ladder" \
+     --note "renderer vs Mitsuba-analog; converged-mean difference" \
+     --out "$FIG/scattering_ladder.pdf"
+fi
+if ls "$RES"/g1_seeds/cuda_seed*.exr >/dev/null 2>&1; then
+  "$PY" "$ROOT/scripts/plots/showcase.py"
+else
+  ph --title "Showcase at equal quality" \
+     --note "renderer vs Mitsuba-analog; firefly comparison" \
+     --out "$FIG/showcase.pdf"
+fi
+
+# --- 8. Reduced-density cloud comparison (Ch 5): remedy for deep-tau display clipping ---
+if ls "$RES"/reduced_density/ref_analog_seed*.exr >/dev/null 2>&1; then
+  "$PY" "$ROOT/scripts/plots/reduced_density_panel.py"
+else
+  ph --title "Cloud at reduced density" \
+     --note "ours vs Mitsuba-analog at 4% density (min T 0.17); nothing clips to black" \
+     --out "$FIG/reduced_density.pdf"
+fi
 
 echo "figures regenerated into $FIG"
