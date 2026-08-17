@@ -15,7 +15,7 @@ exits computed analytically. The second is \emph{analog-decomposition scatter sa
 closed-form free flight, and the nearest---the argmin---is the scattering event. Together they replace
 the segment-marching and root-finding that the reference uses for the scatter
 distance (validated end-to-end and by complexity argument rather than by internal ablation;
-\Cref{ch:optimization} states this scope explicitly). Two supporting pillars carry this. The
+\Cref{ch:optimization} states this scope explicitly). Two further contributions support it. The
 first is a \emph{differential-validation methodology}
 (\Cref{ch:validation}) that establishes correctness against Mitsuba and, where a closed form exists,
 against analytic ground truth. It doubles as the unbiasedness evidence for the new sampler. The second is the \emph{performance-engineering study} of \Cref{ch:optimization}. That study
@@ -97,8 +97,8 @@ carrier, adding high-frequency detail) render only their coarse
 The most direct continuations are natural extensions of the kernel-mixture representation, several
 suggested by Condor (personal communication): a \emph{unified emissive/absorptive kernel} model that exploits closed-form
 integrals for accurate product sampling of light sources and BSDFs; \emph{SGGX and microflake} models
-to represent surface-like materials within the same primitive framework; \emph{parametric kernels} for
-more compact and accurate radiance fields; and a bridge from \emph{Lagrangian fluid simulation} directly
+to represent surface-like materials within the same primitive framework; \emph{parametric kernels} for more compact and accurate radiance fields (a direction
+the DSYG paper's own future work names~\cite{DSYG}); and a bridge from \emph{Lagrangian fluid simulation} directly
 to kernel mixtures, bypassing voxelisation and kernel regression.
 
 Three engineering directions follow from this thesis specifically. First, \emph{differentiable and
@@ -113,13 +113,12 @@ offline estimator already predicts per asset (\Cref{tab:overlap}). Removing the 
 re-issues the traversal from the last processed distance to gather the next chunk and repeats: this pays
 an extra re-traversal only on the rare overflowing ray, keeps the single-trace fast path for the common
 case, and removes the per-asset recompile without re-introducing the cap-free design's
-whole-render cost. A cheaper, already-quantified target is the bounce-\num{0} containment scan of
-\Cref{sec:results-scaling}: by the fitted cost model it takes ${\sim}5\,\%$ of frame
-time on the small assets and ${\sim}12\,\%$ on the bunny, and its share grows with asset
-size. Two untried fixes exist: precomputing the camera's containing set once per frame
-(the bounce-\num{0} query point is shared by every sample), or a point query against the
-acceleration structure for arbitrary origins. Either removes the renderer's one remaining
-$O(N)$ per-sample term. Path guiding, deferred here for want of a cheap
+whole-render cost. The bounce-\num{0} containment scan of \Cref{sec:results-scaling} has already yielded:
+precomputing the camera's containing set once per render, implemented post-freeze on a
+branch, is byte-identical in output and measured $1.1$--$3.0\times$ per asset at the
+matched configuration ($2.95\times$ on the bunny). Merging it and re-baselining the
+timing results, plus the general acceleration-structure point query for arbitrary-origin
+cameras (the orthographic showcase still scans), is the natural first step. Path guiding, deferred here for want of a cheap
 predictive test (\Cref{sec:autopsies}), would also merit a revisit with a full offline oracle.
 
 \section{Closing}
@@ -130,7 +129,7 @@ both \emph{correctly} and \emph{efficiently} by exploiting the analytic, inverti
 per-primitive optical depth: the resulting path tracer needs no sorting, no marching, and
 no numerical root-finding. The negative results of \Cref{ch:optimization} are as useful in
 practice: this workload is latency-bound, belongs in a single persistent kernel, and
-resists the restructurings that help more conventional path tracers---knowledge that should
-save the next implementer real time. The renderer, its test scenes, and the scripts behind
+resists the restructurings that help more conventional path tracers---which should spare
+the next implementer the same experiments. The renderer, its test scenes, and the scripts behind
 every figure in this document are available as open source (\Cref{sec:gpu-impl}), so the
 results can be re-run, extended, or challenged.

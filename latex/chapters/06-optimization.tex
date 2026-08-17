@@ -79,8 +79,8 @@ placed in one of three modes (\Cref{tab:four-modes}):
     \bottomrule
   \end{tabular}%
   }
-  \caption{The three justification modes: the chapter measures what is informative, complexity-argues
-  what is bounded, and cites the standard.}
+  \caption{The three justification modes: optimisations are measured when the outcome is
+  uncertain, argued by complexity when it is bounded, and cited when they are standard practice.}
   \label{tab:four-modes}
 \end{table}
 
@@ -366,8 +366,8 @@ $1.17$--$1.58\times$ the frame time of every tessellated level. Frame times: clo
 \textbf{Result---throughput.} Which geometry is cheaper here was not obvious in advance. The analytic
 sphere is the single instanced unit-sphere GAS of \Cref{sec:gpu-impl}---one primitive,
 transformed per instance, against a mesh duplicated per primitive---and is intersected by
-OptiX's built-in sphere routine. The measurement (\Cref{tab:icosphere}) decides
-against the analytic sphere. The tessellated shell is \emph{faster at every tessellation level}: the analytic sphere pays $1.17$--$1.58\times$ in frame time for its exactness. The
+OptiX's built-in sphere routine. On the timing question, \Cref{tab:icosphere} favours the
+tessellated shell: it is \emph{faster at every tessellation level}, and the analytic sphere pays $1.17$--$1.58\times$ in frame time for its exactness. The
 mechanism is the one the DSYG paper itself identified~\cite{DSYG}. On RTX-class hardware,
 ray-triangle intersection runs on the
 dedicated ray-tracing cores; the built-in sphere is intersected by a \emph{software} routine on
@@ -399,11 +399,11 @@ screen footprint rather than anisotropy---the round-primitive cloud, whose large
 most silhouette pixels per primitive, is hit hardest. Because these are deterministic absorption renders, the effect is
 exactly reproducible. An added $\ell{=}4$ level continues the trend: both the error and the
 affected-pixel population keep growing (\Cref{fig:icosphere-sliver}). Past $\ell{\approx}2$,
-finer tessellation buys worse accuracy at higher cost---consistent with the reference's
+finer tessellation is both slower and less accurate---consistent with the reference's
 shell ablation never going beyond \num{320} triangles.
 
 The decision, then, is a genuine accuracy-versus-performance trade, and this renderer keeps the
-analytic sphere \emph{for correctness, at a now-quantified price}. Even the best shell
+analytic sphere for correctness, at the $1.17$--$1.58\times$ frame-time cost measured above. Even the best shell
 ($\ell{=}2$) brightens the whole cloud image by ${\sim}0.16\,\%$---invisible to the eye.
 But that is an order of magnitude above the $10^{-4}$-level energy agreement that the validation gates of
 \Cref{ch:validation} hold the renderer to. The analytic shell makes those gates attainable.
@@ -679,14 +679,10 @@ these figures.}
 \section{Memory}
 \label{sec:opt-memory}
 
-Performance is not only time; one memory result matters here: the megakernel's per-ray
-state. The wavefront failure above turns on exactly that state: the per-ray bytes
-(\Cref{sec:autopsies}), multiplied by the live ray count, are what overruns L2 and collapses
-performance. That
-is the
-clearest evidence that keeping per-ray state register-resident is the design choice the
-renderer's performance depends on. The acceleration structure itself is not where the budget goes. It is sub-megabyte
-for the cloud and a few megabytes for the bunny, and it is dwarfed by the per-ray state. It is built
+On the memory side, the acceleration structure is not where the budget goes: it is
+sub-megabyte for the cloud and a few megabytes for the bunny, dwarfed by the megakernel's
+per-ray state---the same state whose externalisation sank the wavefront attempt
+(\Cref{sec:autopsies}). It is built
 with compaction as a matter of course (a single
 build flag, \texttt{OPTIX\_BUILD\_FLAG\_ALLOW\_COMPACTION}, also used by the reference).
 

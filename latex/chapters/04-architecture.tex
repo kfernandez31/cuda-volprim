@@ -421,8 +421,8 @@ renderer's peak device memory on the cloud ($578\,$MiB) sits \emph{below} the Mi
 ($838\,$MiB) on the same scene; the untuned safe build ($1200\,$MiB) exceeds it. The active set
 (\num{2} bytes per entry) tolerates \emph{modest} headroom: doubling its
 capacity beyond the cloud's worst case measured as timing-neutral in an interleaved A/B (differences
-under the run-to-run jitter), with renders numerically equivalent. What ultimately matters is the total
-reserved bytes per ray, not which cap. The hit buffer consumes them three times faster per entry and is
+under the run-to-run jitter), with renders numerically equivalent. The total reserved bytes
+per ray matter more than which cap reserves them. The hit buffer consumes them three times faster per entry and is
 the more sensitive cap; a large active-set increase ($80\to512$ on the bunny) is not free either.
 
 The caps are sized from measured demand. A \texttt{--measure-caps} render mode counts the

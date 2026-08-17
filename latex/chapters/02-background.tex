@@ -2,9 +2,9 @@
 \label{ch:background}
 
 This chapter reviews the background the renderer builds on. It moves from the general to the
-specific: Monte~Carlo integration (the numerical method), the rendering equation and its
-volumetric generalisation (the physics), the Gaussian kernel-mixture model (the scene
-representation), and hardware-accelerated ray tracing (the platform it all runs on). A recurring theme, picked up
+specific: Monte~Carlo integration, the rendering equation and its
+volumetric generalisation, the Gaussian kernel-mixture model, and hardware-accelerated
+ray tracing. A recurring theme, picked up
 in earnest in \Cref{ch:architecture}, is that the Gaussian primitive is \emph{analytically
 tractable}: integrals that are stochastic for a general medium have closed forms for a Gaussian.
 Exploiting this separates the renderer from the segment-marching reference.
@@ -116,9 +116,12 @@ one solves
 \[
   \tau(t) = -\ln(1-\xi)
 \]
-for $t$, the \emph{free-flight} distance. In a heterogeneous medium this is solved implicitly by
-tracking---there is no closed form for $\tau^{-1}$---and the reference implementation marches the ray
-segment by segment and root-finds $t$. Because each Gaussian primitive here has an analytic,
+for $t$, the \emph{free-flight} distance. In a general heterogeneous medium there is no
+closed form for $\tau^{-1}$, and two distinct solution families exist: stochastic
+\emph{tracking} (delta tracking and its variants, \Cref{sec:volumetric-mc}), which never
+inverts $\tau$ at all, and \emph{regular tracking}, which marches a piecewise-analytic
+medium boundary by boundary---the reference's approach, with a root-find inside
+multi-primitive segments (\Cref{sec:dsyg}). Because each Gaussian primitive here has an analytic,
 invertible optical-depth profile, its free-flight distance can instead be sampled in \emph{closed
 form}. This property underlies the sort- and march-free scatter sampling introduced in
 \Cref{ch:architecture}.
